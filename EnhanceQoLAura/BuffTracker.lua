@@ -13,12 +13,12 @@ local AceGUI = addon.AceGUI
 local selectedCategory = addon.db["buffTrackerSelectedCategory"] or 1
 
 for _, cat in pairs(addon.db["buffTrackerCategories"]) do
-        for _, buff in pairs(cat.buffs or {}) do
-                if not buff.trackType then buff.trackType = "BUFF" end
-                if not buff.allowedSpecs then buff.allowedSpecs = {} end
-                if not buff.allowedClasses then buff.allowedClasses = {} end
-                if not buff.allowedRoles then buff.allowedRoles = {} end
-        end
+	for _, buff in pairs(cat.buffs or {}) do
+		if not buff.trackType then buff.trackType = "BUFF" end
+		if not buff.allowedSpecs then buff.allowedSpecs = {} end
+		if not buff.allowedClasses then buff.allowedClasses = {} end
+		if not buff.allowedRoles then buff.allowedRoles = {} end
+	end
 end
 
 local anchors = {}
@@ -76,21 +76,21 @@ local function categoryAllowed(cat)
 end
 
 local function buffAllowed(buff)
-        if buff.allowedClasses and next(buff.allowedClasses) then
-                if not buff.allowedClasses[addon.variables.unitClass] then return false end
-        end
-        if buff.allowedSpecs and next(buff.allowedSpecs) then
-                local specIndex = addon.variables.unitSpec
-                if not specIndex then return false end
-                local currentSpecID = GetSpecializationInfo(specIndex)
-                if not buff.allowedSpecs[currentSpecID] then return false end
-        end
-        if buff.allowedRoles and next(buff.allowedRoles) then
-                local role = UnitGroupRolesAssigned("player")
-                if role == "NONE" then role = addon.variables.unitRole end
-                if not role or not buff.allowedRoles[role] then return false end
-        end
-        return true
+	if buff.allowedClasses and next(buff.allowedClasses) then
+		if not buff.allowedClasses[addon.variables.unitClass] then return false end
+	end
+	if buff.allowedSpecs and next(buff.allowedSpecs) then
+		local specIndex = addon.variables.unitSpec
+		if not specIndex then return false end
+		local currentSpecID = GetSpecializationInfo(specIndex)
+		if not buff.allowedSpecs[currentSpecID] then return false end
+	end
+	if buff.allowedRoles and next(buff.allowedRoles) then
+		local role = UnitGroupRolesAssigned("player")
+		if role == "NONE" then role = addon.variables.unitRole end
+		if not role or not buff.allowedRoles[role] then return false end
+	end
+	return true
 end
 
 function addon.Aura.functions.BuildSoundTable()
@@ -260,16 +260,14 @@ local function playBuffSound(catId, baseId, altId)
 end
 
 local function updateBuff(catId, id)
-        local cat = getCategory(catId)
-        local buff = cat and cat.buffs and cat.buffs[id]
-        if buff and not buffAllowed(buff) then
-                if activeBuffFrames[catId] and activeBuffFrames[catId][id] then
-                        activeBuffFrames[catId][id]:Hide()
-                end
-                return
-        end
+	local cat = getCategory(catId)
+	local buff = cat and cat.buffs and cat.buffs[id]
+	if buff and not buffAllowed(buff) then
+		if activeBuffFrames[catId] and activeBuffFrames[catId][id] then activeBuffFrames[catId][id]:Hide() end
+		return
+	end
 
-        local aura = C_UnitAuras.GetPlayerAuraBySpellID(id)
+	local aura = C_UnitAuras.GetPlayerAuraBySpellID(id)
 	local triggeredId = id
 	if not aura and buff and buff.altIDs then
 		for _, altId in ipairs(buff.altIDs) do
@@ -280,14 +278,14 @@ local function updateBuff(catId, id)
 			end
 		end
 	end
-        if aura then
-                local tType = buff and buff.trackType or (cat and cat.trackType) or "BUFF"
-                if tType == "DEBUFF" and not aura.isHarmful then
-                        aura = nil
-                elseif tType == "BUFF" and not aura.isHelpful then
-                        aura = nil
-                end
-        end
+	if aura then
+		local tType = buff and buff.trackType or (cat and cat.trackType) or "BUFF"
+		if tType == "DEBUFF" and not aura.isHarmful then
+			aura = nil
+		elseif tType == "BUFF" and not aura.isHelpful then
+			aura = nil
+		end
+	end
 
 	activeBuffFrames[catId] = activeBuffFrames[catId] or {}
 	local frame = activeBuffFrames[catId][id]
@@ -448,19 +446,19 @@ local function addBuff(catId, id)
 	local cat = getCategory(catId)
 	if not cat then return end
 
-        cat.buffs[id] = {
-                name = spellData.name,
-                icon = spellData.iconID,
-                altIDs = {},
-                showWhenMissing = false,
-                showAlways = false,
-                glow = false,
-                castOnClick = false,
-                trackType = "BUFF",
-                allowedSpecs = {},
-                allowedClasses = {},
-                allowedRoles = {},
-        }
+	cat.buffs[id] = {
+		name = spellData.name,
+		icon = spellData.iconID,
+		altIDs = {},
+		showWhenMissing = false,
+		showAlways = false,
+		glow = false,
+		castOnClick = false,
+		trackType = "BUFF",
+		allowedSpecs = {},
+		allowedClasses = {},
+		allowedRoles = {},
+	}
 
 	if nil == addon.db["buffTrackerOrder"][catId] then addon.db["buffTrackerOrder"][catId] = {} end
 	if not tContains(addon.db["buffTrackerOrder"][catId], id) then table.insert(addon.db["buffTrackerOrder"][catId], id) end
@@ -495,12 +493,10 @@ local treeGroup
 
 local function getCategoryTree()
 	local tree = {}
-        for catId, cat in pairs(addon.db["buffTrackerCategories"]) do
-                local text = cat.name
-                if addon.db["buffTrackerEnabled"] and addon.db["buffTrackerEnabled"][catId] == false then
-                        text = "|cff808080" .. text .. "|r"
-                end
-                local node = { value = catId, text = text, children = {} }
+	for catId, cat in pairs(addon.db["buffTrackerCategories"]) do
+		local text = cat.name
+		if addon.db["buffTrackerEnabled"] and addon.db["buffTrackerEnabled"][catId] == false then text = "|cff808080" .. text .. "|r" end
+		local node = { value = catId, text = text, children = {} }
 		local buffs = {}
 		for id, data in pairs(cat.buffs) do
 			table.insert(buffs, { id = id, name = data.name })
@@ -596,6 +592,7 @@ function addon.Aura.functions.buildCategoryOptions(container, catId)
 		end
 		applyLockState()
 		scanBuffs()
+		refreshTree(selectedCategory)
 	end)
 	core:AddChild(enableCB)
 
@@ -625,7 +622,6 @@ function addon.Aura.functions.buildCategoryOptions(container, catId)
 	dirDrop:SetValue(cat.direction)
 	dirDrop:SetRelativeWidth(0.4)
 	core:AddChild(dirDrop)
-
 
 	local spellEdit = addon.functions.createEditboxAce(L["AddSpellID"], nil, function(self, _, text)
 		local id = tonumber(text)
@@ -737,51 +733,51 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 		buff.glow = val
 		scanBuffs()
 	end)
-        wrapper:AddChild(cbGlow)
+	wrapper:AddChild(cbGlow)
 
-        local typeDrop = addon.functions.createDropdownAce(L["TrackType"], { BUFF = L["Buff"], DEBUFF = L["Debuff"] }, nil, function(self, _, val)
-                buff.trackType = val
-                scanBuffs()
-        end)
-        typeDrop:SetValue(buff.trackType or "BUFF")
-        typeDrop:SetRelativeWidth(0.4)
-        wrapper:AddChild(typeDrop)
+	local typeDrop = addon.functions.createDropdownAce(L["TrackType"], { BUFF = L["Buff"], DEBUFF = L["Debuff"] }, nil, function(self, _, val)
+		buff.trackType = val
+		scanBuffs()
+	end)
+	typeDrop:SetValue(buff.trackType or "BUFF")
+	typeDrop:SetRelativeWidth(0.4)
+	wrapper:AddChild(typeDrop)
 
-        local specDrop = addon.functions.createDropdownAce(L["ShowForSpec"], specNames, nil, function(self, event, key, checked)
-                buff.allowedSpecs = buff.allowedSpecs or {}
-                buff.allowedSpecs[key] = checked or nil
-                scanBuffs()
-        end)
-        specDrop:SetMultiselect(true)
-        for specID, val in pairs(buff.allowedSpecs or {}) do
-                if val then specDrop:SetItemValue(specID, true) end
-        end
-        specDrop:SetRelativeWidth(0.48)
-        wrapper:AddChild(specDrop)
+	local specDrop = addon.functions.createDropdownAce(L["ShowForSpec"], specNames, nil, function(self, event, key, checked)
+		buff.allowedSpecs = buff.allowedSpecs or {}
+		buff.allowedSpecs[key] = checked or nil
+		scanBuffs()
+	end)
+	specDrop:SetMultiselect(true)
+	for specID, val in pairs(buff.allowedSpecs or {}) do
+		if val then specDrop:SetItemValue(specID, true) end
+	end
+	specDrop:SetRelativeWidth(0.48)
+	wrapper:AddChild(specDrop)
 
-        local classDrop = addon.functions.createDropdownAce(L["ShowForClass"], classNames, nil, function(self, event, key, checked)
-                buff.allowedClasses = buff.allowedClasses or {}
-                buff.allowedClasses[key] = checked or nil
-                scanBuffs()
-        end)
-        classDrop:SetMultiselect(true)
-        for c, val in pairs(buff.allowedClasses or {}) do
-                if val then classDrop:SetItemValue(c, true) end
-        end
-        classDrop:SetRelativeWidth(0.48)
-        wrapper:AddChild(classDrop)
+	local classDrop = addon.functions.createDropdownAce(L["ShowForClass"], classNames, nil, function(self, event, key, checked)
+		buff.allowedClasses = buff.allowedClasses or {}
+		buff.allowedClasses[key] = checked or nil
+		scanBuffs()
+	end)
+	classDrop:SetMultiselect(true)
+	for c, val in pairs(buff.allowedClasses or {}) do
+		if val then classDrop:SetItemValue(c, true) end
+	end
+	classDrop:SetRelativeWidth(0.48)
+	wrapper:AddChild(classDrop)
 
-        local roleDrop = addon.functions.createDropdownAce(L["ShowForRole"], roleNames, nil, function(self, event, key, checked)
-                buff.allowedRoles = buff.allowedRoles or {}
-                buff.allowedRoles[key] = checked or nil
-                scanBuffs()
-        end)
-        roleDrop:SetMultiselect(true)
-        for r, val in pairs(buff.allowedRoles or {}) do
-                if val then roleDrop:SetItemValue(r, true) end
-        end
-        roleDrop:SetRelativeWidth(0.5)
-        wrapper:AddChild(roleDrop)
+	local roleDrop = addon.functions.createDropdownAce(L["ShowForRole"], roleNames, nil, function(self, event, key, checked)
+		buff.allowedRoles = buff.allowedRoles or {}
+		buff.allowedRoles[key] = checked or nil
+		scanBuffs()
+	end)
+	roleDrop:SetMultiselect(true)
+	for r, val in pairs(buff.allowedRoles or {}) do
+		if val then roleDrop:SetItemValue(r, true) end
+	end
+	roleDrop:SetRelativeWidth(0.5)
+	wrapper:AddChild(roleDrop)
 
 	-- if IsSpellKnown(buffId) or IsSpellKnownOrOverridesKnown(buffId) then
 	-- 	local cbCast = addon.functions.createCheckboxAce(L["buffTrackerCastOnClick"], buff.castOnClick, function(_, _, val)
@@ -870,10 +866,10 @@ function addon.Aura.functions.addBuffTrackerOptions(container)
 				point = "CENTER",
 				x = 0,
 				y = 0,
-                                size = 36,
-                                direction = "RIGHT",
-                                buffs = {},
-                        }
+				size = 36,
+				direction = "RIGHT",
+				buffs = {},
+			}
 			ensureAnchor(newId)
 			refreshTree(newId) -- rebuild tree and select new node
 			return -- don’t build options for pseudo‑node
