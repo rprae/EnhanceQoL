@@ -126,9 +126,12 @@ local function rebuildAltMapping()
 		for baseId, buff in pairs(cat.buffs or {}) do
 			spellToCat[baseId] = spellToCat[baseId] or {}
 			spellToCat[baseId][catId] = true
+
+			buff.altHash = {}
 			if buff.altIDs then
 				for _, altId in ipairs(buff.altIDs) do
 					altToBase[altId] = baseId
+					buff.altHash[altId] = true
 				end
 			end
 		end
@@ -289,7 +292,7 @@ local function playBuffSound(catId, baseId, altId)
 	if file then PlaySoundFile(file, "Master") end
 end
 
-local function updateBuff(catId, id)
+local function updateBuff(catId, id, changedId)
 	local cat = getCategory(catId)
 	local buff = cat and cat.buffs and cat.buffs[id]
 	if buff and not buffAllowed(buff) then
@@ -297,14 +300,21 @@ local function updateBuff(catId, id)
 		return
 	end
 
-	local aura = C_UnitAuras.GetPlayerAuraBySpellID(id)
+	local aura
 	local triggeredId = id
-	if not aura and buff and buff.altIDs then
-		for _, altId in ipairs(buff.altIDs) do
-			aura = C_UnitAuras.GetPlayerAuraBySpellID(altId)
-			if aura then
-				triggeredId = altId
-				break
+	if changedId and (changedId == id or (buff and buff.altHash and buff.altHash[changedId])) then
+		aura = C_UnitAuras.GetPlayerAuraBySpellID(changedId)
+		triggeredId = changedId
+	else
+		aura = C_UnitAuras.GetPlayerAuraBySpellID(id)
+		triggeredId = id
+		if not aura and buff and buff.altHash then
+			for altId in pairs(buff.altHash) do
+				aura = C_UnitAuras.GetPlayerAuraBySpellID(altId)
+				if aura then
+					triggeredId = altId
+					break
+				end
 			end
 		end
 	end
@@ -480,14 +490,14 @@ eventFrame:SetScript("OnEvent", function(_, event, unit, ...)
 		if eventInfo then
 			local changed = {}
 			for _, aura in ipairs(eventInfo.addedAuras or {}) do
-				local id = altToBase[aura.spellId] or aura.spellId
-				changed[id] = true
+				local base = altToBase[aura.spellId] or aura.spellId
+				changed[base] = aura.spellId
 			end
 			for _, inst in ipairs(eventInfo.updatedAuraInstanceIDs or {}) do
 				local data = C_UnitAuras.GetAuraDataByAuraInstanceID("player", inst)
 				if data then
-					local id = altToBase[data.spellId] or data.spellId
-					changed[id] = true
+					local base = altToBase[data.spellId] or data.spellId
+					changed[base] = data.spellId
 				elseif auraInstanceMap[inst] then
 					changed[auraInstanceMap[inst].buffId] = true
 				end
@@ -498,12 +508,13 @@ eventFrame:SetScript("OnEvent", function(_, event, unit, ...)
 			end
 
 			local updated = {}
-			for spellId in pairs(changed) do
+			for spellId, cId in pairs(changed) do
 				for catId in pairs(spellToCat[spellId] or {}) do
 					local cat = addon.db["buffTrackerCategories"][catId]
 					if addon.db["buffTrackerEnabled"][catId] and categoryAllowed(cat) then
 						if not addon.db["buffTrackerHidden"][spellId] then
-							updateBuff(catId, spellId)
+							local changedId = cId ~= true and cId or nil
+							updateBuff(catId, spellId, changedId)
 						elseif activeBuffFrames[catId] and activeBuffFrames[catId][spellId] then
 							activeBuffFrames[catId][spellId]:Hide()
 						end
