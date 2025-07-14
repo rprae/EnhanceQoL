@@ -273,3 +273,5 @@ L["IgnoredApplicant"] = "Player is on your ignore list"
 L["IgnoreAdded"] = "%s has been added to your ignore list"
 L["IgnoreRemoved"] = "%s has been removed from your ignore list"
 L["IgnoreExpiredRemoved"] = "%s was removed from your ignore list (expired)"
+
+L["UnitFrameUFExplain"] = "Applies to RAID and Party Frames"

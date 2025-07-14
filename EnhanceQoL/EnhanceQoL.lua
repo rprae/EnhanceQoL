@@ -1357,7 +1357,11 @@ local function addUnitFrame(container)
 		groupCore:AddChild(cbElement)
 	end
 
-	groupCore:AddChild(addon.functions.createSpacerAce())
+	local groupCoreUF = addon.functions.createContainer("InlineGroup", "List")
+	wrapper:AddChild(groupCoreUF)
+	local labelHeadlineUF = addon.functions.createLabelAce("|cffffd700" .. L["UnitFrameUFExplain"] .. "|r", nil, nil, 14)
+	labelHeadlineUF:SetFullWidth(true)
+	groupCoreUF:AddChild(labelHeadlineUF)
 
 	local sliderName
 	local cbTruncate = addon.functions.createCheckboxAce(L["unitFrameTruncateNames"], addon.db.unitFrameTruncateNames, function(self, _, v)
@@ -1365,7 +1369,7 @@ local function addUnitFrame(container)
 		if sliderName then sliderName:SetDisabled(not v) end
 		addon.functions.updateUnitFrameNames()
 	end)
-	groupCore:AddChild(cbTruncate)
+	groupCoreUF:AddChild(cbTruncate)
 
 	sliderName = addon.functions.createSliderAce(L["unitFrameMaxNameLength"] .. ": " .. addon.db.unitFrameMaxNameLength, addon.db.unitFrameMaxNameLength, 1, 20, 1, function(self, _, val)
 		addon.db.unitFrameMaxNameLength = val
@@ -1373,9 +1377,9 @@ local function addUnitFrame(container)
 		addon.functions.updateUnitFrameNames()
 	end)
 	sliderName:SetDisabled(not addon.db.unitFrameTruncateNames)
-	groupCore:AddChild(sliderName)
+	groupCoreUF:AddChild(sliderName)
 
-	groupCore:AddChild(addon.functions.createSpacerAce())
+	groupCoreUF:AddChild(addon.functions.createSpacerAce())
 end
 
 local function addDynamicFlightFrame(container)
