@@ -13,12 +13,14 @@ local AceGUI = addon.AceGUI
 local selectedCategory = addon.db["buffTrackerSelectedCategory"] or 1
 
 for _, cat in pairs(addon.db["buffTrackerCategories"]) do
-	for _, buff in pairs(cat.buffs or {}) do
-		if not buff.trackType then buff.trackType = "BUFF" end
-		if not buff.allowedSpecs then buff.allowedSpecs = {} end
-		if not buff.allowedClasses then buff.allowedClasses = {} end
-		if not buff.allowedRoles then buff.allowedRoles = {} end
-	end
+        for _, buff in pairs(cat.buffs or {}) do
+                if not buff.trackType then buff.trackType = "BUFF" end
+                if not buff.allowedSpecs then buff.allowedSpecs = {} end
+                if not buff.allowedClasses then buff.allowedClasses = {} end
+                if not buff.allowedRoles then buff.allowedRoles = {} end
+                if buff.stackOp == nil then buff.stackOp = nil end
+                if buff.stackVal == nil then buff.stackVal = nil end
+        end
 end
 
 local anchors = {}
@@ -116,6 +118,16 @@ function addon.Aura.functions.BuildSoundTable()
 	addon.Aura.sounds = result
 end
 addon.Aura.functions.BuildSoundTable()
+
+local function stackConditionMet(buff, aura)
+       if not buff or not buff.stackOp or not buff.stackVal then return true end
+       local stacks = aura and aura.applications or 0
+       if buff.stackOp == ">" then
+               return stacks > buff.stackVal
+       else
+               return stacks < buff.stackVal
+       end
+end
 
 local function getCategory(id) return addon.db["buffTrackerCategories"][id] end
 
@@ -245,6 +257,14 @@ local function applySize(id)
 	updatePositions(id)
 end
 
+local function applyTimerText()
+       for _, frames in pairs(activeBuffFrames) do
+               for _, frame in pairs(frames) do
+                       if frame.cd then frame.cd.noCooldownCount = not addon.db["buffTrackerShowTimerText"] end
+               end
+       end
+end
+
 local function createBuffFrame(icon, parent, size, castOnClick, spellID)
 	local frameType = castOnClick and "Button" or "Frame"
 	-- local template = castOnClick and "SecureActionButtonTemplate" or nil
@@ -258,10 +278,11 @@ local function createBuffFrame(icon, parent, size, castOnClick, spellID)
 	tex:SetTexture(icon)
 	frame.icon = tex
 
-	local cd = CreateFrame("Cooldown", nil, frame, "CooldownFrameTemplate")
-	cd:SetAllPoints(frame)
-	cd:SetDrawEdge(false)
-	frame.cd = cd
+        local cd = CreateFrame("Cooldown", nil, frame, "CooldownFrameTemplate")
+        cd:SetAllPoints(frame)
+        cd:SetDrawEdge(false)
+        cd.noCooldownCount = not addon.db["buffTrackerShowTimerText"]
+        frame.cd = cd
 
 	local count = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	count:SetFont(addon.variables.defaultFont, 16, "OUTLINE")
@@ -325,14 +346,18 @@ local function updateBuff(catId, id, changedId)
 			end
 		end
 	end
-	if aura then
-		local tType = buff and buff.trackType or (cat and cat.trackType) or "BUFF"
-		if tType == "DEBUFF" and not aura.isHarmful then
-			aura = nil
-		elseif tType == "BUFF" and not aura.isHelpful then
-			aura = nil
-		end
-	end
+        if aura then
+                local tType = buff and buff.trackType or (cat and cat.trackType) or "BUFF"
+                if tType == "DEBUFF" and not aura.isHarmful then
+                        aura = nil
+                elseif tType == "BUFF" and not aura.isHelpful then
+                        aura = nil
+                end
+        end
+
+        if aura and not stackConditionMet(buff, aura) then
+                aura = nil
+        end
 
 	activeBuffFrames[catId] = activeBuffFrames[catId] or {}
 	local frame = activeBuffFrames[catId][id]
@@ -565,13 +590,15 @@ local function addBuff(catId, id)
 		altIDs = {},
 		showWhenMissing = false,
 		showAlways = false,
-		glow = false,
-		castOnClick = false,
-		trackType = "BUFF",
-		allowedSpecs = {},
-		allowedClasses = {},
-		allowedRoles = {},
-	}
+                glow = false,
+                castOnClick = false,
+                trackType = "BUFF",
+               stackOp = nil,
+               stackVal = nil,
+                allowedSpecs = {},
+                allowedClasses = {},
+                allowedRoles = {},
+        }
 
 	if nil == addon.db["buffTrackerOrder"][catId] then addon.db["buffTrackerOrder"][catId] = {} end
 	if not tContains(addon.db["buffTrackerOrder"][catId], id) then table.insert(addon.db["buffTrackerOrder"][catId], id) end
@@ -850,7 +877,33 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 		buff.glow = val
 		scanBuffs()
 	end)
-	wrapper:AddChild(cbGlow)
+       wrapper:AddChild(cbGlow)
+
+       local stackRow = addon.functions.createContainer("SimpleGroup", "Flow")
+       stackRow:SetFullWidth(true)
+       local lblStacks = AceGUI:Create("Label")
+       lblStacks:SetText(L["buffTrackerShowWhenStacks"])
+       lblStacks:SetRelativeWidth(0.4)
+       stackRow:AddChild(lblStacks)
+
+       local dropStack = addon.functions.createDropdownAce(nil, { [">"] = ">", ["<"] = "<" }, nil, function(self, _, val)
+               buff.stackOp = val
+               scanBuffs()
+       end)
+       dropStack:SetValue(buff.stackOp)
+       dropStack:SetRelativeWidth(0.2)
+       stackRow:AddChild(dropStack)
+
+       local editStack = addon.functions.createEditboxAce(nil, buff.stackVal and tostring(buff.stackVal) or "", function(self, _, text)
+               local num = tonumber(text)
+               buff.stackVal = num
+               scanBuffs()
+       end)
+       editStack:SetRelativeWidth(0.4)
+       stackRow:AddChild(editStack)
+
+       wrapper:AddChild(stackRow)
+       wrapper:AddChild(addon.functions.createSpacerAce())
 
 	local typeDrop = addon.functions.createDropdownAce(L["TrackType"], { BUFF = L["Buff"], DEBUFF = L["Debuff"] }, nil, function(self, _, val)
 		buff.trackType = val
@@ -1020,11 +1073,17 @@ function addon.Aura.functions.addBuffTrackerOptions(container)
 
 	left:AddChild(treeGroup)
 
-	local cbStacks = addon.functions.createCheckboxAce(L["buffTrackerShowStacks"], addon.db["buffTrackerShowStacks"], function(_, _, val)
-		addon.db["buffTrackerShowStacks"] = val
-		scanBuffs()
-	end)
-	left:AddChild(cbStacks)
+       local cbStacks = addon.functions.createCheckboxAce(L["buffTrackerShowStacks"], addon.db["buffTrackerShowStacks"], function(_, _, val)
+               addon.db["buffTrackerShowStacks"] = val
+               scanBuffs()
+       end)
+       left:AddChild(cbStacks)
+
+       local cbTimer = addon.functions.createCheckboxAce(L["buffTrackerShowTimerText"], addon.db["buffTrackerShowTimerText"], function(_, _, val)
+               addon.db["buffTrackerShowTimerText"] = val
+               applyTimerText()
+       end)
+       left:AddChild(cbTimer)
 
 	local ok = treeGroup:SelectByValue(tostring(selectedCategory))
 	if not ok then
@@ -1035,6 +1094,7 @@ function addon.Aura.functions.addBuffTrackerOptions(container)
 end
 
 for id in pairs(addon.db["buffTrackerCategories"]) do
-	applySize(id)
+        applySize(id)
 end
 applyLockState()
+applyTimerText()
