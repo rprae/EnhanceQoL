@@ -121,7 +121,7 @@ local function UpdateTrackedBuffs(frame, unit)
 			AuraUtil.ForEachAura(unit, "HELPFUL", nil, function(aura)
 				local spellId = aura.spellId
 				local data = tracker.spells and tracker.spells[spellId]
-				if data then
+				if data and (not data.onlyMine or (aura.sourceUnit and UnitIsUnit(aura.sourceUnit, "player"))) then
 					index = index + 1
 					local iconFrame = ensureIcon(frame, tId, index)
 					iconFrame.icon:SetTexture(aura.icon)
@@ -479,6 +479,12 @@ local function buildSpellOptions(container, tId, spellId)
 		RefreshAll()
 	end)
 	core:AddChild(cb)
+
+	local mineCB = addon.functions.createCheckboxAce(L["CastByPlayer"], info.onlyMine or false, function(_, _, val)
+		info.onlyMine = val
+		RefreshAll()
+	end)
+	core:AddChild(mineCB)
 
 	-- local swipeCB = addon.functions.createCheckboxAce(L["ShowCooldownSwipe"], info.showSwipe == nil and addon.db.unitFrameAuraShowSwipe or info.showSwipe, function(_, _, val)
 	-- 	info.showSwipe = val
