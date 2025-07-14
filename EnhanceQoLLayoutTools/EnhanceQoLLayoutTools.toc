@@ -12,7 +12,7 @@
 ## Notes-ruRU: Подсказка изменяет видимость в различных ситуациях
 ## Notes-koKR: 툴팁은 다양한 상황에서 표시 여부를 수정합니다
 ## Notes-zhCN: 提示信息在不同情况下更改可见性
-## Notes-zhTW: 提示在不同情況下修改可見性## Dependencies: EnhanceQoL
+## Notes-zhTW: 提示在不同情況下修改可見性
 ## IconTexture: Interface\AddOns\EnhanceQoLLayoutTools\Icons\Icon.tga
 ## Dependencies: EnhanceQoL
 ## Retail: true

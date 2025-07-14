@@ -3,6 +3,16 @@
 ## Author: R41Z0R
 ## Version: @project-version@
 ## Notes: Track buffs and debuffs
+## Notes-deDE: Verfolge Stärkungs- und Schwächungszauber
+## Notes-esES: Rastrear beneficios y perjuicios
+## Notes-esMX: Rastrea beneficios y perjuicios
+## Notes-frFR: Suivre les améliorations et les affaiblissements
+## Notes-itIT: Tieni traccia di buff e debuff
+## Notes-ptBR: Acompanhe buffs e debuffs
+## Notes-ruRU: Отслеживание баффов и дебаффов
+## Notes-koKR: 버프와 디버프를 추적합니다
+## Notes-zhCN: 追踪增益和减益效果
+## Notes-zhTW: 追蹤增益與減益效果
 ## Dependencies: EnhanceQoL
 ## IconTexture: Interface\AddOns\EnhanceQoLAura\Icons\Icon.tga
 ## Retail: true
