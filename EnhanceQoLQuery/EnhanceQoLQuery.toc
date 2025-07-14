@@ -1,6 +1,16 @@
 ## Interface: 110000, 110002, 110005, 110007, 110100, 110105, 110107, 110200
 ## Title: Query
 ## Notes: A simple addon to show item info
+## Notes-deDE: Ein einfaches Addon, um Item-Infos anzuzeigen
+## Notes-esES: Un addon sencillo para mostrar información de objetos
+## Notes-esMX: Un addon sencillo para mostrar información de objetos
+## Notes-frFR: Un addon simple pour afficher les infos d'objet
+## Notes-itIT: Un semplice addon per mostrare informazioni sugli oggetti
+## Notes-ptBR: Um addon simples para exibir informações de itens
+## Notes-ruRU: Простой аддон для показа информации о предметах
+## Notes-koKR: 아이템 정보를 보여주는 간단한 애드온
+## Notes-zhCN: 一个简单的物品信息显示插件
+## Notes-zhTW: 一個簡單的物品資訊顯示插件
 ## Author: R41Z0R
 ## Version: @project-version@
 ## Dependencies: EnhanceQoL, EnhanceQoLDrinkMacro

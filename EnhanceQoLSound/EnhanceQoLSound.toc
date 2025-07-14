@@ -3,6 +3,16 @@
 ## Author: R41Z0R
 ## Version: @project-version@
 ## Notes: Manage Sounds
+## Notes-deDE: Sounds verwalten
+## Notes-esES: Gestionar sonidos
+## Notes-esMX: Gestionar sonidos
+## Notes-frFR: Gérer les sons
+## Notes-itIT: Gestione dei suoni
+## Notes-ptBR: Gerenciar sons
+## Notes-ruRU: Управление звуками
+## Notes-koKR: 소리 관리
+## Notes-zhCN: 管理声音
+## Notes-zhTW: 管理聲音
 ## Dependencies: EnhanceQoL
 ## IconTexture: Interface\AddOns\EnhanceQoLSound\Icons\Icon.tga
 ## Retail: true
