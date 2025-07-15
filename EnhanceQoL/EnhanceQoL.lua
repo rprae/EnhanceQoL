@@ -1825,17 +1825,24 @@ local function addBagFrame(container)
 				if ContainerFrameCombinedBags:IsShown() then addon.functions.updateBags(ContainerFrameCombinedBags) end
 				if value then
 					if BankFrame:IsShown() then
-						for slot = 1, NUM_BANKGENERIC_SLOTS do
-							local itemButton = _G["BankFrameItem" .. slot]
-							if itemButton then addon.functions.updateBank(itemButton, -1, slot) end
+						--TODO Removed global variable in Patch 11.2 - has to be removed everywhere when patch is released
+						if NUM_BANKGENERIC_SLOTS then
+							for slot = 1, NUM_BANKGENERIC_SLOTS do
+								local itemButton = _G["BankFrameItem" .. slot]
+								if itemButton then addon.functions.updateBank(itemButton, -1, slot) end
+							end
 						end
 					end
 				else
-					for slot = 1, NUM_BANKGENERIC_SLOTS do
-						local itemButton = _G["BankFrameItem" .. slot]
-						if itemButton and itemButton.ItemLevelText then itemButton.ItemLevelText:Hide() end
+					--TODO Removed global variable in Patch 11.2 - has to be removed everywhere when patch is released
+					if NUM_BANKGENERIC_SLOTS then
+						for slot = 1, NUM_BANKGENERIC_SLOTS do
+							local itemButton = _G["BankFrameItem" .. slot]
+							if itemButton and itemButton.ItemLevelText then itemButton.ItemLevelText:Hide() end
+						end
 					end
 				end
+				if _G.BankPanel and _G.BankPanel:IsShown() then addon.functions.updateBags(_G.BankPanel) end
 			end,
 		},
 		{
@@ -1859,17 +1866,24 @@ local function addBagFrame(container)
 				addon.db["showIlvlOnBankFrame"] = value
 				if value then
 					if BankFrame:IsShown() then
-						for slot = 1, NUM_BANKGENERIC_SLOTS do
-							local itemButton = _G["BankFrameItem" .. slot]
-							if itemButton then addon.functions.updateBank(itemButton, -1, slot) end
+						--TODO Removed global variable in Patch 11.2 - has to be removed everywhere when patch is released
+						if NUM_BANKGENERIC_SLOTS then
+							for slot = 1, NUM_BANKGENERIC_SLOTS do
+								local itemButton = _G["BankFrameItem" .. slot]
+								if itemButton then addon.functions.updateBank(itemButton, -1, slot) end
+							end
 						end
 					end
 				else
-					for slot = 1, NUM_BANKGENERIC_SLOTS do
-						local itemButton = _G["BankFrameItem" .. slot]
-						if itemButton and itemButton.ItemLevelText then itemButton.ItemLevelText:Hide() end
+					--TODO Removed global variable in Patch 11.2 - has to be removed everywhere when patch is released
+					if NUM_BANKGENERIC_SLOTS then
+						for slot = 1, NUM_BANKGENERIC_SLOTS do
+							local itemButton = _G["BankFrameItem" .. slot]
+							if itemButton and itemButton.ItemLevelText then itemButton.ItemLevelText:Hide() end
+						end
 					end
 				end
+				if _G.BankPanel and _G.BankPanel:IsShown() then addon.functions.updateBags(_G.BankPanel) end
 			end,
 		},
 		{
@@ -1896,7 +1910,9 @@ local function addBagFrame(container)
 					if frame:IsShown() then addon.functions.updateBags(frame) end
 				end
 				if ContainerFrameCombinedBags:IsShown() then addon.functions.updateBags(ContainerFrameCombinedBags) end
+				--TODO AccountBankPanel is removed in 11.2 - Feature has to be removed everywhere after release
 				if _G.AccountBankPanel and _G.AccountBankPanel:IsShown() then addon.functions.updateBags(_G.AccountBankPanel) end
+				if _G.BankPanel and _G.BankPanel:IsShown() then addon.functions.updateBags(_G.BankPanel) end
 			end,
 		},
 	}
@@ -4113,10 +4129,17 @@ local function initCharacter()
 	hooksecurefunc("MerchantFrame_UpdateBuybackInfo", updateBuybackButtonInfo)
 	hooksecurefunc("EquipmentFlyout_DisplayButton", function(button) updateFlyoutButtonInfo(button) end)
 
+	--TODO AccountBankPanel is removed in 11.2 - Feature has to be removed everywhere after release
 	if _G.AccountBankPanel then
 		hooksecurefunc(AccountBankPanel, "GenerateItemSlotsForSelectedTab", addon.functions.updateBags)
 		hooksecurefunc(AccountBankPanel, "RefreshAllItemsForSelectedTab", addon.functions.updateBags)
 		hooksecurefunc(AccountBankPanel, "UpdateSearchResults", addon.functions.updateBags)
+	end
+	--! Required WoW 11.2 so hard check for _G.BankPanel is enough
+	if _G.BankPanel then
+		hooksecurefunc(BankPanel, "GenerateItemSlotsForSelectedTab", addon.functions.updateBags)
+		hooksecurefunc(BankPanel, "RefreshAllItemsForSelectedTab", addon.functions.updateBags)
+		hooksecurefunc(BankPanel, "UpdateSearchResults", addon.functions.updateBags)
 	end
 
 	-- Add Cataclyst charges in char frame
@@ -4775,7 +4798,9 @@ local eventHandlers = {
 			for _, frame in ipairs(ContainerFrameContainer.ContainerFrames) do
 				addon.functions.updateBags(frame)
 			end
+			--TODO AccountBankPanel is removed in 11.2 - Feature has to be removed everywhere after release
 			if _G.AccountBankPanel and _G.AccountBankPanel:IsShown() then addon.functions.updateBags(_G.AccountBankPanel) end
+			if _G.BankPanel and _G.BankPanel:IsShown() then addon.functions.updateBags(_G.BankPanel) end
 		end
 	end,
 	["ADDON_LOADED"] = function(arg1)
@@ -4832,11 +4857,15 @@ local eventHandlers = {
 		end
 	end,
 	--@end-debug@
+	--TODO completely remove BANKFRAME_OPENED as it's only needed in PRE 11.2 Patch - Wait for release in August 2025
 	["BANKFRAME_OPENED"] = function()
 		if not addon.db["showIlvlOnBankFrame"] then return end
-		for slot = 1, NUM_BANKGENERIC_SLOTS do
-			local itemButton = _G["BankFrameItem" .. slot]
-			if itemButton then addon.functions.updateBank(itemButton, -1, slot) end
+		--TODO Removed global variable in Patch 11.2 - has to be removed everywhere when patch is released
+		if NUM_BANKGENERIC_SLOTS then
+			for slot = 1, NUM_BANKGENERIC_SLOTS do
+				local itemButton = _G["BankFrameItem" .. slot]
+				if itemButton then addon.functions.updateBank(itemButton, -1, slot) end
+			end
 		end
 	end,
 	["CURRENCY_DISPLAY_UPDATE"] = function(arg1)
@@ -4949,7 +4978,9 @@ local eventHandlers = {
 			for _, frame in ipairs(ContainerFrameContainer.ContainerFrames) do
 				addon.functions.updateBags(frame)
 			end
+			--TODO AccountBankPanel is removed in 11.2 - Feature has to be removed everywhere after release
 			if _G.AccountBankPanel and _G.AccountBankPanel:IsShown() then addon.functions.updateBags(_G.AccountBankPanel) end
+			if _G.BankPanel and _G.BankPanel:IsShown() then addon.functions.updateBags(_G.BankPanel) end
 		end
 	end,
 	["PARTY_INVITE_REQUEST"] = function(unitName, arg2, arg3, arg4, arg5, arg6, unitID, arg8)
@@ -5153,16 +5184,7 @@ local function registerEvents(frame)
 end
 
 local function eventHandler(self, event, ...)
-	if eventHandlers[event] then
-		if addon.Performance and addon.Performance.MeasurePerformance then
-			addon.Performance.MeasurePerformance(addonName, event, eventHandlers[event], ...)
-		else
-			-- Normale Event-Verarbeitung
-			eventHandlers[event](...)
-		end
-		-- if eventHandlers[event] then
-		-- eventHandlers[event](...)
-	end
+	if eventHandlers[event] then eventHandlers[event](...) end
 end
 
 registerEvents(frameLoad)

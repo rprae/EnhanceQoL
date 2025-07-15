@@ -35,12 +35,10 @@ local function checkCurrency(tooltip, id)
 	if not addon.db["TooltipShowCurrencyAccountWide"] then return end
 	local charList = C_CurrencyInfo.FetchCurrencyDataFromAccountCharacters(id)
 
-        local playerName, playerRealm = UnitFullName("player")
-        if not playerRealm or playerRealm == "" then
-                playerRealm = GetRealmName():gsub("%s+", "")
-        end
-        local playerFullName = playerName .. "-" .. playerRealm
-        local playerQty = C_CurrencyInfo.GetCurrencyInfo(id).quantity or 0
+	local playerName, playerRealm = UnitFullName("player")
+	if not playerRealm or playerRealm == "" then playerRealm = GetRealmName():gsub("%s+", "") end
+	local playerFullName = playerName .. "-" .. playerRealm
+	local playerQty = C_CurrencyInfo.GetCurrencyInfo(id).quantity or 0
 
 	if nil == charList or #charList == 0 then
 		-- no warband resources - just skip all to only show the player itself by blizzard
@@ -251,6 +249,8 @@ local function checkUnit(tooltip)
 end
 
 local function CheckReagentBankCount(itemID)
+	-- TODO Remove the function after the launch of 11.2 as ReagentBank is removed
+	if not IsReagentBankUnlocked then return end
 	local count = 0
 	if IsReagentBankUnlocked() then
 		for i = 1, C_Container.GetContainerNumSlots(REAGENTBANK_CONTAINER) do
@@ -273,7 +273,7 @@ local function checkItem(tooltip, id, name)
 	end
 	if addon.db["TooltipShowItemCount"] then
 		if id then
-			local rBankCount = CheckReagentBankCount(id)
+			local rBankCount = CheckReagentBankCount(id) or 0
 			local bagCount = C_Item.GetItemCount(id)
 			local bankCount = C_Item.GetItemCount(id, true)
 			local totalCount = rBankCount + bankCount
