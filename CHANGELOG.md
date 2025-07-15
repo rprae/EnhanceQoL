@@ -2,7 +2,7 @@
 
 ## [3.28.1] – 2025-07-14
 ### 🔄 Changed
-- **Aura Tracker** – several UI elements now respect your current settings (icon size, timer scale, etc.).
+- **Aura Tracker** – Some Buttons were moved
 ### 🐛 Fixed
 - **Loot Toast** – resolved a rare error when opening the loot-toast settings panel.
 - **Aura Tracker** – newly created auras are now automatically selected after you add their category.
