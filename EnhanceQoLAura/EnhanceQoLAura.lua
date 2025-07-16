@@ -54,8 +54,8 @@ local function addResourceFrame(container)
 		groupCore:AddChild(cbElement)
 	end
 
-	if addon.db["enableResourceFrame"] then
-		local data = {
+        if addon.db["enableResourceFrame"] then
+                local data = {
 			{
 				text = "Healthbar Width",
 				var = "personalResourceBarHealthWidth",
@@ -106,17 +106,89 @@ local function addResourceFrame(container)
 			},
 		}
 
-		for _, cbData in ipairs(data) do
-			local uFunc = function(self, _, value) addon.db[cbData.var] = value end
-			if cbData.func then uFunc = cbData.func end
+                for _, cbData in ipairs(data) do
+                        local uFunc = function(self, _, value) addon.db[cbData.var] = value end
+                        if cbData.func then uFunc = cbData.func end
 
 			local healthBarWidth = addon.functions.createSliderAce(cbData.text, addon.db[cbData.var], cbData.min, cbData.max, 1, uFunc)
 			healthBarWidth:SetFullWidth(true)
 			groupCore:AddChild(healthBarWidth)
 
-			groupCore:AddChild(addon.functions.createSpacerAce())
-		end
-	end
+                        groupCore:AddChild(addon.functions.createSpacerAce())
+                end
+
+                local specTabs = {}
+                for i = 1, C_SpecializationInfo.GetNumSpecializationsForClassID(addon.variables.unitClassID) do
+                        local _, specName = GetSpecializationInfoForClassID(addon.variables.unitClassID, i)
+                        table.insert(specTabs, { text = specName, value = i })
+                end
+
+                local function buildSpec(container, specIndex)
+                        container:ReleaseChildren()
+                        if not addon.Aura.ResourceBars.powertypeClasses[addon.variables.unitClass] then return end
+                        local specInfo = addon.Aura.ResourceBars.powertypeClasses[addon.variables.unitClass][specIndex]
+                        if not specInfo then return end
+
+                        addon.db.personalResourceBarSettings[addon.variables.unitClass] = addon.db.personalResourceBarSettings[addon.variables.unitClass] or {}
+                        addon.db.personalResourceBarSettings[addon.variables.unitClass][specIndex] = addon.db.personalResourceBarSettings[addon.variables.unitClass][specIndex] or {}
+                        local dbSpec = addon.db.personalResourceBarSettings[addon.variables.unitClass][specIndex]
+
+                        for _, pType in ipairs(addon.Aura.ResourceBars.classPowerTypes) do
+                                local real
+                                if specInfo.MAIN == pType then
+                                        real = specInfo.MAIN
+                                elseif specInfo[pType] then
+                                        real = pType
+                                end
+                                if real then
+                                        dbSpec[real] = dbSpec[real]
+                                                or {
+                                                        enabled = true,
+                                                        width = addon.db["personalResourceBarManaWidth"],
+                                                        height = addon.db["personalResourceBarManaHeight"],
+                                                        textStyle = real == "MANA" and "PERCENT" or "CURMAX",
+                                                }
+
+                                        local cfg = dbSpec[real]
+                                        local label = _G[real] or real
+                                        local cb = addon.functions.createCheckboxAce(label, cfg.enabled, function(self, _, val)
+                                                cfg.enabled = val
+                                                addon.Aura.ResourceBars.Refresh()
+                                        end)
+                                        container:AddChild(cb)
+
+                                        local sw = addon.functions.createSliderAce("Width", cfg.width, 1, 2000, 1, function(self, _, val)
+                                                cfg.width = val
+                                                addon.Aura.ResourceBars.SetPowerBarSize(val, cfg.height, real)
+                                        end)
+                                        container:AddChild(sw)
+                                        local sh = addon.functions.createSliderAce("Height", cfg.height, 1, 2000, 1, function(self, _, val)
+                                                cfg.height = val
+                                                addon.Aura.ResourceBars.SetPowerBarSize(cfg.width, val, real)
+                                        end)
+                                        container:AddChild(sh)
+
+                                        local tList = { PERCENT = "Percentage", CURMAX = "Current/Max", CURRENT = "Current" }
+                                        local tOrder = { "PERCENT", "CURMAX", "CURRENT" }
+                                        local drop = addon.functions.createDropdownAce("Text", tList, tOrder, function(self, _, key)
+                                                cfg.textStyle = key
+                                        end)
+                                        drop:SetValue(cfg.textStyle)
+                                        container:AddChild(drop)
+
+                                        container:AddChild(addon.functions.createSpacerAce())
+                                end
+                        end
+                end
+
+                local tabGroup = addon.functions.createContainer("TabGroup", "Flow")
+                tabGroup:SetTabs(specTabs)
+                tabGroup:SetCallback("OnGroupSelected", function(tabContainer, _, val)
+                        buildSpec(tabContainer, val)
+                end)
+                wrapper:AddChild(tabGroup)
+                tabGroup:SelectTab(addon.variables.unitSpec or specTabs[1].value)
+        end
 end
 
 addon.variables.statusTable.groups["aura"] = true

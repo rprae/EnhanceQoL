@@ -13,6 +13,9 @@ addon.Aura.sounds = {}
 addon.LAura = {} -- Locales for aura
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_Aura")
 
+-- spec specific settings for personal resource bars
+addon.functions.InitDBValue("personalResourceBarSettings", {})
+
 addon.functions.InitDBValue("buffTrackerCategories", {
 	[1] = {
 		name = string.format("%s", L["Example"]),

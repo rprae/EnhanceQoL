@@ -200,23 +200,52 @@ local classPowerTypes = {
     "MANA",
 }
 
+ResourceBars.powertypeClasses = powertypeClasses
+ResourceBars.classPowerTypes = classPowerTypes
+
+local function getBarSettings(pType)
+    local class = addon.variables.unitClass
+    local spec = addon.variables.unitSpec
+    if addon.db.personalResourceBarSettings
+        and addon.db.personalResourceBarSettings[class]
+        and addon.db.personalResourceBarSettings[class][spec]
+    then
+        return addon.db.personalResourceBarSettings[class][spec][pType]
+    end
+    return nil
+end
+
 local function updatePowerBar(type)
     if powerbar[type] and powerbar[type]:IsVisible() then
         local pType = powerTypeEnums[type:gsub("_", "")]
         local maxPower = UnitPowerMax("player", pType)
         local curPower = UnitPower("player", pType)
-        local percentStr
-        if type == "MANA" then
-            local percent = (curPower / maxPower) * 100
-            percentStr = string.format("%.0f", percent)
-        else
-            percentStr = curPower .. " / " .. maxPower
+
+        local settings = getBarSettings(type)
+        local style = settings and settings.textStyle
+
+        if not style then
+            if type == "MANA" then
+                style = "PERCENT"
+            else
+                style = "CURMAX"
+            end
         end
+
+        local text
+        if style == "PERCENT" then
+            text = string.format("%.0f", (curPower / maxPower) * 100)
+        elseif style == "CURRENT" then
+            text = tostring(curPower)
+        else -- CURMAX
+            text = curPower .. " / " .. maxPower
+        end
+
         local bar = powerbar[type]
         bar:SetMinMaxValues(0, maxPower)
         bar:SetValue(curPower)
         if bar.text then
-            bar.text:SetText(percentStr)
+            bar.text:SetText(text)
         end
     end
 end
@@ -229,7 +258,10 @@ local function createPowerBar(type, anchor)
     end
 
     local bar = CreateFrame("StatusBar", "EQOL" .. type .. "Bar", mainFrame, "BackdropTemplate")
-    bar:SetSize(addon.db["personalResourceBarManaWidth"], addon.db["personalResourceBarManaHeight"])
+    local settings = getBarSettings(type)
+    local w = settings and settings.width or addon.db["personalResourceBarManaWidth"]
+    local h = settings and settings.height or addon.db["personalResourceBarManaHeight"]
+    bar:SetSize(w, h)
     bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
     if anchor then
         if sUI and anchor.specIcon then
@@ -294,38 +326,55 @@ local function setPowerbars()
     powerfrequent = {}
     local mainPowerBar
     local lastBar
-    if powertypeClasses[addon.variables.unitClass] and powertypeClasses[addon.variables.unitClass][addon.variables.unitSpec] and powertypeClasses[addon.variables.unitClass][addon.variables.unitSpec].MAIN then
-        createPowerBar(powertypeClasses[addon.variables.unitClass][addon.variables.unitSpec].MAIN, EQOLHealthBar)
-        mainPowerBar = powertypeClasses[addon.variables.unitClass][addon.variables.unitSpec].MAIN
-        lastBar = mainPowerBar
-        if powerbar[mainPowerBar] then
-            powerbar[mainPowerBar]:Show()
+    local specCfg = addon.db.personalResourceBarSettings
+        and addon.db.personalResourceBarSettings[addon.variables.unitClass]
+        and addon.db.personalResourceBarSettings[addon.variables.unitClass][addon.variables.unitSpec]
+
+    if powertypeClasses[addon.variables.unitClass]
+        and powertypeClasses[addon.variables.unitClass][addon.variables.unitSpec]
+        and powertypeClasses[addon.variables.unitClass][addon.variables.unitSpec].MAIN
+    then
+        local mType = powertypeClasses[addon.variables.unitClass][addon.variables.unitSpec].MAIN
+        if not specCfg or not specCfg[mType] or specCfg[mType].enabled ~= false then
+            createPowerBar(mType, EQOLHealthBar)
+            mainPowerBar = mType
+            lastBar = mainPowerBar
+            if powerbar[mainPowerBar] then powerbar[mainPowerBar]:Show() end
         end
     end
 
     for _, pType in ipairs(classPowerTypes) do
-        if powerbar[pType] then
-            powerbar[pType]:Hide()
+        if powerbar[pType] then powerbar[pType]:Hide() end
+
+        local shouldShow = false
+        if mainPowerBar == pType then
+            shouldShow = true
+        elseif powertypeClasses[addon.variables.unitClass]
+            and powertypeClasses[addon.variables.unitClass][addon.variables.unitSpec]
+            and powertypeClasses[addon.variables.unitClass][addon.variables.unitSpec][pType]
+        then
+            shouldShow = true
         end
-        if mainPowerBar == pType or (powertypeClasses[addon.variables.unitClass] and powertypeClasses[addon.variables.unitClass][addon.variables.unitSpec] and powertypeClasses[addon.variables.unitClass][addon.variables.unitSpec][pType]) then
+
+        if shouldShow then
+            if specCfg and specCfg[pType] and specCfg[pType].enabled == false then
+                shouldShow = false
+            end
+        end
+
+        if shouldShow then
             if addon.variables.unitClass == "DRUID" then
-                if pType == mainPowerBar and powerbar[pType] then
-                    powerbar[pType]:Show()
-                end
+                if pType == mainPowerBar and powerbar[pType] then powerbar[pType]:Show() end
                 powerfrequent[pType] = true
                 if pType ~= mainPowerBar and pType == "MANA" then
                     createPowerBar(pType, powerbar[lastBar] or EQOLHealthBar)
                     lastBar = pType
-                    if powerbar[pType] then
-                        powerbar[pType]:Show()
-                    end
+                    if powerbar[pType] then powerbar[pType]:Show() end
                 elseif powerToken ~= mainPowerBar then
                     if powerToken == pType then
                         createPowerBar(pType, powerbar[lastBar] or EQOLHealthBar)
                         lastBar = pType
-                        if powerbar[pType] then
-                            powerbar[pType]:Show()
-                        end
+                        if powerbar[pType] then powerbar[pType]:Show() end
                     end
                 end
             else
@@ -334,9 +383,7 @@ local function setPowerbars()
                     createPowerBar(pType, powerbar[lastBar] or EQOLHealthBar)
                     lastBar = pType
                 end
-                if powerbar[pType] then
-                    powerbar[pType]:Show()
-                end
+                if powerbar[pType] then powerbar[pType]:Show() end
             end
         end
     end
@@ -408,10 +455,18 @@ function ResourceBars.SetHealthBarSize(w, h)
     end
 end
 
-function ResourceBars.SetPowerBarSize(w, h)
-    for _, bar in pairs(powerbar) do
-        bar:SetSize(w, h)
+function ResourceBars.SetPowerBarSize(w, h, pType)
+    if pType then
+        if powerbar[pType] then powerbar[pType]:SetSize(w, h) end
+    else
+        for _, bar in pairs(powerbar) do
+            bar:SetSize(w, h)
+        end
     end
+end
+
+function ResourceBars.Refresh()
+    setPowerbars()
 end
 
 return ResourceBars
