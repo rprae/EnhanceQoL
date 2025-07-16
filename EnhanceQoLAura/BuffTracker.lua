@@ -855,9 +855,9 @@ local function exportCategory(catId, encodeMode)
 end
 
 local function importCategory(encoded)
-        if type(encoded) ~= "string" or encoded == "" then return end
-        local deflate = LibStub("LibDeflate")
-        local serializer = LibStub("AceSerializer-3.0")
+	if type(encoded) ~= "string" or encoded == "" then return end
+	local deflate = LibStub("LibDeflate")
+	local serializer = LibStub("AceSerializer-3.0")
 	local decoded = deflate:DecodeForPrint(encoded) or deflate:DecodeForWoWChatChannel(encoded) or deflate:DecodeForWoWAddonChannel(encoded)
 	if not decoded then return end
 	local decompressed = deflate:DecompressDeflate(decoded)
@@ -889,28 +889,27 @@ local function importCategory(encoded)
 	ensureAnchor(newId)
 	rebuildAltMapping()
 	scanBuffs()
-        if #missing > 0 then print((L["ImportCategoryMissingSounds"] or "Missing sounds: %s"):format(table.concat(missing, ", "))) end
-        return newId
+	if #missing > 0 then print((L["ImportCategoryMissingSounds"] or "Missing sounds: %s"):format(table.concat(missing, ", "))) end
+	return newId
 end
 
 local function previewImportCategory(encoded)
-       if type(encoded) ~= "string" or encoded == "" then return end
-       local deflate = LibStub("LibDeflate")
-       local serializer = LibStub("AceSerializer-3.0")
-       local decoded =
-               deflate:DecodeForPrint(encoded)
-               or deflate:DecodeForWoWChatChannel(encoded)
-               or deflate:DecodeForWoWAddonChannel(encoded)
-       if not decoded then return end
-       local decompressed = deflate:DecompressDeflate(decoded)
-       if not decompressed then return end
-       local ok, data = serializer:Deserialize(decompressed)
-       if not ok or type(data) ~= "table" then return end
-       local cat = data.category or data.cat or data
-       if type(cat) ~= "table" then return end
-       local count = 0
-       for _ in pairs(cat.buffs or {}) do count = count + 1 end
-       return cat.name or "", count
+	if type(encoded) ~= "string" or encoded == "" then return end
+	local deflate = LibStub("LibDeflate")
+	local serializer = LibStub("AceSerializer-3.0")
+	local decoded = deflate:DecodeForPrint(encoded) or deflate:DecodeForWoWChatChannel(encoded) or deflate:DecodeForWoWAddonChannel(encoded)
+	if not decoded then return end
+	local decompressed = deflate:DecompressDeflate(decoded)
+	if not decompressed then return end
+	local ok, data = serializer:Deserialize(decompressed)
+	if not ok or type(data) ~= "table" then return end
+	local cat = data.category or data.cat or data
+	if type(cat) ~= "table" then return end
+	local count = 0
+	for _ in pairs(cat.buffs or {}) do
+		count = count + 1
+	end
+	return cat.name or "", count
 end
 
 local treeGroup
@@ -1495,46 +1494,45 @@ function addon.Aura.functions.addBuffTrackerOptions(container)
 			ensureAnchor(newId)
 			refreshTree(newId)
 			return -- don’t build options for pseudo‑node
-               elseif value == "IMPORT_CATEGORY" then
-                       StaticPopupDialogs["EQOL_IMPORT_CATEGORY"] = StaticPopupDialogs["EQOL_IMPORT_CATEGORY"]
-                               or {
-                                       text = L["ImportCategory"],
-                                       button1 = ACCEPT,
-                                       button2 = CANCEL,
-                                       hasEditBox = true,
-                                       editBoxWidth = 320,
-                                       timeout = 0,
-                                       whileDead = true,
-                                       hideOnEscape = true,
-                                       preferredIndex = 3,
-                               }
-                       StaticPopupDialogs["EQOL_IMPORT_CATEGORY"].OnShow = function(self)
-                               self.editBox:SetText("")
-                               self.editBox:SetFocus()
-                               self.text:SetText(L["ImportCategory"])
-                       end
-                       StaticPopupDialogs["EQOL_IMPORT_CATEGORY"].EditBoxOnTextChanged = function(editBox)
-                               local frame = editBox:GetParent()
-                               local name, count = previewImportCategory(editBox:GetText())
-                               if name then
-                                       frame.text:SetFormattedText("%s\n%s", L["ImportCategory"],
-                                               (L["ImportCategoryPreview"] or "Category: %s (%d auras)"):format(name, count))
-                               else
-                                       frame.text:SetText(L["ImportCategory"])
-                               end
-                       end
-                       StaticPopupDialogs["EQOL_IMPORT_CATEGORY"].OnAccept = function(self)
-                               local text = self.editBox:GetText()
-                               local id = importCategory(text)
-                               if id then
-                                       refreshTree(id)
-                               else
-                                       print(L["ImportCategoryError"] or "Invalid string")
-                               end
-                       end
-                       StaticPopup_Show("EQOL_IMPORT_CATEGORY")
-                       return
-               end
+		elseif value == "IMPORT_CATEGORY" then
+			StaticPopupDialogs["EQOL_IMPORT_CATEGORY"] = StaticPopupDialogs["EQOL_IMPORT_CATEGORY"]
+				or {
+					text = L["ImportCategory"],
+					button1 = ACCEPT,
+					button2 = CANCEL,
+					hasEditBox = true,
+					editBoxWidth = 320,
+					timeout = 0,
+					whileDead = true,
+					hideOnEscape = true,
+					preferredIndex = 3,
+				}
+			StaticPopupDialogs["EQOL_IMPORT_CATEGORY"].OnShow = function(self)
+				self.editBox:SetText("")
+				self.editBox:SetFocus()
+				self.text:SetText(L["ImportCategory"])
+			end
+			StaticPopupDialogs["EQOL_IMPORT_CATEGORY"].EditBoxOnTextChanged = function(editBox)
+				local frame = editBox:GetParent()
+				local name, count = previewImportCategory(editBox:GetText())
+				if name then
+					frame.text:SetFormattedText("%s\n%s", L["ImportCategory"], (L["ImportCategoryPreview"] or "Category: %s (%d auras)"):format(name, count))
+				else
+					frame.text:SetText(L["ImportCategory"])
+				end
+			end
+			StaticPopupDialogs["EQOL_IMPORT_CATEGORY"].OnAccept = function(self)
+				local text = self.editBox:GetText()
+				local id = importCategory(text)
+				if id then
+					refreshTree(id)
+				else
+					print(L["ImportCategoryError"] or "Invalid string")
+				end
+			end
+			StaticPopup_Show("EQOL_IMPORT_CATEGORY")
+			return
+		end
 
 		local catId, _, buffId = strsplit("\001", value)
 		catId = tonumber(catId)
@@ -1622,10 +1620,15 @@ local function EQOL_ChatFilter(_, _, msg, ...)
 end
 
 for _, ev in ipairs({
+	"CHAT_MSG_INSTANCE_CHAT",
+	"CHAT_MSG_INSTANCE_CHAT_LEADER",
 	"CHAT_MSG_SAY",
 	"CHAT_MSG_PARTY",
+	"CHAT_MSG_PARTY_LEADER",
 	"CHAT_MSG_RAID",
+	"CHAT_MSG_RAID_LEADER",
 	"CHAT_MSG_GUILD",
+	"CHAT_MSG_OFFICER",
 	"CHAT_MSG_WHISPER",
 	"CHAT_MSG_WHISPER_INFORM",
 }) do
@@ -1637,37 +1640,36 @@ function SetItemRef(link, text, button, frame, ...)
 	local label = link:match("^garrmission:eqolaura:(.+)")
 	if label then
 		local pktID = pending[label]
-               if pktID and incoming[pktID] then
-                       StaticPopupDialogs["EQOL_IMPORT_FROM_SHARE"] = StaticPopupDialogs["EQOL_IMPORT_FROM_SHARE"]
-                               or {
-                                       text = L["ImportCategory"],
-                                       button1 = ACCEPT,
-                                       button2 = CANCEL,
-                                       timeout = 0,
-                                       whileDead = true,
-                                       hideOnEscape = true,
-                                       preferredIndex = 3,
-                                       OnAccept = function(_, data)
-                                               local encoded = incoming[data]
-                                               incoming[data] = nil
-                                               pending[label] = nil
-                                               local newId = importCategory(encoded)
-                                               if newId then refreshTree(newId) end
-                                       end,
-                               }
-                       StaticPopupDialogs["EQOL_IMPORT_FROM_SHARE"].OnShow = function(self, data)
-                               local encoded = incoming[data]
-                               local name, count = previewImportCategory(encoded or "")
-                               if name then
-                                       self.text:SetFormattedText("%s\n%s", L["ImportCategory"],
-                                               (L["ImportCategoryPreview"] or "Category: %s (%d auras)"):format(name, count))
-                               else
-                                       self.text:SetText(L["ImportCategory"])
-                               end
-                       end
-                       StaticPopup_Show("EQOL_IMPORT_FROM_SHARE", nil, nil, pktID)
-                       return
-               end
+		if pktID and incoming[pktID] then
+			StaticPopupDialogs["EQOL_IMPORT_FROM_SHARE"] = StaticPopupDialogs["EQOL_IMPORT_FROM_SHARE"]
+				or {
+					text = L["ImportCategory"],
+					button1 = ACCEPT,
+					button2 = CANCEL,
+					timeout = 0,
+					whileDead = true,
+					hideOnEscape = true,
+					preferredIndex = 3,
+					OnAccept = function(_, data)
+						local encoded = incoming[data]
+						incoming[data] = nil
+						pending[label] = nil
+						local newId = importCategory(encoded)
+						if newId then refreshTree(newId) end
+					end,
+				}
+			StaticPopupDialogs["EQOL_IMPORT_FROM_SHARE"].OnShow = function(self, data)
+				local encoded = incoming[data]
+				local name, count = previewImportCategory(encoded or "")
+				if name then
+					self.text:SetFormattedText("%s\n%s", L["ImportCategory"], (L["ImportCategoryPreview"] or "Category: %s (%d auras)"):format(name, count))
+				else
+					self.text:SetText(L["ImportCategory"])
+				end
+			end
+			StaticPopup_Show("EQOL_IMPORT_FROM_SHARE", nil, nil, pktID)
+			return
+		end
 	end
 	origSetItemRef(link, text, button, frame, ...)
 end
