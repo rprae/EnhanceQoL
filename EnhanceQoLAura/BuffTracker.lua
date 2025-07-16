@@ -893,6 +893,25 @@ local function importCategory(encoded)
 	return newId
 end
 
+local function previewImportCategory(encoded)
+	if type(encoded) ~= "string" or encoded == "" then return end
+	local deflate = LibStub("LibDeflate")
+	local serializer = LibStub("AceSerializer-3.0")
+	local decoded = deflate:DecodeForPrint(encoded) or deflate:DecodeForWoWChatChannel(encoded) or deflate:DecodeForWoWAddonChannel(encoded)
+	if not decoded then return end
+	local decompressed = deflate:DecompressDeflate(decoded)
+	if not decompressed then return end
+	local ok, data = serializer:Deserialize(decompressed)
+	if not ok or type(data) ~= "table" then return end
+	local cat = data.category or data.cat or data
+	if type(cat) ~= "table" then return end
+	local count = 0
+	for _ in pairs(cat.buffs or {}) do
+		count = count + 1
+	end
+	return cat.name or "", count
+end
+
 local treeGroup
 
 local function getCategoryTree()
@@ -1491,6 +1510,16 @@ function addon.Aura.functions.addBuffTrackerOptions(container)
 			StaticPopupDialogs["EQOL_IMPORT_CATEGORY"].OnShow = function(self)
 				self.editBox:SetText("")
 				self.editBox:SetFocus()
+				self.text:SetText(L["ImportCategory"])
+			end
+			StaticPopupDialogs["EQOL_IMPORT_CATEGORY"].EditBoxOnTextChanged = function(editBox)
+				local frame = editBox:GetParent()
+				local name, count = previewImportCategory(editBox:GetText())
+				if name then
+					frame.text:SetFormattedText("%s\n%s", L["ImportCategory"], (L["ImportCategoryPreview"] or "Category: %s (%d auras)"):format(name, count))
+				else
+					frame.text:SetText(L["ImportCategory"])
+				end
 			end
 			StaticPopupDialogs["EQOL_IMPORT_CATEGORY"].OnAccept = function(self)
 				local text = self.editBox:GetText()
@@ -1591,10 +1620,15 @@ local function EQOL_ChatFilter(_, _, msg, ...)
 end
 
 for _, ev in ipairs({
+	"CHAT_MSG_INSTANCE_CHAT",
+	"CHAT_MSG_INSTANCE_CHAT_LEADER",
 	"CHAT_MSG_SAY",
 	"CHAT_MSG_PARTY",
+	"CHAT_MSG_PARTY_LEADER",
 	"CHAT_MSG_RAID",
+	"CHAT_MSG_RAID_LEADER",
 	"CHAT_MSG_GUILD",
+	"CHAT_MSG_OFFICER",
 	"CHAT_MSG_WHISPER",
 	"CHAT_MSG_WHISPER_INFORM",
 }) do
@@ -1624,6 +1658,15 @@ function SetItemRef(link, text, button, frame, ...)
 						if newId then refreshTree(newId) end
 					end,
 				}
+			StaticPopupDialogs["EQOL_IMPORT_FROM_SHARE"].OnShow = function(self, data)
+				local encoded = incoming[data]
+				local name, count = previewImportCategory(encoded or "")
+				if name then
+					self.text:SetFormattedText("%s\n%s", L["ImportCategory"], (L["ImportCategoryPreview"] or "Category: %s (%d auras)"):format(name, count))
+				else
+					self.text:SetText(L["ImportCategory"])
+				end
+			end
 			StaticPopup_Show("EQOL_IMPORT_FROM_SHARE", nil, nil, pktID)
 			return
 		end
