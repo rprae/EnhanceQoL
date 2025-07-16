@@ -436,7 +436,7 @@ local function createBuffFrame(icon, parent, size, castOnClick, spellID, showTim
 
 	local charges = overlay:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	charges:SetFont(addon.variables.defaultFont, 16, "OUTLINE")
-	charges:SetPoint("TOP", frame, "TOP", 0, -1)
+	charges:SetPoint("CENTER", frame, "TOP", 0, -1)
 	charges:SetShadowOffset(1, -1)
 	charges:SetShadowColor(0, 0, 0, 1)
 	frame.charges = charges
