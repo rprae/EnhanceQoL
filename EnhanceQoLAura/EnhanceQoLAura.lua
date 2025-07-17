@@ -13,6 +13,8 @@ end
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_Aura")
 local AceGUI = addon.AceGUI
 
+local tabContainerMain
+
 local function addResourceFrame(container)
 	local scroll = addon.functions.createContainer("ScrollFrame", "Flow")
 	scroll:SetFullWidth(true)
@@ -223,46 +225,50 @@ local function addResourceFrame(container)
 					local cb = addon.functions.createCheckboxAce(label, cfg.enabled, function(self, _, val)
 						cfg.enabled = val
 						addon.Aura.ResourceBars.Refresh()
+						container:ReleaseChildren()
+						addResourceFrame(container)
+						buildSpec(tabContainerMain, val)
 					end)
 					container:AddChild(cb)
 
-					local sw = addon.functions.createSliderAce("Width", cfg.width, 1, 2000, 1, function(self, _, val)
-						cfg.width = val
-						addon.Aura.ResourceBars.SetPowerBarSize(val, cfg.height, real)
-					end)
-					container:AddChild(sw)
-					local sh = addon.functions.createSliderAce("Height", cfg.height, 1, 2000, 1, function(self, _, val)
-						cfg.height = val
-						addon.Aura.ResourceBars.SetPowerBarSize(cfg.width, val, real)
-					end)
-					container:AddChild(sh)
+					if cfg.enabled then
+						local sw = addon.functions.createSliderAce("Width", cfg.width, 1, 2000, 1, function(self, _, val)
+							cfg.width = val
+							addon.Aura.ResourceBars.SetPowerBarSize(val, cfg.height, real)
+						end)
+						container:AddChild(sw)
+						local sh = addon.functions.createSliderAce("Height", cfg.height, 1, 2000, 1, function(self, _, val)
+							cfg.height = val
+							addon.Aura.ResourceBars.SetPowerBarSize(cfg.width, val, real)
+						end)
+						container:AddChild(sh)
 
-					local tList = { PERCENT = "Percentage", CURMAX = "Current/Max", CURRENT = "Current" }
-					local tOrder = { "PERCENT", "CURMAX", "CURRENT" }
-					local drop = addon.functions.createDropdownAce("Text", tList, tOrder, function(self, _, key)
-						cfg.textStyle = key
-						addon.Aura.ResourceBars.Refresh()
-					end)
-					drop:SetValue(cfg.textStyle)
-					container:AddChild(drop)
+						local tList = { PERCENT = "Percentage", CURMAX = "Current/Max", CURRENT = "Current" }
+						local tOrder = { "PERCENT", "CURMAX", "CURRENT" }
+						local drop = addon.functions.createDropdownAce("Text", tList, tOrder, function(self, _, key)
+							cfg.textStyle = key
+							addon.Aura.ResourceBars.Refresh()
+						end)
+						drop:SetValue(cfg.textStyle)
+						container:AddChild(drop)
 
-					local sFont = addon.functions.createSliderAce("Text Size", cfg.fontSize or 16, 6, 64, 1, function(self, _, val)
-						cfg.fontSize = val
-						addon.Aura.ResourceBars.Refresh()
-					end)
-					container:AddChild(sFont)
+						local sFont = addon.functions.createSliderAce("Text Size", cfg.fontSize or 16, 6, 64, 1, function(self, _, val)
+							cfg.fontSize = val
+							addon.Aura.ResourceBars.Refresh()
+						end)
+						container:AddChild(sFont)
 
-					local frames = {}
-					for k, v in pairs(baseFrameList) do
-						frames[k] = v
+						local frames = {}
+						for k, v in pairs(baseFrameList) do
+							frames[k] = v
+						end
+						frames.EQOLHealthBar = "EQOLHealthBar"
+						for _, t in ipairs(addon.Aura.ResourceBars.classPowerTypes) do
+							if dbSpec[t] and dbSpec[t].enabled ~= false then frames["EQOL" .. t .. "Bar"] = "EQOL" .. t .. "Bar" end
+						end
+
+						addAnchorOptions(real, container, cfg.anchor, frames)
 					end
-					frames.EQOLHealthBar = "EQOLHealthBar"
-					for _, t in ipairs(addon.Aura.ResourceBars.classPowerTypes) do
-						if dbSpec[t] and dbSpec[t].enabled ~= false then frames["EQOL" .. t .. "Bar"] = "EQOL" .. t .. "Bar" end
-					end
-
-					addAnchorOptions(real, container, cfg.anchor, frames)
-
 					container:AddChild(addon.functions.createSpacerAce())
 				end
 			end
@@ -270,7 +276,10 @@ local function addResourceFrame(container)
 
 		local tabGroup = addon.functions.createContainer("TabGroup", "Flow")
 		tabGroup:SetTabs(specTabs)
-		tabGroup:SetCallback("OnGroupSelected", function(tabContainer, _, val) buildSpec(tabContainer, val) end)
+		tabGroup:SetCallback("OnGroupSelected", function(tabContainer, _, val)
+			tabContainerMain = tabContainer
+			buildSpec(tabContainer, val)
+		end)
 		wrapper:AddChild(tabGroup)
 		tabGroup:SelectTab(addon.variables.unitSpec or specTabs[1].value)
 	end

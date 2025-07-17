@@ -63,33 +63,37 @@ local function getAnchor(name, spec)
 	return cfg.anchor
 end
 
-local function resolveAnchor(info)
+local function resolveAnchor(info, type)
 	local frame = _G[info.relativeFrame]
 	local visited = {}
 	local limit = 10
-	while frame and frame.GetName and limit > 0 do
-		local fname = frame:GetName()
-		if fname == "EQOLHealthBar" or fname:match("^EQOL.+Bar$") then
-			if visited[fname] then return UIParent end
-			visited[fname] = true
 
-			local bType
-			if fname == "EQOLHealthBar" then
-				bType = "HEALTH"
-			else
-				bType = fname:match("^EQOL(.+)Bar$")
-			end
-
-			if not bType then break end
-			local anch = getAnchor(bType, addon.variables.unitSpec)
-			frame = _G[anch.relativeFrame]
-			limit = limit - 1
-		else
-			break
-		end
-	end
-	if limit <= 0 then return UIParent end
 	return frame or UIParent
+	-- while frame and frame.GetName and limit > 0 do
+	-- 	local fname = frame:GetName()
+	-- 	if fname == "EQOLHealthBar" or fname:match("^EQOL.+Bar$") then
+	-- 		if visited[fname] then return UIParent end
+	-- 		visited[fname] = true
+
+	-- 		local bType
+	-- 		if fname == "EQOLHealthBar" then
+	-- 			bType = "HEALTH"
+	-- 		else
+	-- 			bType = fname:match("^EQOL(.+)Bar$")
+	-- 		end
+	-- 		print("bType", bType)
+
+	-- 		if not bType then break end
+	-- 		local anch = getAnchor(bType, addon.variables.unitSpec)
+	-- 		print("anch", anch.relativeFrame)
+	-- 		frame = _G[anch.relativeFrame]
+	-- 		limit = limit - 1
+	-- 	else
+	-- 		break
+	-- 	end
+	-- end
+	-- if limit <= 0 then return UIParent end
+	-- return frame or UIParent
 end
 
 local function createHealthBar()
@@ -105,7 +109,7 @@ local function createHealthBar()
 	healthBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
 	local anchor = getAnchor("HEALTH", addon.variables.unitSpec)
 	local rel = resolveAnchor(anchor)
-	healthBar:SetPoint(anchor.point or "TOPLEFT", rel, anchor.relativePoint or anchor.point or "BOTTOMLEFT", anchor.x or 0, anchor.y or 0)
+	healthBar:SetPoint(anchor.point or "CENTER", rel, anchor.relativePoint or anchor.point or "CENTER", anchor.x or 0, anchor.y or 0)
 	healthBar:SetBackdrop({
 		bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
 		edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
@@ -293,8 +297,13 @@ local function createPowerBar(type, anchor)
 	bar:SetSize(w, h)
 	bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
 	local a = getAnchor(type, addon.variables.unitSpec)
+	local allowMove = true
 	if a.point then
-		local rel = resolveAnchor(a)
+		local rel = resolveAnchor(a, type)
+		if rel and rel:GetName() ~= "UIParent" then allowMove = false end
+		if type == "ENERGY" then
+		print(a.point, rel:GetName(), a.relativePoint or a.point, a.x or 0, a.y or 0)
+		end	
 		bar:SetPoint(a.point, rel, a.relativePoint or a.point, a.x or 0, a.y or 0)
 	elseif anchor then
 		bar:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, 0)
@@ -316,23 +325,24 @@ local function createPowerBar(type, anchor)
 	bar.text:SetPoint("CENTER", bar, "CENTER", 3, 0)
 	bar:SetStatusBarColor(getPowerBarColor(type))
 
-	bar:SetMovable(true)
-	bar:EnableMouse(true)
-	bar:RegisterForDrag("LeftButton")
-	bar:SetScript("OnDragStart", function(self)
-		if IsShiftKeyDown() then self:StartMoving() end
-	end)
-	bar:SetScript("OnDragStop", function(self)
-		self:StopMovingOrSizing()
-		local point, rel, relPoint, xOfs, yOfs = self:GetPoint()
-		local info = getAnchor(type, addon.variables.unitSpec)
-		info.point = point
-		info.relativeFrame = rel and rel:GetName() or "UIParent"
-		info.relativePoint = relPoint
-		info.x = xOfs
-		info.y = yOfs
-	end)
-
+	bar:SetMovable(allowMove)
+	bar:EnableMouse(allowMove)
+	if allowMove then
+		bar:RegisterForDrag("LeftButton")
+		bar:SetScript("OnDragStart", function(self)
+			if IsShiftKeyDown() then self:StartMoving() end
+		end)
+		bar:SetScript("OnDragStop", function(self)
+			self:StopMovingOrSizing()
+			local point, rel, relPoint, xOfs, yOfs = self:GetPoint()
+			local info = getAnchor(type, addon.variables.unitSpec)
+			info.point = point
+			info.relativeFrame = rel and rel:GetName() or "UIParent"
+			info.relativePoint = relPoint
+			info.x = xOfs
+			info.y = yOfs
+		end)
+	end
 	powerbar[type] = bar
 	bar:Show()
 	updatePowerBar(type)
@@ -424,6 +434,22 @@ local function LoadResourceBars()
 	end
 end
 
+if addon.db["enableResourceFrame"] then
+	local frameLogin = CreateFrame("Frame")
+	frameLogin:RegisterEvent("PLAYER_LOGIN")
+	frameLogin:SetScript("OnEvent", function(self, event)
+		if event == "PLAYER_LOGIN" then
+			if addon.db["enableResourceFrame"] then
+				LoadResourceBars()
+				addon.Aura.ResourceBars.EnableResourceBars()
+			end
+			frameLogin:UnregisterAllEvents()
+			frameLogin:SetScript("OnEvent", nil)
+			frameLogin = nil
+		end
+	end)
+end
+
 local function eventHandler(self, event, unit, arg1)
 	if event == "UNIT_DISPLAYPOWER" and unit == "player" then
 		setPowerbars()
@@ -440,12 +466,6 @@ local function eventHandler(self, event, unit, arg1)
 		updatePowerBar(arg1)
 	elseif event == "UNIT_MAXPOWER" and powerbar[arg1] and powerbar[arg1]:IsShown() then
 		updatePowerBar(arg1)
-	elseif event == "PLAYER_LOGIN" then
-		if addon.db["enableResourceFrame"] then
-			LoadResourceBars()
-			addon.Aura.ResourceBars.EnableResourceBars()
-		end
-		frameAnchor:UnregisterEvent("PLAYER_LOGIN")
 	end
 end
 
@@ -460,12 +480,11 @@ function ResourceBars.EnableResourceBars()
 	frameAnchor:RegisterEvent("PLAYER_ENTERING_WORLD")
 	frameAnchor:RegisterEvent("ACTIVE_PLAYER_SPECIALIZATION_CHANGED")
 	frameAnchor:RegisterEvent("TRAIT_CONFIG_UPDATED")
-	frameAnchor:RegisterEvent("PLAYER_LOGIN")
 	frameAnchor:SetScript("OnEvent", eventHandler)
 	frameAnchor:Hide()
 
 	createHealthBar()
-	setPowerbars()
+	-- setPowerbars()
 end
 
 function ResourceBars.DisableResourceBars()
