@@ -133,14 +133,15 @@ local function addResourceFrame(container)
 			"BOTTOMRIGHT",
 		}
 
-		local frameList = {
+		local baseFrameList = {
 			UIParent = "UIParent",
 			PlayerFrame = "PlayerFrame",
 			TargetFrame = "TargetFrame",
 		}
 
-		local function addAnchorOptions(barType, parent, info)
+		local function addAnchorOptions(barType, parent, info, frameList)
 			info = info or {}
+			frameList = frameList or baseFrameList
 
 			local header = addon.functions.createLabelAce(barType .. " Anchor")
 			parent:AddChild(header)
@@ -239,7 +240,16 @@ local function addResourceFrame(container)
 					drop:SetValue(cfg.textStyle)
 					container:AddChild(drop)
 
-					addAnchorOptions(real, container, cfg.anchor)
+					local frames = {}
+					for k, v in pairs(baseFrameList) do
+						frames[k] = v
+					end
+					frames.EQOLHealthBar = "EQOLHealthBar"
+					for _, t in ipairs(addon.Aura.ResourceBars.classPowerTypes) do
+						if dbSpec[t] and dbSpec[t].enabled ~= false then frames["EQOL" .. t .. "Bar"] = "EQOL" .. t .. "Bar" end
+					end
+
+					addAnchorOptions(real, container, cfg.anchor, frames)
 
 					container:AddChild(addon.functions.createSpacerAce())
 				end

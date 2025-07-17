@@ -51,15 +51,44 @@ local function updateHealthBar()
 end
 
 local function getAnchor(name, spec)
-        local class = addon.variables.unitClass
-        spec = spec or addon.variables.unitSpec
-        addon.db.personalResourceBarSettings = addon.db.personalResourceBarSettings or {}
-        addon.db.personalResourceBarSettings[class] = addon.db.personalResourceBarSettings[class] or {}
-        addon.db.personalResourceBarSettings[class][spec] = addon.db.personalResourceBarSettings[class][spec] or {}
-        addon.db.personalResourceBarSettings[class][spec][name] = addon.db.personalResourceBarSettings[class][spec][name] or {}
-        local cfg = addon.db.personalResourceBarSettings[class][spec][name]
-        cfg.anchor = cfg.anchor or {}
-        return cfg.anchor
+	local class = addon.variables.unitClass
+	spec = spec or addon.variables.unitSpec
+	addon.db.personalResourceBarSettings = addon.db.personalResourceBarSettings or {}
+	addon.db.personalResourceBarSettings[class] = addon.db.personalResourceBarSettings[class] or {}
+	addon.db.personalResourceBarSettings[class][spec] = addon.db.personalResourceBarSettings[class][spec] or {}
+	addon.db.personalResourceBarSettings[class][spec][name] = addon.db.personalResourceBarSettings[class][spec][name] or {}
+	local cfg = addon.db.personalResourceBarSettings[class][spec][name]
+	cfg.anchor = cfg.anchor or {}
+	return cfg.anchor
+end
+
+local function resolveAnchor(info)
+	local frame = _G[info.relativeFrame]
+	local visited = {}
+	local limit = 10
+	while frame and frame.GetName and limit > 0 do
+		local fname = frame:GetName()
+		if fname == "EQOLHealthBar" or fname:match("^EQOL.+Bar$") then
+			if visited[fname] then return UIParent end
+			visited[fname] = true
+
+			local bType
+			if fname == "EQOLHealthBar" then
+				bType = "HEALTH"
+			else
+				bType = fname:match("^EQOL(.+)Bar$")
+			end
+
+			if not bType then break end
+			local anch = getAnchor(bType, addon.variables.unitSpec)
+			frame = _G[anch.relativeFrame]
+			limit = limit - 1
+		else
+			break
+		end
+	end
+	if limit <= 0 then return UIParent end
+	return frame or UIParent
 end
 
 local function createHealthBar()
@@ -73,8 +102,9 @@ local function createHealthBar()
 	healthBar = CreateFrame("StatusBar", "EQOLHealthBar", mainFrame, "BackdropTemplate")
 	healthBar:SetSize(addon.db["personalResourceBarHealthWidth"], addon.db["personalResourceBarHealthHeight"])
 	healthBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
-        local anchor = getAnchor("HEALTH", addon.variables.unitSpec)
-	healthBar:SetPoint(anchor.point or "TOPLEFT", _G[anchor.relativeFrame] or UIParent, anchor.relativePoint or anchor.point or "BOTTOMLEFT", anchor.x or 0, anchor.y or 0)
+	local anchor = getAnchor("HEALTH", addon.variables.unitSpec)
+	local rel = resolveAnchor(anchor)
+	healthBar:SetPoint(anchor.point or "TOPLEFT", rel, anchor.relativePoint or anchor.point or "BOTTOMLEFT", anchor.x or 0, anchor.y or 0)
 	healthBar:SetBackdrop({
 		bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
 		edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
@@ -96,7 +126,7 @@ local function createHealthBar()
 	healthBar:SetScript("OnDragStop", function(self)
 		self:StopMovingOrSizing()
 		local point, rel, relPoint, xOfs, yOfs = self:GetPoint()
-                local info = getAnchor("HEALTH", addon.variables.unitSpec)
+		local info = getAnchor("HEALTH", addon.variables.unitSpec)
 		info.point = point
 		info.relativeFrame = rel and rel:GetName() or "UIParent"
 		info.relativePoint = relPoint
@@ -258,14 +288,15 @@ local function createPowerBar(type, anchor)
 	local h = settings and settings.height or addon.db["personalResourceBarManaHeight"]
 	bar:SetSize(w, h)
 	bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
-        local a = getAnchor(type, addon.variables.unitSpec)
+	local a = getAnchor(type, addon.variables.unitSpec)
 	if a.point then
-		bar:SetPoint(a.point, _G[a.relativeFrame] or UIParent, a.relativePoint or a.point, a.x or 0, a.y or 0)
-       elseif anchor then
-               bar:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, 0)
-       else
-               bar:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 0, -40)
-       end
+		local rel = resolveAnchor(a)
+		bar:SetPoint(a.point, rel, a.relativePoint or a.point, a.x or 0, a.y or 0)
+	elseif anchor then
+		bar:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, 0)
+	else
+		bar:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 0, -40)
+	end
 	bar:SetBackdrop({
 		bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
 		edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
@@ -288,7 +319,7 @@ local function createPowerBar(type, anchor)
 	bar:SetScript("OnDragStop", function(self)
 		self:StopMovingOrSizing()
 		local point, rel, relPoint, xOfs, yOfs = self:GetPoint()
-                local info = getAnchor(type, addon.variables.unitSpec)
+		local info = getAnchor(type, addon.variables.unitSpec)
 		info.point = point
 		info.relativeFrame = rel and rel:GetName() or "UIParent"
 		info.relativePoint = relPoint
@@ -300,7 +331,6 @@ local function createPowerBar(type, anchor)
 	bar:Show()
 	updatePowerBar(type)
 end
-
 
 local eventsToRegister = {
 	"UNIT_HEALTH",
@@ -383,22 +413,20 @@ end
 local function eventHandler(self, event, unit, arg1)
 	if event == "UNIT_DISPLAYPOWER" and unit == "player" then
 		setPowerbars()
-       elseif event == "ACTIVE_PLAYER_SPECIALIZATION_CHANGED" then
-               C_Timer.After(0.2, function()
-                       setPowerbars()
-               end)
-       elseif event == "PLAYER_ENTERING_WORLD" then
-               updateHealthBar()
-               setPowerbars()
-       elseif (event == "UNIT_MAXHEALTH" or event == "UNIT_HEALTH" or event == "UNIT_ABSORB_AMOUNT_CHANGED") and healthBar and healthBar:IsShown() then
-               updateHealthBar()
-       elseif event == "UNIT_POWER_UPDATE" and powerbar[arg1] and powerbar[arg1]:IsShown() and not powerfrequent[arg1] then
-               updatePowerBar(arg1)
-       elseif event == "UNIT_POWER_FREQUENT" and powerbar[arg1] and powerbar[arg1]:IsShown() and powerfrequent[arg1] then
-               updatePowerBar(arg1)
-       elseif event == "UNIT_MAXPOWER" and powerbar[arg1] and powerbar[arg1]:IsShown() then
-               updatePowerBar(arg1)
-       end
+	elseif event == "ACTIVE_PLAYER_SPECIALIZATION_CHANGED" then
+		C_Timer.After(0.2, function() setPowerbars() end)
+	elseif event == "PLAYER_ENTERING_WORLD" then
+		updateHealthBar()
+		setPowerbars()
+	elseif (event == "UNIT_MAXHEALTH" or event == "UNIT_HEALTH" or event == "UNIT_ABSORB_AMOUNT_CHANGED") and healthBar and healthBar:IsShown() then
+		updateHealthBar()
+	elseif event == "UNIT_POWER_UPDATE" and powerbar[arg1] and powerbar[arg1]:IsShown() and not powerfrequent[arg1] then
+		updatePowerBar(arg1)
+	elseif event == "UNIT_POWER_FREQUENT" and powerbar[arg1] and powerbar[arg1]:IsShown() and powerfrequent[arg1] then
+		updatePowerBar(arg1)
+	elseif event == "UNIT_MAXPOWER" and powerbar[arg1] and powerbar[arg1]:IsShown() then
+		updatePowerBar(arg1)
+	end
 end
 
 function ResourceBars.EnableResourceBars()
@@ -415,35 +443,35 @@ function ResourceBars.EnableResourceBars()
 	frameAnchor:SetScript("OnEvent", eventHandler)
 	frameAnchor:Hide()
 
-       createHealthBar()
-       setPowerbars()
+	createHealthBar()
+	setPowerbars()
 end
 
 function ResourceBars.DisableResourceBars()
-       if frameAnchor then
-               frameAnchor:UnregisterAllEvents()
-               frameAnchor:SetScript("OnEvent", nil)
-               frameAnchor = nil
-               addon.Aura.anchorFrame = nil
-       end
-       if mainFrame then
-               mainFrame:Hide()
-               mainFrame:SetParent(nil)
-               mainFrame = nil
-       end
-       if healthBar then
-               healthBar:Hide()
-               healthBar:SetParent(nil)
-               healthBar = nil
-       end
-       for pType, bar in pairs(powerbar) do
-               if bar then
-                       bar:Hide()
-                       bar:SetParent(nil)
-               end
-               powerbar[pType] = nil
-       end
-       powerbar = {}
+	if frameAnchor then
+		frameAnchor:UnregisterAllEvents()
+		frameAnchor:SetScript("OnEvent", nil)
+		frameAnchor = nil
+		addon.Aura.anchorFrame = nil
+	end
+	if mainFrame then
+		mainFrame:Hide()
+		mainFrame:SetParent(nil)
+		mainFrame = nil
+	end
+	if healthBar then
+		healthBar:Hide()
+		healthBar:SetParent(nil)
+		healthBar = nil
+	end
+	for pType, bar in pairs(powerbar) do
+		if bar then
+			bar:Hide()
+			bar:SetParent(nil)
+		end
+		powerbar[pType] = nil
+	end
+	powerbar = {}
 end
 
 function ResourceBars.SetHealthBarSize(w, h)
