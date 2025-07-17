@@ -15,15 +15,20 @@ local AceGUI = addon.AceGUI
 
 local resourceBarsLoaded = addon.Aura.ResourceBars ~= nil
 local function LoadResourceBars()
-        if not resourceBarsLoaded then
-                addon.Aura.ResourceBars = addon.Aura.ResourceBars or {}
-                resourceBarsLoaded = true
-        end
+	if not resourceBarsLoaded then
+		addon.Aura.ResourceBars = addon.Aura.ResourceBars or {}
+		resourceBarsLoaded = true
+	end
 end
 
 local function addResourceFrame(container)
+	local scroll = addon.functions.createContainer("ScrollFrame", "Flow")
+	scroll:SetFullWidth(true)
+	scroll:SetFullHeight(true)
+	container:AddChild(scroll)
+
 	local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
-	container:AddChild(wrapper)
+	scroll:AddChild(wrapper)
 
 	local groupCore = addon.functions.createContainer("InlineGroup", "List")
 	wrapper:AddChild(groupCore)
@@ -255,6 +260,7 @@ local function addResourceFrame(container)
 		wrapper:AddChild(tabGroup)
 		tabGroup:SelectTab(addon.variables.unitSpec or specTabs[1].value)
 	end
+	scroll:DoLayout()
 end
 
 addon.variables.statusTable.groups["aura"] = true
