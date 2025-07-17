@@ -1653,7 +1653,7 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 
 	local delBtn = addon.functions.createButtonAce(L["DeleteAura"], 150, function()
 		removeBuff(catId, buffId)
-		refreshTree(catId)
+		refreshTree(nil)
 		container:ReleaseChildren()
 	end)
 	wrapper:AddChild(delBtn)
