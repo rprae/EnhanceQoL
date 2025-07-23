@@ -237,6 +237,9 @@ local eventHandlers = {
 			updateLegend(value, addon.db["vendor" .. value .. "MinIlvlDif"])
 		end
 	end,
+	["INVENTORY_SEARCH_UPDATE"] = function()
+		C_Timer.After(0, function() updateSellMarks() end)
+	end,
 }
 local function registerEvents(frame)
 	for event in pairs(eventHandlers) do
@@ -509,7 +512,7 @@ local function addGeneralFrame(container)
 	local groupMark = addon.functions.createContainer("InlineGroup", "List")
 	wrapper:AddChild(groupMark)
 
-	local data = {
+	data = {
 		{
 			text = L["vendorShowSellOverlay"],
 			var = "vendorShowSellOverlay",
@@ -648,6 +651,13 @@ function updateSellMarks()
 						itemButton.SellOverlay:Show()
 					else
 						itemButton.SellOverlay:Hide()
+					end
+					if not itemButton.matchesSearch then
+						itemButton.ItemMarkSell:SetAlpha(0.1)
+						itemButton.SellOverlay:Hide()
+					else
+						if addon.db["vendorShowSellHighContrast"] then itemButton.SellOverlay:Show() end
+						itemButton.ItemMarkSell:SetAlpha(1)
 					end
 				elseif itemButton.ItemMarkSell then
 					itemButton.ItemMarkSell:Hide()

@@ -3278,16 +3278,11 @@ local function initUnitFrame()
 	end
 	hooksecurefunc("CompactUnitFrame_SetUpFrame", DisableBlizzBuffs)
 
-        local function TruncateFrameName(cuf)
-                if not addon.db["unitFrameTruncateNames"] then return end
-                if not addon.db["unitFrameMaxNameLength"] then return end
-                if cuf
-                        and cuf.name
-                        and type(cuf.name.GetText) == "function"
-                        and type(cuf.name.SetText) == "function"
-                        and cuf.name:GetText()
-                then
-                        local name = cuf.name:GetText()
+	local function TruncateFrameName(cuf)
+		if not addon.db["unitFrameTruncateNames"] then return end
+		if not addon.db["unitFrameMaxNameLength"] then return end
+		if cuf and cuf.name and type(cuf.name.GetText) == "function" and type(cuf.name.SetText) == "function" and cuf.name:GetText() then
+			local name = cuf.name:GetText()
 			-- Remove server names before truncation
 			local shortName = strsplit("-", name)
 			if #shortName > addon.db["unitFrameMaxNameLength"] then shortName = strsub(shortName, 1, addon.db["unitFrameMaxNameLength"]) end
@@ -4855,6 +4850,7 @@ local eventHandlers = {
 	end,
 	--@debug@
 	["BAG_UPDATE_DELAYED"] = function(arg1)
+		addon.functions.clearTooltipCache()
 		if addon.db["automaticallyOpenContainer"] then
 			if wOpen then return end
 			wOpen = true
@@ -4867,10 +4863,12 @@ local eventHandlers = {
 		if not addon.db["showIlvlOnBankFrame"] then return end
 		--TODO Removed global variable in Patch 11.2 - has to be removed everywhere when patch is released
 		if NUM_BANKGENERIC_SLOTS then
-			for slot = 1, NUM_BANKGENERIC_SLOTS do
-				local itemButton = _G["BankFrameItem" .. slot]
-				if itemButton then addon.functions.updateBank(itemButton, -1, slot) end
-			end
+			C_Timer.After(0, function()
+				for slot = 1, NUM_BANKGENERIC_SLOTS do
+					local itemButton = _G["BankFrameItem" .. slot]
+					if itemButton then addon.functions.updateBank(itemButton, -1, slot) end
+				end
+			end)
 		end
 	end,
 	["CURRENCY_DISPLAY_UPDATE"] = function(arg1)
@@ -4979,13 +4977,15 @@ local eventHandlers = {
 	end,
 	["INVENTORY_SEARCH_UPDATE"] = function()
 		if addon.db["showBagFilterMenu"] then
-			addon.functions.updateBags(ContainerFrameCombinedBags)
-			for _, frame in ipairs(ContainerFrameContainer.ContainerFrames) do
-				addon.functions.updateBags(frame)
-			end
-			--TODO AccountBankPanel is removed in 11.2 - Feature has to be removed everywhere after release
-			if _G.AccountBankPanel and _G.AccountBankPanel:IsShown() then addon.functions.updateBags(_G.AccountBankPanel) end
-			if _G.BankPanel and _G.BankPanel:IsShown() then addon.functions.updateBags(_G.BankPanel) end
+			C_Timer.After(0, function()
+				addon.functions.updateBags(ContainerFrameCombinedBags)
+				for _, frame in ipairs(ContainerFrameContainer.ContainerFrames) do
+					addon.functions.updateBags(frame)
+				end
+				--TODO AccountBankPanel is removed in 11.2 - Feature has to be removed everywhere after release
+				if _G.AccountBankPanel and _G.AccountBankPanel:IsShown() then addon.functions.updateBags(_G.AccountBankPanel) end
+				if _G.BankPanel and _G.BankPanel:IsShown() then addon.functions.updateBags(_G.BankPanel) end
+			end)
 		end
 	end,
 	["PARTY_INVITE_REQUEST"] = function(unitName, arg2, arg3, arg4, arg5, arg6, unitID, arg8)

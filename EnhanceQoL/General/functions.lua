@@ -304,8 +304,8 @@ function addon.functions.addToTree(parentValue, newElement, noSort)
 	addon.treeGroup:RefreshTree()
 end
 
-local knownButtons = {}
 local tooltipCache = {}
+function addon.functions.clearTooltipCache() wipe(tooltipCache) end
 local function getTooltipInfo(bag, slot)
 	local key = bag .. "_" .. slot
 	local cached = tooltipCache[key]
@@ -346,18 +346,18 @@ end
 
 local function updateButtonInfo(itemButton, bag, slot, frameName)
 	itemButton:SetAlpha(1)
-	itemButton:SetMatchesSearch(true) -- set all to visible on start
+	if itemButton.ItemContextOverlay then itemButton.ItemContextOverlay:Hide() end
 
-	if itemButton.ItemLevelText then itemButton.ItemLevelText:SetAlpha(1) end
+	if itemButton.ItemLevelText then
+		itemButton.ItemLevelText:SetAlpha(1)
+		itemButton.ItemLevelText:Hide()
+	end
 	if itemButton.ItemBoundType then
 		itemButton.ItemBoundType:SetAlpha(1)
 		itemButton.ItemBoundType:SetText("")
 	end
 	local itemLink = C_Container.GetContainerItemLink(bag, slot)
-	-- local eItem = Item:CreateFromBagAndSlot(bag, slot)
-	-- if eItem and not eItem:IsItemEmpty() then
 	if itemLink then
-		-- eItem:ContinueOnItemLoad(function()
 		local _, _, itemQuality, _, _, _, _, _, itemEquipLoc, _, sellPrice, classID, subclassID, _, expId = GetItemInfo(itemLink)
 
 		local bType, bKey, upgradeKey, bAuc
@@ -365,7 +365,7 @@ local function updateButtonInfo(itemButton, bag, slot, frameName)
 		if addon.db["showBindOnBagItems"] or addon.itemBagFilters["bind"] or addon.itemBagFilters["upgrade"] or addon.itemBagFilters["misc_auctionhouse_sellable"] then
 			bType, bKey, upgradeKey, bAuc = getTooltipInfo(bag, slot)
 		end
-		local setVisibility = false
+		local setVisibility
 
 		if addon.filterFrame then
 			if classID == 15 and subclassID == 0 then bAuc = true end -- ignore lockboxes etc.
@@ -429,19 +429,12 @@ local function updateButtonInfo(itemButton, bag, slot, frameName)
 				itemButton.ItemLevelText:SetShadowOffset(2, -2)
 				itemButton.ItemLevelText:SetShadowColor(0, 0, 0, 1)
 			end
-			if frameName then table.insert(knownButtons[frameName], itemButton) end
 			if nil ~= addon.variables.allowedEquipSlotsBagIlvl[itemEquipLoc] then
-				-- local color = eItem:GetItemQualityColor()
 				local r, g, b = C_Item.GetItemQualityColor(itemQuality)
-				local color = {
-					r = r,
-					g = g,
-					b = b,
-				}
 				local itemLevelText = C_Item.GetDetailedItemLevelInfo(itemLink)
 
 				itemButton.ItemLevelText:SetFormattedText(itemLevelText)
-				itemButton.ItemLevelText:SetTextColor(color.r, color.g, color.b, 1)
+				itemButton.ItemLevelText:SetTextColor(r, g, b, 1)
 
 				itemButton.ItemLevelText:Show()
 
@@ -466,7 +459,7 @@ local function updateButtonInfo(itemButton, bag, slot, frameName)
 				itemButton.ItemLevelText:Hide()
 			end
 		end
-		-- itemButton:SetMatchesSearch(not setVisibility)
+
 		if setVisibility then
 			itemButton:SetAlpha(0.1)
 			if itemButton.ItemContextOverlay then
@@ -911,14 +904,6 @@ function addon.functions.updateBags(frame)
 		addon.itemBagFiltersUpgrade = {}
 	end
 	if not frame:IsShown() then return end
-	if nil == knownButtons[frame:GetName()] then
-		knownButtons[frame:GetName()] = {}
-	else
-		for i, v in pairs(knownButtons[frame:GetName()]) do
-			if v.ItemLevelText then v.ItemLevelText:Hide() end
-		end
-	end
-	knownButtons[frame:GetName()] = {} -- clear the list again
 
 	--TODO AccountBankPanel is removed in 11.2 - Feature has to be removed everywhere after release
 	if frame:GetName() == "AccountBankPanel" then
