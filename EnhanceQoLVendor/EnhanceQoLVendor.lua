@@ -465,8 +465,13 @@ local function addInExcludeFrame(container, type)
 end
 
 local function addGeneralFrame(container)
+	local scroll = addon.functions.createContainer("ScrollFrame", "Flow")
+	scroll:SetFullWidth(true)
+	scroll:SetFullHeight(true)
+	container:AddChild(scroll)
+
 	local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
-	container:AddChild(wrapper)
+	scroll:AddChild(wrapper)
 
 	local groupCore = addon.functions.createContainer("InlineGroup", "List")
 	wrapper:AddChild(groupCore)
@@ -487,22 +492,6 @@ local function addGeneralFrame(container)
 			desc = L["vendorAltClickIncludeDesc"],
 			var = "vendorAltClickInclude",
 		},
-		{
-			text = L["vendorShowSellOverlay"],
-			var = "vendorShowSellOverlay",
-			func = function(self, _, checked)
-				addon.db["vendorShowSellOverlay"] = checked
-				if inventoryOpen() then updateSellMarks() end
-			end,
-		},
-		{
-			text = L["vendorShowSellTooltip"],
-			var = "vendorShowSellTooltip",
-			func = function(self, _, checked)
-				addon.db["vendorShowSellTooltip"] = checked
-				if inventoryOpen() then updateSellMarks() end
-			end,
-		},
 	}
 	table.sort(data, function(a, b) return a.text < b.text end)
 
@@ -514,6 +503,52 @@ local function addGeneralFrame(container)
 		local cbElement = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], func, desc)
 		groupCore:AddChild(cbElement)
 	end
+
+	local groupMark = addon.functions.createContainer("InlineGroup", "List")
+	wrapper:AddChild(groupMark)
+
+	local data = {
+		{
+			text = L["vendorShowSellOverlay"],
+			var = "vendorShowSellOverlay",
+			func = function(self, _, checked)
+				addon.db["vendorShowSellOverlay"] = checked
+				if inventoryOpen() then updateSellMarks() end
+				container:ReleaseChildren()
+				addGeneralFrame(container)
+			end,
+		},
+		{
+			text = L["vendorShowSellTooltip"],
+			var = "vendorShowSellTooltip",
+			func = function(self, _, checked)
+				addon.db["vendorShowSellTooltip"] = checked
+				if inventoryOpen() then updateSellMarks() end
+			end,
+		},
+	}
+
+	if addon.db["vendorShowSellOverlay"] then
+		table.insert(data, {
+			text = L["vendorShowSellHighContrast"],
+			var = "vendorShowSellHighContrast",
+			func = function(self, _, checked)
+				addon.db["vendorShowSellHighContrast"] = checked
+				if inventoryOpen() then updateSellMarks() end
+			end,
+		})
+	end
+	table.sort(data, function(a, b) return a.text < b.text end)
+
+	for _, cbData in ipairs(data) do
+		local func = function(self, _, checked) addon.db[cbData.var] = checked end
+		if cbData.func then func = cbData.func end
+		local desc
+		if cbData.desc then desc = cbData.desc end
+		local cbElement = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], func, desc)
+		groupMark:AddChild(cbElement)
+	end
+	scroll:DoLayout()
 end
 
 addon.variables.statusTable.groups["vendor"] = true
@@ -599,16 +634,19 @@ function updateSellMarks()
 				if overlay and sellMarkLookup[key] then
 					if not itemButton.ItemMarkSell then
 						itemButton.ItemMarkSell = itemButton:CreateTexture(nil, "OVERLAY", nil, 7)
-						itemButton.ItemMarkSell:SetTexture("Interface\\AddOns\\EnhanceQoLVendor\\Art\\sell.tga")
-						itemButton.ItemMarkSell:SetSize(24, 24)
-						itemButton.ItemMarkSell:SetVertexColor(0, 1, 1, 1)
-						itemButton.ItemMarkSell:SetPoint("CENTER", itemButton, "CENTER", 1, 1)
+						itemButton.ItemMarkSell:SetTexture("Interface\\buttons\\ui-grouploot-coin-up")
+						itemButton.ItemMarkSell:SetSize(16, 16)
+						itemButton.ItemMarkSell:SetPoint("BOTTOMLEFT", itemButton, "BOTTOMLEFT", 0, -1)
 						itemButton.SellOverlay = itemButton:CreateTexture(nil, "OVERLAY", nil, 6)
 						itemButton.SellOverlay:SetAllPoints()
 						itemButton.SellOverlay:SetColorTexture(1, 0, 0, 0.45)
 					end
 					itemButton.ItemMarkSell:Show()
-					itemButton.SellOverlay:Show()
+					if addon.db["vendorShowSellHighContrast"] then
+						itemButton.SellOverlay:Show()
+					else
+						itemButton.SellOverlay:Hide()
+					end
 				elseif itemButton.ItemMarkSell then
 					itemButton.ItemMarkSell:Hide()
 					itemButton.SellOverlay:Hide()

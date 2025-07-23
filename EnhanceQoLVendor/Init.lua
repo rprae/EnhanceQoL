@@ -39,6 +39,7 @@ addon.functions.InitDBValue("vendorSwapAutoSellShift", false)
 addon.functions.InitDBValue("vendorOnly12Items", true)
 addon.functions.InitDBValue("vendorAltClickInclude", false)
 addon.functions.InitDBValue("vendorShowSellOverlay", false)
+addon.functions.InitDBValue("vendorShowSellHighContrast", false)
 addon.functions.InitDBValue("vendorShowSellTooltip", false)
 
 for key, value in pairs(addon.Vendor.variables.tabNames) do
