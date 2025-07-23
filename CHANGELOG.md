@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.33.0] – 2025-07-?
+### ✨ Added
+- **Delve-O-Bot 7001**
+  - Added the teleport item to *Dungeon Compendium*
+### 🔄 Changed
+- **Portal Compendium**
+  - Limited the buttons per row in favorites so it is not to wide
+
 ## [3.32.0] – 2025-07-23
 ### ✨ Added
 - **Vendor**

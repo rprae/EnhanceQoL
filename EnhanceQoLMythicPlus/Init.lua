@@ -402,6 +402,7 @@ addon.MythicPlus.variables.portalCompendium = {
 			[1226482] = { text = "LOU", isRaid = true },
 			[1223041] = { text = "HS", isItem = true, itemID = 234389, isRaid = true, icon = 3718248, map = 2406 },
 			[1239155] = { text = "MFO", isRaid = true },
+			[467470] = { text = "DELVE", isToy = true, toyID = 230850 },
 		},
 	},
 	[110] = {
