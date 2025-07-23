@@ -374,6 +374,7 @@ end
 local doneHook = false
 local inspectDone = {}
 local inspectUnit = nil
+addon.inspectTooltipCache = addon.inspectTooltipCache or {}
 local function CheckItemGems(element, itemLink, emptySocketsCount, key, pdElement, attempts)
 	attempts = attempts or 1 -- Anzahl der Versuche
 	if attempts > 10 then -- Abbruch nach 5 Versuchen, um Endlosschleifen zu vermeiden
@@ -427,6 +428,39 @@ local function GetUnitFromGUID(targetGUID)
 	end
 
 	return nil
+end
+
+local function getTooltipInfoFromLink(link)
+	if not link then return nil, nil end
+
+	local cached = addon.inspectTooltipCache[link]
+	if cached then return cached.itemLevel, cached.enchantText end
+
+	local itemLevel, enchantText
+	local data = C_TooltipInfo.GetHyperlink(link)
+	if data and data.lines then
+		for _, v in pairs(data.lines) do
+			if not itemLevel and v.type == 41 then
+				local num = v.leftText:match(addon.variables.itemLevelPattern)
+				if num then itemLevel = tonumber(num) end
+			elseif not enchantText and v.type == 15 then
+				local r, g, b = v.leftColor:GetRGB()
+				local colorHex = ("|cff%02x%02x%02x"):format(r * 255, g * 255, b * 255)
+
+				local text = strmatch(gsub(gsub(gsub(v.leftText, "%s?|A.-|a", ""), "|cn.-:(.-)|r", "%1"), "[&+] ?", ""), addon.variables.enchantString)
+				local icons = {}
+				v.leftText:gsub("(|A.-|a)", function(iconString) table.insert(icons, iconString) end)
+				if #icons > 0 then text = text .. icons[1] end
+				text = text:gsub("(%d+)", "%1")
+				text = text:gsub("(%a%a%a)%a+", "%1")
+				text = text:gsub("%%", "%%%%")
+				enchantText = colorHex .. text .. "|r"
+			end
+		end
+	end
+
+	addon.inspectTooltipCache[link] = { itemLevel = itemLevel, enchantText = enchantText }
+	return itemLevel, enchantText
 end
 
 local itemCount = 0
@@ -615,13 +649,8 @@ local function onInspect(arg1)
 							local color = eItem:GetItemQualityColor()
 							local itemLevelText = eItem:GetCurrentItemLevel()
 
-							-- Getting real ilvl from tooltip - Heirlooms sometimes are wrong so use tooltip information instead
-							for i, v in pairs(C_TooltipInfo.GetHyperlink(itemLink).lines) do
-								if v.type == 41 then
-									local num = v.leftText:match(addon.variables.itemLevelPattern)
-									if num then itemLevelText = tonumber(num) end
-								end
-							end
+							local cacheIlvl = select(1, getTooltipInfoFromLink(itemLink))
+							if cacheIlvl then itemLevelText = cacheIlvl end
 
 							ilvlSum = ilvlSum + itemLevelText
 							element.ilvl:SetFormattedText(itemLevelText)
@@ -651,29 +680,11 @@ local function onInspect(arg1)
 								element.enchant:SetFont(addon.variables.defaultFont, 12, "OUTLINE")
 							end
 							if element.borderGradient then
-								local data = C_TooltipInfo.GetHyperlink(itemLink)
-								local foundEnchant = false
-								local foundIcon = nil
-								for i, v in pairs(data.lines) do
-									if v.type == 15 then
-										foundEnchant = true
-										local r, g, b = v.leftColor:GetRGB()
-										local colorHex = ("|cff%02x%02x%02x"):format(r * 255, g * 255, b * 255)
+								local _, enchantText = getTooltipInfoFromLink(itemLink)
+								local foundEnchant = enchantText ~= nil
+								if foundEnchant then element.enchant:SetFormattedText(enchantText) end
 
-										local text = strmatch(gsub(gsub(gsub(v.leftText, "%s?|A.-|a", ""), "|cn.-:(.-)|r", "%1"), "[&+] ?", ""), addon.variables.enchantString)
-										local icons = {}
-										v.leftText:gsub("(|A.-|a)", function(iconString) table.insert(icons, iconString) end)
-										if #icons > 0 then foundIcon = icons[1] end
-										foundEnchant = true
-										local enchantText = text:gsub("(%d+)", "%1")
-										enchantText = enchantText:gsub("(%a%a%a)%a+", "%1")
-										enchantText = enchantText:gsub("%%", "%%%%")
-										if foundIcon then enchantText = enchantText .. foundIcon end
-										element.enchant:SetFormattedText(colorHex .. enchantText .. "|r")
-									end
-								end
-
-								if foundEnchant == false and UnitLevel(inspectUnit) == addon.variables.maxLevel then
+								if not foundEnchant and UnitLevel(inspectUnit) == addon.variables.maxLevel then
 									element.enchant:SetText("")
 									if
 										nil == addon.variables.shouldEnchantedChecks[key]
@@ -766,9 +777,12 @@ local function setIlvlText(element, slot)
 					end
 				end
 
+				local cacheIlvl, enchantText = getTooltipInfoFromLink(link)
+
 				if addon.db["showIlvlOnCharframe"] then
 					local color = eItem:GetItemQualityColor()
 					local itemLevelText = eItem:GetCurrentItemLevel()
+					if cacheIlvl then itemLevelText = cacheIlvl end
 
 					element.ilvl:SetFormattedText(itemLevelText)
 					element.ilvl:SetTextColor(color.r, color.g, color.b, 1)
@@ -781,30 +795,10 @@ local function setIlvlText(element, slot)
 				end
 
 				if addon.db["showEnchantOnCharframe"] and element.borderGradient then
-					local data = C_TooltipInfo.GetHyperlink(link)
+					local foundEnchant = enchantText ~= nil
+					if foundEnchant then element.enchant:SetFormattedText(enchantText) end
 
-					local foundEnchant = false
-					local foundIcon = nil
-					for i, v in pairs(data.lines) do
-						if v.type == 15 then
-							foundEnchant = true
-							local r, g, b = v.leftColor:GetRGB()
-							local colorHex = ("|cff%02x%02x%02x"):format(r * 255, g * 255, b * 255)
-
-							local text = strmatch(gsub(gsub(gsub(v.leftText, "%s?|A.-|a", ""), "|cn.-:(.-)|r", "%1"), "[&+] ?", ""), addon.variables.enchantString)
-							local icons = {}
-							v.leftText:gsub("(|A.-|a)", function(iconString) table.insert(icons, iconString) end)
-							if #icons > 0 then foundIcon = icons[1] end
-							foundEnchant = true
-							local enchantText = text:gsub("(%d+)", "%1")
-							enchantText = enchantText:gsub("(%a%a%a)%a+", "%1")
-							enchantText = enchantText:gsub("%%", "%%%%")
-							if foundIcon then enchantText = enchantText .. foundIcon end
-							element.enchant:SetFormattedText(colorHex .. enchantText .. "|r")
-						end
-					end
-
-					if foundEnchant == false and UnitLevel("player") == addon.variables.maxLevel then
+					if not foundEnchant and UnitLevel("player") == addon.variables.maxLevel then
 						element.enchant:SetText("")
 						if
 							nil == addon.variables.shouldEnchantedChecks[slot]

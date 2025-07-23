@@ -10,6 +10,8 @@
 - **Memory usage**
   - Removed obsolete and duplicate function calls
   - Replaced excessive API calls with leaner, more performant alternatives
+- **Character frame**
+  - Uses cached tooltip information for item level and enchants to avoid repeated API calls
 - **Aura Tracker**
   - Fixed a rare issue where some auras marked **“show when missing”** were not visible on login
 
