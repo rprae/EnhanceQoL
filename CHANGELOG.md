@@ -1,5 +1,10 @@
 # Changelog
 
+## [3.33.1] – 2025-07-25
+### 🐛 Fixed
+- **Taint error when copying character names**
+  - Resolved a protected-function taint that occurred in the context-menu’s **Copy Character Name** option.
+
 ## [3.33.0] – 2025-07-24
 ### ✨ Added
 - **Delve-O-Bot 7001**
