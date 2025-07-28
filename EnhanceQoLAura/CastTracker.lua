@@ -1151,6 +1151,7 @@ function CastTracker.functions.addCastTrackerOptions(container)
 		selectedCategory = catId
 		addon.db.castTrackerSelectedCategory = catId
 		widget:ReleaseChildren()
+		widget:SetFullHeight(true)
 
 		local scroll = addon.functions.createContainer("ScrollFrame", "Flow")
 		scroll:SetFullWidth(true)
