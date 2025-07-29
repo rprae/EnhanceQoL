@@ -4,6 +4,8 @@
 ### 🔄 Changed
 - Cast Tracker is now disabled by default. Enable it manually to opt in.
 
+---
+
 ## [3.35.0] – 2025-07-28
 ### ✨ Added
 - **Cast Tracker**
