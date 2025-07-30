@@ -1,6 +1,9 @@
 # Changelog
 
-## [3.36.1] – 2025-07-30
+## [3.37.0] – 2025-07-30
+### ✨ Added
+- **Aura Tracker**
+  - Option to *Show GCD* on cooldowns
 ### 🐛 Fixed
 - Cooldown check in AuraTracker had a missing variable which impacted the performance
 
