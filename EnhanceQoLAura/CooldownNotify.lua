@@ -21,6 +21,8 @@ local animating = {}
 local itemSpells = {}
 local treeGroup
 local anchors = {}
+-- store the category id of the cooldown currently shown
+local currentCatId
 
 local DCP = CreateFrame("Frame", nil, UIParent)
 DCP:SetPoint("CENTER")
@@ -92,8 +94,10 @@ local function OnUpdate(_, update)
 			DCP.text:SetText(nil)
 			DCP.texture:SetTexture(nil)
 			DCP.texture:SetVertexColor(1, 1, 1)
+			currentCatId = nil
 		else
 			if not DCP.texture:GetTexture() then
+				currentCatId = info[4]
 				if cat.showName and info[3] then
 					local txt = info[3]
 					if cat.customText and cat.customText ~= "" then txt = cat.customText end
@@ -158,6 +162,7 @@ local function ensureAnchor(id)
 		cat.anchor.point = point
 		cat.anchor.x = xOfs
 		cat.anchor.y = yOfs
+		applyAnchor(id)
 	end)
 
 	anchor:SetScript("OnShow", function()
@@ -202,6 +207,7 @@ local function applyLockState()
 					cat.anchor.point = point
 					cat.anchor.x = xOfs
 					cat.anchor.y = yOfs
+					applyAnchor(id)
 				end
 			end)
 			anchor:SetBackdropColor(0, 0, 0, 0.6)
@@ -212,6 +218,26 @@ local function applyLockState()
 			end
 			anchor:Show()
 		end
+	end
+end
+
+local function applySize(id)
+	local cat = addon.db.cooldownNotifyCategories[id]
+	if not cat then return end
+	local anchor = ensureAnchor(id)
+	anchor:SetSize(cat.iconSize or 75, cat.iconSize or 75)
+	if DCP:IsShown() and currentCatId == id then DCP:SetSize(cat.iconSize or 75, cat.iconSize or 75) end
+end
+
+local function applyAnchor(id)
+	local cat = addon.db.cooldownNotifyCategories[id]
+	if not cat then return end
+	local anchor = ensureAnchor(id)
+	anchor:ClearAllPoints()
+	anchor:SetPoint(cat.anchor.point, UIParent, cat.anchor.point, cat.anchor.x, cat.anchor.y)
+	if DCP:IsShown() and currentCatId == id then
+		DCP:ClearAllPoints()
+		DCP:SetPoint(cat.anchor.point or "CENTER", UIParent, cat.anchor.point or "CENTER", cat.anchor.x or 0, cat.anchor.y or 0)
 	end
 end
 
@@ -365,7 +391,10 @@ local function buildCategoryOptions(container, catId)
 	group:AddChild(fadeOutSlider)
 	local scaleSlider = addon.functions.createSliderAce("Scale", cat.animScale or 1.5, 0.5, 3, 0.1, function(_, _, val) cat.animScale = val end)
 	group:AddChild(scaleSlider)
-	local sizeSlider = addon.functions.createSliderAce("Icon Size", cat.iconSize or 75, 20, 200, 1, function(_, _, val) cat.iconSize = val end)
+	local sizeSlider = addon.functions.createSliderAce("Icon Size", cat.iconSize or 75, 20, 200, 1, function(_, _, val)
+		cat.iconSize = val
+		applySize(catId)
+	end)
 	group:AddChild(sizeSlider)
 
 	local spellEdit = addon.functions.createEditboxAce(L["AddSpellID"], nil, function(self, _, text)
@@ -777,5 +806,6 @@ DCP:RegisterEvent("SPELL_UPDATE_COOLDOWN")
 
 for id in pairs(addon.db.cooldownNotifyCategories or {}) do
 	ensureAnchor(id)
+	applySize(id)
 end
 applyLockState()
