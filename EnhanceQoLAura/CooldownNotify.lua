@@ -25,6 +25,8 @@ local currentCatId
 -- forward declaration for functions referenced before definition
 local applyAnchor
 local ShareCategory
+local importCategory
+local exportCategory
 
 local DCP = CreateFrame("Frame", nil, UIParent)
 DCP:SetPoint("CENTER")
