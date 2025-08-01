@@ -1040,11 +1040,13 @@ local function HandleCLEU()
 		if not cats then return end
 		local castTime
 		local unit = GetUnitFromGUID(sourceGUID)
+		if not unit then return end
 		local threat = UnitThreatSituation("player", unit)
 		if (not threat or threat == 0) and UnitGroupRolesAssigned("player") ~= "TANK" then
 			if actTank then threat = UnitThreatSituation(actTank, unit) end
 		end
 		if not threat or threat == 0 then return end
+
 		if unit then
 			_, castTime = getCastInfo(unit)
 			local tgt = unit .. "target"
