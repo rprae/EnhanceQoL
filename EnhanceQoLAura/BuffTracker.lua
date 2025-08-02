@@ -1901,7 +1901,7 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 			end
 		end
 
-		local typeDrop = addon.functions.createDropdownAce(L["TrackType"], { BUFF = L["Buff"], DEBUFF = L["Debuff"], ITEM = L["Item"] }, nil, function(self, _, val)
+		local typeDrop = addon.functions.createDropdownAce(L["TrackType"], { BUFF = L["Buff"], DEBUFF = L["Debuff"] }, nil, function(self, _, val)
 			buff.trackType = val
 			scanBuffs()
 		end)
