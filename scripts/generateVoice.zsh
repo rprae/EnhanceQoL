@@ -10,12 +10,12 @@ DEFAULT_RATE=150                       # Wörter pro Minute
 DEFAULT_PITCH="[[pbas -30]]"           # –30 Cent Grundton­absenkung
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 LIST="$SCRIPT_DIR/wordlist.txt"
-DEST="/Volumes/T7 Shield/Git/WoWAddons/Raizor/EnhanceQoL/Sounds/voiceover"
-PATHW='Interface\\AddOns\\EnhanceQoL\\Sounds\\voiceover\\'
+DEST="/Volumes/T7 Shield/Git/WoWAddons/Raizor/EnhanceQoLSharedMedia/Sounds/Voiceovers"
+PATHW='voiceoverPath'
 VOLUME_GAIN_DB=5            # Lautstärkeanhebung in dB (positiv = lauter, negativ = leiser)
 mkdir -p "$DEST"
 # ---------- 1) Text-to-Speech -------------------------------------------------
-while IFS=';' read -r WORD SPEED PITCH FNAME ICON || [[ -n "$WORD" ]]; do
+while IFS=';' read -r WORD SPEED PITCH FNAME ICON PNAME || [[ -n "$WORD" ]]; do
   [[ -z "$WORD" ]] && continue          # leere Zeilen überspringen
   [[ "$WORD" == \#* ]] && continue      # Kommentarzeilen überspringen
 
@@ -23,6 +23,7 @@ while IFS=';' read -r WORD SPEED PITCH FNAME ICON || [[ -n "$WORD" ]]; do
   PITCH_LOCAL="${PITCH:-$DEFAULT_PITCH}"
   BASENAME="${FNAME:-${WORD// /_}}"
   ICON_SUFFIX="${ICON:-}"
+  NAME_PREFIX="${PNAME:-}"
 
   OUT="$DEST/${BASENAME}.aiff"
   OGG="$DEST/${BASENAME}.ogg"
@@ -43,9 +44,9 @@ while IFS=';' read -r WORD SPEED PITCH FNAME ICON || [[ -n "$WORD" ]]; do
   ffmpeg -loglevel error -y -i "$OUT" -af "volume=${VOLUME_GAIN_DB}dB" -c:a libvorbis -q:a 4 "$OGG"
 
   if [[ -n "$ICON_SUFFIX" ]]; then
-    printf 'LSM:Register("sound", "EQOL: %s %s", "%s%s.ogg")\n' "$BASENAME" "$ICON_SUFFIX" "$PATHW" "$BASENAME"
+    printf 'LSM:Register("sound", "EQOL: |cFF000000|r%s %s", %s .. "%s.ogg")\n' "$NAME_PREFIX$BASENAME" "$ICON_SUFFIX" "$PATHW" "$BASENAME"
   else
-    printf 'LSM:Register("sound", "EQOL: %s", "%s%s.ogg")\n' "$BASENAME" "$PATHW" "$BASENAME"
+    printf 'LSM:Register("sound", "EQOL: %s", %s .. "%s.ogg")\n' "$NAME_PREFIX$BASENAME" "$PATHW" "$BASENAME"
   fi
   # Optional: AIFF löschen, damit nur OGG übrig bleibt
   rm "$OUT"

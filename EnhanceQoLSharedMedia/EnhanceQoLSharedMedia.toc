@@ -1,0 +1,23 @@
+## Interface: 110000, 110002, 110005, 110007, 110100, 110105, 110107, 110200
+## Title: Shared Media
+## Author: R41Z0R
+## Version: @project-version@
+## Notes: Provides shared sound files via LibSharedMedia for EnhanceQoL and other addons
+## Notes-deDE: Stellt geteilte Sound-Dateien und andere Medien für EnhanceQoL bereit
+## Notes-esES: Proporciona archivos de sonido compartidos y otros medios para EnhanceQoL
+## Notes-esMX: Proporciona archivos de sonido compartidos y otros medios para EnhanceQoL
+## Notes-frFR: Fournit des fichiers audio partagés et d'autres médias pour EnhanceQoL
+## Notes-itIT: Fornisce file audio condivisi e altre risorse multimediali per EnhanceQoL
+## Notes-ptBR: Fornece arquivos de som compartilhados e outras mídias para EnhanceQoL
+## Notes-ruRU: Предоставляет общие звуковые файлы и другие медиа для EnhanceQoL
+## Notes-koKR: EnhanceQoL을 위한 공유 사운드 파일 및 기타 미디어를 제공합니다
+## Notes-zhCN: 为 EnhanceQoL 提供共享音效文件和其他媒体
+## Notes-zhTW: 為 EnhanceQoL 提供共享音效檔案與其他媒體
+## Dependencies: EnhanceQoL
+## IconTexture: Interface\AddOns\EnhanceQoLSharedMedia\Icons\Icon.tga
+## Retail: true
+## X-Compatible-With: retail
+## LoadOnDemand: 1
+## Globe-Main: EnhanceQoL
+
+EnhanceQoLSharedMedia.lua

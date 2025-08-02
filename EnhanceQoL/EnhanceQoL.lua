@@ -5004,6 +5004,7 @@ local eventHandlers = {
 			loadSubAddon("EnhanceQoLQuery")
 			--@end-debug@
 			loadSubAddon("EnhanceQoLAura")
+			loadSubAddon("EnhanceQoLSharedMedia")
 			loadSubAddon("EnhanceQoLSound")
 			loadSubAddon("EnhanceQoLMouse")
 			loadSubAddon("EnhanceQoLMythicPlus")

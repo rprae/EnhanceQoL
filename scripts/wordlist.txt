@@ -47,4 +47,38 @@ Targeted;200;"[[pbas -60]]"
 Turn;160;"[[pbas -60]]"
 Use
 # Abilities
+
+# DK
+AMC;180;"[[pbas -50]]";AMZ;|T237510:16|t
+
+# Demon Hunter
+Darkness;170;"[[pbas -30]]";;|T1305154:16|t
+
+# Druid
+Barkskin;190;"[[pbas -60]]";;|T572025:16|t
+Ironbark;190;"[[pbas -60]]";;|T463283:16|t
 Roar;190;"[[pbas -20]]";;|T463283:16|t
+
+# Evoker
+Time Dilation;180;"[[pbas -60]]";Time Dilation;|T4622478:16|t
+
+# Monk
+Chi-ji;170;"[[pbas -30]]";Chi-Ji;|T877514:16|t
+Cocoon;190;"[[pbas -60]]";;|T627485:16|t
+
+# Paladin
+Autumn;180;"[[pbas -40]]";;|T3636843:16|t
+Devotion Aura;180;"[[pbas -30]]";Devotion Aura;|T135893:16|t
+Sac;180;"[[pbas -60]]";;|T135966:16|t
+
+# Priest
+Barrier;170;"[[pbas -30]]";;|T253400:16|t
+Guardian Spirit;180;"[[pbas -40]]";Guardian Spirit;|T237542:16|t
+
+# Shaman
+Ascendence;180;"[[pbas -40]]";;|T135791:16|t
+
+# Racials
+
+#Dwarf
+Stoneform;180;"[[pbas -30]]";Stoneform;|T136225:16|t
