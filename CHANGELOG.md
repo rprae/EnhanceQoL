@@ -20,6 +20,8 @@
 - **Quality-of-Life Options**
   - **Auto-accept enchanting overwrite** prompts.
   - **Auto-accept socketing overwrite** prompts.
+- **Tooltip**
+  - Option to show temporary weapon enchant IDs like sharpening stones, weapon oils, shaman imbues etc.
 ### 🔄 Changed
 - **Gem Helper updated**
   - Improved the general display of gems per socket
