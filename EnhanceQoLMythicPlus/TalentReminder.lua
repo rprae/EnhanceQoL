@@ -298,9 +298,9 @@ local function updateActiveTalentText()
 		if actTalent then
 			local curName = GetConfigName(actTalent)
 
-			activeBuildFrame.text:SetText(string.format("Talentbuild: %s", curName))
+			activeBuildFrame.text:SetText(string.format(L["TalentbuildLabel"], curName))
 		else
-			activeBuildFrame.text:SetText(string.format("Talentbuild: %s", L["Unknown"]))
+			activeBuildFrame.text:SetText(string.format(L["TalentbuildLabel"], L["Unknown"]))
 		end
 		activeBuildFrame.text:SetFont(addon.variables.defaultFont, addon.db["talentReminderActiveBuildSize"], "OUTLINE")
 		restoreActiveBuildPosition()

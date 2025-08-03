@@ -1228,6 +1228,13 @@ addon.Aura.scanBuffs = scanBuffs
 
 local eventFrame = CreateFrame("Frame")
 eventFrame:SetScript("OnEvent", function(_, event, unit, ...)
+	if event == "CHALLENGE_MODE_START" then
+		currentInstanceGroup = difficultyToGroup[8]
+		rebuildAltMapping()
+		collectActiveAuras()
+		scanBuffs()
+		return
+	end
 	if event == "PLAYER_LOGIN" or event == "ACTIVE_PLAYER_SPECIALIZATION_CHANGED" or event == "PLAYER_ENTERING_WORLD" then
 		for id, anchor in pairs(anchors) do
 			local cat = getCategory(id)
@@ -1239,7 +1246,7 @@ eventFrame:SetScript("OnEvent", function(_, event, unit, ...)
 		end
 		if event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" then
 			firstScan = true
-			C_Timer.After(2, function()
+			C_Timer.After(1, function()
 				updateInstanceGroup()
 				rebuildAltMapping()
 				collectActiveAuras()
@@ -1371,6 +1378,7 @@ eventFrame:SetScript("OnEvent", function(_, event, unit, ...)
 	scanBuffs()
 end)
 eventFrame:RegisterUnitEvent("UNIT_AURA", "player")
+eventFrame:RegisterEvent("CHALLENGE_MODE_START")
 eventFrame:RegisterEvent("PLAYER_LOGIN")
 eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 eventFrame:RegisterEvent("ACTIVE_PLAYER_SPECIALIZATION_CHANGED")
