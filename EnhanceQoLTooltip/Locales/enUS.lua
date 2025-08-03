@@ -62,6 +62,9 @@ L["TooltipShowItemID"] = "Show ItemID on Tooltip"
 
 L["TooltipShowItemCount"] = "Show item count on Tooltip"
 L["TooltipShowSeperateItemCount"] = "Show item count separated per location"
+L["TooltipShowTempEnchant"] = "Show temporary weapon-enchant ID"
+L["TooltipShowTempEnchantDesc"] = "Displays the spell ID of temporary weapon enchants (sharpening stones, mana oils, shaman imbues, etc.)."
+L["Temp. EnchantID"] = "Temp. Enchant ID"
 -- TODO 11.2: remove Reagentbank localization
 L["Reagentbank"] = "Reagentbank"
 L["Bank"] = "Bank"

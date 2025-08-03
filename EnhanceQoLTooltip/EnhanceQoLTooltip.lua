@@ -249,10 +249,10 @@ local function checkUnit(tooltip)
 end
 
 local function CheckReagentBankCount(itemID)
-       -- TODO 11.2: Remove this function as Reagent Bank is removed
-        -- TODO 11.2: IsReagentBankUnlocked removed
+	-- TODO 11.2: Remove this function as Reagent Bank is removed
+	-- TODO 11.2: IsReagentBankUnlocked removed
 	if not IsReagentBankUnlocked then return end
-        -- TODO 11.2: IsReagentBankUnlocked removed
+	-- TODO 11.2: IsReagentBankUnlocked removed
 	local count = 0
 	if IsReagentBankUnlocked() then
 		for i = 1, C_Container.GetContainerNumSlots(REAGENTBANK_CONTAINER) do
@@ -266,17 +266,29 @@ local function CheckReagentBankCount(itemID)
 	return count
 end
 
-local function checkItem(tooltip, id, name)
+local function checkItem(tooltip, id, name, guid)
 	if addon.db["TooltipShowItemID"] then
 		if id then
 			tooltip:AddLine(" ")
 			tooltip:AddDoubleLine(name, id)
 		end
 	end
+	if addon.db["TooltipShowTempEnchant"] and guid then
+		local mhHas, mhExp, _, mhID, ohHas, ohExp, _, ohID, rhHas, rhExp = GetWeaponEnchantInfo()
+		if mhHas and guid == Item:CreateFromEquipmentSlot(16):GetItemGUID() then
+			if mhID then
+				tooltip:AddDoubleLine(L["Temp. EnchantID"], mhID)
+			end
+		elseif ohHas and guid == Item:CreateFromEquipmentSlot(17):GetItemGUID() then
+			if ohID then
+				tooltip:AddDoubleLine(L["Temp. EnchantID"], ohID)
+			end
+		end
+	end
 	if addon.db["TooltipShowItemCount"] then
 		if id then
-                       -- TODO 11.2: remove reagent bank counting
-                       local rBankCount = CheckReagentBankCount(id) or 0
+			-- TODO 11.2: remove reagent bank counting
+			local rBankCount = CheckReagentBankCount(id) or 0
 			local bagCount = C_Item.GetItemCount(id)
 			local bankCount = C_Item.GetItemCount(id, true)
 			local totalCount = rBankCount + bankCount
@@ -334,7 +346,7 @@ if TooltipDataProcessor then
 		elseif kind == "item" then
 			id = data.id
 			name = L["ItemID"]
-			checkItem(tooltip, id, name)
+			checkItem(tooltip, id, name, data.guid)
 			return
 		elseif kind == "aura" then
 			id = data.id
@@ -422,6 +434,7 @@ local function addItemFrame(container)
 		{ text = L["TooltipItemHideInCombat"], var = "TooltipItemHideInCombat" },
 		{ text = L["TooltipItemHideInDungeon"], var = "TooltipItemHideInDungeon" },
 		{ text = L["TooltipShowItemID"], var = "TooltipShowItemID" },
+		{ text = L["TooltipShowTempEnchant"], var = "TooltipShowTempEnchant", desc = L["TooltipShowTempEnchantDesc"]},
 		{ text = L["TooltipShowItemCount"], var = "TooltipShowItemCount" },
 		{ text = L["TooltipShowSeperateItemCount"], var = "TooltipShowSeperateItemCount" },
 	}
@@ -429,7 +442,7 @@ local function addItemFrame(container)
 	table.sort(data, function(a, b) return a.text < b.text end)
 
 	for _, cbData in ipairs(data) do
-		local cbElement = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], function(self, _, value) addon.db[cbData.var] = value end)
+		local cbElement = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], function(self, _, value) addon.db[cbData.var] = value end, cbData.desc)
 		groupCore:AddChild(cbElement)
 	end
 end
