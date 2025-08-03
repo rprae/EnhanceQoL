@@ -22,6 +22,8 @@
 - **Tooltip**
   - Can display temporary weapon-enchant IDs (stones, oils, imbues, etc.).
   - Option to show **spell icon ID**.
+- **Drink Macro**
+  - Hold Alt to move the *Food reminder*
 ### 🔄 Changed
 - **Gem Helper**
   - Cleaner gem display per socket.
