@@ -758,7 +758,7 @@ function updateBuff(catId, id, changedId, firstScan)
 		local frame = activeBuffFrames[catId][id]
 		local icon = GetInventoryItemTexture("player", buff.slot) or buff.icon
 		buff.icon = icon
-		local mhHas, mhExp, _, _, ohHas, ohExp, _, _, rhHas, rhExp = GetWeaponEnchantInfo()
+		local mhHas, mhExp, _, mID, ohHas, ohExp, _, oID, rhHas, rhExp = GetWeaponEnchantInfo()
 		local hasEnchant, exp = false, 0
 		if buff.slot == 16 then
 			hasEnchant, exp = mhHas, mhExp
