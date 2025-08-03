@@ -1239,7 +1239,7 @@ eventFrame:SetScript("OnEvent", function(_, event, unit, ...)
 		end
 		if event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" then
 			firstScan = true
-			C_Timer.After(1, function()
+			C_Timer.After(2, function()
 				updateInstanceGroup()
 				rebuildAltMapping()
 				collectActiveAuras()
