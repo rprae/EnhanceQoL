@@ -14,6 +14,8 @@
   - Now tracks on-use **trinket cooldowns**.
   - _Show for Difficulty_ filter — “Outside World”, “Any Instance”, or specific difficulties.
   - Tracks **temporary weapon enchants** with optional Enchant-ID filter.
+- **Talent Reminder**
+  - Use a custom sound to play for wrong talent builds
 - **Talent Reminder – Build Info**
   - Displays the name of the active talent build.
   - Text can be shown **only outside instances**, **only in 5-man/Delves**, or **only in raids**.
@@ -24,7 +26,8 @@
   - Auto-confirm dialogs for **enchant overwrite** and **socket overwrite**.
 - **Drink Macro**
   - _Food reminder_ icon is movable (hold **Alt**) and now has a size option.
-  - _Food reminder_ add optional sound warning
+  - _Food reminder_ add optional sound warning for leave and join
+  
 ### 🔄 Changed
 - **Gem Helper**
   - Cleaner per-socket gem display.
