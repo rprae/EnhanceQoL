@@ -460,14 +460,27 @@ f:SetScript("OnEvent", function(_, event, arg1, arg2)
 	elseif event == "CRAFTINGORDERS_ORDER_PLACEMENT_RESPONSE" then
 		if arg1 == 0 and not scanRunning then Rescan() end
 	elseif event == "AUCTION_HOUSE_SHOW" then
-		local ui = CreateCraftShopperFrame()
-		ui.frame:ClearAllPoints()
-		ui.frame:SetPoint("TOPLEFT", AuctionHouseFrame, "TOPRIGHT", 5, 0)
-		ui.frame:SetPoint("BOTTOMLEFT", AuctionHouseFrame, "BOTTOMRIGHT", 5, 0)
-		ui.frame:SetWidth(300)
-		ui.ahBuyable:SetValue(true)
-		ui.frame:Show()
-		ui:Refresh()
+		Rescan()
+		local hasItems = false
+		for _, item in ipairs(addon.Vendor.CraftShopper.items) do
+			if item.ahBuyable and item.missing > 0 then
+				hasItems = true
+				break
+			end
+		end
+		if hasItems then
+			local ui = CreateCraftShopperFrame()
+			ui.frame:ClearAllPoints()
+			ui.frame:SetPoint("TOPLEFT", AuctionHouseFrame, "TOPRIGHT", 5, 0)
+			ui.frame:SetPoint("BOTTOMLEFT", AuctionHouseFrame, "BOTTOMRIGHT", 5, 0)
+			ui.frame:SetWidth(300)
+			ui.ahBuyable:SetValue(true)
+			ui.frame:Show()
+			ui:Refresh()
+		else
+			if addon.Vendor.CraftShopper.frame then addon.Vendor.CraftShopper.frame.frame:Hide() end
+			f:UnregisterEvent("COMMODITY_PRICE_UPDATED")
+		end
 	elseif event == "AUCTION_HOUSE_CLOSED" then
 		if addon.Vendor.CraftShopper.frame then
 			addon.Vendor.CraftShopper.frame.frame:Hide()
