@@ -61,6 +61,7 @@ local function UnregisterHeavyEvents()
 		f:UnregisterEvent(event)
 	end
 	f:UnregisterEvent("COMMODITY_PRICE_UPDATED")
+	f:UnregisterEvent("COMMODITY_PURCHASE_FAILED")
 end
 
 local function isAHBuyable(itemID)
@@ -149,10 +150,10 @@ local function Rescan()
 		scanRunning = false
 		return
 	end
-        addon.Vendor.CraftShopper.items = BuildShoppingList()
-        if addon.Vendor.CraftShopper.frame then addon.Vendor.CraftShopper.frame:Refresh() end
-        scanRunning = false
-        ShowCraftShopperFrameIfNeeded()
+	addon.Vendor.CraftShopper.items = BuildShoppingList()
+	if addon.Vendor.CraftShopper.frame then addon.Vendor.CraftShopper.frame:Refresh() end
+	scanRunning = false
+	ShowCraftShopperFrameIfNeeded()
 end
 
 local function ScheduleRescan()
@@ -218,6 +219,7 @@ local function ShowPurchasePopup(item, buyWidget)
 	cancelBtn:SetText(L["vendorCraftShopperCancel"])
 	cancelBtn:SetRelativeWidth(0.5)
 	btnGroup:AddChild(cancelBtn)
+	popup.cancelBtn = cancelBtn
 
 	local spinner = CreateFrame("Frame", nil, popup.frame, "LoadingSpinnerTemplate")
 	spinner:SetPoint("TOP", popup.frame, "TOP", 0, -25)
@@ -252,6 +254,7 @@ local function ShowPurchasePopup(item, buyWidget)
 		if popup.ticker then popup.ticker:Cancel() end
 		popup.frame:Hide()
 		f:UnregisterEvent("COMMODITY_PRICE_UPDATED")
+		f:UnregisterEvent("COMMODITY_PURCHASE_FAILED")
 		AceGUI:Release(popup)
 		pendingPurchase = nil
 		buyWidget:SetDisabled(false)
@@ -422,6 +425,7 @@ local function CreateCraftShopperFrame()
 					buy:SetCallback("OnClick", function()
 						if pendingPurchase then return end
 						f:RegisterEvent("COMMODITY_PRICE_UPDATED")
+						f:RegisterEvent("COMMODITY_PURCHASE_FAILED")
 						ShowPurchasePopup(item, buy)
 						C_AuctionHouse.StartCommoditiesPurchase(item.itemID, item.missing)
 					end)
@@ -449,35 +453,36 @@ local function CreateCraftShopperFrame()
 		end
 	end
 
-        addon.Vendor.CraftShopper.frame = frame
-        return frame
+	addon.Vendor.CraftShopper.frame = frame
+	return frame
 end
 
 function ShowCraftShopperFrameIfNeeded()
-        if not AuctionHouseFrame or not AuctionHouseFrame:IsShown() then return end
+	if not AuctionHouseFrame or not AuctionHouseFrame:IsShown() then return end
 
-        local hasItems = false
-        for _, item in ipairs(addon.Vendor.CraftShopper.items) do
-                if item.ahBuyable and item.missing > 0 then
-                        hasItems = true
-                        break
-                end
-        end
+	local hasItems = false
+	for _, item in ipairs(addon.Vendor.CraftShopper.items) do
+		if item.ahBuyable and item.missing > 0 then
+			hasItems = true
+			break
+		end
+	end
 
-        if hasItems then
-                local ui = CreateCraftShopperFrame()
-                ui.frame:ClearAllPoints()
-                ui.frame:SetPoint("TOPLEFT", AuctionHouseFrame, "TOPRIGHT", 5, 0)
-                ui.frame:SetPoint("BOTTOMLEFT", AuctionHouseFrame, "BOTTOMRIGHT", 5, 0)
-                local width = math.max(300, AuctionHouseFrame:GetWidth() * 0.4)
-                ui.frame:SetWidth(width)
-                ui.ahBuyable:SetValue(true)
-                ui.frame:Show()
-                ui:Refresh()
-        else
-                if addon.Vendor.CraftShopper.frame then addon.Vendor.CraftShopper.frame.frame:Hide() end
-                f:UnregisterEvent("COMMODITY_PRICE_UPDATED")
-        end
+	if hasItems then
+		local ui = CreateCraftShopperFrame()
+		ui.frame:ClearAllPoints()
+		ui.frame:SetPoint("TOPLEFT", AuctionHouseFrame, "TOPRIGHT", 5, 0)
+		ui.frame:SetPoint("BOTTOMLEFT", AuctionHouseFrame, "BOTTOMRIGHT", 5, 0)
+		local width = math.max(300, AuctionHouseFrame:GetWidth() * 0.4)
+		ui.frame:SetWidth(width)
+		ui.ahBuyable:SetValue(true)
+		ui.frame:Show()
+		ui:Refresh()
+	else
+		if addon.Vendor.CraftShopper.frame then addon.Vendor.CraftShopper.frame.frame:Hide() end
+		f:UnregisterEvent("COMMODITY_PRICE_UPDATED")
+		f:UnregisterEvent("COMMODITY_PURCHASE_FAILED")
+	end
 end
 
 function addon.Vendor.CraftShopper.EnableCraftShopper()
@@ -505,32 +510,45 @@ f:RegisterEvent("PLAYER_LOGIN")
 f:SetScript("OnEvent", function(_, event, arg1, arg2)
 	if event == "PLAYER_LOGIN" then
 		if addon.db["vendorCraftShopperEnable"] then addon.Vendor.CraftShopper.EnableCraftShopper() end
-        elseif event == "TRACKED_RECIPE_UPDATE" then
-                if HasTrackedRecipes() then
-                        RegisterHeavyEvents()
-                        ScheduleRescan()
-                else
-                        UnregisterHeavyEvents()
-                        if pendingScan then
-                                pendingScan:Cancel()
-                                pendingScan = nil
-                        end
-                        if addon.Vendor.CraftShopper.frame then addon.Vendor.CraftShopper.frame.frame:Hide() end
-                end
-        elseif event == "BAG_UPDATE_DELAYED" then
-                ScheduleRescan()
-        elseif event == "CRAFTINGORDERS_ORDER_PLACEMENT_RESPONSE" then
-                if arg1 == 0 and not scanRunning then Rescan() end
-        elseif event == "AUCTION_HOUSE_SHOW" then
-                Rescan()
-                ShowCraftShopperFrameIfNeeded()
-        elseif event == "AUCTION_HOUSE_CLOSED" then
-                if addon.Vendor.CraftShopper.frame then
-                        addon.Vendor.CraftShopper.frame.frame:Hide()
-                        f:UnregisterEvent("COMMODITY_PRICE_UPDATED")
-                end
+	elseif event == "TRACKED_RECIPE_UPDATE" then
+		if HasTrackedRecipes() then
+			RegisterHeavyEvents()
+			ScheduleRescan()
+		else
+			UnregisterHeavyEvents()
+			if pendingScan then
+				pendingScan:Cancel()
+				pendingScan = nil
+			end
+			if addon.Vendor.CraftShopper.frame then addon.Vendor.CraftShopper.frame.frame:Hide() end
+		end
+	elseif event == "BAG_UPDATE_DELAYED" then
+		ScheduleRescan()
+	elseif event == "CRAFTINGORDERS_ORDER_PLACEMENT_RESPONSE" then
+		if arg1 == 0 and not scanRunning then Rescan() end
+	elseif event == "AUCTION_HOUSE_SHOW" then
+		Rescan()
+		ShowCraftShopperFrameIfNeeded()
+	elseif event == "AUCTION_HOUSE_CLOSED" then
+		if addon.Vendor.CraftShopper.frame then
+			addon.Vendor.CraftShopper.frame.frame:Hide()
+			f:UnregisterEvent("COMMODITY_PRICE_UPDATED")
+			f:UnregisterEvent("COMMODITY_PURCHASE_FAILED")
+		end
 	elseif event == "COMMODITY_PRICE_UPDATED" then
 		UpdatePurchasePopup(arg1, arg2)
+	elseif event == "COMMODITY_PURCHASE_FAILED" then
+		if pendingPurchase then
+			f:UnregisterEvent("COMMODITY_PRICE_UPDATED")
+			f:UnregisterEvent("COMMODITY_PURCHASE_FAILED")
+			if pendingPurchase.popup.ticker then pendingPurchase.popup.ticker:Cancel() end
+			if pendingPurchase.popup.spinner then pendingPurchase.popup.spinner:Hide() end
+			pendingPurchase.popup.text:SetText(L["vendorCraftShopperPurchaseFailed"])
+			pendingPurchase.popup.timerLabel:SetText("")
+			pendingPurchase.popup.buyBtn.frame:Hide()
+			pendingPurchase.popup.cancelBtn:SetText(OKAY)
+			pendingPurchase.buyWidget:SetDisabled(false)
+		end
 	else
 		Rescan()
 	end
