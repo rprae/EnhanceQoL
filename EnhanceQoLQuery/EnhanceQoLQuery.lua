@@ -55,8 +55,9 @@ frame.outputEditBox:SetScript("OnEnterPressed", function(self) self:ClearFocus()
 
 local addedItems = {}
 
+local tooltip = CreateFrame("GameTooltip", "EnhanceQoLQueryTooltip", UIParent, "GameTooltipTemplate")
+
 local function extractManaFromTooltip(itemLink)
-	local tooltip = CreateFrame("GameTooltip", "EnhanceQoLQueryTooltip", UIParent, "GameTooltipTemplate")
 	tooltip:SetOwner(UIParent, "ANCHOR_NONE")
 	tooltip:SetHyperlink(itemLink)
 	local mana = 0
@@ -83,7 +84,6 @@ local function extractManaFromTooltip(itemLink)
 end
 
 local function extractWellFedFromTooltip(itemLink)
-	local tooltip = CreateFrame("GameTooltip", "EnhanceQoLQueryTooltip", UIParent, "GameTooltipTemplate")
 	tooltip:SetOwner(UIParent, "ANCHOR_NONE")
 	tooltip:SetHyperlink(itemLink)
 	local buffFood = "false"
