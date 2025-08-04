@@ -26,6 +26,40 @@ local scanRunning
 local pendingPurchase -- data for a running AH commodities purchase
 local ahCache = {} -- [itemID] = true/false
 
+local function HasTrackedRecipes()
+	for _, isRecraft in ipairs(isRecraftTbl) do
+		local recipes = C_TradeSkillUI.GetRecipesTracked(isRecraft)
+		if recipes and #recipes > 0 then return true end
+	end
+	return false
+end
+
+local heavyEvents = {
+	"BAG_UPDATE_DELAYED",
+	"CRAFTINGORDERS_ORDER_PLACEMENT_RESPONSE",
+	"AUCTION_HOUSE_SHOW",
+	"AUCTION_HOUSE_CLOSED",
+}
+
+local heavyEventsRegistered = false
+
+local function RegisterHeavyEvents()
+	if heavyEventsRegistered then return end
+	heavyEventsRegistered = true
+	for _, event in ipairs(heavyEvents) do
+		f:RegisterEvent(event)
+	end
+end
+
+local function UnregisterHeavyEvents()
+	if not heavyEventsRegistered then return end
+	heavyEventsRegistered = false
+	for _, event in ipairs(heavyEvents) do
+		f:UnregisterEvent(event)
+	end
+	f:UnregisterEvent("COMMODITY_PRICE_UPDATED")
+end
+
 local function isAHBuyable(itemID)
 	if ahCache[itemID] ~= nil then return ahCache[itemID] end
 	local buyable = true
@@ -392,14 +426,36 @@ local function CreateCraftShopperFrame()
 	return frame
 end
 
-f:RegisterEvent("TRACKED_RECIPE_UPDATE") -- parameter 1: ID of recipe - parameter 2: tracked true/false
-f:RegisterEvent("BAG_UPDATE_DELAYED") -- verzögerter Scan, um Event-Flut zu vermeiden
-f:RegisterEvent("CRAFTINGORDERS_ORDER_PLACEMENT_RESPONSE") -- arg1: error code, 0 on success
-f:RegisterEvent("AUCTION_HOUSE_SHOW")
-f:RegisterEvent("AUCTION_HOUSE_CLOSED")
+function addon.Vendor.CraftShopper.EnableCraftShopper()
+	f:RegisterEvent("TRACKED_RECIPE_UPDATE")
+	if HasTrackedRecipes() then
+		RegisterHeavyEvents()
+		Rescan()
+	else
+		UnregisterHeavyEvents()
+	end
+end
+
+function addon.Vendor.CraftShopper.DisableCraftShopper()
+	f:UnregisterEvent("TRACKED_RECIPE_UPDATE")
+	UnregisterHeavyEvents()
+	if addon.Vendor.CraftShopper.frame then addon.Vendor.CraftShopper.frame.frame:Hide() end
+end
+
+f:RegisterEvent("PLAYER_LOGIN")
 
 f:SetScript("OnEvent", function(_, event, arg1, arg2)
-	if event == "BAG_UPDATE_DELAYED" then
+	if event == "PLAYER_LOGIN" then
+		if addon.db["vendorCraftShopperEnable"] then addon.Vendor.CraftShopper.EnableCraftShopper() end
+	elseif event == "TRACKED_RECIPE_UPDATE" then
+		if HasTrackedRecipes() then
+			RegisterHeavyEvents()
+			Rescan()
+		else
+			UnregisterHeavyEvents()
+			if addon.Vendor.CraftShopper.frame then addon.Vendor.CraftShopper.frame.frame:Hide() end
+		end
+	elseif event == "BAG_UPDATE_DELAYED" then
 		ScheduleRescan()
 	elseif event == "CRAFTINGORDERS_ORDER_PLACEMENT_RESPONSE" then
 		if arg1 == 0 and not scanRunning then Rescan() end

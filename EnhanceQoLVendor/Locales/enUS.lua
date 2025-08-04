@@ -19,6 +19,7 @@ L["vendorAltClickIncludeDesc"] = "Alt+Left-click an item in your inventory to ad
 L["vendorShowSellOverlay"] = "Subtle highlight on items marked for sale"
 L["vendorShowSellHighContrast"] = "High-contrast red overlay on items marked for sale"
 L["vendorShowSellTooltip"] = "Show sale marker info in tooltips"
+L["vendorCraftShopperEnable"] = "Enable Craft Shopper"
 L["bagFilterUpgradeLevel"] = "Upgrade Level"
 L["upgradeLevelVeteran"] = "Veteran"
 L["upgradeLevelChampion"] = "Champion"
