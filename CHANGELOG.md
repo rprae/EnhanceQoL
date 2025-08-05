@@ -55,6 +55,7 @@
 - **Gem Helper** could rarely throw an error.
 - **Vendor sell overlay** sometimes remained visible after changing settings.
 - **Dungeon Portal** could occasionally throw a Lua error in combat.
+- **Auction house sellable filter** had ignored some rare items
 
 ---
 

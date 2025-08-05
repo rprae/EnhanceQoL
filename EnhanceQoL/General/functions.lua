@@ -307,7 +307,7 @@ end
 
 local tooltipCache = {}
 function addon.functions.clearTooltipCache() wipe(tooltipCache) end
-local function getTooltipInfo(bag, slot)
+local function getTooltipInfo(bag, slot, classID, tBindType)
 	local key = bag .. "_" .. slot
 	local cached = tooltipCache[key]
 	if cached then return cached[1], cached[2], cached[3], cached[4] end
@@ -341,6 +341,9 @@ local function getTooltipInfo(bag, slot)
 		end
 	end
 
+	-- Check for recipe
+	if classID == 9 and (bAuc == true and tBindType == 0) then bAuc = false end
+
 	tooltipCache[key] = { bType, bKey, upgradeKey, bAuc }
 	return bType, bKey, upgradeKey, bAuc
 end
@@ -359,12 +362,12 @@ local function updateButtonInfo(itemButton, bag, slot, frameName)
 	end
 	local itemLink = C_Container.GetContainerItemLink(bag, slot)
 	if itemLink then
-		local _, _, itemQuality, _, _, _, _, _, itemEquipLoc, _, sellPrice, classID, subclassID, _, expId = GetItemInfo(itemLink)
+		local _, _, itemQuality, _, _, _, _, _, itemEquipLoc, _, sellPrice, classID, subclassID, tBindType, expId = GetItemInfo(itemLink)
 
 		local bType, bKey, upgradeKey, bAuc
 		local data
 		if addon.db["showBindOnBagItems"] or addon.itemBagFilters["bind"] or addon.itemBagFilters["upgrade"] or addon.itemBagFilters["misc_auctionhouse_sellable"] then
-			bType, bKey, upgradeKey, bAuc = getTooltipInfo(bag, slot)
+			bType, bKey, upgradeKey, bAuc = getTooltipInfo(bag, slot, classID, tBindType)
 		end
 		local setVisibility
 
