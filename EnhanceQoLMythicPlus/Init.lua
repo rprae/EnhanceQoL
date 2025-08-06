@@ -240,8 +240,7 @@ function addon.MythicPlus.functions.addPullButton()
 		if addon.db["PullTimerType"] == 3 or addon.db["PullTimerType"] == 4 then
 			C_ChatInfo.SendAddonMessage("D4", ("PT\t%d\t%d"):format(duration, instanceId), IsInGroup(2) and "INSTANCE_CHAT" or "RAID")
 		end
-		-- TODO 11.2: use C_ChatInfo.SendChatMessage
-		if not addon.db["noChatOnPullTimer"] then SendChatMessage(("PULL in %ds"):format(duration), "PARTY") end
+		if not addon.db["noChatOnPullTimer"] then C_ChatInfo.SendChatMessage(("PULL in %ds"):format(duration), "PARTY") end
 
 		-- ticker updates local countdown (also handles chat, optional)
 		self.ticker = C_Timer.NewTicker(1, function(t)
@@ -263,17 +262,15 @@ function addon.MythicPlus.functions.addPullButton()
 					self.spin:Stop()
 					self.ring:SetRotation(0)
 				end
-				-- TODO 11.2: use C_ChatInfo.SendChatMessage
 
-				if not addon.db["noChatOnPullTimer"] then SendChatMessage(">>PULL NOW<<", "PARTY") end
+				if not addon.db["noChatOnPullTimer"] then C_ChatInfo.SendChatMessage(">>PULL NOW<<", "PARTY") end
 				if addon.db["autoKeyStart"] and C_ChallengeMode.GetSlottedKeystoneInfo() then
 					C_ChallengeMode.StartChallengeMode()
 					ChallengesKeystoneFrame:Hide()
 				end
-			-- TODO 11.2: use C_ChatInfo.SendChatMessage
 			else
 				self.timerCountdown:SetText(self.remaining)
-				if not addon.db["noChatOnPullTimer"] then SendChatMessage(("PULL in %d"):format(self.remaining), "PARTY") end
+				if not addon.db["noChatOnPullTimer"] then C_ChatInfo.SendChatMessage(("PULL in %d"):format(self.remaining), "PARTY") end
 			end
 		end)
 		self.running = true
@@ -286,11 +283,10 @@ function addon.MythicPlus.functions.addPullButton()
 		self.running = false
 		if not MouseIsOver(rcButton) then
 			self.spin:Stop()
-			-- TODO 11.2: use C_ChatInfo.SendChatMessage
 			self.ring:SetRotation(0)
 		end
 		C_PartyInfo.DoCountdown(0) -- abort Blizzard countdown
-		if not addon.db["noChatOnPullTimer"] then SendChatMessage("PULL Canceled", "PARTY") end
+		if not addon.db["noChatOnPullTimer"] then C_ChatInfo.SendChatMessage("PULL Canceled", "PARTY") end
 	end
 
 	rcButton:RegisterForClicks("RightButtonDown", "LeftButtonDown")
@@ -395,7 +391,6 @@ function addon.MythicPlus.functions.removeExistingButton()
 	end
 	addon.MythicPlus.Buttons = {}
 	addon.MythicPlus.nrOfButtons = 0
-	-- TODO 11.2: remove static mapID entries when C_ChallengeMode.GetMapUIInfo returns mapID
 end
 
 addon.MythicPlus.variables.portalCompendium = {

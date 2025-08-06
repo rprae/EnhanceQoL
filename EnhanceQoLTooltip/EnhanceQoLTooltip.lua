@@ -264,24 +264,6 @@ local function checkUnit(tooltip)
 	checkAdditionalTooltip(tooltip)
 end
 
-local function CheckReagentBankCount(itemID)
-	-- TODO 11.2: Remove this function as Reagent Bank is removed
-	-- TODO 11.2: IsReagentBankUnlocked removed
-	if not IsReagentBankUnlocked then return end
-	-- TODO 11.2: IsReagentBankUnlocked removed
-	local count = 0
-	if IsReagentBankUnlocked() then
-		for i = 1, C_Container.GetContainerNumSlots(REAGENTBANK_CONTAINER) do
-			local itemInSlot = C_Container.GetContainerItemID(REAGENTBANK_CONTAINER, i)
-			if itemInSlot == itemID then
-				local info = C_Container.GetContainerItemInfo(REAGENTBANK_CONTAINER, i)
-				count = count + info.stackCount
-			end
-		end
-	end
-	return count
-end
-
 local function checkItem(tooltip, id, name, guid)
 	local first = true
 	if addon.db["TooltipShowItemID"] then
@@ -315,11 +297,10 @@ local function checkItem(tooltip, id, name, guid)
 	end
 	if addon.db["TooltipShowItemCount"] then
 		if id then
-			-- TODO 11.2: remove reagent bank counting
-			local rBankCount = CheckReagentBankCount(id) or 0
 			local bagCount = C_Item.GetItemCount(id)
-			local bankCount = C_Item.GetItemCount(id, true)
-			local totalCount = rBankCount + bankCount
+			local bankCount = C_Item.GetItemCount(id, true) - bagCount
+			local accountCount = C_Item.GetItemCount(id, true, false, false, true) - bankCount - bagCount -- last true = AccountBank
+			local totalCount = bagCount + bankCount + accountCount
 
 			if addon.db["TooltipShowSeperateItemCount"] then
 				if bagCount > 0 then
@@ -338,12 +319,12 @@ local function checkItem(tooltip, id, name, guid)
 					end
 					tooltip:AddDoubleLine(L["Bank"], bankCount)
 				end
-				if rBankCount > 0 then
+				if accountCount > 0 then
 					if first then
 						tooltip:AddLine(" ")
 						first = false
 					end
-					tooltip:AddDoubleLine(L["Reagentbank"], rBankCount)
+					tooltip:AddDoubleLine(ACCOUNT_BANK_PANEL_TITLE, accountCount)
 				end
 			else
 				tooltip:AddDoubleLine(L["Itemcount"], totalCount)

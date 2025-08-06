@@ -248,7 +248,7 @@ local function checkShow()
 end
 
 function addon.Drinks.functions.updateRole()
-	healerRole = GetSpecializationRole(GetSpecialization()) == "HEALER" or false
+	healerRole = GetSpecializationRole(C_SpecializationInfo.GetSpecialization()) == "HEALER" or false
 	checkShow()
 end
 
@@ -262,9 +262,9 @@ frameLoad:RegisterEvent("GROUP_ROSTER_UPDATE")
 
 frameLoad:SetScript("OnEvent", function(self, event)
 	if event == "PLAYER_LOGIN" then
-		healerRole = GetSpecializationRole(GetSpecialization()) == "HEALER" or false
+		healerRole = GetSpecializationRole(C_SpecializationInfo.GetSpecialization()) == "HEALER" or false
 	elseif event == "ACTIVE_TALENT_GROUP_CHANGED" then
-		healerRole = GetSpecializationRole(GetSpecialization()) == "HEALER" or false
+		healerRole = GetSpecializationRole(C_SpecializationInfo.GetSpecialization()) == "HEALER" or false
 	elseif event == "PLAYER_UPDATE_RESTING" and IsResting() then
 		queuedFollower = false
 	end

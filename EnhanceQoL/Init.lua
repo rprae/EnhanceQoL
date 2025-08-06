@@ -503,15 +503,14 @@ addon.itemBagFilterTypes = {
 addon.variables.unitClass = select(2, UnitClass("player"))
 addon.variables.unitClassID = select(3, UnitClass("player"))
 addon.variables.unitPlayerGUID = UnitGUID("player")
-addon.variables.unitSpec = GetSpecialization()
+addon.variables.unitSpec = C_SpecializationInfo.GetSpecialization()
 addon.variables.unitSpecId = nil
 addon.variables.unitSpecName = nil
 addon.variables.unitRole = nil
 if addon.variables.unitSpec then
-	-- TODO 11.2: use C_SpecializationInfo.GetSpecializationInfo
-	local specId, specName = GetSpecializationInfo(addon.variables.unitSpec)
+	local specId, specName = C_SpecializationInfo.GetSpecializationInfo(addon.variables.unitSpec)
 	addon.variables.unitSpecName = specName
-	addon.variables.unitRole = GetSpecializationRole(GetSpecialization())
+	addon.variables.unitRole = GetSpecializationRole(C_SpecializationInfo.GetSpecialization())
 	addon.variables.unitSpecId = specId
 end
 addon.variables.unitRace = select(2, UnitRace("player"))
@@ -566,11 +565,11 @@ addon.variables.shouldEnchantedChecks = {
 	-- Head
 	[1] = {
 		func = function(ilvl)
-			if ilvl >= 350 and addon.functions.IsPatchLive("horrificVisions") and not GetBuildInfo() == "11.2.0" and not addon.functions.IsPatchLive("whispersOfKaresh") then
-				-- Horrific vision enchant - Only usable during Season 2 of TWW and after Patchday in the Week of 20.05.2025
-				-- and before the Patchday on 12/13.08.2025
-				return true
-			end
+			-- if ilvl >= 350 and addon.functions.IsPatchLive("horrificVisions") and not GetBuildInfo() == "11.2.0" and not addon.functions.IsPatchLive("whispersOfKaresh") then
+			-- 	-- Horrific vision enchant - Only usable during Season 2 of TWW and after Patchday in the Week of 20.05.2025
+			-- 	-- and before the Patchday on 12/13.08.2025
+			-- 	return true
+			-- end
 			return false
 		end,
 	},

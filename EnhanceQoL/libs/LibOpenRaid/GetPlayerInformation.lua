@@ -363,10 +363,8 @@ function openRaidLib.GetPlayerSpecId()
         return 0
     end
 
-    -- TODO 11.2: use C_SpecializationInfo.GetSpecialization
     local spec = GetSpecialization()
     if (spec) then
-    -- TODO 11.2: use C_SpecializationInfo.GetSpecializationInfo
         local specId = GetSpecializationInfo(spec)
         if (specId and specId > 0) then
             return specId
@@ -636,8 +634,6 @@ end
 
 local getSpellListAsHashTableFromSpellBook = function()
     local completeListOfSpells = {}
-    -- TODO 11.2: use C_SpecializationInfo.GetSpecializationInfo
-
     --this line might not be compatible with classic
     local specId, specName, _, specIconTexture = GetSpecializationInfo(GetSpecialization())
     --local classNameLoc, className, classId = UnitClass("player") --not in use
@@ -1164,7 +1160,6 @@ openRaidLib.specAttribute = {
 }
 
 
-    -- TODO 11.2: use C_SpecializationInfo.GetSpecializationInfo
 function openRaidLib.Util.GetPlayerSpellList()
     local completeListOfSpells = {}
     local specId, specName, _, specIconTexture = GetSpecializationInfo(GetSpecialization())
