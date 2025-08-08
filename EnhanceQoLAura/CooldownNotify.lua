@@ -746,12 +746,12 @@ local function buildSpellOptions(container, catId, spellId)
 	if spellId < 0 then
 		local slot = -spellId
 		local itemID = GetInventoryItemID("player", slot)
-		name = (itemID and GetItemInfo(itemID)) or tostring(spellId)
+		name = L["TrinketSlot"]:format(slot == 13 and 1 or 2)
 	else
 		local info = C_Spell.GetSpellInfo(spellId)
-		name = info and info.name or tostring(spellId)
+		name = (info and info.name or tostring(spellId)) .. " (" .. spellId .. ")"
 	end
-	local label = addon.functions.createLabelAce(name .. " (" .. spellId .. ")")
+	local label = addon.functions.createLabelAce(name)
 	wrapper:AddChild(label)
 
 	addon.db.cooldownNotifySounds[catId] = addon.db.cooldownNotifySounds[catId] or {}
