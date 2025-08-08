@@ -3742,11 +3742,7 @@ local function initUI()
 			ZoneTextFrame:UnregisterAllEvents()
 			ZoneTextFrame:Hide()
 		else
-			ZoneTextFrame:RegisterEvent("ZONE_CHANGED")
-			ZoneTextFrame:RegisterEvent("ZONE_CHANGED_INDOORS")
-			ZoneTextFrame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
-			ZoneTextFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-			ZoneTextFrame:Show()
+			addon.variables.requireReload = trues
 		end
 	end
 	addon.functions.toggleZoneText(addon.db["hideZoneText"])
