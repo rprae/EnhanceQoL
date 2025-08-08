@@ -1,6 +1,9 @@
 # Changelog
 
-## [4.1.2] – 2025-08-07
+## [4.2.0] – 2025-08-07
+
+### 🔄 Changed
+- Performance improvements in **Aura Tracker**
 
 ### 🐛 Fixed
 

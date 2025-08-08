@@ -90,6 +90,24 @@ local rescanTimer
 local firstScan = true
 local updateBuff
 local updatePositions
+local categoryAllowed
+-- Performance caches
+local orderedBuffs = {} -- [catId] = ordered list of buff ids
+local sortedCategoryIds -- cached sorted category ids
+
+local function invalidateBuffOrder(catId) orderedBuffs[catId] = nil end
+local function invalidateCategoryOrder() sortedCategoryIds = nil end
+
+-- UI helper to avoid redundant glow calls
+local function setGlow(frame, enabled)
+	if frame._glow == enabled then return end
+	frame._glow = enabled
+	if enabled then
+		ActionButton_ShowOverlayGlow(frame)
+	else
+		ActionButton_HideOverlayGlow(frame)
+	end
+end
 
 local function scheduleRescan()
 	if rescanTimer then rescanTimer:Cancel() end
@@ -170,6 +188,59 @@ local function scheduleEquipScan()
 	if equipScanPending then return end
 	equipScanPending = true
 	C_Timer.After(0.10, scanTrinketSlots)
+end
+-- Throttled sweep for cooldown updates to coalesce rapid events
+local cooldownSweepPending = false
+local cooldownGlobalSweep = false
+local pendingCooldownSpells = {}
+
+local function scheduleCooldownSweep(changedSpell)
+	if changedSpell then
+		pendingCooldownSpells[altToBase[changedSpell] or changedSpell] = true
+	else
+		cooldownGlobalSweep = true
+	end
+	if cooldownSweepPending then return end
+	cooldownSweepPending = true
+	C_Timer.After(0.05, function()
+		cooldownSweepPending = false
+		local needsLayout = {}
+		if cooldownGlobalSweep then
+			for catId, frames in pairs(activeBuffFrames) do
+				local cat = addon.db["buffTrackerCategories"][catId]
+				if cat and addon.db["buffTrackerEnabled"][catId] and categoryAllowed(cat) then
+					for id, frame in pairs(frames) do
+						local buff = cat.buffs and cat.buffs[id]
+						if buff and buff.showCooldown and frame:IsShown() then
+							updateBuff(catId, id)
+							needsLayout[catId] = true
+						end
+					end
+				end
+			end
+		else
+			for spellId in pairs(pendingCooldownSpells) do
+				for catId in pairs(spellToCat[spellId] or {}) do
+					local cat = addon.db["buffTrackerCategories"][catId]
+					if addon.db["buffTrackerEnabled"][catId] and categoryAllowed(cat) then
+						local buff = cat.buffs[spellId]
+						if buff and buff.showCooldown then
+							local frame = activeBuffFrames[catId] and activeBuffFrames[catId][spellId]
+							if frame and frame:IsShown() then
+								updateBuff(catId, spellId)
+								needsLayout[catId] = true
+							end
+						end
+					end
+				end
+			end
+		end
+		wipe(pendingCooldownSpells)
+		cooldownGlobalSweep = false
+		for catId in pairs(needsLayout) do
+			updatePositions(catId)
+		end
+	end)
 end
 
 local LSM = LibStub("LibSharedMedia-3.0")
@@ -268,7 +339,7 @@ local DebuffBorderColors = {
 	none = { 1, 0, 0 },
 }
 
-local function categoryAllowed(cat)
+function categoryAllowed(cat)
 	if cat.allowedClasses and next(cat.allowedClasses) then
 		if not cat.allowedClasses[addon.variables.unitClass] then return false end
 	end
@@ -411,19 +482,29 @@ local function hasTimeCondition(group)
 	return false
 end
 
+-- Precompute condition metadata for faster checks
+local function refreshBuffMeta(buff)
+	if not buff then return end
+	buff._hasMissing = hasMissingCondition(buff.conditions)
+	buff._hasTime = hasTimeCondition(buff.conditions)
+end
+
 local function getCategory(id) return addon.db["buffTrackerCategories"][id] end
 
 local function getSortedCategories()
+	if sortedCategoryIds then return sortedCategoryIds end
 	local list = {}
 	for id in pairs(addon.db["buffTrackerCategories"]) do
 		table.insert(list, id)
 	end
 	table.sort(list)
+	sortedCategoryIds = list
 	return list
 end
 
 local function getBuffOrder(catId)
-	local cat = addon.db["buffTrackerCategories"][catId]
+	if orderedBuffs[catId] then return orderedBuffs[catId] end
+	local cat = getCategory(catId)
 	if not cat then return {} end
 	local orderIndex = {}
 	for idx, bid in ipairs(addon.db["buffTrackerOrder"][catId] or {}) do
@@ -439,6 +520,7 @@ local function getBuffOrder(catId)
 		if ia ~= ib then return ia < ib end
 		return a < b
 	end)
+	orderedBuffs[catId] = buffIds
 	return buffIds
 end
 
@@ -597,9 +679,8 @@ local function applySize(id)
 		frame:SetSize(size, size)
 		frame.cd:SetAllPoints(frame)
 		if frame.SpellActivationAlert then
-			ActionButton_HideOverlayGlow(frame)
 			local buff = cat.buffs and cat.buffs[buffId]
-			if buff and buff.glow and frame.isActive then ActionButton_ShowOverlayGlow(frame) end
+			setGlow(frame, buff and buff.glow and frame.isActive)
 		end
 	end
 	updatePositions(id)
@@ -714,7 +795,7 @@ function updateBuff(catId, id, changedId, firstScan)
 		return
 	end
 	local before = timedAuras[key] ~= nil
-	if buff and hasTimeCondition(buff.conditions) then
+	if buff and buff._hasTime then
 		timedAuras[key] = { catId = catId, buffId = id }
 	else
 		timedAuras[key] = nil
@@ -757,15 +838,7 @@ function updateBuff(catId, id, changedId, firstScan)
 			frame.icon:SetAlpha(1)
 			frame.isActive = false
 		end
-		if buff.glow then
-			if frame.isActive then
-				ActionButton_ShowOverlayGlow(frame)
-			else
-				ActionButton_HideOverlayGlow(frame)
-			end
-		else
-			ActionButton_HideOverlayGlow(frame)
-		end
+		setGlow(frame, buff.glow and frame.isActive)
 		frame:Show()
 		buffInstances[key] = nil
 		return
@@ -777,7 +850,7 @@ function updateBuff(catId, id, changedId, firstScan)
 			if frame then
 				frame:Hide()
 				frame.isActive = false
-				ActionButton_HideOverlayGlow(frame)
+				setGlow(frame, false)
 				frame.cd:Clear()
 			end
 			buffInstances[key] = nil
@@ -803,12 +876,12 @@ function updateBuff(catId, id, changedId, firstScan)
 			end
 		end
 		local condOk = evaluateGroup(buff and buff.conditions, aura)
-		if aura == nil and not hasMissingCondition(buff and buff.conditions) then condOk = false end
+		if aura == nil and not (buff and buff._hasMissing) then condOk = false end
 		if not condOk then
 			if frame then
 				frame:Hide()
 				frame.isActive = false
-				ActionButton_HideOverlayGlow(frame)
+				setGlow(frame, false)
 				frame.cd:Clear()
 			end
 			buffInstances[key] = nil
@@ -828,7 +901,7 @@ function updateBuff(catId, id, changedId, firstScan)
 		frame.cd:SetReverse(false)
 		frame.icon:SetDesaturated(false)
 		frame.icon:SetAlpha(1)
-		local missing = not hasEnchant and hasMissingCondition(buff and buff.conditions)
+		local missing = not hasEnchant and (buff and buff._hasMissing)
 		if hasEnchant then
 			if aura and aura.duration and aura.duration > 0 then
 				frame.cd:SetCooldown(aura.expirationTime - aura.duration, aura.duration)
@@ -839,15 +912,7 @@ function updateBuff(catId, id, changedId, firstScan)
 			frame.cd:Clear()
 		end
 		frame.isActive = hasEnchant or missing
-		if buff.glow then
-			if frame.isActive then
-				ActionButton_ShowOverlayGlow(frame)
-			else
-				ActionButton_HideOverlayGlow(frame)
-			end
-		else
-			ActionButton_HideOverlayGlow(frame)
-		end
+		setGlow(frame, buff.glow and frame.isActive)
 		if buff and buff.customTextEnabled and buff.customText and buff.customText ~= "" then
 			local pos = buff.customTextPosition or "TOP"
 			frame.customText:ClearAllPoints()
@@ -911,7 +976,7 @@ function updateBuff(catId, id, changedId, firstScan)
 	end
 
 	local condOk = evaluateGroup(buff and buff.conditions, aura)
-	if aura == nil and not hasMissingCondition(buff and buff.conditions) then condOk = false end
+	if aura == nil and not (buff and buff._hasMissing) then condOk = false end
 	local displayAura = condOk and aura or nil
 
 	activeBuffFrames[catId] = activeBuffFrames[catId] or {}
@@ -976,15 +1041,7 @@ function updateBuff(catId, id, changedId, firstScan)
 			end
 			frame.isActive = false
 		end
-		if buff.glow then
-			if frame.isActive then
-				ActionButton_ShowOverlayGlow(frame)
-			else
-				ActionButton_HideOverlayGlow(frame)
-			end
-		else
-			ActionButton_HideOverlayGlow(frame)
-		end
+		setGlow(frame, buff.glow and frame.isActive)
 		frame:Show()
 	elseif condOk then
 		if displayAura then
@@ -1011,11 +1068,7 @@ function updateBuff(catId, id, changedId, firstScan)
 				frame.cd:Clear()
 			end
 			frame.isActive = true
-			if buff.glow then
-				ActionButton_ShowOverlayGlow(frame)
-			else
-				ActionButton_HideOverlayGlow(frame)
-			end
+			setGlow(frame, buff.glow and frame.isActive)
 			frame:Show()
 			if displayAura and not wasShown and frame:IsShown() and not firstScan then playBuffSound(catId, id, triggeredId) end
 		else
@@ -1059,19 +1112,15 @@ function updateBuff(catId, id, changedId, firstScan)
 				frame:EnableMouse(true)
 				frame:RegisterForClicks("AnyUp", "AnyDown")
 			end
-			frame.isActive = hasMissingCondition(buff and buff.conditions)
-			if buff.glow then
-				ActionButton_ShowOverlayGlow(frame)
-			else
-				ActionButton_HideOverlayGlow(frame)
-			end
+			frame.isActive = buff and buff._hasMissing
+			setGlow(frame, buff.glow and frame.isActive)
 			frame:Show()
 			if not wasShown and frame:IsShown() and not firstScan then playBuffSound(catId, id, triggeredId) end
 		end
 	else
 		if frame then
 			frame.isActive = false
-			ActionButton_HideOverlayGlow(frame)
+			setGlow(frame, false)
 			frame:Hide()
 		end
 	end
@@ -1188,6 +1237,10 @@ local function scanBuffs()
 	wipe(auraInstanceMap)
 	for _, catId in ipairs(getSortedCategories()) do
 		local cat = addon.db["buffTrackerCategories"][catId]
+		-- refresh per-buff meta (in case conditions changed via UI)
+		for _, b in pairs(cat.buffs or {}) do
+			refreshBuffMeta(b)
+		end
 		if addon.db["buffTrackerEnabled"][catId] and categoryAllowed(cat) then
 			for _, id in ipairs(getBuffOrder(catId)) do
 				local buff = cat.buffs[id]
@@ -1314,36 +1367,7 @@ eventFrame:SetScript("OnEvent", function(_, event, unit, ...)
 
 	if event == "SPELL_UPDATE_COOLDOWN" then
 		local changedSpell = unit
-		local needsLayout = {}
-
-		if changedSpell then
-			local baseSpell = altToBase[changedSpell] or changedSpell
-			for catId in pairs(spellToCat[baseSpell] or {}) do
-				local cat = addon.db["buffTrackerCategories"][catId]
-				if addon.db["buffTrackerEnabled"][catId] and categoryAllowed(cat) then
-					local buff = cat.buffs[baseSpell]
-					if buff and buff.showCooldown then
-						updateBuff(catId, baseSpell)
-						needsLayout[catId] = true
-					end
-				end
-			end
-		else
-			for catId, cat in pairs(addon.db["buffTrackerCategories"]) do
-				if addon.db["buffTrackerEnabled"][catId] and categoryAllowed(cat) then
-					for id, buff in pairs(cat.buffs) do
-						if buff.showCooldown then
-							updateBuff(catId, id)
-							needsLayout[catId] = true
-						end
-					end
-				end
-			end
-		end
-
-		for catId in pairs(needsLayout) do
-			updatePositions(catId)
-		end
+		scheduleCooldownSweep(changedSpell)
 		return
 	end
 
@@ -1435,6 +1459,8 @@ local function addBuff(catId, id)
 		customTextBase = 1,
 		customTextMin = 0,
 	}
+	refreshBuffMeta(cat.buffs[id])
+	invalidateBuffOrder(catId)
 
 	if nil == addon.db["buffTrackerOrder"][catId] then addon.db["buffTrackerOrder"][catId] = {} end
 	if not tContains(addon.db["buffTrackerOrder"][catId], id) then table.insert(addon.db["buffTrackerOrder"][catId], id) end
@@ -1485,7 +1511,8 @@ function addon.Aura.functions.addTrinketBuff(catId, slot)
 		customTextBase = 1,
 		customTextMin = 0,
 	}
-
+	refreshBuffMeta(cat.buffs[id])
+	invalidateBuffOrder(catId)
 	registerItemBuff(catId, id, slot)
 
 	if nil == addon.db["buffTrackerOrder"][catId] then addon.db["buffTrackerOrder"][catId] = {} end
@@ -1533,7 +1560,8 @@ function addon.Aura.functions.addWeaponEnchantBuff(catId, slot)
 		customTextBase = 1,
 		customTextMin = 0,
 	}
-
+	refreshBuffMeta(cat.buffs[id])
+	invalidateBuffOrder(catId)
 	registerEnchantBuff(catId, id, slot)
 
 	if nil == addon.db["buffTrackerOrder"][catId] then addon.db["buffTrackerOrder"][catId] = {} end
@@ -1567,6 +1595,7 @@ local function removeBuff(catId, id)
 			break
 		end
 	end
+	invalidateBuffOrder(catId)
 	if activeBuffFrames[catId] and activeBuffFrames[catId][id] then
 		activeBuffFrames[catId][id]:Hide()
 		activeBuffFrames[catId][id] = nil
@@ -1646,6 +1675,7 @@ local function sanitiseCategory(cat)
 		if buff.customTextUseStacks == nil then buff.customTextUseStacks = false end
 		if buff.customTextBase == nil then buff.customTextBase = 1 end
 		if buff.customTextMin == nil then buff.customTextMin = 0 end
+		refreshBuffMeta(buff)
 	end
 end
 
@@ -1693,6 +1723,8 @@ local function importCategory(encoded)
 	addon.db["buffTrackerOrder"][newId] = data.order or {}
 	addon.db["buffTrackerEnabled"][newId] = true
 	addon.db["buffTrackerLocked"][newId] = false
+	invalidateCategoryOrder()
+	invalidateBuffOrder(newId)
 
 	for id, buff in pairs(cat.buffs or {}) do
 		if buff.trackType == "ITEM" and buff.slot then
@@ -1837,6 +1869,8 @@ local function handleDragDrop(src, dst)
 		end
 	end
 	table.insert(addon.db["buffTrackerOrder"][dCat], insertPos, sBuff)
+	invalidateBuffOrder(sCat)
+	invalidateBuffOrder(dCat)
 
 	addon.db["buffTrackerSounds"] = addon.db["buffTrackerSounds"] or {}
 	addon.db["buffTrackerSoundsEnabled"] = addon.db["buffTrackerSoundsEnabled"] or {}
@@ -2029,6 +2063,7 @@ function addon.Aura.functions.buildCategoryOptions(container, catId)
 				anchors[catId]:Hide()
 				anchors[catId] = nil
 			end
+			invalidateCategoryOrder()
 			clearCategoryData(catId)
 			selectedCategory = next(addon.db["buffTrackerCategories"]) or 1
 			rebuildAltMapping()
