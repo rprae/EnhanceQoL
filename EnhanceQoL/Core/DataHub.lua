@@ -15,6 +15,7 @@ local tinsert = table.insert
 local tremove = table.remove
 local ipairs = ipairs
 local pairs = pairs
+local GetTime = GetTime
 
 local function acquireRow(stream)
 	local row = tremove(stream.pool)
@@ -37,6 +38,7 @@ end
 local function runUpdate(stream)
 	releaseRows(stream)
 	if stream.update then stream.update(stream) end
+	if stream.interval and stream.interval > 0 then stream.nextPoll = GetTime() + stream.interval end
 	for cb in pairs(stream.subscribers) do
 		pcall(cb, stream.snapshot, stream.name)
 	end
@@ -53,13 +55,10 @@ end)
 
 function DataHub:UpdateDriver()
 	if next(self.polling) then
-		driver:SetScript("OnUpdate", function(_, elapsed)
+		driver:SetScript("OnUpdate", function()
+			local now = GetTime()
 			for _, stream in pairs(DataHub.polling) do
-				stream.elapsed = stream.elapsed + elapsed
-				if stream.elapsed >= stream.interval then
-					stream.elapsed = 0
-					DataHub:RequestUpdate(stream.name)
-				end
+				if not stream.nextPoll or now >= stream.nextPoll then DataHub:RequestUpdate(stream.name) end
 			end
 		end)
 	else
@@ -78,7 +77,7 @@ function DataHub:RegisterStream(name, opts)
 		throttle = opts and opts.throttle or 0.1,
 		throttleKey = opts and opts.throttleKey or name,
 		interval = opts and opts.interval,
-		elapsed = 0,
+		nextPoll = GetTime(),
 	}
 	self.streams[name] = stream
 	self.eventsByStream[name] = {}
