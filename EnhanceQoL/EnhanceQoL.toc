@@ -42,6 +42,7 @@ libs\AceComm-3.0\AceComm-3.0.xml
 Bindings\Slider.xml
 Sounds\sounds.lua
 General\functions.lua
+Core\DataHub.lua
 EnhanceQoL.lua
 Submodules\GemHelper.lua
 Submodules\ChatIM\UI.lua
