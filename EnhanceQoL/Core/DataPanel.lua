@@ -10,11 +10,17 @@ local function ensureSettings(id)
 	addon.db.dataPanels = addon.db.dataPanels or {}
 	local info = addon.db.dataPanels[id]
 	if not info then
-		info = { point = "CENTER", x = 0, y = 0, width = 200, height = 20, streams = {} }
+		info = { point = "CENTER", x = 0, y = 0, width = 200, height = 20, streams = {}, streamSet = {} }
 		addon.db.dataPanels[id] = info
 	else
 		info.streams = info.streams or {}
+		info.streamSet = info.streamSet or {}
 	end
+
+	for _, name in ipairs(info.streams) do
+		info.streamSet[name] = true
+	end
+
 	return info
 end
 
@@ -122,14 +128,11 @@ function DataPanel.Create(id)
 		self.streams[name] = data
 
 		local streams = self.info.streams
-		local exists = false
-		for _, s in ipairs(streams) do
-			if s == name then
-				exists = true
-				break
-			end
+		local streamSet = self.info.streamSet
+		if not streamSet[name] then
+			streamSet[name] = true
+			streams[#streams + 1] = name
 		end
-		if not exists then streams[#streams + 1] = name end
 	end
 
 	function panel:RemoveStream(name)
@@ -148,10 +151,14 @@ function DataPanel.Create(id)
 		self:Refresh()
 
 		local streams = self.info.streams
-		for i, s in ipairs(streams) do
-			if s == name then
-				table.remove(streams, i)
-				break
+		local streamSet = self.info.streamSet
+		if streamSet[name] then
+			streamSet[name] = nil
+			for i, s in ipairs(streams) do
+				if s == name then
+					table.remove(streams, i)
+					break
+				end
 			end
 		end
 	end
