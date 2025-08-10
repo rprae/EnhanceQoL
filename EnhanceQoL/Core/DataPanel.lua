@@ -5,20 +5,30 @@ local DataHub = addon.DataHub
 
 local panels = {}
 
-local function ensureSettings(id)
+local function ensureSettings(id, name)
 	addon.db = addon.db or {}
 	addon.db.dataPanels = addon.db.dataPanels or {}
 	local info = addon.db.dataPanels[id]
 	if not info then
-		info = { point = "CENTER", x = 0, y = 0, width = 200, height = 20, streams = {}, streamSet = {} }
+		info = {
+			point = "CENTER",
+			x = 0,
+			y = 0,
+			width = 200,
+			height = 20,
+			streams = {},
+			streamSet = {},
+			name = name or ("Panel " .. id),
+		}
 		addon.db.dataPanels[id] = info
 	else
 		info.streams = info.streams or {}
 		info.streamSet = info.streamSet or {}
+		info.name = info.name or name or ("Panel " .. id)
 	end
 
-	for _, name in ipairs(info.streams) do
-		info.streamSet[name] = true
+	for _, n in ipairs(info.streams) do
+		info.streamSet[n] = true
 	end
 
 	return info
@@ -33,9 +43,22 @@ local function savePosition(frame, id)
 	info.height = round2(frame:GetHeight())
 end
 
-function DataPanel.Create(id)
+function DataPanel.Create(id, name)
+	addon.db = addon.db or {}
+	addon.db.dataPanels = addon.db.dataPanels or {}
+	if not addon.db.nextPanelId then
+		addon.db.nextPanelId = 1
+		for k in pairs(addon.db.dataPanels) do
+			local num = tonumber(k)
+			if num and num >= addon.db.nextPanelId then addon.db.nextPanelId = num + 1 end
+		end
+	end
+	if not id then
+		id = addon.db.nextPanelId
+		addon.db.nextPanelId = addon.db.nextPanelId + 1
+	end
 	if panels[id] then return panels[id] end
-	local info = ensureSettings(id)
+	local info = ensureSettings(id, name)
 	local frame = CreateFrame("Frame", addonName .. "DataPanel" .. id, UIParent, "BackdropTemplate")
 	frame:SetSize(info.width, info.height)
 	frame:SetPoint(info.point, info.x, info.y)
@@ -68,7 +91,7 @@ function DataPanel.Create(id)
 	})
 	frame:SetBackdropColor(0, 0, 0, 0.5)
 
-	local panel = { frame = frame, id = id, streams = {}, order = {}, info = info }
+	local panel = { frame = frame, id = id, name = info.name, streams = {}, order = {}, info = info }
 
 	function panel:Refresh()
 		local changed = false
