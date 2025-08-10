@@ -49,8 +49,12 @@ end
 eventFrame:SetScript("OnEvent", function(_, event, ...)
 	local streams = DataHub.eventMap[event]
 	if streams then
-		for stream in pairs(streams) do
-			DataHub:RequestUpdate(stream.name)
+		for stream, handler in pairs(streams) do
+			if handler == true then
+				DataHub:RequestUpdate(stream.name)
+			else
+				pcall(handler, ...)
+			end
 		end
 	end
 end)
@@ -142,6 +146,13 @@ function DataHub:RegisterStream(name, opts)
 			hub:RegisterEvent(stream, event)
 		end
 	end
+	if provider and provider.events then
+		for event, fn in pairs(provider.events) do
+			local ev = event
+			local handler = fn
+			hub:RegisterEvent(stream, ev, function(...) handler(stream, ev, ...) end)
+		end
+	end
 
 	if stream.interval and stream.interval > 0 then stream.nextPoll = GetTime() end
 
@@ -176,10 +187,10 @@ function DataHub:UnregisterStream(name)
 	self.streams[name] = nil
 end
 
-function DataHub:RegisterEvent(stream, event)
-	self.eventsByStream[stream.name][event] = true
+function DataHub:RegisterEvent(stream, event, handler)
+	self.eventsByStream[stream.name][event] = handler or true
 	self.eventMap[event] = self.eventMap[event] or {}
-	self.eventMap[event][stream] = true
+	self.eventMap[event][stream] = handler or true
 	eventFrame:RegisterEvent(event)
 end
 
