@@ -1,6 +1,6 @@
 # Creating Data Streams
 
-EnhanceQoL exposes a **DataHub** used by different modules to share data.  Streams describe how data is collected and formatted.
+EnhanceQoL includes a **DataPanel** system backed by a DataHub to share information between modules. Streams describe how data is collected and formatted and can be displayed inside configurable panels.
 
 ## Stream provider template
 
@@ -28,7 +28,7 @@ local provider = require("Streams.MyStream")
 EnhanceQoL.DataHub.RegisterStream(provider)
 ```
 
-`RegisterStream` makes the stream available to the addon so other modules can subscribe to it.
+`RegisterStream` makes the stream available to the addon so other modules and DataPanels can subscribe to it.
 
 ## Creating your own stream
 
@@ -38,4 +38,4 @@ EnhanceQoL.DataHub.RegisterStream(provider)
 4. Optionally add `filter`, `actions`, or `settings`.
 5. Register the provider using `EnhanceQoL.DataHub.RegisterStream` during addon startup.
 
-Once registered, the DataHub will invoke `collect` at the interval defined by `poll` and distribute snapshot updates to any subscribers.
+Once registered, the DataHub will invoke `collect` at the interval defined by `poll` and distribute snapshot updates to any subscribers. Streams may then be added to panels with `/eqolpanel add <panel> <stream>`.

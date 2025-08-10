@@ -4,7 +4,7 @@
 
 ### ✨ Added
 
-- Slash command `/eqoldash` to open the DataHub dashboard.
+- Introduced the DataPanel system; use `/eqolpanel` to configure panels.
 - Documentation for creating external streams.
 
 ---

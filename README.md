@@ -14,7 +14,7 @@ Every feature can be switched off; footprint is negligible.
 | <code>/eqol lag</code> |List gossip IDs of the current NPC dialog        |
 | <code>/eqol aag &lt;id&gt;</code> |Auto-pick a gossip option (chosen via <code>/eqol lag</code>) |
 | <code>/eqol rag &lt;id&gt;</code> |Remove an auto-picked gossip ID                  |
-| <code>/eqoldash</code> |Open the DataHub dashboard                         |
+| <code>/eqolpanel</code> |Configure and manage DataPanels                     |
 
 ***
 
@@ -93,9 +93,9 @@ Fully configurable per context (combat, dungeon, friendly/enemy): items, item co
 * **Gem-Socket Helper** – shows socketable gems below the socket UI.
 * **Aura Tracker** – track buffs and debuffs in custom categories. Categories can be exported and imported for easy sharing.
 
-# Dashboard & Streams
+# DataPanels & Streams
 
-Use <code>/eqoldash</code> to open the DataHub dashboard and view data from registered streams.
+Use <code>/eqolpanel</code> to configure panels and view data from registered streams.
 
 ### Creating external streams
 
@@ -103,6 +103,7 @@ Use <code>/eqoldash</code> to open the DataHub dashboard and view data from regi
 2. Fill in the required provider fields and implement <code>collect</code>.
 3. Register the stream with <code>EnhanceQoL.DataHub.RegisterStream</code> during addon load.
 4. Optionally add filters, actions or settings.
+5. Add the stream to a DataPanel using <code>/eqolpanel add &lt;panel&gt; &lt;stream&gt;</code>.
 
 For more details, see [docs/Streams.md](docs/Streams.md).
 

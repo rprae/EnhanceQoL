@@ -5517,5 +5517,7 @@ end
 registerEvents(frameLoad)
 frameLoad:SetScript("OnEvent", eventHandler)
 
-SLASH_EQOLDASH1 = "/eqoldash"
-SlashCmdList.EQOLDASH = function() EnhanceQoL.DataHubUI:Toggle() end
+SLASH_EQOLPANEL1 = "/eqolpanel"
+SlashCmdList.EQOLPANEL = function(msg)
+        EnhanceQoL.DataPanel.SlashHandler(msg or "")
+end
