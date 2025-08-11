@@ -116,10 +116,10 @@ local provider = {
 	OnClick = function(_, btn)
 		if btn == "RightButton" then createAceWindow() end
 	end,
-	OnMouseEnter = function(b)
+	OnMouseEnter = function(btn)
 		local tip = GameTooltip
 		tip:ClearLines()
-		tip:SetOwner(b, "ANCHOR_TOPLEFT")
+		tip:SetOwner(btn, "ANCHOR_TOPLEFT")
 		for _, v in ipairs(tooltipData) do
 			local level = v.level
 			if v.class then level = v.class .. " (" .. level .. ")" end
