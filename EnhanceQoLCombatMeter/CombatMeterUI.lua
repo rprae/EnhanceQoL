@@ -9,7 +9,9 @@ end
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_CombatMeter")
 
 local config = addon.db
-local barHeight = 25
+local DEFAULT_BAR_WIDTH = 210
+local DEFAULT_BAR_HEIGHT = 25
+local DEFAULT_MAX_BARS = 8
 local specIcons = {}
 local pendingInspect = {}
 local groupFrames = {}
@@ -30,8 +32,8 @@ local NUMBER_FONT_PATH = (NumberFontNormal and select(1, NumberFontNormal:GetFon
 
 -- fixed number columns to avoid jitter
 local COL_TOTAL_W = (config and config["combatMeterTotalWidth"]) or 55
-local COL_RATE_W  = (config and config["combatMeterRateWidth"])  or 55
-local COL_GAP     = (config and config["combatMeterColumnGap"])  or 0
+local COL_RATE_W = (config and config["combatMeterRateWidth"]) or 55
+local COL_GAP = (config and config["combatMeterColumnGap"]) or 0
 
 local metricNames = {
 	dps = L["DPS"],
@@ -82,8 +84,11 @@ local function abbreviateNumber(n, decimals, trimZeros)
 end
 
 local function createGroupFrame(groupConfig)
+	local barHeight = groupConfig.barHeight or DEFAULT_BAR_HEIGHT
+	local barWidth = groupConfig.barWidth or DEFAULT_BAR_WIDTH
+
 	local frame = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-	frame:SetSize(210, barHeight)
+	frame:SetSize(barWidth, barHeight)
 	frame:SetMovable(true)
 	frame:EnableMouse(true)
 	frame:Hide()
@@ -182,7 +187,7 @@ local function createGroupFrame(groupConfig)
 			bar.name:SetFont(addon.variables.defaultFont, size, outline)
 			bar.value:SetFont(NUMBER_FONT_PATH, size, outline)
 			if bar.total then bar.total:SetFont(NUMBER_FONT_PATH, size, outline) end
-			if bar.rate  then bar.rate:SetFont(NUMBER_FONT_PATH, size, outline)  end
+			if bar.rate then bar.rate:SetFont(NUMBER_FONT_PATH, size, outline) end
 		end
 	end
 
@@ -196,8 +201,7 @@ local function createGroupFrame(groupConfig)
 		local maxValue = 0
 		if self.metric == "damageOverall" or self.metric == "healingOverall" then
 			local stats = addon.CombatMeter.functions.getOverallStats()
-			local dur = (addon.CombatMeter.functions.getOverallDuration and addon.CombatMeter.functions.getOverallDuration())
-				or addon.CombatMeter.overallDuration or 0
+			local dur = (addon.CombatMeter.functions.getOverallDuration and addon.CombatMeter.functions.getOverallDuration()) or addon.CombatMeter.overallDuration or 0
 			if dur <= 0 then dur = 1 end
 			for guid, p in pairs(stats) do
 				if groupUnits[guid] then
@@ -235,7 +239,9 @@ local function createGroupFrame(groupConfig)
 		if maxValue == 0 then maxValue = 1 end
 		table.sort(list, function(a, b) return a.value > b.value end)
 
-		for i, p in ipairs(list) do
+		local displayCount = math.min(#list, groupConfig.maxBars or DEFAULT_MAX_BARS)
+		for i = 1, displayCount do
+			local p = list[i]
 			local bar = getBar(i)
 			bar:Show()
 			bar:SetMinMaxValues(0, maxValue)
@@ -266,7 +272,9 @@ local function createGroupFrame(groupConfig)
 				local decimals = (p.value >= 1e6) and 2 or 0
 				local rate = abbreviateNumber(p.value, decimals)
 				local total = abbreviateNumber(p.total)
-				bar.value:Hide(); bar.total:Show(); bar.rate:Show()
+				bar.value:Hide()
+				bar.total:Show()
+				bar.rate:Show()
 				bar.total:SetText(total)
 				bar.rate:SetText(rate)
 				-- ensure name anchors to total when dual columns are used
@@ -277,7 +285,9 @@ local function createGroupFrame(groupConfig)
 					bar.nameRightAnchorTarget = bar.total
 				end
 			else
-				bar.total:Hide(); bar.rate:Hide(); bar.value:Show()
+				bar.total:Hide()
+				bar.rate:Hide()
+				bar.value:Show()
 				bar.value:SetText(abbreviateNumber(p.value))
 				if bar.nameRightAnchorTarget ~= bar.value then
 					bar.name:ClearAllPoints()
@@ -288,11 +298,11 @@ local function createGroupFrame(groupConfig)
 			end
 		end
 
-		for i = #list + 1, #self.bars do
+		for i = displayCount + 1, #self.bars do
 			self.bars[i]:Hide()
 		end
 
-		self:SetHeight(16 + #list * barHeight)
+		self:SetHeight(16 + displayCount * barHeight)
 	end
 
 	return frame
@@ -391,6 +401,9 @@ local function rebuildGroups()
 	end
 	wipe(groupFrames)
 	for _, cfg in ipairs(config["combatMeterGroups"]) do
+		if not cfg.barWidth then cfg.barWidth = DEFAULT_BAR_WIDTH end
+		if not cfg.barHeight then cfg.barHeight = DEFAULT_BAR_HEIGHT end
+		if not cfg.maxBars then cfg.maxBars = DEFAULT_MAX_BARS end
 		local frame = createGroupFrame(cfg)
 		table.insert(groupFrames, frame)
 	end

@@ -90,10 +90,39 @@ local function addGeneralFrame(container)
 			addGeneralFrame(container)
 		end)
 		row:AddChild(btnRemove)
+
+		local sw = addon.functions.createSliderAce(L["Bar Width"] .. ": " .. (cfg.barWidth or 210), cfg.barWidth or 210, 50, 1000, 1, function(self, _, val)
+			cfg.barWidth = val
+			self:SetLabel(L["Bar Width"] .. ": " .. val)
+			addon.CombatMeter.functions.rebuildGroups()
+		end)
+		groupGroup:AddChild(sw)
+
+		local sh = addon.functions.createSliderAce(L["Bar Height"] .. ": " .. (cfg.barHeight or 25), cfg.barHeight or 25, 10, 100, 1, function(self, _, val)
+			cfg.barHeight = val
+			self:SetLabel(L["Bar Height"] .. ": " .. val)
+			addon.CombatMeter.functions.rebuildGroups()
+		end)
+		groupGroup:AddChild(sh)
+
+		local smb = addon.functions.createSliderAce(L["Max Bars"] .. ": " .. (cfg.maxBars or 8), cfg.maxBars or 8, 1, 40, 1, function(self, _, val)
+			cfg.maxBars = val
+			self:SetLabel(L["Max Bars"] .. ": " .. val)
+			addon.CombatMeter.functions.rebuildGroups()
+		end)
+		groupGroup:AddChild(smb)
 	end
 
 	local addDrop = addon.functions.createDropdownAce(L["Add Group"], metricNames, metricOrder, function(self, _, val)
-		table.insert(addon.db["combatMeterGroups"], { type = val, point = "CENTER", x = 0, y = 0 })
+		table.insert(addon.db["combatMeterGroups"], {
+			type = val,
+			point = "CENTER",
+			x = 0,
+			y = 0,
+			barWidth = 210,
+			barHeight = 25,
+			maxBars = 8,
+		})
 		addon.CombatMeter.functions.rebuildGroups()
 		container:ReleaseChildren()
 		addGeneralFrame(container)
@@ -111,4 +140,14 @@ addon.functions.InitDBValue("combatMeterHistory", {})
 addon.functions.InitDBValue("combatMeterAlwaysShow", false)
 addon.functions.InitDBValue("combatMeterUpdateRate", 0.2)
 addon.functions.InitDBValue("combatMeterFontSize", 12)
-addon.functions.InitDBValue("combatMeterGroups", { { type = "dps", point = "CENTER", x = 0, y = 0 } })
+addon.functions.InitDBValue("combatMeterGroups", {
+	{
+		type = "dps",
+		point = "CENTER",
+		x = 0,
+		y = 0,
+		barWidth = 210,
+		barHeight = 25,
+		maxBars = 8,
+	},
+})
