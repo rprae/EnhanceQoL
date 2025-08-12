@@ -9,6 +9,7 @@ end
 local cm = addon.CombatMeter
 local band = bit.band
 local bor = bit.bor
+local CLEU = CombatLogGetCurrentEventInfo
 
 cm.inCombat = false
 cm.fightStartTime = 0
@@ -143,7 +144,7 @@ local function handleEvent(self, event)
 		if not cm.inCombat then return end
 
 		-- Call 1: early filter for subevent and capture GUIDs
-		local _, sub, _, sourceGUID, _, _, _, destGUID = CombatLogGetCurrentEventInfo()
+		local _, sub, _, sourceGUID, _, _, _, destGUID = CLEU()
 
 		-- Maintain pet/guardian owner mapping via CLEU
 		if sub == "SPELL_SUMMON" or sub == "SPELL_CREATE" then
@@ -158,7 +159,7 @@ local function handleEvent(self, event)
 		end
 
 		-- Call 2: fetch full event info into locals
-		local _, subevent, _, sourceGUID, sourceName, sourceFlags, _, destGUID, destName, destFlags, _, a12, a13, a14, a15, a16, a17, a18, a19, a20 = CombatLogGetCurrentEventInfo()
+		local _, subevent, _, sourceGUID, sourceName, sourceFlags, _, destGUID, destName, destFlags, _, a12, a13, a14, a15, a16, a17, a18, a19, a20 = CLEU()
 
 		local idx = dmgIdx[subevent]
 		if idx then
@@ -191,8 +192,8 @@ local function handleEvent(self, event)
 			-- absorberGUID, absorberName, absorberFlags, absorberRaidFlags,
 			-- absorbingSpellID, absorbingSpellName, absorbingSpellSchool,
 			-- absorbedAmount, absorbedCritical
-			local total = select("#", CombatLogGetCurrentEventInfo())
-			local absorberGUID, absorberName, absorberFlags, _, _, _, _, absorbedAmount = select(total - 8, CombatLogGetCurrentEventInfo())
+			local total = select("#", CLEU())
+			local absorberGUID, absorberName, absorberFlags, _, _, _, _, absorbedAmount = select(total - 8, CLEU())
 			if not absorberGUID or type(absorberFlags) ~= "number" or band(absorberFlags, groupMask) == 0 then return end
 			if not absorbedAmount or absorbedAmount <= 0 then return end
 			local ownerGUID, ownerName = resolveOwner(absorberGUID, absorberName, absorberFlags)
