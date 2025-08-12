@@ -259,19 +259,18 @@ local function createGroupFrame(groupConfig)
 		self:Show()
 		local list = {}
 		local maxValue = 0
-		if self.metric == "damageOverall" or self.metric == "healingOverall" then
-			local stats = addon.CombatMeter.functions.getOverallStats()
-			local dur = (addon.CombatMeter.functions.getOverallDuration and addon.CombatMeter.functions.getOverallDuration()) or addon.CombatMeter.overallDuration or 0
-			if dur <= 0 then dur = 1 end
-			for guid, p in pairs(stats) do
-				if groupUnits[guid] then
-					local total = (self.metric == "damageOverall") and (p.damage or 0) or (p.healing or 0)
-					local value = total / dur -- rate over total tracked time
-					tinsert(list, { guid = guid, name = p.name, value = value, total = total })
-					if value > maxValue then maxValue = value end
-				end
-			end
-		else
+                        if self.metric == "damageOverall" or self.metric == "healingOverall" then
+                                local stats, dur = addon.CombatMeter.functions.getOverallStats()
+                                if dur <= 0 then dur = 1 end
+                                for guid, p in pairs(stats) do
+                                        if groupUnits[guid] then
+                                                local total = (self.metric == "damageOverall") and (p.damage or 0) or (p.healing or 0)
+                                                local value = total / dur -- rate over total tracked time
+                                                tinsert(list, { guid = guid, name = p.name, value = value, total = total })
+                                                if value > maxValue then maxValue = value end
+                                        end
+                                end
+                        else
 			local duration
 			if addon.CombatMeter.inCombat then
 				duration = GetTime() - addon.CombatMeter.fightStartTime
@@ -331,20 +330,19 @@ local function createGroupFrame(groupConfig)
 				end
 			end
 			if not found then
-				local name = UnitName("player")
-				local value, total
-				if self.metric == "damageOverall" or self.metric == "healingOverall" then
-					local stats = addon.CombatMeter.functions.getOverallStats()
-					local dur = (addon.CombatMeter.functions.getOverallDuration and addon.CombatMeter.functions.getOverallDuration()) or addon.CombatMeter.overallDuration or 0
-					if dur <= 0 then dur = 1 end
-					local p = stats[playerGUID]
-					if p then
-						total = (self.metric == "damageOverall") and (p.damage or 0) or (p.healing or 0)
-					else
-						total = 0
-					end
-					value = total / dur
-				else
+                               local name = UnitName("player")
+                               local value, total
+                               if self.metric == "damageOverall" or self.metric == "healingOverall" then
+                                       local stats, dur = addon.CombatMeter.functions.getOverallStats()
+                                       if dur <= 0 then dur = 1 end
+                                       local p = stats[playerGUID]
+                                       if p then
+                                               total = (self.metric == "damageOverall") and (p.damage or 0) or (p.healing or 0)
+                                       else
+                                               total = 0
+                                       end
+                                       value = total / dur
+                               else
 					local duration
 					if addon.CombatMeter.inCombat then
 						duration = GetTime() - addon.CombatMeter.fightStartTime

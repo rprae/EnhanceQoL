@@ -209,20 +209,9 @@ end
 frame:SetScript("OnEvent", handleEvent)
 
 function cm.functions.getOverallStats()
-	local duration = cm.overallDuration
-	if duration <= 0 then duration = 1 end
-	local results = {}
-	for guid, data in pairs(cm.overallPlayers) do
-		results[guid] = {
-			guid = guid,
-			name = data.name,
-			damage = data.damage,
-			healing = data.healing,
-			dps = data.damage / duration,
-			hps = data.healing / duration,
-		}
-	end
-	return results, duration
+        local duration = cm.overallDuration
+        if duration <= 0 then duration = 1 end
+        return cm.overallPlayers, duration
 end
 
 function cm.functions.toggle(enabled)
