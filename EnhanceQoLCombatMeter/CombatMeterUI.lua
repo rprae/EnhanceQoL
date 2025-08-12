@@ -207,7 +207,16 @@ local function createGroupFrame(groupConfig)
 		local bar = frame.bars[index]
 		if not bar then
 			bar = CreateFrame("StatusBar", nil, frame, "BackdropTemplate")
-			bar:SetStatusBarTexture("Interface\\TARGETINGFRAME\\UI-StatusBar")
+			-- bar:SetStatusBarTexture("Interface\\Tooltips\\UI-Tooltip-Background")
+			bar:SetStatusBarTexture("Interface\\Addons\\EnhanceQoLCombatMeter\\Texture\\eqol_base_flat_8x8.tga")
+
+			-- TODO Option for overlay
+			-- bar.overlay = bar:CreateTexture(nil, "ARTWORK")
+			-- bar.overlay:SetTexture("Interface\\Addons\\EnhanceQoLCombatMeter\\Texture\\eqol_overlay_vidro_512x64.tga")
+			-- bar.overlay:SetAllPoints(bar)
+			-- bar.overlay:SetBlendMode("ADD") -- für „Glanz“-Look
+			-- bar.overlay:SetVertexColor(1, 1, 1, 0.28) -- Helligkeit/Intensität
+
 			bar:SetHeight(barHeight)
 			bar:SetPoint("TOPLEFT", frame, "TOPLEFT", barHeight + 2, -(16 + (index - 1) * barHeight))
 			bar:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, -(16 + (index - 1) * barHeight))
