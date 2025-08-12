@@ -143,23 +143,19 @@ local function handleEvent(self, event)
 	elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then
 		if not cm.inCombat then return end
 
-		-- Call 1: early filter for subevent and capture GUIDs
-		local _, sub, _, sourceGUID, _, _, _, destGUID = CLEU()
+		local _, subevent, _, sourceGUID, sourceName, sourceFlags, _, destGUID, destName, destFlags, _, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23 = CLEU()
 
 		-- Maintain pet/guardian owner mapping via CLEU
-		if sub == "SPELL_SUMMON" or sub == "SPELL_CREATE" then
+		if subevent == "SPELL_SUMMON" or subevent == "SPELL_CREATE" then
 			if destGUID and sourceGUID then petOwner[destGUID] = sourceGUID end
 			return
-		elseif sub == "UNIT_DIED" or sub == "UNIT_DESTROYED" then
+		elseif subevent == "UNIT_DIED" or subevent == "UNIT_DESTROYED" then
 			if destGUID then petOwner[destGUID] = nil end
 			return
-		elseif not (dmgIdx[sub] or sub == "SPELL_HEAL" or sub == "SPELL_PERIODIC_HEAL" or sub == "SPELL_ABSORBED") then
+		elseif not (dmgIdx[subevent] or subevent == "SPELL_HEAL" or subevent == "SPELL_PERIODIC_HEAL" or subevent == "SPELL_ABSORBED") then
 			-- Note: We intentionally ignore *_MISSED ABSORB to avoid double-counting with SPELL_ABSORBED (matches Details behavior)
 			return
 		end
-
-		-- Call 2: fetch full event info into locals
-		local _, subevent, _, sourceGUID, sourceName, sourceFlags, _, destGUID, destName, destFlags, _, a12, a13, a14, a15, a16, a17, a18, a19, a20 = CLEU()
 
 		local idx = dmgIdx[subevent]
 		if idx then
@@ -188,12 +184,13 @@ local function handleEvent(self, event)
 
 		-- We count absorbs exclusively via SPELL_ABSORBED. Some clients also emit *_MISSED with ABSORB for the same event; counting both leads to double credits.
 		if subevent == "SPELL_ABSORBED" then
-			-- SPELL_ABSORBED tail layout has **9** stable fields:
-			-- absorberGUID, absorberName, absorberFlags, absorberRaidFlags,
-			-- absorbingSpellID, absorbingSpellName, absorbingSpellSchool,
-			-- absorbedAmount, absorbedCritical
-			local total = select("#", CLEU())
-			local absorberGUID, absorberName, absorberFlags, _, _, _, _, absorbedAmount = select(total - 8, CLEU())
+			-- Heuristics: swing variant has 8 tail fields (a23 is number); spell variant has 9 (a23 is boolean, amount in a22)
+			local absorberGUID, absorberName, absorberFlags, absorbedAmount
+			if type(a23) == "boolean" then
+				absorberGUID, absorberName, absorberFlags, absorbedAmount = a15, a16, a17, a22
+			else
+				absorberGUID, absorberName, absorberFlags, absorbedAmount = a16, a17, a18, a23
+			end
 			if not absorberGUID or type(absorberFlags) ~= "number" or band(absorberFlags, groupMask) == 0 then return end
 			if not absorbedAmount or absorbedAmount <= 0 then return end
 			local ownerGUID, ownerName = resolveOwner(absorberGUID, absorberName, absorberFlags)
