@@ -494,8 +494,8 @@ addon.CombatMeter.uiFrame = controller
 
 controller:SetScript("OnEvent", function(self, event, ...)
 	if event == "PLAYER_REGEN_DISABLED" or event == "ENCOUNTER_START" then
-		buildGroupUnits()
 		if ticker then ticker:Cancel() end
+		buildGroupUnits()
 		ticker = C_Timer.NewTicker(config["combatMeterUpdateRate"], UpdateAllFrames)
 		addon.CombatMeter.ticker = ticker
 		C_Timer.After(0, UpdateAllFrames)
