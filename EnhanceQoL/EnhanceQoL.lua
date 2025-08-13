@@ -4633,18 +4633,19 @@ local function initCharacter()
 	addon.general.cloakUpgradeFrame:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
 	local function updateCloakUpgradeButton()
-		if addon.db["showCloakUpgradeButton"] and IsEquippedItem(235499) then
-			addon.general.cloakUpgradeFrame:Show()
-		else
-			addon.general.cloakUpgradeFrame:Hide()
+		if PaperDollFrame and PaperDollFrame:IsShown() then
+			if addon.db["showCloakUpgradeButton"] and IsEquippedItem(235499) then
+				addon.general.cloakUpgradeFrame:Show()
+			else
+				addon.general.cloakUpgradeFrame:Hide()
+			end
 		end
 	end
 	addon.functions.updateCloakUpgradeButton = updateCloakUpgradeButton
 	local cloakEventFrame = CreateFrame("Frame")
-	cloakEventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 	cloakEventFrame:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
 	cloakEventFrame:SetScript("OnEvent", updateCloakUpgradeButton)
-	updateCloakUpgradeButton()
+	cloakEventFrame:Hide()
 
 	for key, value in pairs(addon.variables.itemSlots) do
 		-- Hintergrund für das Item-Level
@@ -4702,7 +4703,10 @@ local function initCharacter()
 		end
 	end
 
-	PaperDollFrame:HookScript("OnShow", function(self) setCharFrame() end)
+	PaperDollFrame:HookScript("OnShow", function(self)
+		setCharFrame()
+		addon.functions.updateCloakUpgradeButton()
+	end)
 
 	if OrderHallCommandBar then
 		OrderHallCommandBar:HookScript("OnShow", function(self)
