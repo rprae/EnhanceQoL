@@ -46,6 +46,16 @@ local PETMASK = bor(COMBATLOG_OBJECT_TYPE_PET or 0, COMBATLOG_OBJECT_TYPE_GUARDI
 
 local function resolveOwner(srcGUID, srcName, srcFlags)
 	if srcGUID and srcFlags then unitAffiliation[srcGUID] = srcFlags end
+	if srcGUID then
+		local owner = petOwner[srcGUID]
+		if owner then
+			if not ownerNameCache[owner] then
+				local oname = select(6, GPIG(owner))
+				if oname then ownerNameCache[owner] = oname end
+			end
+			return owner, (ownerNameCache[owner] or srcName), unitAffiliation[owner]
+		end
+	end
 	if band(srcFlags or 0, PETMASK) ~= 0 and srcGUID then
 		local owner = petOwner[srcGUID]
 		if owner then
@@ -77,6 +87,7 @@ local function acquirePlayer(tbl, guid, name)
 		player.guid = guid
 		player.damage = 0
 		player.healing = 0
+		player.damageTaken = 0
 		local _, class = GPIG(guid)
 		player.class = class
 		players[guid] = player
@@ -137,18 +148,22 @@ local function fullRebuildPetOwners()
 
 	handleUnit("player")
 
+	local toDrop = {}
 	for owner, pets in pairs(ownerPets) do
-		if groupGUIDs[owner] then
+		if not groupGUIDs[owner] then
+			toDrop[#toDrop + 1] = owner
+		else
 			for pguid in pairs(pets) do
 				activeGUIDs[pguid] = true
 			end
-		else
-			for pguid in pairs(pets) do
-				petOwner[pguid] = nil
-			end
-			ownerPets[owner] = nil
-			ownerMainPet[owner] = nil
 		end
+	end
+	for _, owner in ipairs(toDrop) do
+		for pguid in pairs(ownerPets[owner]) do
+			petOwner[pguid] = nil
+		end
+		ownerPets[owner] = nil
+		ownerMainPet[owner] = nil
 	end
 
 	cm.groupGUIDs = groupGUIDs
@@ -224,8 +239,11 @@ local function mergePrePull()
 	for i = head, tail do
 		local e = buf[i]
 		if e and e.t >= cutoff then
-			local p = acquirePlayer(cm.players, e.guid, e.name)
-			local o = acquirePlayer(cm.overallPlayers, e.guid, e.name)
+			local ownerGUID, ownerName = resolveOwner(e.guid, e.name, unitAffiliation[e.guid])
+			e.guid = ownerGUID
+			e.name = ownerName
+			local p = acquirePlayer(cm.players, ownerGUID, ownerName)
+			local o = acquirePlayer(cm.overallPlayers, ownerGUID, ownerName)
 			if e.damage and e.damage > 0 then
 				p.damage = p.damage + e.damage
 				o.damage = o.damage + e.damage
@@ -250,7 +268,6 @@ local dmgIdx = {
 	SPELL_DAMAGE = 4,
 	SPELL_PERIODIC_DAMAGE = 4,
 	DAMAGE_SHIELD = 4,
-	DAMAGE_SPLIT = 4,
 }
 
 local function handleEvent(self, event, unit)
@@ -276,6 +293,7 @@ local function handleEvent(self, event, unit)
 				class = data.class,
 				damage = data.damage,
 				healing = data.healing,
+				damageTaken = data.damageTaken,
 			}
 		end
 		addon.db["combatMeterHistory"] = addon.db["combatMeterHistory"] or {}
@@ -310,11 +328,12 @@ local function handleEvent(self, event, unit)
 						pets[destGUID] = nil
 						if not next(pets) then ownerPets[owner] = nil end
 					end
+					if ownerMainPet[owner] == destGUID then ownerMainPet[owner] = nil end
 				end
 				petOwner[destGUID] = nil
 			end
 			return
-		elseif not (dmgIdx[sub] or sub == "SPELL_HEAL" or sub == "SPELL_PERIODIC_HEAL" or sub == "SPELL_ABSORBED") then
+		elseif not (dmgIdx[sub] or sub == "SPELL_HEAL" or sub == "SPELL_PERIODIC_HEAL" or sub == "SPELL_ABSORBED" or sub == "DAMAGE_SPLIT") then
 			-- Note: We intentionally ignore *_MISSED ABSORB to avoid double-counting with SPELL_ABSORBED (matches Details behavior)
 			return
 		end
@@ -336,6 +355,21 @@ local function handleEvent(self, event, unit)
 			else
 				addPrePull(ownerGUID, ownerName, amount, 0)
 			end
+			return
+		end
+
+		if sub == "DAMAGE_SPLIT" then
+			if not inCombat then return end
+			if not sourceGUID then return end
+			local ownerGUID, ownerName, ownerFlags = resolveOwner(sourceGUID, sourceName, sourceFlags)
+			if not ownerFlags and cm.groupGUIDs and cm.groupGUIDs[ownerGUID] then ownerFlags = COMBATLOG_OBJECT_AFFILIATION_RAID end
+			if band(ownerFlags or 0, groupMask) == 0 then return end
+			local amount = a15 or 0
+			if amount <= 0 then return end
+			local player = acquirePlayer(cm.players, ownerGUID, ownerName)
+			local overall = acquirePlayer(cm.overallPlayers, ownerGUID, ownerName)
+			player.damageTaken = player.damageTaken + amount
+			overall.damageTaken = overall.damageTaken + amount
 			return
 		end
 
@@ -403,6 +437,7 @@ local function loadHistory(index)
 		local player = acquirePlayer(cm.players, guid, p.name)
 		player.damage = p.damage or 0
 		player.healing = p.healing or 0
+		player.damageTaken = p.damageTaken or 0
 		player.class = p.class
 		cm.historyUnits[guid] = p.name
 	end
