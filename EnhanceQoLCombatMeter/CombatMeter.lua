@@ -21,7 +21,8 @@ cm.overallPlayers = cm.overallPlayers or {}
 cm.playerPool = cm.playerPool or {}
 cm.overallDuration = cm.overallDuration or 0
 cm.prePullBuffer = cm.prePullBuffer or {}
-cm.prePullHead = 1
+cm.prePullHead = cm.prePullHead or 1
+cm.prePullTail = cm.prePullTail or 0
 
 cm.MAX_HISTORY = cm.MAX_HISTORY or 30
 cm.historySelection = cm.historySelection or nil
@@ -140,21 +141,34 @@ end
 local function addPrePull(ownerGUID, ownerName, damage, healing)
 	local buf = cm.prePullBuffer
 	local now = GetTime()
-	buf[#buf + 1] = { t = now, guid = ownerGUID, name = ownerName, damage = damage or 0, healing = healing or 0 }
+	local tail = cm.prePullTail + 1
+	buf[tail] = { t = now, guid = ownerGUID, name = ownerName, damage = damage or 0, healing = healing or 0 }
+	cm.prePullTail = tail
 	local cutoff = now - (addon.db["combatMeterPrePullWindow"] or 4)
-	while buf[1] and buf[1].t < cutoff do
-		table.remove(buf, 1)
+	local head = cm.prePullHead
+	while head <= tail do
+		local e = buf[head]
+		if not e or e.t >= cutoff then break end
+		buf[head] = nil
+		head = head + 1
 	end
-	cm.prePullHead = 1
+	if head > tail then
+		head = 1
+		tail = 0
+	end
+	cm.prePullHead = head
+	cm.prePullTail = tail
 end
 
 local function mergePrePull()
 	local buf = cm.prePullBuffer
-	if not buf or #buf == 0 then return end
+	local head = cm.prePullHead
+	local tail = cm.prePullTail
+	if not buf or head > tail then return end
 	local cutoff = GetTime() - (addon.db["combatMeterPrePullWindow"] or 4)
-	for i = 1, #buf do
+	for i = head, tail do
 		local e = buf[i]
-		if e.t >= cutoff then
+		if e and e.t >= cutoff then
 			local p = acquirePlayer(cm.players, e.guid, e.name)
 			local o = acquirePlayer(cm.overallPlayers, e.guid, e.name)
 			if e.damage and e.damage > 0 then
@@ -168,6 +182,7 @@ local function mergePrePull()
 		end
 	end
 	cm.prePullHead = 1
+	cm.prePullTail = 0
 	wipe(buf)
 end
 
