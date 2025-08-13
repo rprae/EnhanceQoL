@@ -79,15 +79,27 @@ local function getCurrentSeasonPortal()
 					if cModeIDLookup[cId] then
 						local mapName, _, _, texture, backgroundTexture = C_ChallengeMode.GetMapUIInfo(cId)
 
+						local displayText = data.text
+						if type(displayText) == "table" then
+							local texts = {}
+							for _, txt in pairs(displayText) do
+								table.insert(texts, txt)
+							end
+							table.sort(texts)
+							displayText = table.concat(texts, "/")
+						end
+
 						filteredPortalSpells[spellID] = {
-							text = data.text,
+							text = displayText,
 							iconID = data.iconID,
 						}
 						if data.faction then
 							filteredPortalSpells[spellID].faction = data.faction
 							if data.faction == faction then
+								local mapText = data.text
+								if type(mapText) == "table" then mapText = mapText[cId] end
 								filteredMapInfo[cId] = {
-									text = data.text,
+									text = mapText,
 									spellId = spellID,
 									mapName = mapName,
 									texture = texture,
@@ -95,8 +107,10 @@ local function getCurrentSeasonPortal()
 								}
 							end
 						else
+							local mapText = data.text
+							if type(mapText) == "table" then mapText = mapText[cId] end
 							filteredMapInfo[cId] = {
-								text = data.text,
+								text = mapText,
 								spellId = spellID,
 								mapName = mapName,
 								texture = texture,
