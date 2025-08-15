@@ -491,6 +491,8 @@ local function handleEvent(self, event, unit)
 			if not ownerFlags and cm.groupGUIDs and cm.groupGUIDs[ownerGUID] then ownerFlags = COMBATLOG_OBJECT_AFFILIATION_RAID end
 			if band(ownerFlags or 0, groupMask) == 0 then return end
 			local amount = (idx == 1 and a12) or a15 or 0
+			local overkill = (sub == "SWING_DAMAGE") and (a13 or 0) or (a16 or 0)
+			amount = amount - math.max(overkill or 0, 0)
 			if amount <= 0 then return end
 			local spellId, spellName, spellIcon = getSpellInfoFromSub(sub, a12, a15)
 			local crit = isCritFor(sub, a18, a21)

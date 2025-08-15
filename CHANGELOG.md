@@ -13,6 +13,7 @@
 - Resolved issues in **DataPanel**.
 - Improved **Combat Meter** DPS/HPS determination accuracy.
 - Fixed an error when filtering inventory by item level.
+- **Combat Meter** no longer counts overkill for *_DAMAGE events.
 
 ---
 
