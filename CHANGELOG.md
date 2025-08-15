@@ -6,6 +6,7 @@
 
 - **Combat Meter**: metric switch to toggle displayed metrics.
 - **Combat Meter**: spell breakdown on bar hover
+- **Combat Meter**: absorbed *_MISSED events now count toward damage done.
 
 ### 🐛 Fixed
 
