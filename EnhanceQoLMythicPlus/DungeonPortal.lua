@@ -151,6 +151,56 @@ frameAnchor:SetBackdrop({
 })
 frameAnchor:SetBackdropColor(0, 0, 0, 0.8) -- Dunkler Hintergrund mit 80% Transparenz
 
+frameAnchor:SetMovable(true)
+frameAnchor:EnableMouse(true)
+frameAnchor:RegisterForDrag("LeftButton")
+frameAnchor:SetScript("OnDragStart", function(self)
+	if addon.db.teleportFrameLocked then return end
+	if not IsShiftKeyDown() then return end
+	self:StartMoving()
+end)
+frameAnchor:SetScript("OnDragStop", function(self)
+	self:StopMovingOrSizing()
+	local point, _, parentPoint, xOfs, yOfs = self:GetPoint()
+	addon.db.teleportFrameData.point = point
+	addon.db.teleportFrameData.parentPoint = parentPoint
+	addon.db.teleportFrameData.x = xOfs
+	addon.db.teleportFrameData.y = yOfs
+end)
+
+local btnDockTeleport = CreateFrame("Button", nil, frameAnchor)
+btnDockTeleport:SetPoint("TOPRIGHT", frameAnchor, "TOPRIGHT", -5, -5)
+btnDockTeleport:SetSize(16, 16)
+btnDockTeleport.isDocked = addon.db.teleportFrameLocked
+local iconTeleport = btnDockTeleport:CreateTexture(nil, "ARTWORK")
+iconTeleport:SetAllPoints(btnDockTeleport)
+btnDockTeleport.icon = iconTeleport
+if btnDockTeleport.isDocked then
+	iconTeleport:SetTexture("Interface\\Addons\\EnhanceQoL\\Icons\\ClosedLock.tga")
+else
+	iconTeleport:SetTexture("Interface\\Addons\\EnhanceQoL\\Icons\\OpenLock.tga")
+end
+btnDockTeleport:SetScript("OnClick", function(self)
+	self.isDocked = not self.isDocked
+	addon.db.teleportFrameLocked = self.isDocked
+	if self.isDocked then
+		self.icon:SetTexture("Interface\\Addons\\EnhanceQoL\\Icons\\ClosedLock.tga")
+	else
+		self.icon:SetTexture("Interface\\Addons\\EnhanceQoL\\Icons\\OpenLock.tga")
+	end
+	addon.MythicPlus.functions.toggleFrame()
+end)
+btnDockTeleport:SetScript("OnEnter", function(self)
+	GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+	if self.isDocked then
+		GameTooltip:SetText(L["frameUnlock"])
+	else
+		GameTooltip:SetText(L["frameLock"])
+	end
+	GameTooltip:Show()
+end)
+btnDockTeleport:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
 -- Überschrift hinzufügen
 local title = frameAnchor:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 title:SetPoint("TOP", 0, -10)
@@ -176,6 +226,56 @@ local mSeasonTitleCompendium = L["DungeonCompendium"]
 titleCompendium:SetFormattedText(mSeasonTitleCompendium)
 SafeSetSize(frameAnchorCompendium, titleCompendium:GetStringWidth() + 20, 170)
 frameAnchorCompendium:SetPoint("TOPLEFT", DungeonTeleportFrame, "TOPRIGHT", 0, 0)
+
+frameAnchorCompendium:SetMovable(true)
+frameAnchorCompendium:EnableMouse(true)
+frameAnchorCompendium:RegisterForDrag("LeftButton")
+frameAnchorCompendium:SetScript("OnDragStart", function(self)
+	if addon.db.teleportCompendiumLocked then return end
+	if not IsShiftKeyDown() then return end
+	self:StartMoving()
+end)
+frameAnchorCompendium:SetScript("OnDragStop", function(self)
+	self:StopMovingOrSizing()
+	local point, _, parentPoint, xOfs, yOfs = self:GetPoint()
+	addon.db.teleportCompendiumFrameData.point = point
+	addon.db.teleportCompendiumFrameData.parentPoint = parentPoint
+	addon.db.teleportCompendiumFrameData.x = xOfs
+	addon.db.teleportCompendiumFrameData.y = yOfs
+end)
+
+local btnDockCompendium = CreateFrame("Button", nil, frameAnchorCompendium)
+btnDockCompendium:SetPoint("TOPRIGHT", frameAnchorCompendium, "TOPRIGHT", -5, -5)
+btnDockCompendium:SetSize(16, 16)
+btnDockCompendium.isDocked = addon.db.teleportCompendiumLocked
+local iconCompendium = btnDockCompendium:CreateTexture(nil, "ARTWORK")
+iconCompendium:SetAllPoints(btnDockCompendium)
+btnDockCompendium.icon = iconCompendium
+if btnDockCompendium.isDocked then
+	iconCompendium:SetTexture("Interface\\Addons\\EnhanceQoL\\Icons\\ClosedLock.tga")
+else
+	iconCompendium:SetTexture("Interface\\Addons\\EnhanceQoL\\Icons\\OpenLock.tga")
+end
+btnDockCompendium:SetScript("OnClick", function(self)
+	self.isDocked = not self.isDocked
+	addon.db.teleportCompendiumLocked = self.isDocked
+	if self.isDocked then
+		self.icon:SetTexture("Interface\\Addons\\EnhanceQoL\\Icons\\ClosedLock.tga")
+	else
+		self.icon:SetTexture("Interface\\Addons\\EnhanceQoL\\Icons\\OpenLock.tga")
+	end
+	addon.MythicPlus.functions.toggleFrame()
+end)
+btnDockCompendium:SetScript("OnEnter", function(self)
+	GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+	if self.isDocked then
+		GameTooltip:SetText(L["frameUnlock"])
+	else
+		GameTooltip:SetText(L["frameLock"])
+	end
+	GameTooltip:Show()
+end)
+btnDockCompendium:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
 local activeBars = {}
 addon.MythicPlus.portalFrame = frameAnchor
@@ -743,6 +843,56 @@ local function CreateRioScore()
 		frameAnchorScore:SetBackdropColor(0, 0, 0, 0.8) -- Dunkler Hintergrund mit 80% Transparenz
 		frameAnchorScore:SetFrameStrata("TOOLTIP")
 
+		frameAnchorScore:SetMovable(true)
+		frameAnchorScore:EnableMouse(true)
+		frameAnchorScore:RegisterForDrag("LeftButton")
+		frameAnchorScore:SetScript("OnDragStart", function(self)
+			if addon.db.dungeonScoreFrameLocked then return end
+			if not IsShiftKeyDown() then return end
+			self:StartMoving()
+		end)
+		frameAnchorScore:SetScript("OnDragStop", function(self)
+			self:StopMovingOrSizing()
+			local point, _, parentPoint, xOfs, yOfs = self:GetPoint()
+			addon.db.dungeonScoreFrameData.point = point
+			addon.db.dungeonScoreFrameData.parentPoint = parentPoint
+			addon.db.dungeonScoreFrameData.x = xOfs
+			addon.db.dungeonScoreFrameData.y = yOfs
+		end)
+
+		local btnDockScore = CreateFrame("Button", nil, frameAnchorScore)
+		btnDockScore:SetPoint("TOPRIGHT", frameAnchorScore, "TOPRIGHT", -5, -5)
+		btnDockScore:SetSize(16, 16)
+		btnDockScore.isDocked = addon.db.dungeonScoreFrameLocked
+		local iconScore = btnDockScore:CreateTexture(nil, "ARTWORK")
+		iconScore:SetAllPoints(btnDockScore)
+		btnDockScore.icon = iconScore
+		if btnDockScore.isDocked then
+			iconScore:SetTexture("Interface\\Addons\\EnhanceQoL\\Icons\\ClosedLock.tga")
+		else
+			iconScore:SetTexture("Interface\\Addons\\EnhanceQoL\\Icons\\OpenLock.tga")
+		end
+		btnDockScore:SetScript("OnClick", function(self)
+			self.isDocked = not self.isDocked
+			addon.db.dungeonScoreFrameLocked = self.isDocked
+			if self.isDocked then
+				self.icon:SetTexture("Interface\\Addons\\EnhanceQoL\\Icons\\ClosedLock.tga")
+			else
+				self.icon:SetTexture("Interface\\Addons\\EnhanceQoL\\Icons\\OpenLock.tga")
+			end
+			addon.MythicPlus.functions.toggleFrame()
+		end)
+		btnDockScore:SetScript("OnEnter", function(self)
+			GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+			if self.isDocked then
+				GameTooltip:SetText(L["frameUnlock"])
+			else
+				GameTooltip:SetText(L["frameLock"])
+			end
+			GameTooltip:Show()
+		end)
+		btnDockScore:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
 		-- Überschrift hinzufügen
 		local titleScore = frameAnchorScore:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 		titleScore:SetFormattedText(DUNGEON_SCORE)
@@ -757,6 +907,10 @@ local function CreateRioScore()
 			frameAnchorScore:SetPoint("TOPLEFT", parentFrame, "TOPRIGHT", offsetX, 0)
 		else
 			frameAnchorScore:SetPoint("TOPLEFT", parentFrame, "TOPRIGHT", 0, 0)
+		end
+		if not addon.db.dungeonScoreFrameLocked and addon.db.dungeonScoreFrameData.point then
+			frameAnchorScore:ClearAllPoints()
+			frameAnchorScore:SetPoint(addon.db.dungeonScoreFrameData.point, UIParent, addon.db.dungeonScoreFrameData.parentPoint, addon.db.dungeonScoreFrameData.x, addon.db.dungeonScoreFrameData.y)
 		end
 		SafeSetSize(frameAnchor, minFrameSize, 170)
 
@@ -1071,7 +1225,6 @@ function addon.MythicPlus.functions.toggleFrame()
 			if #portalSpells == 0 then getCurrentSeasonPortal() end
 			checkCooldown()
 
-			frameAnchorCompendium:ClearAllPoints()
 			-- Based on RaiderIO Client place the Frame
 			if nil ~= RaiderIO_ProfileTooltip then
 				C_Timer.After(0.1, function()
@@ -1079,32 +1232,67 @@ function addon.MythicPlus.functions.toggleFrame()
 						doAfterCombat = true
 					else
 						CreateRioScore()
-						frameAnchorCompendium:ClearAllPoints()
 						local offsetX = RaiderIO_ProfileTooltip:GetSize()
-						frameAnchor:SetPoint("TOPLEFT", parentFrame, "TOPRIGHT", offsetX, 0)
-						if not addon.db["teleportFrame"] then
-							if gFrameAnchorScore then
-								local offsetX2 = gFrameAnchorScore:GetSize()
-								frameAnchorCompendium:SetPoint("TOPLEFT", parentFrame, "TOPRIGHT", (offsetX + offsetX2), 0)
+						if addon.db.teleportFrameLocked then
+							frameAnchor:ClearAllPoints()
+							frameAnchor:SetPoint("TOPLEFT", parentFrame, "TOPRIGHT", offsetX, 0)
+						elseif addon.db.teleportFrameData.point then
+							frameAnchor:ClearAllPoints()
+							frameAnchor:SetPoint(addon.db.teleportFrameData.point, UIParent, addon.db.teleportFrameData.parentPoint, addon.db.teleportFrameData.x, addon.db.teleportFrameData.y)
+						end
+						if addon.db.teleportCompendiumLocked then
+							frameAnchorCompendium:ClearAllPoints()
+							if not addon.db["teleportFrame"] then
+								if gFrameAnchorScore then
+									local offsetX2 = gFrameAnchorScore:GetSize()
+									frameAnchorCompendium:SetPoint("TOPLEFT", parentFrame, "TOPRIGHT", (offsetX + offsetX2), 0)
+								else
+									frameAnchorCompendium:SetPoint("TOPLEFT", parentFrame, "TOPRIGHT", offsetX, 0)
+								end
 							else
-								frameAnchorCompendium:SetPoint("TOPLEFT", parentFrame, "TOPRIGHT", offsetX, 0)
+								frameAnchorCompendium:SetPoint("TOPLEFT", frameAnchor, "TOPRIGHT", 0, 0)
 							end
-						else
-							frameAnchorCompendium:SetPoint("TOPLEFT", frameAnchor, "TOPRIGHT", 0, 0)
+						elseif addon.db.teleportCompendiumFrameData.point then
+							frameAnchorCompendium:ClearAllPoints()
+							frameAnchorCompendium:SetPoint(
+								addon.db.teleportCompendiumFrameData.point,
+								UIParent,
+								addon.db.teleportCompendiumFrameData.parentPoint,
+								addon.db.teleportCompendiumFrameData.x,
+								addon.db.teleportCompendiumFrameData.y
+							)
 						end
 					end
 				end)
 			else
-				frameAnchor:SetPoint("TOPLEFT", parentFrame, "TOPRIGHT", 0, 0)
-				if not addon.db["teleportFrame"] then
-					if gFrameAnchorScore then
-						local offsetX2 = gFrameAnchorScore:GetSize()
-						frameAnchorCompendium:SetPoint("TOPLEFT", parentFrame, "TOPRIGHT", offsetX2, 0)
+				if addon.db.teleportFrameLocked then
+					frameAnchor:ClearAllPoints()
+					frameAnchor:SetPoint("TOPLEFT", parentFrame, "TOPRIGHT", 0, 0)
+				elseif addon.db.teleportFrameData.point then
+					frameAnchor:ClearAllPoints()
+					frameAnchor:SetPoint(addon.db.teleportFrameData.point, UIParent, addon.db.teleportFrameData.parentPoint, addon.db.teleportFrameData.x, addon.db.teleportFrameData.y)
+				end
+				if addon.db.teleportCompendiumLocked then
+					frameAnchorCompendium:ClearAllPoints()
+					if not addon.db["teleportFrame"] then
+						if gFrameAnchorScore then
+							local offsetX2 = gFrameAnchorScore:GetSize()
+							frameAnchorCompendium:SetPoint("TOPLEFT", parentFrame, "TOPRIGHT", offsetX2, 0)
+						else
+							frameAnchorCompendium:SetPoint("TOPLEFT", parentFrame, "TOPRIGHT", 0, 0)
+						end
 					else
-						frameAnchorCompendium:SetPoint("TOPLEFT", parentFrame, "TOPRIGHT", 0, 0)
+						frameAnchorCompendium:SetPoint("TOPLEFT", frameAnchor, "TOPRIGHT", 0, 0)
 					end
-				else
-					frameAnchorCompendium:SetPoint("TOPLEFT", frameAnchor, "TOPRIGHT", 0, 0)
+				elseif addon.db.teleportCompendiumFrameData.point then
+					frameAnchorCompendium:ClearAllPoints()
+					frameAnchorCompendium:SetPoint(
+						addon.db.teleportCompendiumFrameData.point,
+						UIParent,
+						addon.db.teleportCompendiumFrameData.parentPoint,
+						addon.db.teleportCompendiumFrameData.x,
+						addon.db.teleportCompendiumFrameData.y
+					)
 				end
 			end
 
