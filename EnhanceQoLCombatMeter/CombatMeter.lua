@@ -50,6 +50,7 @@ local iconCache = {}
 -- Guardians spawned without SPELL_SUMMON. Add NPC IDs here.
 local missingSummonNPCs = {
 	[144961] = true, -- SecTec
+	[31216] = true, -- Mirror Images
 }
 
 local tooltipLookup = {}
@@ -485,12 +486,6 @@ local function handleEvent(self, event, unit)
 		local _, sub, _, sourceGUID, sourceName, sourceFlags, _, destGUID, destName, destFlags, _, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23 = CLEU()
 		if sub == "ENVIRONMENTAL_DAMAGE" then return end
 
-		-- Attempt to map pet owners for guardians spawned without a summon event
-		if sourceGUID and not petOwner[sourceGUID] and dmgIdx[sub] then
-			local id = getIDFromGUID(sourceGUID)
-			if id and missingSummonNPCs[id] then trySetOwnerFromTooltip(sourceGUID) end
-		end
-
 		-- Maintain pet/guardian owner mapping via CLEU
 		if sub == "SPELL_SUMMON" or sub == "SPELL_CREATE" then
 			if destGUID and sourceGUID then
@@ -533,6 +528,15 @@ local function handleEvent(self, event, unit)
 		local idx = dmgIdx[sub]
 		if idx then
 			if not sourceGUID then return end
+
+			-- Attempt to map pet owners for guardians spawned without a summon event
+			-- ? bit.band(sourceFlags, 64512) == 8192 --> IsGuardian?
+			-- ? bit.band(sourceFlags, 768) == 256    --> IsPlayerControlled?
+			if not petOwner[sourceGUID] and bit.band(sourceFlags, 64512) == 8192 and bit.band(sourceFlags, 768) == 256 then
+				local id = getIDFromGUID(sourceGUID)
+				if id and missingSummonNPCs[id] then trySetOwnerFromTooltip(sourceGUID) end
+			end
+
 			local ownerGUID, ownerName, ownerFlags = resolveOwner(sourceGUID, sourceName, sourceFlags)
 			if not ownerFlags and cm.groupGUIDs and cm.groupGUIDs[ownerGUID] then ownerFlags = COMBATLOG_OBJECT_AFFILIATION_RAID end
 			if band(ownerFlags or 0, groupMask) == 0 then return end

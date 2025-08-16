@@ -1,19 +1,28 @@
 # Changelog
 
+## [4.4.1] – 2025-08-16
+
+### 🐛 Fixed
+
+- _Secret Technique_ by Rogues where missed in **Combat Meter**
+- _Offhealing_ voice not always played in **Potion Tracker**
+
+---
+
 ## [4.4.0] – 2025-08-14
 
 ### ✨ Added
 
 - **Combat Meter**: metric switch to toggle displayed metrics.
 - **Combat Meter**: spell breakdown on bar hover
-- **Combat Meter**: absorbed *_MISSED events now count toward damage done.
+- **Combat Meter**: absorbed \*\_MISSED events now count toward damage done.
 
 ### 🐛 Fixed
 
 - Resolved issues in **DataPanel**.
 - Improved **Combat Meter** DPS/HPS determination accuracy.
 - Fixed an error when filtering inventory by item level.
-- **Combat Meter** no longer counts overkill for *_DAMAGE events.
+- **Combat Meter** no longer counts overkill for \*\_DAMAGE events.
 
 ---
 
