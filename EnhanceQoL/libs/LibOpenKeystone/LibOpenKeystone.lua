@@ -13,7 +13,7 @@ local PREFIX_LOGGED = "LRS_LOGGED"
 local KDATA_PREFIX = "K"
 local KREQ_PREFIX = "J"
 
-local ownRealm = GetRealmName()
+local ownRealm = (GetRealmName():gsub("%s", ""))
 -- Utils
 local function FullName(unit)
 	local n, r = UnitFullName(unit or "player")
@@ -140,7 +140,7 @@ local function HandleCompleteLogged(sender, channel, msg)
 		local level = nums[2] or 0
 
 		if nameRealm and nameRealm ~= "" then
-			lib.UnitData[nameRealm] = lib.UnitData[nameRealm] or {}
+            lib.UnitData[nameRealm] = lib.UnitData[nameRealm] or {}
 			local entry = lib.UnitData[nameRealm]
 			entry.challengeMapID = mapID
 			entry.level = level
@@ -198,7 +198,7 @@ f:SetScript("OnEvent", function(_, ev, ...)
 				lib.RequestKeystoneDataFromParty()
 			else
 				-- solo: just refresh local
-				local me = FullName("player")
+				local me = UnitName("player")
 				local mapID, level = ReadOwnKeystone()
 				lib.UnitData[me] = { challengeMapID = mapID, level = level, lastSeen = Now() }
 				Fire("KeystoneUpdate", me, lib.UnitData[me])
@@ -206,7 +206,7 @@ f:SetScript("OnEvent", function(_, ev, ...)
 		end)
 	elseif ev == "BAG_UPDATE_DELAYED" then
 		-- if our key changed, notify group (cheap)
-		local me = FullName("player")
+		local me = UnitName("player")
 		local mapID, level = ReadOwnKeystone()
 		local e = lib.UnitData[me]
 		if not e or e.challengeMapID ~= mapID or e.level ~= level then

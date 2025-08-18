@@ -7,7 +7,7 @@ else
 	error(parentAddonName .. " is not loaded")
 end
 
-local openRaidLib = LibStub:GetLibrary("LibOpenKeystone-1.0", true) --or  LibStub:GetLibrary("LibOpenRaid-1.0", true)
+local openRaidLib = LibStub:GetLibrary("LibOpenKeystone-1.0", true) or  LibStub:GetLibrary("LibOpenRaid-1.0", true)
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_MythicPlus")
 
 local cModeIDs
