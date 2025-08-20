@@ -3777,7 +3777,6 @@ local function initMisc()
 	_G.CompactRaidFrameManager:SetScript("OnShow", function(self) addon.functions.toggleRaidTools(addon.db["hideRaidTools"], self) end)
 	ExpansionLandingPageMinimapButton:HookScript("OnShow", function(self)
 		local id = addon.variables.landingPageReverse[self.title]
-		print(self.title, id)
 		if addon.db["enableSquareMinimap"] then
 			self:ClearAllPoints()
 			if id == 20 then
