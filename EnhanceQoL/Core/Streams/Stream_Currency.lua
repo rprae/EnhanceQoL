@@ -9,57 +9,6 @@ local tracked = {}
 local trackedDirty = true
 local measureFont = UIParent:CreateFontString()
 
-local function handleMouseEnter(button)
-	if not db or not db.tooltipPerCurrency then return end
-	local slot = button.slot
-	local function update()
-		local hover = slot.hover
-		if not hover then return end
-		local x, _ = GetCursorPosition()
-		local scale = UIParent:GetEffectiveScale()
-		x = x / scale
-		local left = button:GetLeft()
-		local relx = x - left
-		for _, h in ipairs(hover) do
-			if relx >= h.start and relx <= h.stop then
-				if slot.lastTip ~= h.id then
-					GameTooltip:SetOwner(button, "ANCHOR_TOPLEFT")
-					GameTooltip:SetCurrencyByID(h.id)
-					if db.showDescription == false then
-						local info = C_CurrencyInfo.GetCurrencyInfo(h.id)
-						local desc = info and info.description
-						if desc and desc ~= "" then
-							for i = 2, GameTooltip:NumLines() do
-								local leftText = _G[GameTooltip:GetName() .. "TextLeft" .. i]
-								if leftText and leftText:GetText() == desc then
-									leftText:SetText("")
-									break
-								end
-							end
-						end
-					end
-					GameTooltip:Show()
-					slot.lastTip = h.id
-				end
-				return
-			end
-		end
-		if slot.lastTip then
-			GameTooltip:Hide()
-			slot.lastTip = nil
-		end
-	end
-	button:SetScript("OnUpdate", update)
-	update()
-end
-
-local function handleMouseLeave(button)
-	if not db or not db.tooltipPerCurrency then return end
-	button:SetScript("OnUpdate", nil)
-	if button.slot then button.slot.lastTip = nil end
-	GameTooltip:Hide()
-end
-
 local function rebuildTracked()
 	if not db then return end
 	for k in pairs(tracked) do
@@ -342,8 +291,15 @@ local provider = {
 	OnClick = function(_, btn)
 		if btn == "RightButton" then createAceWindow() end
 	end,
-	OnMouseEnter = handleMouseEnter,
-	OnMouseLeave = handleMouseLeave,
+	OnMouseEnter = function(b)
+		local tip = GameTooltip
+		tip:ClearLines()
+		tip:SetOwner(b, "ANCHOR_TOPLEFT")
+		-- tip:SetCurrencyByID(h.id)
+
+		tip:AddLine(L["Right-Click for options"])
+		tip:Show()
+	end,
 }
 
 stream = EnhanceQoL.DataHub.RegisterStream(provider)
