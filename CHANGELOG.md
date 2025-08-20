@@ -4,12 +4,17 @@
 
 ### ✨ Added
 
-- DataPanel currency stream: per-currency tooltips, optional description hiding, and red coloring when capped
-- Optional right-click menu for minimap buttons like Report, Garrison, and Covenant
+- DataPanel currency stream: per-currency tooltips, optional description hiding, and red highlight when capped
+- Optional right-click menu for minimap buttons (Report, Garrison, Covenant)
+- Full button range coloring
+  - Entire action button is tinted when out of range
+  - Choose your color and opacity for the overlay
 
 ### 🐛 Fixed
 
-- DataPanel currency stream: per-currency tooltips now obey the description toggle and no longer show stray "Right-Click for options" tooltips
+- DataPanel currency stream: per-currency tooltips now respect the description toggle and no longer show stray _“Right-Click for options”_ tooltips
+
+---
 
 ## [4.6.0] – 2025-08-18
 
