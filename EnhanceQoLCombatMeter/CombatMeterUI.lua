@@ -308,10 +308,12 @@ local function createGroupFrame(groupConfig)
 		local parent = self:GetParent()
 		parent:StopMovingOrSizing()
 		addon.CombatMeter.functions.hideOutlinesAll()
-		local point, _, _, xOfs, yOfs = parent:GetPoint()
-		groupConfig.point = point
-		groupConfig.x = xOfs
-		groupConfig.y = yOfs
+		local left = parent:GetLeft() or 0
+		local top = parent:GetTop() or 0
+		groupConfig.x = left
+		groupConfig.y = top - UIParent:GetHeight()
+		groupConfig.point = "TOPLEFT"
+		restorePosition()
 	end)
 
 	local resetButton = CreateFrame("Button", nil, dragHandle)
@@ -416,7 +418,7 @@ local function createGroupFrame(groupConfig)
 
 	local function restorePosition()
 		frame:ClearAllPoints()
-		frame:SetPoint(groupConfig.point or "CENTER", UIParent, groupConfig.point or "CENTER", groupConfig.x or 0, groupConfig.y or 0)
+		frame:SetPoint("TOPLEFT", UIParent, "TOPLEFT", groupConfig.x or 0, groupConfig.y or 0)
 	end
 	restorePosition()
 

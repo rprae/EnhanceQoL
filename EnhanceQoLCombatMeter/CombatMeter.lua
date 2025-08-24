@@ -29,6 +29,26 @@ cm.MAX_HISTORY = cm.MAX_HISTORY or 30
 cm.historySelection = cm.historySelection or nil
 cm.historyUnits = cm.historyUnits or {}
 
+do
+	local groups = addon.db and addon.db["combatMeterGroups"]
+	if groups then
+		local screenH = UIParent:GetHeight()
+		for _, cfg in ipairs(groups) do
+			if cfg.point and cfg.point ~= "TOPLEFT" then
+				local w = (cfg.barWidth or 210) + (cfg.barHeight or 25) + 2
+				local temp = CreateFrame("Frame", nil, UIParent)
+				temp:SetSize(w, cfg.barHeight or 25)
+				temp:SetPoint(cfg.point, UIParent, cfg.point, cfg.x or 0, cfg.y or 0)
+				cfg.x = temp:GetLeft()
+				cfg.y = temp:GetTop() - screenH
+				cfg.point = "TOPLEFT"
+				temp:Hide()
+				temp:SetParent(nil)
+			end
+		end
+	end
+end
+
 local petOwner = cm.petOwner or {}
 cm.petOwner = petOwner
 local ownerPets = cm.ownerPets or {}
