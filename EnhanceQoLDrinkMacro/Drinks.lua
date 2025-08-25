@@ -571,7 +571,11 @@ function addon.functions.updateAllowedDrinks()
 
 	local playerLevel = UnitLevel("player")
 	local mana = UnitPowerMax("player", 0)
-	if mana <= 0 then return end
+	local allowRecuperate = db.allowRecuperate
+	if mana <= 0 and not allowRecuperate then
+		addon.Drinks.filteredDrinks = {}
+		return
+	end
 
 	local _, race = UnitRace("player")
 	local isEarthen = (race == "EarthenDwarf")
@@ -584,7 +588,6 @@ function addon.functions.updateAllowedDrinks()
 	local preferMage = db.preferMageFood
 	local ignoreBuff = db.ignoreBuffFood
 	local ignoreGems = db.ignoreGemsEarthen
-	local allowRecuperate = db.allowRecuperate
 
 	-- iterate only once over the master list
 	for i = 1, #addon.Drinks.drinkList do
@@ -596,7 +599,11 @@ function addon.functions.updateAllowedDrinks()
 		local dMana = drink.isMageFood and mana or drink.mana
 		if
 			req <= playerLevel
-			and (dMana >= minManaValue or (allowRecuperate and drink.id == 1231411 and addon.variables.unitClass ~= "MAGE") or (drink.id == 190336 and addon.variables.unitClass == "MAGE"))
+			and (
+				(mana > 0 and dMana >= minManaValue)
+				or (allowRecuperate and drink.id == 1231411 and addon.variables.unitClass ~= "MAGE")
+				or (drink.id == 190336 and addon.variables.unitClass == "MAGE")
+			)
 		then
 			if
 				not (drink.isBuffFood and ignoreBuff)

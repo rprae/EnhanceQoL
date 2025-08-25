@@ -38,6 +38,8 @@ local function unitHasMana()
 end
 
 local lastItemPlaced
+local lastAllowRecuperate
+local lastUseRecuperate
 local function addDrinks()
 	local foundItem = nil
 	for _, value in ipairs(addon.Drinks.filteredDrinks) do
@@ -47,16 +49,17 @@ local function addDrinks()
 			-- We only need the highest manadrink
 		end
 	end
-	if foundItem ~= lastItemPlaced then
+	if foundItem ~= lastItemPlaced or addon.db.allowRecuperate ~= lastAllowRecuperate or addon.db.useRecuperateWithDrinks ~= lastUseRecuperate then
 		EditMacro(drinkMacroName, drinkMacroName, nil, buildMacroString(foundItem))
 		lastItemPlaced = foundItem
+		lastAllowRecuperate = addon.db.allowRecuperate
+		lastUseRecuperate = addon.db.useRecuperateWithDrinks
 	end
 end
 
 function addon.functions.updateAvailableDrinks(ignoreCombat)
-	if (UnitAffectingCombat("Player") and ignoreCombat == false) or unitHasMana() == false then -- on Combat do nothing, when no manaclass do nothing
-		return
-	end
+	if UnitAffectingCombat("Player") and ignoreCombat == false then return end
+	if unitHasMana() == false and not (addon.db.allowRecuperate and addon.db.useRecuperateWithDrinks) then return end
 	createMacroIfMissing()
 	addDrinks()
 end
