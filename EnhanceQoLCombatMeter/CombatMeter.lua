@@ -15,6 +15,7 @@ local GPIG = GetPlayerInfoByGUID
 
 -- Spirit Link Totem redistribution damage (friendly-fire that should not count as DPS)
 local SPIRIT_LINK_DAMAGE_SPELL_ID = 98021
+local TEMPERED_IN_BATTLE_DAMAGE_SPELL_ID = 469704
 
 cm.inCombat = false
 cm.fightStartTime = 0
@@ -164,6 +165,7 @@ local function acquirePlayer(tbl, guid, name)
 		-- Initialize friendly-fire trackers
 		player.friendlyFire = 0
 		player.spiritLinkDamage = 0
+		player.temperedDamage = 0
 		local _, class = GPIG(guid)
 		player.class = class
 		players[guid] = player
@@ -514,6 +516,7 @@ local function handleEvent(self, event, unit)
 				damageTaken = data.damageTaken,
 				spiritLinkDamage = data.spiritLinkDamage or 0,
 				friendlyFire = data.friendlyFire or 0,
+				temperedDamage = data.temperedDamage or 0,
 			}
 		end
 		addon.db["combatMeterHistory"] = addon.db["combatMeterHistory"] or {}
@@ -609,6 +612,9 @@ local function handleEvent(self, event, unit)
 					if spellId == SPIRIT_LINK_DAMAGE_SPELL_ID then
 						player.spiritLinkDamage = (player.spiritLinkDamage or 0) + amount
 						overall.spiritLinkDamage = (overall.spiritLinkDamage or 0) + amount
+					elseif spellId == TEMPERED_IN_BATTLE_DAMAGE_SPELL_ID then
+						player.temperedDamage = (player.temperedDamage or 0) + amount
+						overall.temperedDamage = (overall.temperedDamage or 0) + amount
 					end
 				end
 				return
@@ -843,6 +849,7 @@ local function loadHistory(index)
 		player.class = p.class
 		player.spiritLinkDamage = p.spiritLinkDamage or 0
 		player.friendlyFire = p.friendlyFire or 0
+		player.temperedDamage = p.temperedDamage or 0
 		cm.historyUnits[guid] = p.name
 	end
 	if addon.CombatMeter.functions.UpdateBars then addon.CombatMeter.functions.UpdateBars() end

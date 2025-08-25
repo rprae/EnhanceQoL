@@ -544,16 +544,35 @@ local function createGroupFrame(groupConfig)
 						local slIcon = si and si.iconID
 						local label
 						if slIcon then
-							label = "|T"..slIcon..":16|t"..slName.." ("..(DAMAGE or "Damage")..")"
+							label = "|T" .. slIcon .. ":16|t" .. slName .. " (" .. (DAMAGE or "Damage") .. ")"
 						else
-							label = slName.." ("..(DAMAGE or "Damage")..")"
+							label = slName .. " (" .. (DAMAGE or "Damage") .. ")"
 						end
-						-- percentage relative to net healing when positive, otherwise fall back to positive total
-						local denom = total - sl
+						-- percentage relative to net healing (subtract Spirit Link + Tempered); fallback to positive total
+						local tbForPct = tonumber(pdata.temperedDamage or 0) or 0
+						local denom = total - (sl + tbForPct)
 						if not denom or denom <= 0 then denom = total end
 						local pct = 0
-						if denom and denom > 0 then pct = ((-sl) / denom) * 100 end
+						if denom and denom > 0 then pct = (-sl / denom) * 100 end
 						GameTooltip:AddDoubleLine(label, string.format("%s (%.1f%%)", abbreviateNumber(-sl), pct))
+					end
+					-- Tempered in Battle (Damage)
+					local tb = tonumber(pdata.temperedDamage or 0) or 0
+					if tb > 0 then
+						local si2 = C_Spell.GetSpellInfo(469704)
+						local tbName = (si2 and si2.name) or "Tempered in Battle"
+						local tbIcon = si2 and si2.iconID
+						local label2
+						if tbIcon then
+							label2 = "|T" .. tbIcon .. ":16|t" .. tbName .. " (" .. (DAMAGE or "Damage") .. ")"
+						else
+							label2 = tbName .. " (" .. (DAMAGE or "Damage") .. ")"
+						end
+						local denom2 = total - ((pdata.spiritLinkDamage or 0) + tb)
+						if not denom2 or denom2 <= 0 then denom2 = total end
+						local pct2 = 0
+						if denom2 and denom2 > 0 then pct2 = (-tb / denom2) * 100 end
+						GameTooltip:AddDoubleLine(label2, string.format("%s (%.1f%%)", abbreviateNumber(-tb), pct2))
 					end
 				end
 				GameTooltip:Show()
@@ -611,8 +630,9 @@ local function createGroupFrame(groupConfig)
 						total = (p.damage or 0)
 					else
 						local raw = (p.healing or 0)
-						local sl  = (p.spiritLinkDamage or 0)
-						total = raw - sl
+						local sl = (p.spiritLinkDamage or 0)
+						local tb = (p.temperedDamage or 0)
+						total = raw - (sl + tb)
 					end
 					local value = total / p.time
 					tinsert(list, { guid = guid, name = p.name, value = value, total = total, class = p.class })
@@ -636,8 +656,9 @@ local function createGroupFrame(groupConfig)
 						total = data.damage
 					else
 						local raw = (data.healing or 0)
-						local sl  = (data.spiritLinkDamage or 0)
-						total = raw - sl
+						local sl = (data.spiritLinkDamage or 0)
+						local tb = (data.temperedDamage or 0)
+						total = raw - (sl + tb)
 						value = total / duration
 					end
 					tinsert(list, { guid = guid, name = data.name, value = value, total = total, class = data.class })
@@ -686,8 +707,9 @@ local function createGroupFrame(groupConfig)
 							total = (p.damage or 0)
 						else
 							local raw = (p.healing or 0)
-							local sl  = (p.spiritLinkDamage or 0)
-							total = raw - sl
+							local sl = (p.spiritLinkDamage or 0)
+							local tb = (p.temperedDamage or 0)
+							total = raw - (sl + tb)
 						end
 						value = total / p.time
 						class = p.class
@@ -707,8 +729,9 @@ local function createGroupFrame(groupConfig)
 							value = data.damage / duration
 						else
 							local raw = (data.healing or 0)
-							local sl  = (data.spiritLinkDamage or 0)
-							total = raw - sl
+							local sl = (data.spiritLinkDamage or 0)
+							local tb = (data.temperedDamage or 0)
+							total = raw - (sl + tb)
 							value = total / duration
 						end
 						class = data.class
