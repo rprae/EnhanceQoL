@@ -1,6 +1,6 @@
 local parentAddonName = "EnhanceQoL"
 local addonName, addon = ...
--- luacheck: globals GENERAL SlashCmdList
+-- luacheck: globals GENERAL SlashCmdList INTERRUPTS
 if _G[parentAddonName] then
 	addon = _G[parentAddonName]
 else
@@ -194,13 +194,15 @@ local function addGeneralFrame(container)
 	groupGroup:SetTitle(L["Groups"])
 	wrapper:AddChild(groupGroup)
 
-	local metricNames = {
-		dps = L["DPS"],
-		damageOverall = L["Damage Overall"],
-		healingPerFight = L["Healing Per Fight"],
-		healingOverall = L["Healing Overall"],
-	}
-	local metricOrder = { "dps", "damageOverall", "healingPerFight", "healingOverall" }
+        local metricNames = {
+                dps = L["DPS"],
+                damageOverall = L["Damage Overall"],
+                healingPerFight = L["Healing Per Fight"],
+                healingOverall = L["Healing Overall"],
+                interrupts = INTERRUPTS,
+                interruptsOverall = INTERRUPTS .. " Overall",
+        }
+       local metricOrder = { "damageOverall", "healingOverall", "interruptsOverall", "dps", "healingPerFight", "interrupts" }
 
 	for i, cfg in ipairs(addon.db["combatMeterGroups"]) do
 		local idx = i
