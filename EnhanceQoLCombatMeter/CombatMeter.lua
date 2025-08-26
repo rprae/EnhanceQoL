@@ -162,6 +162,7 @@ local function acquirePlayer(tbl, guid, name)
 		player.damage = 0
 		player.healing = 0
 		player.damageTaken = 0
+		player.interrupts = 0
 		-- Initialize friendly-fire trackers
 		player.friendlyFire = 0
 		player.spiritLinkDamage = 0
@@ -173,6 +174,7 @@ local function acquirePlayer(tbl, guid, name)
 	if name and player.name ~= name then player.name = name end
 	player.damageSpells = player.damageSpells or {}
 	player.healSpells = player.healSpells or {}
+	player.interruptSpells = player.interruptSpells or {}
 	return player
 end
 
@@ -184,9 +186,12 @@ local function releasePlayers(players)
 		if dmg then wipe(dmg) end
 		local heal = player.healSpells
 		if heal then wipe(heal) end
+		local interrupts = player.interruptSpells
+		if interrupts then wipe(interrupts) end
 		wipe(player)
 		player.damageSpells = dmg
 		player.healSpells = heal
+		player.interruptSpells = interrupts
 		pool[#pool + 1] = player
 		players[guid] = nil
 	end
