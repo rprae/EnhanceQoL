@@ -534,9 +534,9 @@ function addon.Aura.functions.addResourceFrame(container)
 					groupConfig:AddChild(sepRow)
 				end
 
-				-- Druid: Show in forms (per bar)
-				if addon.variables.unitClass == "DRUID" then
-					cfg.showForms = cfg.showForms or { HUMANOID = true, BEAR = true, CAT = true, TRAVEL = true, MOONKIN = true, TREANT = true, STAG = true }
+				-- Druid: Show in forms (per bar), skip for COMBO_POINTS (always Cat)
+				if addon.variables.unitClass == "DRUID" and sel ~= "COMBO_POINTS" then
+					cfg.showForms = cfg.showForms or {}
 					local formsRow = addon.functions.createContainer("SimpleGroup", "Flow")
 					formsRow:SetFullWidth(true)
 					local label = addon.functions.createLabelAce(L["Show in"])
@@ -551,13 +551,32 @@ function addon.Aura.functions.addResourceFrame(container)
 						cb:SetRelativeWidth(0.25)
 						formsRow:AddChild(cb)
 					end
-					mkCb("HUMANOID", L["Humanoid"])
-					mkCb("BEAR", L["Bear"])
-					mkCb("CAT", L["Cat"])
-					mkCb("TRAVEL", L["Travel"])
-					mkCb("MOONKIN", L["Moonkin"])
-					mkCb("TREANT", L["Treant"])
-					mkCb("STAG", L["Stag"])
+					if sel == "COMBO_POINTS" then
+						-- Combo points only in Cat; default only Cat true
+						if cfg.showForms.CAT == nil then cfg.showForms.CAT = true end
+						cfg.showForms.HUMANOID = cfg.showForms.HUMANOID or false
+						cfg.showForms.BEAR = cfg.showForms.BEAR or false
+						cfg.showForms.TRAVEL = cfg.showForms.TRAVEL or false
+						cfg.showForms.MOONKIN = cfg.showForms.MOONKIN or false
+						cfg.showForms.TREANT = cfg.showForms.TREANT or false
+						cfg.showForms.STAG = cfg.showForms.STAG or false
+						mkCb("CAT", L["Cat"])
+					else
+						if cfg.showForms.HUMANOID == nil then cfg.showForms.HUMANOID = true end
+						if cfg.showForms.BEAR == nil then cfg.showForms.BEAR = true end
+						if cfg.showForms.CAT == nil then cfg.showForms.CAT = true end
+						if cfg.showForms.TRAVEL == nil then cfg.showForms.TRAVEL = true end
+						if cfg.showForms.MOONKIN == nil then cfg.showForms.MOONKIN = true end
+						if cfg.showForms.TREANT == nil then cfg.showForms.TREANT = true end
+						if cfg.showForms.STAG == nil then cfg.showForms.STAG = true end
+						mkCb("HUMANOID", L["Humanoid"])
+						mkCb("BEAR", L["Bear"])
+						mkCb("CAT", L["Cat"])
+						mkCb("TRAVEL", L["Travel"])
+						mkCb("MOONKIN", L["Moonkin"])
+						mkCb("TREANT", L["Treant"])
+						mkCb("STAG", L["Stag"])
+					end
 					groupConfig:AddChild(formsRow)
 				end
 
@@ -784,7 +803,7 @@ end
 
 local powertypeClasses = {
 	DRUID = {
-		[1] = { MAIN = "LUNAR_POWER", RAGE = true, ENERGY = true, MANA = true }, -- Balance
+		[1] = { MAIN = "LUNAR_POWER", RAGE = true, ENERGY = true, MANA = true, COMBO_POINTS = true }, -- Balance (combo in Cat)
 		[2] = { MAIN = "ENERGY", COMBO_POINTS = true, RAGE = true, MANA = true }, -- Feral (no Astral Power)
 		[3] = { MAIN = "RAGE", ENERGY = true, MANA = true, COMBO_POINTS = true }, -- Guardian (no Astral Power)
 		[4] = { MAIN = "MANA", RAGE = true, ENERGY = true, COMBO_POINTS = true }, -- Restoration (combo when in cat)
@@ -877,11 +896,12 @@ local classPowerTypes = {
 ResourceBars.powertypeClasses = powertypeClasses
 ResourceBars.classPowerTypes = classPowerTypes
 ResourceBars.separatorEligible = {
-	HOLY_POWER = true,
-	SOUL_SHARDS = true,
-	ESSENCE = true,
-	ARCANE_CHARGES = true,
-	CHI = true,
+    HOLY_POWER = true,
+    SOUL_SHARDS = true,
+    ESSENCE = true,
+    ARCANE_CHARGES = true,
+    CHI = true,
+    COMBO_POINTS = true,
 }
 
 function getBarSettings(pType)
@@ -1369,36 +1389,43 @@ local function setPowerbars()
 			end
 		end
 
-		if shouldShow then
-			-- Per-form filter for Druid
-			local formAllowed = true
-			if isDruid and specCfg and specCfg[pType] and specCfg[pType].showForms then
-				local allowed = specCfg[pType].showForms
-				if druidForm and allowed[druidForm] == false then formAllowed = false end
-			end
-			if formAllowed and addon.variables.unitClass == "DRUID" then
-				if pType == mainPowerBar and powerbar[pType] then powerbar[pType]:Show() end
-				powerfrequent[pType] = true
-				if pType ~= mainPowerBar and pType == "MANA" then
-					createPowerBar(pType, powerbar[lastBar] or ((specCfg and specCfg.HEALTH and specCfg.HEALTH.enabled == true) and EQOLHealthBar or nil))
-					lastBar = pType
-					if powerbar[pType] then powerbar[pType]:Show() end
-				elseif powerToken ~= mainPowerBar then
-					if powerToken == pType then
-						createPowerBar(pType, powerbar[lastBar] or ((specCfg and specCfg.HEALTH and specCfg.HEALTH.enabled == true) and EQOLHealthBar or nil))
-						lastBar = pType
-						if powerbar[pType] then powerbar[pType]:Show() end
-					end
-				end
-			elseif formAllowed then
-				powerfrequent[pType] = true
-				if mainPowerBar ~= pType then
-					createPowerBar(pType, powerbar[lastBar] or ((specCfg and specCfg.HEALTH and specCfg.HEALTH.enabled == true) and EQOLHealthBar or nil))
-					lastBar = pType
-				end
-				if powerbar[pType] then powerbar[pType]:Show() end
-			end
-		end
+        if shouldShow then
+            -- Per-form filter for Druid
+            local formAllowed = true
+            if isDruid and specCfg and specCfg[pType] and specCfg[pType].showForms then
+                local allowed = specCfg[pType].showForms
+                if druidForm and allowed[druidForm] == false then formAllowed = false end
+            end
+            if formAllowed and addon.variables.unitClass == "DRUID" then
+                powerfrequent[pType] = true
+                -- Always show main power bar when enabled
+                if pType == mainPowerBar then
+                    if powerbar[pType] then powerbar[pType]:Show() end
+                -- Always allow MANA bar (secondary mana)
+                elseif pType == "MANA" then
+                    createPowerBar(pType, powerbar[lastBar] or ((specCfg and specCfg.HEALTH and specCfg.HEALTH.enabled == true) and EQOLHealthBar or nil))
+                    lastBar = pType
+                    if powerbar[pType] then powerbar[pType]:Show() end
+                -- Show COMBO_POINTS in Cat form
+                elseif pType == "COMBO_POINTS" and druidForm == "CAT" then
+                    createPowerBar(pType, powerbar[lastBar] or ((specCfg and specCfg.HEALTH and specCfg.HEALTH.enabled == true) and EQOLHealthBar or nil))
+                    lastBar = pType
+                    if powerbar[pType] then powerbar[pType]:Show() end
+                -- Otherwise, show if current power token matches (e.g., ENERGY/RAGE/LUNAR_POWER)
+                elseif powerToken == pType and powerToken ~= mainPowerBar then
+                    createPowerBar(pType, powerbar[lastBar] or ((specCfg and specCfg.HEALTH and specCfg.HEALTH.enabled == true) and EQOLHealthBar or nil))
+                    lastBar = pType
+                    if powerbar[pType] then powerbar[pType]:Show() end
+                end
+            elseif formAllowed then
+                powerfrequent[pType] = true
+                if mainPowerBar ~= pType then
+                    createPowerBar(pType, powerbar[lastBar] or ((specCfg and specCfg.HEALTH and specCfg.HEALTH.enabled == true) and EQOLHealthBar or nil))
+                    lastBar = pType
+                end
+                if powerbar[pType] then powerbar[pType]:Show() end
+            end
+        end
 	end
 
 	-- Toggle Health visibility according to config
