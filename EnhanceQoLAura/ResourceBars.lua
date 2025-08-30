@@ -14,7 +14,7 @@ addon.Aura.ResourceBars = ResourceBars
 
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_Aura")
 local AceGUI = addon.AceGUI
-local UnitPower, UnitPowerMax, UnitHealth, UnitHealthMax, GetTime = UnitPower, UnitPowerMax, UnitHealth, UnitHealthMax, GetTime
+local UnitPower, UnitPowerMax, UnitHealth, UnitHealthMax, UnitGetTotalAbsorbs, GetTime = UnitPower, UnitPowerMax, UnitHealth, UnitHealthMax, UnitGetTotalAbsorbs, GetTime
 
 local frameAnchor
 local mainFrame
@@ -153,7 +153,7 @@ function addon.Aura.functions.addResourceFrame(container)
 					if name == targetFrameName then return true end
 					local bt = frameNameToBarType(name)
 					if not bt then break end
-					local anch = getAnchor(bt, addon.variables.unitSpec)
+                local anch = getAnchor(bt, specIndex)
 					name = anch and anch.relativeFrame or "UIParent"
 					limit = limit - 1
 				end
@@ -644,7 +644,7 @@ local function updateHealthBar()
 			healthBar:SetMinMaxValues(0, maxHealth)
 		end
 		local curHealth = UnitHealth("player")
-		local absorb = UnitGetTotalAbsorbs("player") or 0
+        local absorb = UnitGetTotalAbsorbs("player") or 0
 
 		-- Only push values to the bar if changed
 		if healthBar._lastVal ~= curHealth then
@@ -691,8 +691,14 @@ local function updateHealthBar()
 
 		local combined = absorb
 		if combined > maxHealth then combined = maxHealth end
-		healthBar.absorbBar:SetMinMaxValues(0, maxHealth)
-		healthBar.absorbBar:SetValue(combined)
+        if healthBar.absorbBar._lastMax ~= maxHealth then
+            healthBar.absorbBar:SetMinMaxValues(0, maxHealth)
+            healthBar.absorbBar._lastMax = maxHealth
+        end
+        if healthBar.absorbBar._lastVal ~= combined then
+            healthBar.absorbBar:SetValue(combined)
+            healthBar.absorbBar._lastVal = combined
+        end
 	end
 end
 
@@ -1030,22 +1036,25 @@ function updatePowerBar(type, runeSlot)
 				bar._runeOrder[i] = nil
 			end
 
-			local cfg = getBarSettings("RUNES") or {}
-			local anyActive = #charging > 0
-			local now = GetTime()
-			for i = 1, 6 do
-				local runeIndex = bar._runeOrder[i]
-				local info = runeIndex and bar._rune[runeIndex]
-				local sb = bar.runes and bar.runes[i]
-				if sb and info then
-					sb:SetMinMaxValues(0, 1)
-					local prog = info.ready and 1 or math.min(1, math.max(0, (now - info.start) / math.max(info.duration, 1)))
-					sb:SetValue(prog)
-					if info.ready or prog >= 1 then
-						sb:SetStatusBarColor(r, g, b)
-					else
-						sb:SetStatusBarColor(grey, grey, grey)
-					end
+            local cfg = getBarSettings("RUNES") or {}
+            local anyActive = #charging > 0
+            local now = GetTime()
+            for i = 1, 6 do
+                local runeIndex = bar._runeOrder[i]
+                local info = runeIndex and bar._rune[runeIndex]
+                local sb = bar.runes and bar.runes[i]
+                if sb and info then
+                    local prog = info.ready and 1 or math.min(1, math.max(0, (now - info.start) / math.max(info.duration, 1)))
+                    sb:SetValue(prog)
+                    local wantReady = info.ready or prog >= 1
+                    if sb._isReady ~= wantReady then
+                        sb._isReady = wantReady
+                        if wantReady then
+                            sb:SetStatusBarColor(r, g, b)
+                        else
+                            sb:SetStatusBarColor(grey, grey, grey)
+                        end
+                    end
 					if sb.fs then
 						if cfg.showCooldownText then
 							local remain = math.ceil((info.start + info.duration) - now)
@@ -1061,33 +1070,43 @@ function updatePowerBar(type, runeSlot)
 				end
 			end
 
-			if anyActive then
-				bar._runesAnimating = true
-				bar._runeAccum = 0
-				local cfgOnUpdate = cfg
-				bar:SetScript("OnUpdate", function(self, elapsed)
-					self._runeAccum = (self._runeAccum or 0) + (elapsed or 0)
-					if self._runeAccum > 0.08 then
-						self._runeAccum = 0
-						local n = GetTime()
-						local allReady = true
-						for pos = 1, 6 do
-							local ri = self._runeOrder and self._runeOrder[pos]
-							local data = ri and self._rune and self._rune[ri]
-							local sb = self.runes and self.runes[pos]
-							if data and sb then
-								local prog
-								if data.ready then
-									prog = 1
-								else
-									prog = math.min(1, math.max(0, (n - data.start) / math.max(data.duration, 1)))
-									if prog >= 1 then
-										updatePowerBar("RUNES")
-										return
-									end
-									allReady = false
-								end
-								sb:SetValue(prog)
+            if anyActive then
+                bar._runesAnimating = true
+                bar._runeAccum = 0
+                local cfgOnUpdate = cfg
+                bar:SetScript("OnUpdate", function(self, elapsed)
+                    self._runeAccum = (self._runeAccum or 0) + (elapsed or 0)
+                    if self._runeAccum > 0.08 then
+                        self._runeAccum = 0
+                        local n = GetTime()
+                        local allReady = true
+                        for pos = 1, 6 do
+                            local ri = self._runeOrder and self._runeOrder[pos]
+                            local data = ri and self._rune and self._rune[ri]
+                            local sb = self.runes and self.runes[pos]
+                            if data and sb then
+                                local prog
+                                if data.ready then
+                                    prog = 1
+                                else
+                                    prog = math.min(1, math.max(0, (n - data.start) / math.max(data.duration, 1)))
+                                    if prog >= 1 then
+                                        if not self._runeResync then
+                                            self._runeResync = true
+                                            if C_Timer and C_Timer.After then
+                                                C_Timer.After(0, function()
+                                                    self._runeResync = false
+                                                    updatePowerBar("RUNES")
+                                                end)
+                                            else
+                                                updatePowerBar("RUNES")
+                                            end
+                                        end
+                                        return
+                                    end
+                                    allReady = false
+                                end
+                                sb:SetValue(prog)
                     if sb.fs then
                         if cfgOnUpdate.showCooldownText and not data.ready then
                             local remain = math.ceil((data.start + data.duration) - n)
@@ -1188,14 +1207,12 @@ local function updateBarSeparators(pType)
 	end
 
 	local segments
-	if pType == "ENERGY" then
-		segments = 10
-	elseif pType == "RUNES" then
-		segments = 6
-	else
-		local enumId = POWER_ENUM[pType]
-		segments = enumId and UnitPowerMax("player", enumId) or 0
-	end
+    if pType == "ENERGY" then
+        segments = 10
+    else
+        local enumId = POWER_ENUM[pType]
+        segments = enumId and UnitPowerMax("player", enumId) or 0
+    end
 	if not segments or segments < 2 then
 		-- Nothing to separate
 		if bar.separatorMarks then
@@ -1233,11 +1250,13 @@ local function updateBarSeparators(pType)
 		tx:SetColorTexture(r, g, b, a)
 		tx:Show()
 	end
-	-- Hide extras
-	for i = needed + 1, #bar.separatorMarks do
-		bar.separatorMarks[i]:Hide()
-	end
-	bar._sepW, bar._sepH, bar._sepSegments, bar._sepR, bar._sepG, bar._sepB, bar._sepA = w, h, segments, r, g, b, a
+    -- Hide extras
+    for i = needed + 1, #bar.separatorMarks do
+        bar.separatorMarks[i]:Hide()
+    end
+    -- Cache current geometry and color to fast-exit next time
+    bar._sepW, bar._sepH, bar._sepSegments = w, h, segments
+    bar._sepR, bar._sepG, bar._sepB, bar._sepA = r, g, b, a
 end
 
 -- Layout helper for DK RUNES: create or resize 6 child statusbars
@@ -1283,15 +1302,15 @@ function layoutRunes(bar)
 end
 
 local function createPowerBar(type, anchor)
-	-- Reuse existing bar if present; avoid destroying frames to preserve anchors
-	local bar = powerbar[type] or _G["EQOL" .. type .. "Bar"]
-	local isNew = false
-	if not bar then
-		bar = CreateFrame("StatusBar", "EQOL" .. type .. "Bar", UIParent, "BackdropTemplate")
-		isNew = true
-	end
-	-- Ensure a valid parent when reusing frames after disable
-	if bar:GetParent() ~= UIParent then bar:SetParent(UIParent) end
+    -- Reuse existing bar if present; avoid destroying frames to preserve anchors
+    local bar = powerbar[type] or _G["EQOL" .. type .. "Bar"]
+    local isNew = false
+    if not bar then
+        bar = CreateFrame("StatusBar", "EQOL" .. type .. "Bar", UIParent, "BackdropTemplate")
+        isNew = true
+    end
+    -- Ensure a valid parent when reusing frames after disable
+    if bar:GetParent() ~= UIParent then bar:SetParent(UIParent) end
 
 	local settings = getBarSettings(type)
 	local w = settings and settings.width or DEFAULT_POWER_WIDTH
@@ -1300,48 +1319,53 @@ local function createPowerBar(type, anchor)
 	bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
 	bar:SetClampedToScreen(true)
 
-	-- Anchor handling: only use fallback anchor if no explicit DB anchor exists
-	local a = getAnchor(type, addon.variables.unitSpec)
-	local allowMove = true
-	if a.point then
-		local rel, looped = resolveAnchor(a, type)
-		if looped and (a.relativeFrame or "UIParent") ~= "UIParent" then
-			-- Loop fallback: recenter on UIParent
-			local pw = UIParent and UIParent.GetWidth and UIParent:GetWidth() or 0
-			local ph = UIParent and UIParent.GetHeight and UIParent:GetHeight() or 0
-			a.point = "TOPLEFT"
-			a.relativeFrame = "UIParent"
-			a.relativePoint = "TOPLEFT"
-			a.x = (pw - w) / 2
-			a.y = (h - ph) / 2
-			rel = UIParent
-		end
-		if rel and rel.GetName and rel:GetName() ~= "UIParent" then allowMove = false end
-		bar:ClearAllPoints()
-		bar:SetPoint(a.point, rel or UIParent, a.relativePoint or a.point, a.x or 0, a.y or 0)
-	elseif anchor then
-		-- Default stack below provided anchor and persist default anchor in DB
-		bar:ClearAllPoints()
-		bar:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, BAR_STACK_SPACING)
-		a.point = "TOPLEFT"
-		a.relativeFrame = anchor:GetName() or "UIParent"
-		a.relativePoint = "BOTTOMLEFT"
-		a.x = 0
-		a.y = BAR_STACK_SPACING
-	else
-		-- No anchor in DB and no previous anchor in code path; default: center on UIParent
-		bar:ClearAllPoints()
-		local pw = UIParent and UIParent.GetWidth and UIParent:GetWidth() or 0
-		local ph = UIParent and UIParent.GetHeight and UIParent:GetHeight() or 0
-		local cx = (pw - w) / 2
-		local cy = (h - ph) / 2
-		bar:SetPoint("TOPLEFT", UIParent, "TOPLEFT", cx, cy)
-		a.point = "TOPLEFT"
-		a.relativeFrame = "UIParent"
-		a.relativePoint = "TOPLEFT"
-		a.x = cx
-		a.y = cy
-	end
+    -- Anchor handling: during spec/trait refresh we suppress inter-bar anchoring
+    local a = getAnchor(type, addon.variables.unitSpec)
+    local allowMove = true
+    if ResourceBars._suspendAnchors then
+        bar:ClearAllPoints()
+        bar:SetPoint("TOPLEFT", UIParent, "TOPLEFT", a.x or 0, a.y or 0)
+    else
+        if a.point then
+            local rel, looped = resolveAnchor(a, type)
+            if looped and (a.relativeFrame or "UIParent") ~= "UIParent" then
+                -- Loop fallback: recenter on UIParent
+                local pw = UIParent and UIParent.GetWidth and UIParent:GetWidth() or 0
+                local ph = UIParent and UIParent.GetHeight and UIParent:GetHeight() or 0
+                a.point = "TOPLEFT"
+                a.relativeFrame = "UIParent"
+                a.relativePoint = "TOPLEFT"
+                a.x = (pw - w) / 2
+                a.y = (h - ph) / 2
+                rel = UIParent
+            end
+            if rel and rel.GetName and rel:GetName() ~= "UIParent" then allowMove = false end
+            bar:ClearAllPoints()
+            bar:SetPoint(a.point, rel or UIParent, a.relativePoint or a.point, a.x or 0, a.y or 0)
+        elseif anchor then
+            -- Default stack below provided anchor and persist default anchor in DB
+            bar:ClearAllPoints()
+            bar:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, BAR_STACK_SPACING)
+            a.point = "TOPLEFT"
+            a.relativeFrame = anchor:GetName() or "UIParent"
+            a.relativePoint = "BOTTOMLEFT"
+            a.x = 0
+            a.y = BAR_STACK_SPACING
+        else
+            -- No anchor in DB and no previous anchor in code path; default: center on UIParent
+            bar:ClearAllPoints()
+            local pw = UIParent and UIParent.GetWidth and UIParent:GetWidth() or 0
+            local ph = UIParent and UIParent.GetHeight and UIParent:GetHeight() or 0
+            local cx = (pw - w) / 2
+            local cy = (h - ph) / 2
+            bar:SetPoint("TOPLEFT", UIParent, "TOPLEFT", cx, cy)
+            a.point = "TOPLEFT"
+            a.relativeFrame = "UIParent"
+            a.relativePoint = "TOPLEFT"
+            a.x = cx
+            a.y = cy
+        end
+    end
 
 	-- Visuals and text
 	bar:SetBackdrop({
@@ -1431,7 +1455,8 @@ local eventsToRegister = {
 local function setPowerbars()
 	local _, powerToken = UnitPowerType("player")
 	powerfrequent = {}
-	local isDruid = addon.variables.unitClass == "DRUID"
+    local isDruid = addon.variables.unitClass == "DRUID"
+    local FREQUENT = { ENERGY = true, FOCUS = true, RAGE = true, RUNIC_POWER = true, LUNAR_POWER = true }
 	local formIndexToKey = {
 		[0] = "HUMANOID",
 		[1] = "BEAR",
@@ -1516,8 +1541,8 @@ local function setPowerbars()
 				local allowed = specCfg[pType].showForms
 				if druidForm and allowed[druidForm] == false then formAllowed = false end
 			end
-			if formAllowed and addon.variables.unitClass == "DRUID" then
-				powerfrequent[pType] = true
+            if formAllowed and addon.variables.unitClass == "DRUID" then
+                if FREQUENT[pType] then powerfrequent[pType] = true end
 				if pType == mainPowerBar then
 					showBar = true
 				elseif pType == "MANA" then
@@ -1533,8 +1558,8 @@ local function setPowerbars()
 					lastBar = pType
 					showBar = true
 				end
-			elseif formAllowed then
-				powerfrequent[pType] = true
+            elseif formAllowed then
+                if FREQUENT[pType] then powerfrequent[pType] = true end
 				if mainPowerBar ~= pType then
 					createPowerBar(pType, powerbar[lastBar] or ((specCfg and specCfg.HEALTH and specCfg.HEALTH.enabled == true) and EQOLHealthBar or nil))
 					lastBar = pType
@@ -1592,27 +1617,43 @@ if addon.db["enableResourceFrame"] then
 	end)
 end
 
+-- Coalesce spec/trait refreshes to avoid duplicate work or timing races
+local function scheduleSpecRefresh()
+    if not C_Timer or not C_Timer.After then
+        -- First detach all bar points to avoid transient loops
+        if addon and addon.Aura and addon.Aura.ResourceBars and addon.Aura.ResourceBars.DetachAllBars then addon.Aura.ResourceBars.DetachAllBars() end
+        ResourceBars._suspendAnchors = true
+        setPowerbars()
+        ResourceBars._suspendAnchors = false
+        if addon and addon.Aura and addon.Aura.ResourceBars and addon.Aura.ResourceBars.ReanchorAll then addon.Aura.ResourceBars.ReanchorAll() end
+        if addon and addon.Aura and addon.Aura.ResourceBars and addon.Aura.ResourceBars.UpdateRuneEventRegistration then addon.Aura.ResourceBars.UpdateRuneEventRegistration() end
+        if addon and addon.Aura and addon.Aura.ResourceBars and addon.Aura.ResourceBars.ForceRuneRecolor then addon.Aura.ResourceBars.ForceRuneRecolor() end
+        updatePowerBar("RUNES")
+        return
+    end
+    if frameAnchor and frameAnchor._specRefreshScheduled then return end
+    if frameAnchor then frameAnchor._specRefreshScheduled = true end
+    C_Timer.After(0.08, function()
+        if frameAnchor then frameAnchor._specRefreshScheduled = false end
+        -- First detach all bar points to avoid transient loops
+        if addon and addon.Aura and addon.Aura.ResourceBars and addon.Aura.ResourceBars.DetachAllBars then addon.Aura.ResourceBars.DetachAllBars() end
+        ResourceBars._suspendAnchors = true
+        setPowerbars()
+        ResourceBars._suspendAnchors = false
+        if addon and addon.Aura and addon.Aura.ResourceBars and addon.Aura.ResourceBars.ReanchorAll then addon.Aura.ResourceBars.ReanchorAll() end
+        if addon and addon.Aura and addon.Aura.ResourceBars and addon.Aura.ResourceBars.UpdateRuneEventRegistration then addon.Aura.ResourceBars.UpdateRuneEventRegistration() end
+        if addon and addon.Aura and addon.Aura.ResourceBars and addon.Aura.ResourceBars.ForceRuneRecolor then addon.Aura.ResourceBars.ForceRuneRecolor() end
+        updatePowerBar("RUNES")
+    end)
+end
+
 local function eventHandler(self, event, unit, arg1)
 	if event == "UNIT_DISPLAYPOWER" and unit == "player" then
 		setPowerbars()
 	elseif event == "ACTIVE_PLAYER_SPECIALIZATION_CHANGED" then
-		C_Timer.After(0.2, function()
-			setPowerbars()
-			-- Re-anchor once all bars exist, in case of inter-bar dependencies
-			C_Timer.After(0.05, function()
-				if addon and addon.Aura and addon.Aura.ResourceBars and addon.Aura.ResourceBars.ReanchorAll then addon.Aura.ResourceBars.ReanchorAll() end
-				if addon and addon.Aura and addon.Aura.ResourceBars and addon.Aura.ResourceBars.UpdateRuneEventRegistration then addon.Aura.ResourceBars.UpdateRuneEventRegistration() end
-			end)
-		end)
+		scheduleSpecRefresh()
 	elseif event == "TRAIT_CONFIG_UPDATED" then
-		C_Timer.After(0.2, function()
-			setPowerbars()
-			-- Re-anchor once all bars exist, in case of inter-bar dependencies
-			C_Timer.After(0.05, function()
-				if addon and addon.Aura and addon.Aura.ResourceBars and addon.Aura.ResourceBars.ReanchorAll then addon.Aura.ResourceBars.ReanchorAll() end
-				if addon and addon.Aura and addon.Aura.ResourceBars and addon.Aura.ResourceBars.UpdateRuneEventRegistration then addon.Aura.ResourceBars.UpdateRuneEventRegistration() end
-			end)
-		end)
+		scheduleSpecRefresh()
 	elseif event == "PLAYER_ENTERING_WORLD" then
 		updateHealthBar()
 		setPowerbars()
@@ -1712,27 +1753,51 @@ end
 
 -- Register/unregister DK rune event depending on class and user config
 function ResourceBars.UpdateRuneEventRegistration()
-	if not frameAnchor then return end
-	local isDK = addon.variables.unitClass == "DEATHKNIGHT"
-	local spec = addon.variables.unitSpec
-	local cfg = addon.db.personalResourceBarSettings and addon.db.personalResourceBarSettings[addon.variables.unitClass] and addon.db.personalResourceBarSettings[addon.variables.unitClass][spec]
-	local enabled = isDK and cfg and cfg.RUNES and (cfg.RUNES.enabled == true)
-	if enabled and not frameAnchor._runeEvtRegistered then
-		frameAnchor:RegisterEvent("RUNE_POWER_UPDATE")
-		frameAnchor._runeEvtRegistered = true
-	elseif (not enabled) and frameAnchor._runeEvtRegistered then
-		frameAnchor:UnregisterEvent("RUNE_POWER_UPDATE")
-		frameAnchor._runeEvtRegistered = false
-		if powerbar and powerbar.RUNES then
-			powerbar.RUNES:SetScript("OnUpdate", nil)
-			powerbar.RUNES._runesAnimating = false
-		end
-	end
+    if not frameAnchor then return end
+    local isDK = addon.variables.unitClass == "DEATHKNIGHT"
+    local spec = addon.variables.unitSpec
+    local cfg = addon.db.personalResourceBarSettings and addon.db.personalResourceBarSettings[addon.variables.unitClass] and addon.db.personalResourceBarSettings[addon.variables.unitClass][spec]
+    local enabled = isDK and cfg and cfg.RUNES and (cfg.RUNES.enabled == true)
+    if enabled and not frameAnchor._runeEvtRegistered then
+        frameAnchor:RegisterEvent("RUNE_POWER_UPDATE")
+        frameAnchor._runeEvtRegistered = true
+    elseif (not enabled) and frameAnchor._runeEvtRegistered then
+        frameAnchor:UnregisterEvent("RUNE_POWER_UPDATE")
+        frameAnchor._runeEvtRegistered = false
+        if powerbar and powerbar.RUNES then
+            powerbar.RUNES:SetScript("OnUpdate", nil)
+            powerbar.RUNES._runesAnimating = false
+        end
+    end
+end
+
+-- Force a recolor of rune segments (used on spec change)
+function ResourceBars.ForceRuneRecolor()
+    local rb = powerbar and powerbar.RUNES
+    if not rb or not rb.runes then return end
+    for i = 1, 6 do
+        local sb = rb.runes[i]
+        if sb then sb._isReady = nil; sb._lastRemain = nil end
+    end
+end
+
+-- Clear all points for current bars to break transient inter-bar dependencies
+function ResourceBars.DetachAllBars()
+    if healthBar then healthBar:ClearAllPoints() end
+    for _, bar in pairs(powerbar) do
+        if bar then bar:ClearAllPoints() end
+    end
 end
 
 local function getFrameName(pType)
-	if pType == "HEALTH" then return "EQOLHealthBar" end
-	return "EQOL" .. pType .. "Bar"
+    if pType == "HEALTH" then return "EQOLHealthBar" end
+    return "EQOL" .. pType .. "Bar"
+end
+
+local function frameNameToBarType(fname)
+    if fname == "EQOLHealthBar" then return "HEALTH" end
+    if type(fname) ~= "string" then return nil end
+    return fname:match("^EQOL(.+)Bar$")
 end
 
 function ResourceBars.DetachAnchorsFrom(disabledType, specIndex)
@@ -1825,10 +1890,11 @@ end
 
 -- Re-apply anchors for any bars that currently reference a given frame name
 function ResourceBars.ReanchorDependentsOf(frameName)
-	local class = addon.variables.unitClass
-	local spec = addon.variables.unitSpec
-	local specCfg = addon.db.personalResourceBarSettings and addon.db.personalResourceBarSettings[class] and addon.db.personalResourceBarSettings[class][spec]
-	if not specCfg then return end
+    if ResourceBars._reanchoring then return end
+    local class = addon.variables.unitClass
+    local spec = addon.variables.unitSpec
+    local specCfg = addon.db.personalResourceBarSettings and addon.db.personalResourceBarSettings[class] and addon.db.personalResourceBarSettings[class][spec]
+    if not specCfg then return end
 
 	for bType, cfg in pairs(specCfg) do
 		local anch = cfg and cfg.anchor
@@ -1939,9 +2005,7 @@ function ResourceBars.Refresh()
 	updateHealthBar()
 	if addon and addon.Aura and addon.Aura.ResourceBars and addon.Aura.ResourceBars.UpdateRuneEventRegistration then addon.Aura.ResourceBars.UpdateRuneEventRegistration() end
 	-- Ensure RUNES animation stops when not visible/enabled
-	local spec = addon.variables.unitSpec
-	local cfg = addon.db.personalResourceBarSettings and addon.db.personalResourceBarSettings[addon.variables.unitClass] and addon.db.personalResourceBarSettings[addon.variables.unitClass][spec]
-	local runesEnabled = cfg and cfg.RUNES and (cfg.RUNES.enabled == true)
+	local runesEnabled = specCfg and specCfg.RUNES and (specCfg.RUNES.enabled == true)
 	if powerbar and powerbar.RUNES and (not powerbar.RUNES:IsShown() or not runesEnabled) then
 		powerbar.RUNES:SetScript("OnUpdate", nil)
 		powerbar.RUNES._runesAnimating = false
@@ -1955,8 +2019,10 @@ end
 
 -- Re-anchor pass only: reapplies anchor points without rebuilding bars
 function ResourceBars.ReanchorAll()
-	-- Health first
-	if healthBar then
+    if ResourceBars._reanchoring then return end
+    ResourceBars._reanchoring = true
+    -- Health first
+    if healthBar then
 		local a = getAnchor("HEALTH", addon.variables.unitSpec)
 		if (a.relativeFrame or "UIParent") == "UIParent" then
 			a.point = a.point or "TOPLEFT"
@@ -1987,45 +2053,101 @@ function ResourceBars.ReanchorAll()
 		healthBar:SetPoint(a.point or "TOPLEFT", rel, a.relativePoint or a.point or "TOPLEFT", a.x or 0, a.y or 0)
 	end
 
-	-- Then power bars
-	for pType, bar in pairs(powerbar) do
-		if bar then
-			local a = getAnchor(pType, addon.variables.unitSpec)
-			if (a.relativeFrame or "UIParent") == "UIParent" then
-				a.point = a.point or "TOPLEFT"
-				a.relativePoint = a.relativePoint or "TOPLEFT"
-				if a.x == nil or a.y == nil then
-					local pw = UIParent and UIParent.GetWidth and UIParent:GetWidth() or 0
-					local ph = UIParent and UIParent.GetHeight and UIParent:GetHeight() or 0
-					local w = bar:GetWidth() or DEFAULT_POWER_WIDTH
-					local h = bar:GetHeight() or DEFAULT_POWER_HEIGHT
-					a.x = (pw - w) / 2
-					a.y = (h - ph) / 2
-				end
-			end
-			local rel, looped = resolveAnchor(a, pType)
-			if looped and (a.relativeFrame or "UIParent") ~= "UIParent" then
-				local pw = UIParent and UIParent.GetWidth and UIParent:GetWidth() or 0
-				local ph = UIParent and UIParent.GetHeight and UIParent:GetHeight() or 0
-				local w = bar:GetWidth() or DEFAULT_POWER_WIDTH
-				local h = bar:GetHeight() or DEFAULT_POWER_HEIGHT
-				a.point = "TOPLEFT"
-				a.relativeFrame = "UIParent"
-				a.relativePoint = "TOPLEFT"
-				a.x = (pw - w) / 2
-				a.y = (h - ph) / 2
-				rel = UIParent
-			end
-			bar:ClearAllPoints()
-			bar:SetPoint(a.point or "TOPLEFT", rel, a.relativePoint or a.point or "TOPLEFT", a.x or 0, a.y or 0)
-			-- Movability based on anchor
-			local isUI = (a.relativeFrame or "UIParent") == "UIParent"
-			bar:SetMovable(isUI)
-			bar:EnableMouse(isUI)
-		end
-	end
+    -- Then power bars: anchor in a safe order (parents first), break cycles if detected
+    local spec = addon.variables.unitSpec
+    local types = {}
+    for pType, bar in pairs(powerbar) do
+        if bar then table.insert(types, pType) end
+    end
 
-	updateHealthBar()
+    -- Build a graph of bar -> bar it anchors to (only EQOL bars)
+    local edges = {}
+    local anchors = {}
+    for _, pType in ipairs(types) do
+        local a = getAnchor(pType, spec)
+        anchors[pType] = a
+        local relType = frameNameToBarType(a and a.relativeFrame)
+        if relType and powerbar[relType] then
+            edges[pType] = relType
+        else
+            edges[pType] = nil
+        end
+    end
+
+    -- DFS for ordering; break cycles by forcing current node to UIParent
+    local order, visiting, visited = {}, {}, {}
+    local function ensureUIParentDefaults(a, bar)
+        a.point = a.point or "TOPLEFT"
+        a.relativeFrame = "UIParent"
+        a.relativePoint = a.relativePoint or "TOPLEFT"
+        if a.x == nil or a.y == nil then
+            local pw = UIParent and UIParent.GetWidth and UIParent:GetWidth() or 0
+            local ph = UIParent and UIParent.GetHeight and UIParent:GetHeight() or 0
+            local w = (bar and bar.GetWidth and bar:GetWidth()) or DEFAULT_POWER_WIDTH
+            local h = (bar and bar.GetHeight and bar:GetHeight()) or DEFAULT_POWER_HEIGHT
+            a.x = (pw - w) / 2
+            a.y = (h - ph) / 2
+        end
+    end
+
+    -- Pre-detach all bars to UIParent to avoid transient cycles during reanchor
+    for _, pType in ipairs(types) do
+        local bar = powerbar[pType]
+        local a = anchors[pType]
+        if bar and a then
+            if (a.relativeFrame or "UIParent") == "UIParent" then
+                ensureUIParentDefaults(a, bar)
+            end
+            bar:ClearAllPoints()
+            bar:SetPoint("TOPLEFT", UIParent, "TOPLEFT", a.x or 0, a.y or 0)
+        end
+    end
+
+    local function dfs(node)
+        if visited[node] then return end
+        if visiting[node] then
+            -- Cycle detected: break by reanchoring this node to UIParent
+            local a = anchors[node]
+            ensureUIParentDefaults(a, powerbar[node])
+            edges[node] = nil
+            visiting[node] = nil
+            visited[node] = true
+            table.insert(order, node)
+            return
+        end
+        visiting[node] = true
+        local to = edges[node]
+        if to then dfs(to) end
+        visiting[node] = nil
+        visited[node] = true
+        table.insert(order, node)
+    end
+
+    for _, pType in ipairs(types) do dfs(pType) end
+
+    -- Apply anchors in computed order
+    for _, pType in ipairs(order) do
+        local bar = powerbar[pType]
+        if bar then
+            local a = anchors[pType]
+            if (a.relativeFrame or "UIParent") == "UIParent" then
+                ensureUIParentDefaults(a, bar)
+            end
+            local rel, looped = resolveAnchor(a, pType)
+            if looped and (a.relativeFrame or "UIParent") ~= "UIParent" then
+                ensureUIParentDefaults(a, bar)
+                rel = UIParent
+            end
+            bar:ClearAllPoints()
+            bar:SetPoint(a.point or "TOPLEFT", rel, a.relativePoint or a.point or "TOPLEFT", a.x or 0, a.y or 0)
+            local isUI = (a.relativeFrame or "UIParent") == "UIParent"
+            bar:SetMovable(isUI)
+            bar:EnableMouse(isUI)
+        end
+    end
+
+    updateHealthBar()
+    ResourceBars._reanchoring = false
 end
 
 -- Debug helper: prints current anchor DB and effective point info
