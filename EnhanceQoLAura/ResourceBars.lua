@@ -984,47 +984,29 @@ function updatePowerBar(type, runeSlot)
 				r, g, b = 0.0, 0.9, 0.3
 			end -- Unholy
 			local grey = 0.35
-			bar._rune = bar._rune or {}
-			bar._runeOrder = bar._runeOrder or {}
-			bar._charging = bar._charging or {}
-			local charging = bar._charging
-			if runeSlot then
-				local count = 0
-				for i = 1, 6 do
-					local start, duration, readyFlag = GetRuneCooldown(i)
-					bar._rune[i] = bar._rune[i] or {}
-					bar._rune[i].start = start or 0
-					bar._rune[i].duration = duration or 0
-					bar._rune[i].ready = readyFlag
-					if not readyFlag then
-						count = count + 1
-						charging[count] = i
-					end
-				end
-				for i = count + 1, #charging do
-					charging[i] = nil
-				end
-				table.sort(charging, function(a, b)
-					local ra = bar._rune[a].start + bar._rune[a].duration
-					local rb = bar._rune[b].start + bar._rune[b].duration
-					return ra < rb
-				end)
-			else
-				local i = 1
-				while i <= #charging do
-					local idx = charging[i]
-					local start, duration, readyFlag = GetRuneCooldown(idx)
-					bar._rune[idx] = bar._rune[idx] or {}
-					bar._rune[idx].start = start or 0
-					bar._rune[idx].duration = duration or 0
-					bar._rune[idx].ready = readyFlag
-					if readyFlag then
-						table.remove(charging, i)
-					else
-						i = i + 1
-					end
-				end
-			end
+            bar._rune      = bar._rune or {}
+            bar._runeOrder = bar._runeOrder or {}
+            bar._charging  = bar._charging or {}
+            local charging = bar._charging
+            -- Always rescan all 6 runes (cheap + keeps cache in sync)
+            local count = 0
+            for i = 1, 6 do
+                local start, duration, readyFlag = GetRuneCooldown(i)
+                bar._rune[i] = bar._rune[i] or {}
+                bar._rune[i].start    = start or 0
+                bar._rune[i].duration = duration or 0
+                bar._rune[i].ready    = readyFlag
+                if not readyFlag then
+                    count = count + 1
+                    charging[count] = i
+                end
+            end
+            for i = count + 1, #charging do charging[i] = nil end
+            table.sort(charging, function(a, b)
+                local ra = (bar._rune[a].start + bar._rune[a].duration)
+                local rb = (bar._rune[b].start + bar._rune[b].duration)
+                return ra < rb
+            end)
 			local chargingMap = bar._chargingMap or {}
 			bar._chargingMap = chargingMap
 			for i = 1, 6 do
@@ -1106,18 +1088,26 @@ function updatePowerBar(type, runeSlot)
 									allReady = false
 								end
 								sb:SetValue(prog)
-								if sb.fs then
-									if cfgOnUpdate.showCooldownText and not data.ready then
-										local remain = math.ceil((data.start + data.duration) - n)
-										if remain > 0 then
-											sb.fs:SetText(tostring(remain))
-										else
-											sb.fs:SetText("")
-										end
-									else
-										sb.fs:SetText("")
-									end
-								end
+                    if sb.fs then
+                        if cfgOnUpdate.showCooldownText and not data.ready then
+                            local remain = math.ceil((data.start + data.duration) - n)
+                            if remain ~= sb._lastRemain then
+                                if remain > 0 then
+                                    sb.fs:SetText(tostring(remain))
+                                else
+                                    sb.fs:SetText("")
+                                end
+                                sb._lastRemain = remain
+                            end
+                            sb.fs:Show()
+                        else
+                            if sb._lastRemain ~= nil then
+                                sb.fs:SetText("")
+                                sb._lastRemain = nil
+                            end
+                            sb.fs:Hide()
+                        end
+                    end
 							end
 						end
 						if allReady then
@@ -1654,9 +1644,10 @@ local function eventHandler(self, event, unit, arg1)
 		end
 		updatePowerBar(arg1)
 		updateBarSeparators(arg1)
-	elseif event == "RUNE_POWER_UPDATE" then
-		if powerbar["RUNES"] and powerbar["RUNES"]:IsShown() then updatePowerBar("RUNES", arg1) end
-	end
+elseif event == "RUNE_POWER_UPDATE" then
+    -- payload: runeIndex, isEnergize -> first vararg is held in 'unit' here
+    if powerbar["RUNES"] and powerbar["RUNES"]:IsShown() then updatePowerBar("RUNES", unit) end
+end
 end
 
 function ResourceBars.EnableResourceBars()
