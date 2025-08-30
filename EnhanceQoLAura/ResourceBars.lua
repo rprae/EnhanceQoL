@@ -14,6 +14,7 @@ addon.Aura.ResourceBars = ResourceBars
 
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_Aura")
 local AceGUI = addon.AceGUI
+local UnitPower, UnitPowerMax, UnitHealth, UnitHealthMax, GetTime = UnitPower, UnitPowerMax, UnitHealth, UnitHealthMax, GetTime
 
 local frameAnchor
 local mainFrame
