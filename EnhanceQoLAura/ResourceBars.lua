@@ -1413,21 +1413,17 @@ local function createPowerBar(type, anchor)
 		end
 	end)
 
-       powerbar[type] = bar
-       bar:Show()
-       updatePowerBar(type)
-       updateBarSeparators(type)
+	powerbar[type] = bar
+	bar:Show()
+	updatePowerBar(type)
+	updateBarSeparators(type)
 
-       -- Ensure dependents re-anchor when this bar changes size
-       bar:SetScript("OnSizeChanged", function()
-               if addon and addon.Aura and addon.Aura.ResourceBars and addon.Aura.ResourceBars.ReanchorDependentsOf then
-                       addon.Aura.ResourceBars.ReanchorDependentsOf("EQOL" .. type .. "Bar")
-               end
-               if type == "RUNES" then
-                       layoutRunes(bar)
-               end
-               updateBarSeparators(type)
-       end)
+	-- Ensure dependents re-anchor when this bar changes size
+	bar:SetScript("OnSizeChanged", function()
+		if addon and addon.Aura and addon.Aura.ResourceBars and addon.Aura.ResourceBars.ReanchorDependentsOf then addon.Aura.ResourceBars.ReanchorDependentsOf("EQOL" .. type .. "Bar") end
+		if type == "RUNES" then layoutRunes(bar) end
+		updateBarSeparators(type)
+	end)
 end
 
 local eventsToRegister = {
@@ -1490,24 +1486,25 @@ local function setPowerbars()
 		and addon.db.personalResourceBarSettings[addon.variables.unitClass]
 		and addon.db.personalResourceBarSettings[addon.variables.unitClass][addon.variables.unitSpec]
 
+	local desiredVisibility = {}
+
 	if
 		powertypeClasses[addon.variables.unitClass]
 		and powertypeClasses[addon.variables.unitClass][addon.variables.unitSpec]
 		and powertypeClasses[addon.variables.unitClass][addon.variables.unitSpec].MAIN
 	then
 		local mType = powertypeClasses[addon.variables.unitClass][addon.variables.unitSpec].MAIN
-		-- Only show if explicitly enabled
-		if specCfg and specCfg[mType] and specCfg[mType].enabled == true then
+		local enabledMain = specCfg and specCfg[mType] and specCfg[mType].enabled == true
+		if enabledMain then
 			createPowerBar(mType, ((specCfg and specCfg.HEALTH and specCfg.HEALTH.enabled == true) and EQOLHealthBar or nil))
 			mainPowerBar = mType
 			lastBar = mainPowerBar
-			if powerbar[mainPowerBar] then powerbar[mainPowerBar]:Show() end
 		end
+		desiredVisibility[mType] = enabledMain
 	end
 
 	for _, pType in ipairs(classPowerTypes) do
-		if powerbar[pType] then powerbar[pType]:Hide() end
-
+		local showBar = false
 		local shouldShow = false
 		if specCfg and specCfg[pType] and specCfg[pType].enabled == true then
 			if mainPowerBar == pType then
@@ -1530,24 +1527,20 @@ local function setPowerbars()
 			end
 			if formAllowed and addon.variables.unitClass == "DRUID" then
 				powerfrequent[pType] = true
-				-- Always show main power bar when enabled
 				if pType == mainPowerBar then
-					if powerbar[pType] then powerbar[pType]:Show() end
-				-- Always allow MANA bar (secondary mana)
+					showBar = true
 				elseif pType == "MANA" then
 					createPowerBar(pType, powerbar[lastBar] or ((specCfg and specCfg.HEALTH and specCfg.HEALTH.enabled == true) and EQOLHealthBar or nil))
 					lastBar = pType
-					if powerbar[pType] then powerbar[pType]:Show() end
-				-- Show COMBO_POINTS in Cat form
+					showBar = true
 				elseif pType == "COMBO_POINTS" and druidForm == "CAT" then
 					createPowerBar(pType, powerbar[lastBar] or ((specCfg and specCfg.HEALTH and specCfg.HEALTH.enabled == true) and EQOLHealthBar or nil))
 					lastBar = pType
-					if powerbar[pType] then powerbar[pType]:Show() end
-				-- Otherwise, show if current power token matches (e.g., ENERGY/RAGE/LUNAR_POWER)
+					showBar = true
 				elseif powerToken == pType and powerToken ~= mainPowerBar then
 					createPowerBar(pType, powerbar[lastBar] or ((specCfg and specCfg.HEALTH and specCfg.HEALTH.enabled == true) and EQOLHealthBar or nil))
 					lastBar = pType
-					if powerbar[pType] then powerbar[pType]:Show() end
+					showBar = true
 				end
 			elseif formAllowed then
 				powerfrequent[pType] = true
@@ -1555,17 +1548,31 @@ local function setPowerbars()
 					createPowerBar(pType, powerbar[lastBar] or ((specCfg and specCfg.HEALTH and specCfg.HEALTH.enabled == true) and EQOLHealthBar or nil))
 					lastBar = pType
 				end
-				if powerbar[pType] then powerbar[pType]:Show() end
+				showBar = true
+			end
+		end
+
+		desiredVisibility[pType] = showBar
+	end
+
+	for pType, wantVisible in pairs(desiredVisibility) do
+		local bar = powerbar[pType]
+		if bar then
+			if wantVisible then
+				if not bar:IsShown() then bar:Show() end
+			else
+				if bar:IsShown() then bar:Hide() end
 			end
 		end
 	end
 
 	-- Toggle Health visibility according to config
 	if healthBar then
-		if specCfg and specCfg.HEALTH and specCfg.HEALTH.enabled == true then
-			healthBar:Show()
+		local showHealth = specCfg and specCfg.HEALTH and specCfg.HEALTH.enabled == true
+		if showHealth then
+			if not healthBar:IsShown() then healthBar:Show() end
 		else
-			healthBar:Hide()
+			if healthBar:IsShown() then healthBar:Hide() end
 		end
 	end
 end
@@ -1783,17 +1790,17 @@ function ResourceBars.SetPowerBarSize(w, h, pType)
 		w = w or (s and s.width) or defaultW
 		h = h or (s and s.height) or defaultH
 	end
-       if pType then
-               if powerbar[pType] then
-                       powerbar[pType]:SetSize(w, h)
-                       changed[getFrameName(pType)] = true
-               end
-       else
-               for t, bar in pairs(powerbar) do
-                       bar:SetSize(w, h)
-                       changed[getFrameName(t)] = true
-               end
-       end
+	if pType then
+		if powerbar[pType] then
+			powerbar[pType]:SetSize(w, h)
+			changed[getFrameName(pType)] = true
+		end
+	else
+		for t, bar in pairs(powerbar) do
+			bar:SetSize(w, h)
+			changed[getFrameName(t)] = true
+		end
+	end
 
 	local class = addon.variables.unitClass
 	local spec = addon.variables.unitSpec
