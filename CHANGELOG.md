@@ -1,5 +1,16 @@
 # Changelog
 
+## [4.9.0] – 2025-09-05
+
+### ✨ Added
+
+- **Mouse**: Option to Show ring and Trail only in combat
+- **Mouse**: Option to set the ring/trail color to the class color
+- **Tooltip:** Option to hide "Right click for Frame..." on Unit Frames
+- **MythicPlus**: Option to Hide mythic rating until a modifier (shift/alt/ctrl) is pressed
+
+### 🐛 Fixed
+
 ## [4.10.1] – 2025-09-03
 
 ### 🐛 Fixed

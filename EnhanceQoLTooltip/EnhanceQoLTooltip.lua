@@ -590,7 +590,7 @@ local function addUnitFrame(container)
 
 	if addon.db["TooltipMythicScoreRequireModifier"] then
 		-- Dropdown for required modifier key (Shift/Alt/Ctrl) when gating Mythic score
-		local modList = { SHIFT = L["ModifierShift"], ALT = L["ModifierAlt"], CTRL = L["ModifierCtrl"] }
+		local modList = { SHIFT = SHIFT_KEY_TEXT, ALT = ALT_KEY_TEXT, CTRL = CTRL_KEY_TEXT }
 		local list2, order2 = addon.functions.prepareListForDropdown(modList)
 		local dropMod = addon.functions.createDropdownAce(
 			L["TooltipMythicScoreModifier"]:format(DUNGEON_SCORE),
