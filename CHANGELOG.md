@@ -4,8 +4,10 @@
 
 ### 🐛 Fixed
 
-- DataPanel – Friends: Removed duplicate entries and made the tooltip clearer with groups (Battle.net, Friends, Guild).
-- Unit Frames – Mouseover: Toggle now takes effect immediately.
+- **DataPanel – Friends:** Removed duplicate entries and clarified the tooltip with grouped sections (Battle.net, Friends, Guild).
+- **Unit Frames – Mouseover:** Setting now takes effect immediately.
+- **Import:** Fixed a small issue that could affect importing **Auras** and **CastTracker** categories.
+- **DataPanel – Panel deletion:** Deleting panels no longer leaves stale “ghost” entries.
 
 ---
 

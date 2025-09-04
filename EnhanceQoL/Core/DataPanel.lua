@@ -42,13 +42,16 @@ local function round2(v) return math.floor(v * 100 + 0.5) / 100 end
 
 local function savePosition(frame, id)
 	id = tostring(id)
-	local info = ensureSettings(id)
+	-- Do not recreate database entries when saving position.
+	-- Only persist if the panel still exists in the DB.
+	if not addon.db or not addon.db.dataPanels or not addon.db.dataPanels[id] then return end
+	local info = addon.db.dataPanels[id]
 	info.point, _, _, info.x, info.y = frame:GetPoint()
 	info.width = round2(frame:GetWidth())
 	info.height = round2(frame:GetHeight())
 end
 
-function DataPanel.Create(id, name)
+function DataPanel.Create(id, name, existingOnly)
 	addon.db = addon.db or {}
 	addon.db.dataPanels = addon.db.dataPanels or {}
 	if not addon.db.nextPanelId then
@@ -65,6 +68,11 @@ function DataPanel.Create(id, name)
 		id = tostring(id)
 	end
 	if panels[id] then return panels[id] end
+
+	-- If we are asked to only use existing panels, do not implicitly
+	-- create a new database entry for unknown IDs.
+	if existingOnly and not addon.db.dataPanels[id] and not addon.db.dataPanels[tonumber(id)] then return nil end
+
 	local info = ensureSettings(id, name)
 	local frame = CreateFrame("Frame", addonName .. "DataPanel" .. id, UIParent, "BackdropTemplate")
 	frame:SetSize(info.width, info.height)
@@ -72,20 +80,20 @@ function DataPanel.Create(id, name)
 	frame:SetMovable(true)
 	frame:SetResizable(true)
 	frame:EnableMouse(true)
-    frame:RegisterForDrag("LeftButton")
-    frame:SetScript("OnDragStart", function(f)
-        -- mark dragging and hide any open tooltip so it won't get in the way
-        local panelObj = panels[id]
-        if panelObj then panelObj.isDragging = true end
-        GameTooltip:Hide()
-        f:StartMoving()
-    end)
-    frame:SetScript("OnDragStop", function(f)
-        f:StopMovingOrSizing()
-        savePosition(f, id)
-        local panelObj = panels[id]
-        if panelObj then panelObj.isDragging = nil end
-    end)
+	frame:RegisterForDrag("LeftButton")
+	frame:SetScript("OnDragStart", function(f)
+		-- mark dragging and hide any open tooltip so it won't get in the way
+		local panelObj = panels[id]
+		if panelObj then panelObj.isDragging = true end
+		GameTooltip:Hide()
+		f:StartMoving()
+	end)
+	frame:SetScript("OnDragStop", function(f)
+		f:StopMovingOrSizing()
+		savePosition(f, id)
+		local panelObj = panels[id]
+		if panelObj then panelObj.isDragging = nil end
+	end)
 	frame:SetScript("OnMouseDown", function(f, btn)
 		if btn == "RightButton" then f:StartSizing("BOTTOMRIGHT") end
 	end)
@@ -153,56 +161,56 @@ function DataPanel.Create(id, name)
 
 	function panel:AddStream(name)
 		if self.streams[name] then return end
-        local button = CreateFrame("Button", nil, self.frame)
-        button:SetHeight(self.frame:GetHeight())
-        local text = button:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-        text:SetAllPoints()
-        text:SetJustifyH("LEFT")
-        local data = { button = button, text = text, lastWidth = text:GetStringWidth(), lastText = "" }
-        button.slot = data
-        -- allow dragging even when hovering stream buttons
-        button:RegisterForDrag("LeftButton")
-        button:SetScript("OnDragStart", function(b)
-            local p = panels[id]
-            if p and p.frame then
-                p.isDragging = true
-                GameTooltip:Hide()
-                p.frame:StartMoving()
-            end
-        end)
-        button:SetScript("OnDragStop", function(b)
-            local p = panels[id]
-            if p and p.frame then
-                p.frame:StopMovingOrSizing()
-                savePosition(p.frame, id)
-                p.isDragging = nil
-            end
-        end)
-        button:SetScript("OnEnter", function(b)
-            local s = b.slot
-            local p = panels[id]
-            if p and p.isDragging then return end
-            if s.tooltip then
-                GameTooltip:SetOwner(b, "ANCHOR_TOPLEFT")
-                GameTooltip:SetText(s.tooltip)
-                GameTooltip:Show()
-            end
-            if s.OnMouseEnter then s.OnMouseEnter(b) end
-        end)
-        button:SetScript("OnLeave", function(b)
-            local s = b.slot
-            if s.OnMouseLeave then s.OnMouseLeave(b) end
-            GameTooltip:Hide()
-        end)
-        button:RegisterForClicks("AnyUp")
-        button:SetScript("OnClick", function(b, btn, ...)
-            local p = panels[id]
-            if p and p.isDragging then return end -- suppress clicks after a drag
-            local s = b.slot
-            local fn = s.OnClick
-            if type(fn) == "table" then fn = fn[btn] end
-            if fn then fn(b, btn, ...) end
-        end)
+		local button = CreateFrame("Button", nil, self.frame)
+		button:SetHeight(self.frame:GetHeight())
+		local text = button:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+		text:SetAllPoints()
+		text:SetJustifyH("LEFT")
+		local data = { button = button, text = text, lastWidth = text:GetStringWidth(), lastText = "" }
+		button.slot = data
+		-- allow dragging even when hovering stream buttons
+		button:RegisterForDrag("LeftButton")
+		button:SetScript("OnDragStart", function(b)
+			local p = panels[id]
+			if p and p.frame then
+				p.isDragging = true
+				GameTooltip:Hide()
+				p.frame:StartMoving()
+			end
+		end)
+		button:SetScript("OnDragStop", function(b)
+			local p = panels[id]
+			if p and p.frame then
+				p.frame:StopMovingOrSizing()
+				savePosition(p.frame, id)
+				p.isDragging = nil
+			end
+		end)
+		button:SetScript("OnEnter", function(b)
+			local s = b.slot
+			local p = panels[id]
+			if p and p.isDragging then return end
+			if s.tooltip then
+				GameTooltip:SetOwner(b, "ANCHOR_TOPLEFT")
+				GameTooltip:SetText(s.tooltip)
+				GameTooltip:Show()
+			end
+			if s.OnMouseEnter then s.OnMouseEnter(b) end
+		end)
+		button:SetScript("OnLeave", function(b)
+			local s = b.slot
+			if s.OnMouseLeave then s.OnMouseLeave(b) end
+			GameTooltip:Hide()
+		end)
+		button:RegisterForClicks("AnyUp")
+		button:SetScript("OnClick", function(b, btn, ...)
+			local p = panels[id]
+			if p and p.isDragging then return end -- suppress clicks after a drag
+			local s = b.slot
+			local fn = s.OnClick
+			if type(fn) == "table" then fn = fn[btn] end
+			if fn then fn(b, btn, ...) end
+		end)
 
 		self.order[#self.order + 1] = name
 
@@ -217,55 +225,55 @@ function DataPanel.Create(id, name)
 				data.parts = data.parts or {}
 				local prev
 				local totalWidth = 0
-                for i, part in ipairs(payload.parts) do
-                    local child = data.parts[i]
-                    if not child then
-                        child = CreateFrame("Button", nil, button)
-                        child.text = child:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-                        child.text:SetAllPoints()
-                        child:RegisterForClicks("AnyUp")
-                        data.parts[i] = child
-                    end
-                    child:Show()
-                    child:SetHeight(button:GetHeight())
-                    child.text:SetFont(font, size, "OUTLINE")
-                    child.text:SetText(part.text or "")
-                    local w = child.text:GetStringWidth()
-                    child:SetWidth(w)
-                    child:ClearAllPoints()
-                    if prev then
-                        child:SetPoint("LEFT", prev, "RIGHT", 5, 0)
-                    else
-                        child:SetPoint("LEFT", button, "LEFT", 0, 0)
-                    end
-                    prev = child
-                    child.currencyID = part.id
-                    -- enable dragging from part segments too
-                    child:RegisterForDrag("LeftButton")
-                    child:SetScript("OnDragStart", function()
-                        local p = panels[id]
-                        if p and p.frame then
-                            p.isDragging = true
-                            GameTooltip:Hide()
-                            p.frame:StartMoving()
-                        end
-                    end)
-                    child:SetScript("OnDragStop", function()
-                        local p = panels[id]
-                        if p and p.frame then
-                            p.frame:StopMovingOrSizing()
-                            savePosition(p.frame, id)
-                            p.isDragging = nil
-                        end
-                    end)
-                    child:SetScript("OnEnter", function(b)
-                        local p = panels[id]
-                        if p and p.isDragging then return end
-                        GameTooltip:SetOwner(b, "ANCHOR_TOPLEFT")
-                        if data.perCurrency and b.currencyID then
-                            GameTooltip:SetCurrencyByID(b.currencyID)
-                            if data.showDescription == false then
-                                local info = C_CurrencyInfo.GetCurrencyInfo(b.currencyID)
+				for i, part in ipairs(payload.parts) do
+					local child = data.parts[i]
+					if not child then
+						child = CreateFrame("Button", nil, button)
+						child.text = child:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+						child.text:SetAllPoints()
+						child:RegisterForClicks("AnyUp")
+						data.parts[i] = child
+					end
+					child:Show()
+					child:SetHeight(button:GetHeight())
+					child.text:SetFont(font, size, "OUTLINE")
+					child.text:SetText(part.text or "")
+					local w = child.text:GetStringWidth()
+					child:SetWidth(w)
+					child:ClearAllPoints()
+					if prev then
+						child:SetPoint("LEFT", prev, "RIGHT", 5, 0)
+					else
+						child:SetPoint("LEFT", button, "LEFT", 0, 0)
+					end
+					prev = child
+					child.currencyID = part.id
+					-- enable dragging from part segments too
+					child:RegisterForDrag("LeftButton")
+					child:SetScript("OnDragStart", function()
+						local p = panels[id]
+						if p and p.frame then
+							p.isDragging = true
+							GameTooltip:Hide()
+							p.frame:StartMoving()
+						end
+					end)
+					child:SetScript("OnDragStop", function()
+						local p = panels[id]
+						if p and p.frame then
+							p.frame:StopMovingOrSizing()
+							savePosition(p.frame, id)
+							p.isDragging = nil
+						end
+					end)
+					child:SetScript("OnEnter", function(b)
+						local p = panels[id]
+						if p and p.isDragging then return end
+						GameTooltip:SetOwner(b, "ANCHOR_TOPLEFT")
+						if data.perCurrency and b.currencyID then
+							GameTooltip:SetCurrencyByID(b.currencyID)
+							if data.showDescription == false then
+								local info = C_CurrencyInfo.GetCurrencyInfo(b.currencyID)
 								if info and info.description and info.description ~= "" then
 									local name = GameTooltip:GetName()
 									for i = 2, GameTooltip:NumLines() do
@@ -284,14 +292,14 @@ function DataPanel.Create(id, name)
 						end
 						GameTooltip:Show()
 					end)
-                    child:SetScript("OnLeave", function() GameTooltip:Hide() end)
-                    child:SetScript("OnClick", function(_, btn, ...)
-                        local p = panels[id]
-                        if p and p.isDragging then return end
-                        local fn = data.OnClick
-                        if type(fn) == "table" then fn = fn[btn] end
-                        if fn then fn(_, btn, ...) end
-                    end)
+					child:SetScript("OnLeave", function() GameTooltip:Hide() end)
+					child:SetScript("OnClick", function(_, btn, ...)
+						local p = panels[id]
+						if p and p.isDragging then return end
+						local fn = data.OnClick
+						if type(fn) == "table" then fn = fn[btn] end
+						if fn then fn(_, btn, ...) end
+					end)
 					totalWidth = totalWidth + w + (i > 1 and 5 or 0)
 				end
 				if data.parts then
@@ -459,18 +467,39 @@ end
 function DataPanel.Delete(id)
 	id = tostring(id)
 	local panel = panels[id] or panels[tonumber(id)]
-	if panel then
-		for i = #panel.order, 1, -1 do
-			panel:RemoveStream(panel.order[i])
-		end
-		panel.frame:Hide()
-		panel.frame:SetParent(nil)
-		panels[id] = nil
-		if panels[tonumber(id)] then panels[tonumber(id)] = nil end
-	end
+	-- Always remove the database entry first so a partial failure in
+	-- UI cleanup never re-saves an empty leftover panel on reload.
 	if addon.db and addon.db.dataPanels then
+		local named = panel and panel.name
+		-- primary key cleanup
 		addon.db.dataPanels[id] = nil
 		if addon.db.dataPanels[tonumber(id)] then addon.db.dataPanels[tonumber(id)] = nil end
+		-- defensive sweep: remove any entries that accidentally reference the same panel
+		for k, info in pairs(addon.db.dataPanels) do
+			if tostring(k) == id then
+				addon.db.dataPanels[k] = nil
+			elseif type(info) == "table" then
+				if info.name == id or (named and info.name == named) then addon.db.dataPanels[k] = nil end
+			end
+		end
+	end
+
+	if panel then
+		-- Unsubscribe and detach all streams safely
+		for i = #panel.order, 1, -1 do
+			local ok = pcall(function() panel:RemoveStream(panel.order[i]) end)
+			if not ok then
+				-- continue cleanup even if a single stream removal fails
+			end
+		end
+		if panel.frame then
+			-- Prevent savePosition from firing during teardown
+			panel.frame:SetScript("OnSizeChanged", nil)
+			panel.frame:Hide()
+			panel.frame:SetParent(nil)
+		end
+		panels[id] = nil
+		if panels[tonumber(id)] then panels[tonumber(id)] = nil end
 	end
 end
 
@@ -482,7 +511,7 @@ initFrame:SetScript("OnEvent", function(self)
 	addon.db.dataPanels = panelsDB
 
 	for id in pairs(panelsDB) do
-		DataPanel.Create(id)
+		DataPanel.Create(id, nil, true)
 	end
 
 	self:UnregisterEvent("PLAYER_LOGIN")

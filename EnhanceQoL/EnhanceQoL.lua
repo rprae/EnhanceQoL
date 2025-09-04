@@ -202,39 +202,39 @@ local function GameTooltipActionButton(button)
 end
 
 local function genericHoverOutCheck(frame, cbData)
-    -- If the feature is disabled, do nothing and ensure the frame stays visible.
-    if not cbData or not cbData.var or (addon.db and not addon.db[cbData.var]) then
-        if frame and frame.SetAlpha then frame:SetAlpha(1) end
-        if cbData and cbData.children then
-            for _, v in pairs(cbData.children) do
-                if v.SetAlpha then v:SetAlpha(1) end
-            end
-        end
-        if cbData and cbData.hideChildren then
-            for _, v in pairs(cbData.hideChildren) do
-                if v.Show then v:Show() end
-            end
-        end
-        return
-    end
+	-- If the feature is disabled, do nothing and ensure the frame stays visible.
+	if not cbData or not cbData.var or (addon.db and not addon.db[cbData.var]) then
+		if frame and frame.SetAlpha then frame:SetAlpha(1) end
+		if cbData and cbData.children then
+			for _, v in pairs(cbData.children) do
+				if v.SetAlpha then v:SetAlpha(1) end
+			end
+		end
+		if cbData and cbData.hideChildren then
+			for _, v in pairs(cbData.hideChildren) do
+				if v.Show then v:Show() end
+			end
+		end
+		return
+	end
 
-    if frame and frame:IsVisible() then
-        if not MouseIsOver(frame) then
-            frame:SetAlpha(0)
-            if cbData.children then
-                for _, v in pairs(cbData.children) do
-                    v:SetAlpha(0)
-                end
-            end
-            if cbData.hideChildren then
-                for _, v in pairs(cbData.hideChildren) do
-                    v:Hide()
-                end
-            end
-        else
-            C_Timer.After(0.3, function() genericHoverOutCheck(frame, cbData) end)
-        end
-    end
+	if frame and frame:IsVisible() then
+		if not MouseIsOver(frame) then
+			frame:SetAlpha(0)
+			if cbData.children then
+				for _, v in pairs(cbData.children) do
+					v:SetAlpha(0)
+				end
+			end
+			if cbData.hideChildren then
+				for _, v in pairs(cbData.hideChildren) do
+					v:Hide()
+				end
+			end
+		else
+			C_Timer.After(0.3, function() genericHoverOutCheck(frame, cbData) end)
+		end
+	end
 end
 
 local hookedUnitFrames = {}
@@ -249,7 +249,7 @@ local function UpdateUnitFrameMouseover(barName, cbData)
 
 	local uf = _G[barName]
 
-    if enable then
+	if enable then
 		if not hookedUnitFrames[uf] then
 			if uf.OnEnter or uf:GetScript("OnEnter") then
 				uf:HookScript("OnEnter", function(self)
@@ -286,8 +286,8 @@ local function UpdateUnitFrameMouseover(barName, cbData)
 			else
 				uf:SetScript("OnLeave", function(self) genericHoverOutCheck(self, cbData) end)
 			end
-        -- Initialize state based on current hover status
-        uf:SetAlpha(0)
+			-- Initialize state based on current hover status
+			uf:SetAlpha(0)
 			if cbData.children then
 				for _, v in ipairs(cbData.children) do
 					if cbData.revealAllChilds then
@@ -306,40 +306,51 @@ local function UpdateUnitFrameMouseover(barName, cbData)
 				for _, v in ipairs(cbData.hideChildren) do
 					v:Hide()
 				end
-            end
-        end
-        -- Ensure the initial state matches whether the mouse is currently over the frame/children
-        C_Timer.After(0, function()
-            if not addon.db or not addon.db[cbData.var] then return end
-            local hovered = MouseIsOver(uf)
-            if not hovered and cbData and cbData.revealAllChilds and cbData.children then
-                for _, v in pairs(cbData.children) do
-                    if v:IsVisible() and MouseIsOver(v) then hovered = true break end
-                end
-            end
-            if hovered then
-                uf:SetAlpha(1)
-                if cbData.children then
-                    for _, v in pairs(cbData.children) do v:SetAlpha(1) end
-                end
-                if cbData.hideChildren then
-                    for _, v in pairs(cbData.hideChildren) do v:Show() end
-                end
-            else
-                uf:SetAlpha(0)
-                if cbData.children then
-                    for _, v in pairs(cbData.children) do v:SetAlpha(0) end
-                end
-                if cbData.hideChildren then
-                    for _, v in pairs(cbData.hideChildren) do v:Hide() end
-                end
-            end
-        end)
-    else
-        if not hookedUnitFrames[uf] then
-            uf:SetScript("OnEnter", nil)
-            uf:SetScript("OnLeave", nil)
-        end
+			end
+		end
+		-- Ensure the initial state matches whether the mouse is currently over the frame/children
+		C_Timer.After(0, function()
+			if not addon.db or not addon.db[cbData.var] then return end
+			local hovered = MouseIsOver(uf)
+			if not hovered and cbData and cbData.revealAllChilds and cbData.children then
+				for _, v in pairs(cbData.children) do
+					if v:IsVisible() and MouseIsOver(v) then
+						hovered = true
+						break
+					end
+				end
+			end
+			if hovered then
+				uf:SetAlpha(1)
+				if cbData.children then
+					for _, v in pairs(cbData.children) do
+						v:SetAlpha(1)
+					end
+				end
+				if cbData.hideChildren then
+					for _, v in pairs(cbData.hideChildren) do
+						v:Show()
+					end
+				end
+			else
+				uf:SetAlpha(0)
+				if cbData.children then
+					for _, v in pairs(cbData.children) do
+						v:SetAlpha(0)
+					end
+				end
+				if cbData.hideChildren then
+					for _, v in pairs(cbData.hideChildren) do
+						v:Hide()
+					end
+				end
+			end
+		end)
+	else
+		if not hookedUnitFrames[uf] then
+			uf:SetScript("OnEnter", nil)
+			uf:SetScript("OnLeave", nil)
+		end
 		uf:SetAlpha(1)
 		if cbData.children then
 			for _, v in pairs(cbData.children) do
@@ -3220,7 +3231,7 @@ local function buildDatapanelFrame(container)
 
 	-- Display existing panels
 	for _, id in ipairs(panelOrder) do
-		local panel = DataPanel.Create(id)
+		local panel = DataPanel.Create(id, nil, true)
 		local info = panel.info
 		local groupPanel = addon.functions.createContainer("InlineGroup", "List")
 		groupPanel:SetTitle(id)
@@ -3252,10 +3263,40 @@ local function buildDatapanelFrame(container)
 		currentLabel:SetFullWidth(true)
 		groupPanel:AddChild(currentLabel)
 
+		local removeStream -- forward declare for closures
+		local function rebuildRemoveDropdown()
+			local removeList2, removeOrder2 = {}, {}
+			local curStreams = panel.order or {}
+			for _, s in ipairs(curStreams) do
+				removeList2[s] = streamList[s] or s
+				removeOrder2[#removeOrder2 + 1] = s
+			end
+			table.sort(removeOrder2, function(a, b) return (removeList2[a] or a) < (removeList2[b] or b) end)
+			removeStream:SetList(removeList2, removeOrder2)
+			removeStream:SetValue(nil)
+			if groupPanel and groupPanel.DoLayout then groupPanel:DoLayout() end
+		end
+
+		local function refreshStreamsLabel()
+			local curStreams = panel.order or {}
+			if #curStreams > 0 then
+				local titles = {}
+				for i, sid in ipairs(curStreams) do
+					titles[i] = streamList[sid] or sid
+				end
+				currentLabel:SetText("Streams: " .. table.concat(titles, ", "))
+			else
+				currentLabel:SetText("Streams: none")
+			end
+			if groupPanel and groupPanel.DoLayout then groupPanel:DoLayout() end
+		end
+
 		local addStream = addon.functions.createDropdownAce("Add Stream", streamList, streamOrder, function(self, _, val)
+			if not val or val == "" then return end
 			panel:AddStream(val)
-			container:ReleaseChildren()
-			buildDatapanelFrame(container)
+			self:SetValue(nil)
+			refreshStreamsLabel()
+			rebuildRemoveDropdown()
 		end)
 		groupPanel:AddChild(addStream)
 
@@ -3266,10 +3307,12 @@ local function buildDatapanelFrame(container)
 		end
 		table.sort(removeOrder, function(a, b) return removeList[a] < removeList[b] end)
 
-		local removeStream = addon.functions.createDropdownAce("Remove Stream", removeList, removeOrder, function(self, _, val)
+		removeStream = addon.functions.createDropdownAce("Remove Stream", removeList, removeOrder, function(self, _, val)
+			if not val or val == "" then return end
 			panel:RemoveStream(val)
-			container:ReleaseChildren()
-			buildDatapanelFrame(container)
+			self:SetValue(nil)
+			refreshStreamsLabel()
+			rebuildRemoveDropdown()
 		end)
 		groupPanel:AddChild(removeStream)
 	end

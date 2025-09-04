@@ -1392,15 +1392,15 @@ function CastTracker.functions.addCastTrackerOptions(container)
 				local editBox = self.editBox or self.GetEditBox and self:GetEditBox()
 				editBox:SetText("")
 				editBox:SetFocus()
-				self.text:SetText(L["ImportCategory"])
+				self.Text:SetText(L["ImportCategory"])
 			end
 			StaticPopupDialogs["EQOL_IMPORT_CATEGORY"].EditBoxOnTextChanged = function(editBox)
 				local frame = editBox:GetParent()
 				local name, count = previewImportCategory(editBox:GetText())
 				if name then
-					frame.text:SetFormattedText("%s\n%s", L["ImportCategory"], (L["ImportCategoryPreview"] or "Category: %s (%d auras)"):format(name, count))
+					frame.Text:SetFormattedText("%s\n%s", L["ImportCategory"], (L["ImportCategoryPreview"] or "Category: %s (%d auras)"):format(name, count))
 				else
-					frame.text:SetText(L["ImportCategory"])
+					frame.Text:SetText(L["ImportCategory"])
 				end
 			end
 			StaticPopupDialogs["EQOL_IMPORT_CATEGORY"].OnAccept = function(self)
