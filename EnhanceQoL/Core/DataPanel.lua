@@ -72,12 +72,20 @@ function DataPanel.Create(id, name)
 	frame:SetMovable(true)
 	frame:SetResizable(true)
 	frame:EnableMouse(true)
-	frame:RegisterForDrag("LeftButton")
-	frame:SetScript("OnDragStart", frame.StartMoving)
-	frame:SetScript("OnDragStop", function(f)
-		f:StopMovingOrSizing()
-		savePosition(f, id)
-	end)
+    frame:RegisterForDrag("LeftButton")
+    frame:SetScript("OnDragStart", function(f)
+        -- mark dragging and hide any open tooltip so it won't get in the way
+        local panelObj = panels[id]
+        if panelObj then panelObj.isDragging = true end
+        GameTooltip:Hide()
+        f:StartMoving()
+    end)
+    frame:SetScript("OnDragStop", function(f)
+        f:StopMovingOrSizing()
+        savePosition(f, id)
+        local panelObj = panels[id]
+        if panelObj then panelObj.isDragging = nil end
+    end)
 	frame:SetScript("OnMouseDown", function(f, btn)
 		if btn == "RightButton" then f:StartSizing("BOTTOMRIGHT") end
 	end)
@@ -145,34 +153,56 @@ function DataPanel.Create(id, name)
 
 	function panel:AddStream(name)
 		if self.streams[name] then return end
-		local button = CreateFrame("Button", nil, self.frame)
-		button:SetHeight(self.frame:GetHeight())
-		local text = button:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-		text:SetAllPoints()
-		text:SetJustifyH("LEFT")
-		local data = { button = button, text = text, lastWidth = text:GetStringWidth(), lastText = "" }
-		button.slot = data
-		button:SetScript("OnEnter", function(b)
-			local s = b.slot
-			if s.tooltip then
-				GameTooltip:SetOwner(b, "ANCHOR_TOPLEFT")
-				GameTooltip:SetText(s.tooltip)
-				GameTooltip:Show()
-			end
-			if s.OnMouseEnter then s.OnMouseEnter(b) end
-		end)
-		button:SetScript("OnLeave", function(b)
-			local s = b.slot
-			if s.OnMouseLeave then s.OnMouseLeave(b) end
-			GameTooltip:Hide()
-		end)
-		button:RegisterForClicks("AnyUp")
-		button:SetScript("OnClick", function(b, btn, ...)
-			local s = b.slot
-			local fn = s.OnClick
-			if type(fn) == "table" then fn = fn[btn] end
-			if fn then fn(b, btn, ...) end
-		end)
+        local button = CreateFrame("Button", nil, self.frame)
+        button:SetHeight(self.frame:GetHeight())
+        local text = button:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        text:SetAllPoints()
+        text:SetJustifyH("LEFT")
+        local data = { button = button, text = text, lastWidth = text:GetStringWidth(), lastText = "" }
+        button.slot = data
+        -- allow dragging even when hovering stream buttons
+        button:RegisterForDrag("LeftButton")
+        button:SetScript("OnDragStart", function(b)
+            local p = panels[id]
+            if p and p.frame then
+                p.isDragging = true
+                GameTooltip:Hide()
+                p.frame:StartMoving()
+            end
+        end)
+        button:SetScript("OnDragStop", function(b)
+            local p = panels[id]
+            if p and p.frame then
+                p.frame:StopMovingOrSizing()
+                savePosition(p.frame, id)
+                p.isDragging = nil
+            end
+        end)
+        button:SetScript("OnEnter", function(b)
+            local s = b.slot
+            local p = panels[id]
+            if p and p.isDragging then return end
+            if s.tooltip then
+                GameTooltip:SetOwner(b, "ANCHOR_TOPLEFT")
+                GameTooltip:SetText(s.tooltip)
+                GameTooltip:Show()
+            end
+            if s.OnMouseEnter then s.OnMouseEnter(b) end
+        end)
+        button:SetScript("OnLeave", function(b)
+            local s = b.slot
+            if s.OnMouseLeave then s.OnMouseLeave(b) end
+            GameTooltip:Hide()
+        end)
+        button:RegisterForClicks("AnyUp")
+        button:SetScript("OnClick", function(b, btn, ...)
+            local p = panels[id]
+            if p and p.isDragging then return end -- suppress clicks after a drag
+            local s = b.slot
+            local fn = s.OnClick
+            if type(fn) == "table" then fn = fn[btn] end
+            if fn then fn(b, btn, ...) end
+        end)
 
 		self.order[#self.order + 1] = name
 
@@ -187,35 +217,55 @@ function DataPanel.Create(id, name)
 				data.parts = data.parts or {}
 				local prev
 				local totalWidth = 0
-				for i, part in ipairs(payload.parts) do
-					local child = data.parts[i]
-					if not child then
-						child = CreateFrame("Button", nil, button)
-						child.text = child:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-						child.text:SetAllPoints()
-						child:RegisterForClicks("AnyUp")
-						data.parts[i] = child
-					end
-					child:Show()
-					child:SetHeight(button:GetHeight())
-					child.text:SetFont(font, size, "OUTLINE")
-					child.text:SetText(part.text or "")
-					local w = child.text:GetStringWidth()
-					child:SetWidth(w)
-					child:ClearAllPoints()
-					if prev then
-						child:SetPoint("LEFT", prev, "RIGHT", 5, 0)
-					else
-						child:SetPoint("LEFT", button, "LEFT", 0, 0)
-					end
-					prev = child
-					child.currencyID = part.id
-					child:SetScript("OnEnter", function(b)
-						GameTooltip:SetOwner(b, "ANCHOR_TOPLEFT")
-						if data.perCurrency and b.currencyID then
-							GameTooltip:SetCurrencyByID(b.currencyID)
-							if data.showDescription == false then
-								local info = C_CurrencyInfo.GetCurrencyInfo(b.currencyID)
+                for i, part in ipairs(payload.parts) do
+                    local child = data.parts[i]
+                    if not child then
+                        child = CreateFrame("Button", nil, button)
+                        child.text = child:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+                        child.text:SetAllPoints()
+                        child:RegisterForClicks("AnyUp")
+                        data.parts[i] = child
+                    end
+                    child:Show()
+                    child:SetHeight(button:GetHeight())
+                    child.text:SetFont(font, size, "OUTLINE")
+                    child.text:SetText(part.text or "")
+                    local w = child.text:GetStringWidth()
+                    child:SetWidth(w)
+                    child:ClearAllPoints()
+                    if prev then
+                        child:SetPoint("LEFT", prev, "RIGHT", 5, 0)
+                    else
+                        child:SetPoint("LEFT", button, "LEFT", 0, 0)
+                    end
+                    prev = child
+                    child.currencyID = part.id
+                    -- enable dragging from part segments too
+                    child:RegisterForDrag("LeftButton")
+                    child:SetScript("OnDragStart", function()
+                        local p = panels[id]
+                        if p and p.frame then
+                            p.isDragging = true
+                            GameTooltip:Hide()
+                            p.frame:StartMoving()
+                        end
+                    end)
+                    child:SetScript("OnDragStop", function()
+                        local p = panels[id]
+                        if p and p.frame then
+                            p.frame:StopMovingOrSizing()
+                            savePosition(p.frame, id)
+                            p.isDragging = nil
+                        end
+                    end)
+                    child:SetScript("OnEnter", function(b)
+                        local p = panels[id]
+                        if p and p.isDragging then return end
+                        GameTooltip:SetOwner(b, "ANCHOR_TOPLEFT")
+                        if data.perCurrency and b.currencyID then
+                            GameTooltip:SetCurrencyByID(b.currencyID)
+                            if data.showDescription == false then
+                                local info = C_CurrencyInfo.GetCurrencyInfo(b.currencyID)
 								if info and info.description and info.description ~= "" then
 									local name = GameTooltip:GetName()
 									for i = 2, GameTooltip:NumLines() do
@@ -234,12 +284,14 @@ function DataPanel.Create(id, name)
 						end
 						GameTooltip:Show()
 					end)
-					child:SetScript("OnLeave", function() GameTooltip:Hide() end)
-					child:SetScript("OnClick", function(_, btn, ...)
-						local fn = data.OnClick
-						if type(fn) == "table" then fn = fn[btn] end
-						if fn then fn(_, btn, ...) end
-					end)
+                    child:SetScript("OnLeave", function() GameTooltip:Hide() end)
+                    child:SetScript("OnClick", function(_, btn, ...)
+                        local p = panels[id]
+                        if p and p.isDragging then return end
+                        local fn = data.OnClick
+                        if type(fn) == "table" then fn = fn[btn] end
+                        if fn then fn(_, btn, ...) end
+                    end)
 					totalWidth = totalWidth + w + (i > 1 and 5 or 0)
 				end
 				if data.parts then

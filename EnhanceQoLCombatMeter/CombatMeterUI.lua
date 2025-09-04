@@ -667,42 +667,30 @@ local function createGroupFrame(groupConfig)
 		wipe(top)
 		local maxValue = 0
 		if self.metric == "damageOverall" or self.metric == "healingOverall" then
+			-- Use a shared, consistent denominator across the whole group: total elapsed
+			-- combat time over the run (sum of encounter durations) plus the current
+			-- fight's elapsed time. This avoids inflating "overall" rates by using
+			-- per-player active time slices.
+			local overallElapsed = addon.CombatMeter.overallDuration or 0
+			if addon.CombatMeter.inCombat then
+				local start = addon.CombatMeter.fightStartTime or 0
+				overallElapsed = overallElapsed + math.max(0, GetTime() - start)
+			end
+			if overallElapsed < MIN_OVERALL_DENOM then overallElapsed = MIN_OVERALL_DENOM end
 			for guid, p in pairs(addon.CombatMeter.overallPlayers) do
 				if groupUnits[guid] then
-					-- Use accumulated active time, plus a safe live component while in combat (guards tiny denominators)
-					local timeDenom = tonumber(p.time) or 0
-					if addon.CombatMeter.inCombat then
-						local start = addon.CombatMeter.fightStartTime or 0
-						local now = GetTime()
-						local fightElapsed = math.max(0, now - start)
-						local cur = addon.CombatMeter.players[guid]
-						if cur then
-							local first = cur._first or now
-							local last = cur._last or now
-							local active = math.max(0, math.min(last, now) - math.max(first, start))
-							-- Very small active windows at pull start create astronomical overall DPS; fall back to fight elapsed
-							if active < MIN_OVERALL_DENOM then active = fightElapsed end
-							timeDenom = timeDenom + active
-						else
-							-- Player has overall totals but no per-fight entry yet; use fight elapsed to avoid near‑zero denominators
-							timeDenom = timeDenom + fightElapsed
-						end
+					local total
+					if self.metric == "damageOverall" then
+						total = (p.damage or 0)
+					else
+						local raw = (p.healing or 0)
+						local sl = (p.spiritLinkDamage or 0)
+						local tb = (p.temperedDamage or 0)
+						total = raw - (sl + tb)
 					end
-					if timeDenom and timeDenom < MIN_OVERALL_DENOM then timeDenom = MIN_OVERALL_DENOM end
-					if timeDenom and timeDenom > 0 then
-						local total
-						if self.metric == "damageOverall" then
-							total = (p.damage or 0)
-						else
-							local raw = (p.healing or 0)
-							local sl = (p.spiritLinkDamage or 0)
-							local tb = (p.temperedDamage or 0)
-							total = raw - (sl + tb)
-						end
-						local value = total / timeDenom
-						tinsert(list, { guid = guid, name = p.name, value = value, total = total, class = p.class })
-						if value > maxValue then maxValue = value end
-					end
+					local value = total / overallElapsed
+					tinsert(list, { guid = guid, name = p.name, value = value, total = total, class = p.class })
+					if value > maxValue then maxValue = value end
 				end
 			end
 		elseif self.metric == "interruptsOverall" then
@@ -784,7 +772,7 @@ local function createGroupFrame(groupConfig)
 				local class
 				if self.metric == "damageOverall" or self.metric == "healingOverall" then
 					local p = addon.CombatMeter.overallPlayers[playerGUID]
-					if p and p.time and p.time > 0 then
+					if p then
 						if self.metric == "damageOverall" then
 							total = (p.damage or 0)
 						else
@@ -793,24 +781,13 @@ local function createGroupFrame(groupConfig)
 							local tb = (p.temperedDamage or 0)
 							total = raw - (sl + tb)
 						end
-						local timeDenom = tonumber(p.time) or 0
+						local overallElapsed = addon.CombatMeter.overallDuration or 0
 						if addon.CombatMeter.inCombat then
 							local start = addon.CombatMeter.fightStartTime or 0
-							local now = GetTime()
-							local fightElapsed = math.max(0, now - start)
-							local cur = addon.CombatMeter.players[playerGUID]
-							if cur then
-								local first = cur._first or now
-								local last = cur._last or now
-								local active = math.max(0, math.min(last, now) - math.max(first, start))
-								if active < MIN_OVERALL_DENOM then active = fightElapsed end
-								timeDenom = timeDenom + active
-							else
-								timeDenom = timeDenom + fightElapsed
-							end
+							overallElapsed = overallElapsed + math.max(0, GetTime() - start)
 						end
-						if timeDenom < MIN_OVERALL_DENOM then timeDenom = MIN_OVERALL_DENOM end
-						value = total / timeDenom
+						if overallElapsed < MIN_OVERALL_DENOM then overallElapsed = MIN_OVERALL_DENOM end
+						value = total / overallElapsed
 						class = p.class
 					end
 				elseif self.metric == "interruptsOverall" then
