@@ -114,29 +114,6 @@ local function setBRInfo(info)
 end
 
 hooksecurefunc(ScenarioObjectiveTracker.ChallengeModeBlock, "UpdateTime", function(self, elapsedTime)
-	-- Fallback safeguard for Current Pull getting stuck:
-	-- Throttled check while the timer updates to hard‑reset when truly OOC.
-	do
-		if addon.db["mythicPlusCurrentPull"] and addon.MPlusData and addon.MPlusData.active then
-			local now = GetTime()
-			addon.MPlusData._fallbackNext = addon.MPlusData._fallbackNext or 0
-			if now >= addon.MPlusData._fallbackNext then
-				addon.MPlusData._fallbackNext = now + 0.4 -- ~2.5 checks/sec
-				-- Only reset if player (and pet) are not in combat; keeps first hit instant.
-				if (not UnitAffectingCombat("player")) or UnitIsDeadOrGhost("player") then
-					if addon.MPlusData.pullForces ~= 0 then
-						if addon.MPlusData.inPullGUID then wipe(addon.MPlusData.inPullGUID) end
-						if addon.MPlusData.inPullByNPC then wipe(addon.MPlusData.inPullByNPC) end
-						addon.MPlusData.pullForces = 0
-						if addon.MythicPlus and addon.MythicPlus.functions and addon.MythicPlus.functions.UpdateCurrentPullAppearance then
-							addon.MythicPlus.functions.UpdateCurrentPullAppearance()
-						end
-					end
-				end
-			end
-		end
-	end
-
 	if addon.db["mythicPlusBRTrackerEnabled"] then
 		if not brButton or not brButton.cooldownFrame or not brButton.cooldownFrame.cooldownSet then
 			createBRFrame()
@@ -185,68 +162,72 @@ hooksecurefunc(ScenarioObjectiveTracker.ChallengeModeBlock, "UpdateTime", functi
 			self.ChestTimeText3 = nil
 		end
 	end
-	if addon.MPlusProgressBar then
-		if addon.MPlusProgressBar._oldValue ~= addon.MPlusData.pullForces then
-			local lb = addon.MPlusProgressBar.Bar.Label
-			if addon.MPlusData.pullForces == 0 then
-				lb:SetText(addon.MPlusProgressBar._actValue)
-			else
-				lb:SetText(addon.MPlusProgressBar._actValue .. " |cff00ff00+" .. addon.MPlusData.pullForces .. "%|r")
-			end
-			addon.MPlusProgressBar._oldValue = addon.MPlusData.pullForces
-		end
-	end
 end)
 
 local function GetScenarioPercent(criteriaIndex)
 	local criteriaInfo = C_ScenarioInfo.GetCriteriaInfo(criteriaIndex)
 	if criteriaInfo and criteriaInfo.isWeightedProgress then
-		local sValue = criteriaInfo.quantity
-		if criteriaInfo.quantityString then
-			sValue = tonumber(string.sub(criteriaInfo.quantityString, 1, string.len(criteriaInfo.quantityString) - 1)) / criteriaInfo.totalQuantity * 100
-			sValue = math.floor(sValue * 100 + 0.5) / 100
-		end
-		return sValue
+		if not criteriaInfo.totalQuantity or criteriaInfo.totalQuantity <= 0 then return nil end
+		local percent = (criteriaInfo.quantity / criteriaInfo.totalQuantity) * 100
+		percent = math.floor(percent * 100 + 0.5) / 100
+		return percent
 	end
 	return nil
 end
 
+-- Shared writer for the progress bar label
+addon.MythicPlus = addon.MythicPlus or {}
+addon.MythicPlus.functions = addon.MythicPlus.functions or {}
+function addon.MythicPlus.functions.WriteProgressLabel(bar)
+	if not bar or not bar.Bar or not bar.Bar.Label or not bar._baseText then return end
+	local pull = (addon.MPlusData and addon.MPlusData.pullForces) or 0
+	local suffix = ""
+	if addon.db and addon.db["mythicPlusCurrentPull"] and pull and pull > 0 then
+		local pullText = string.format("%.2f", pull)
+		suffix = " |cff00ff00+" .. pullText .. "%|r"
+	end
+	local newText = bar._baseText .. suffix
+	if bar._lastShown ~= newText then
+		bar.Bar.Label:SetText(newText)
+		bar._lastShown = newText
+		bar._lastShownPull = pull
+	end
+end
+
+-- Force a refresh without recomputing base percent (used after resets)
+function addon.MythicPlus.functions.RefreshProgressLabel()
+	if not addon.MPlusProgressBar then return end
+	addon.MythicPlus.functions.WriteProgressLabel(addon.MPlusProgressBar)
+end
+
 hooksecurefunc(ScenarioTrackerProgressBarMixin, "SetValue", function(self, percentage)
+	-- Only handle in Mythic Keystone runs and visible bars
+	if not IsInInstance() or not self:IsVisible() then return end
+	local _, _, diff = GetInstanceInfo()
+	if diff ~= 8 then return end
+
+	addon.MPlusProgressBar = self
+
+	-- Compute base percent text without reading existing label
+	local baseText
 	if addon.db["mythicPlusTruePercent"] then
-		if not IsInInstance() or not self:IsVisible() then return end
-		local _, _, diff = GetInstanceInfo()
-		if diff ~= 8 then return end -- only in mythic challenge mode
 		local sData = C_ScenarioInfo.GetScenarioStepInfo()
-		if nil == sData then return end
-
-		addon.MPlusProgressBar = self
+		if not sData then return end
 		local truePercent
-		if self.criteriaIndex then self.criteriaIndex = nil end
 		for criteriaIndex = 1, sData.numCriteria do
-			if nil == truePercent then
-				truePercent = GetScenarioPercent(criteriaIndex)
-				if truePercent then
-					self.Bar.Label:SetFormattedText(truePercent .. "%%")
-					self.percentage = percentage
-				end
-			end
+			if not truePercent then truePercent = GetScenarioPercent(criteriaIndex) end
 		end
-	end
-	if not addon.MPlusProgressBar._actValue or addon.MPlusProgressBar._actValue ~= addon.MPlusProgressBar.Bar.Label:GetText() then
-		addon.MPlusProgressBar._actValue = addon.MPlusProgressBar.Bar.Label:GetText()
-	end
-	if addon.MPlusProgressBar then
-		if addon.MPlusProgressBar._oldValue ~= addon.MPlusData.pullForces then
-			local lb = addon.MPlusProgressBar.Bar.Label
-			if addon.MPlusData.pullForces == 0 then
-				lb:SetText(addon.MPlusProgressBar._actValue)
-			else
-				lb:SetText(addon.MPlusProgressBar._actValue .. " |cff00ff00+" .. addon.MPlusData.pullForces .. "%|r")
-			end
-			addon.MPlusProgressBar._oldValue = addon.MPlusData.pullForces
-		end
+		if truePercent then baseText = string.format("%.2f%%", truePercent) end
+	else
+		local p = tonumber(percentage) or 0
+		if p <= 1 then p = p * 100 end
+		p = math.floor(p * 100 + 0.5) / 100 -- round to 2 decimals
+		baseText = string.format("%.2f%%", p)
 	end
 
+	if not baseText then return end
+	self._baseText = baseText
+	addon.MythicPlus.functions.WriteProgressLabel(self)
 end)
 
 local function createButtons()

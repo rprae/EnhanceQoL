@@ -62,7 +62,7 @@ local function BuildWeightsFromMDT()
 		if criteriaInfo and criteriaInfo.isWeightedProgress and criteriaInfo.totalQuantity then MPlus.maxForces = criteriaInfo.totalQuantity end
 	end
 
-	if MPlus.maxForces then
+	if MPlus.maxForces and MPlus.maxForces > 0 then
 		local mapID = C_Map.GetBestMapForUnit("player")
 		local mdtID = MDT.zoneIdToDungeonIdx[mapID]
 
@@ -82,7 +82,10 @@ local function ResetPull()
 	wipe(MPlus.inPullGUID)
 	wipe(MPlus.inPullByNPC)
 	MPlus.pullForces = 0
-	if UpdateUILabel then UpdateUILabel() end
+	MPlus._lastActivity = GetTime()
+	if addon and addon.MythicPlus and addon.MythicPlus.functions and addon.MythicPlus.functions.RefreshProgressLabel then
+		addon.MythicPlus.functions.RefreshProgressLabel()
+	end
 end
 
 -- Full recompute: used when weights change
@@ -93,7 +96,9 @@ function RecomputePullForces()
 		if perMob and data.guids then sum = sum + perMob * (data._count or 0) end
 	end
 	MPlus.pullForces = sum
-	if UpdateUILabel then UpdateUILabel() end
+	if addon and addon.MythicPlus and addon.MythicPlus.functions and addon.MythicPlus.functions.RefreshProgressLabel then
+		addon.MythicPlus.functions.RefreshProgressLabel()
+	end
 end
 
 local function AddGUIDToPull(guid)
@@ -114,7 +119,10 @@ local function AddGUIDToPull(guid)
 	b._count = b._count + 1
 	-- Incremental update
 	MPlus.pullForces = MPlus.pullForces + perMob
-	if UpdateUILabel then UpdateUILabel() end
+	MPlus._lastActivity = GetTime()
+	if addon and addon.MythicPlus and addon.MythicPlus.functions and addon.MythicPlus.functions.RefreshProgressLabel then
+		addon.MythicPlus.functions.RefreshProgressLabel()
+	end
 end
 
 local function RemoveGUIDFromPull(guid)
@@ -129,7 +137,10 @@ local function RemoveGUIDFromPull(guid)
 		-- Decremental update
 		local perMob = MPlus.weights[npcId]
 		if perMob then MPlus.pullForces = max(0, MPlus.pullForces - perMob) end
-		if UpdateUILabel then UpdateUILabel() end
+		MPlus._lastActivity = GetTime()
+		if addon and addon.MythicPlus and addon.MythicPlus.functions and addon.MythicPlus.functions.RefreshProgressLabel then
+			addon.MythicPlus.functions.RefreshProgressLabel()
+		end
 	end
 	-- remove cache entry after using it
 	MPlus.inPullGUID[guid] = nil
@@ -175,8 +186,6 @@ local allowedSub = {
 	SPELL_PERIODIC_DAMAGE = true,
 	SPELL_CAST_START = true,
 	SPELL_CAST_SUCCESS = true,
-	SPELL_AURA_APPLIED = true,
-	SPELL_AURA_REFRESH = true,
 	UNIT_DIED = true,
 	UNIT_DESTROYED = true,
 	UNIT_DISSIPATES = true,
@@ -212,6 +221,22 @@ local function ActivateRun()
 	BuildWeightsFromMDT()
 	SetCombatLogActive(true)
 	UpdateUILabel()
+	-- Start watchdog ticker to clean up edge cases when out of combat
+	if not MPlus._watchdogTicker then
+		MPlus._watchdogTicker = C_Timer.NewTicker(0.5, function()
+			if not MPlus.active then return end
+			if addon and addon.MythicPlus and addon.MythicPlus.functions and addon.MythicPlus.functions.RefreshProgressLabel then
+				addon.MythicPlus.functions.RefreshProgressLabel()
+			end
+			if (MPlus.pullForces or 0) <= 0 then return end
+			local engaged = UnitAffectingCombat("player") and not UnitIsDeadOrGhost("player")
+			if engaged then return end
+			local last = MPlus._lastActivity or 0
+			if GetTime() - last > 1.5 then
+				ResetPull()
+			end
+		end)
+	end
 end
 
 local function DeactivateRun()
@@ -221,6 +246,10 @@ local function DeactivateRun()
 	SetCombatLogActive(false)
 	MPlus._weightsReady = false
 	UpdateUILabel()
+	if MPlus._watchdogTicker then
+		MPlus._watchdogTicker:Cancel()
+		MPlus._watchdogTicker = nil
+	end
 end
 
 local baseEventsRegistered = false
@@ -230,6 +259,7 @@ local function EnsureBaseEvents()
 	f:RegisterEvent("CHALLENGE_MODE_START")
 	f:RegisterEvent("CHALLENGE_MODE_RESET")
 	f:RegisterEvent("CHALLENGE_MODE_COMPLETED")
+	f:RegisterEvent("ENCOUNTER_END")
 	-- PLAYER_ENTERING_WORLD wird initial ohnehin registriert (s. unten)
 	baseEventsRegistered = true
 end
@@ -269,6 +299,11 @@ f:SetScript("OnEvent", function(_, ev, arg1)
 		return
 	end
 
+	if ev == "ENCOUNTER_END" then
+		if MDT and MPlus.active then ResetPull() end
+		return
+	end
+
 	if ev == "PLAYER_ENTERING_WORLD" then
 		-- Only a single initial pass per session. PEW fires on every loading screen.
 		if mdtInitDone then return end
@@ -290,6 +325,7 @@ f:SetScript("OnEvent", function(_, ev, arg1)
                 BuildWeightsFromMDT()
                 MPlus._nextWeightsAttemptTime = now + 0.75
             end
+            if not MPlus._weightsReady then return end
         end
         local _, sub, _, srcGUID, _, srcFlags, _, dstGUID, _, dstFlags = CombatLogGetCurrentEventInfo()
         if not allowedSub[sub] then return end
@@ -333,7 +369,9 @@ f:SetScript("OnEvent", function(_, ev, arg1)
     if ev == "PLAYER_UNGHOST" then
         if not MDT or not MPlus.active then return end
         -- Keep UI consistent at 0 after releasing
-        UpdateUILabel()
+        if addon and addon.MythicPlus and addon.MythicPlus.functions and addon.MythicPlus.functions.RefreshProgressLabel then
+        	addon.MythicPlus.functions.RefreshProgressLabel()
+        end
         return
     end
 end)
