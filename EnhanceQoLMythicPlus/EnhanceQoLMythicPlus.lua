@@ -577,6 +577,7 @@ local function addKeystoneFrame(container)
 		shortSlider:SetWidth(300)
 		groupEnabled:AddChild(shortSlider)
 	end
+	scroll:DoLayout()
 end
 
 local function addPotionTrackerFrame(container)
