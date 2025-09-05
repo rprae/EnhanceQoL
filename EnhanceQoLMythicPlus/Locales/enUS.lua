@@ -21,6 +21,8 @@ L["Stating"] = "Starting..."
 L["autoKeyStart"] = "Start key automatically after Pull Timer"
 L["mythicPlusTruePercent"] = "Show decimal value of Enemy Forces"
 L["mythicPlusChestTimer"] = "Show chest timers"
+L["mythicPlusCurrentPull"] = "Show current pull percent (requires MDT)"
+L["mythicPlusCurrentPullDesc"] = "Displays a lightweight \"Current pull: %d\" label on the Scenario Objective Tracker. Only active in Mythic+ runs and only when MDT is installed."
 L["interruptWithShift"] = "Hold shift to interrupt that feature"
 
 L["None"] = "No Pull Timer"

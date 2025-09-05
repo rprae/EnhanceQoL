@@ -16,11 +16,15 @@
 
 - **Tooltip · Inspect performance:** Fully opt‑in. INSPECT_READY is only registered while the new Unit options (item level/spec) are enabled; no background overhead otherwise.
 - **Mouse:** Ring and Trail logic decoupled. Ring visibility no longer suppresses the Trail update path.
+- **TOC Update:** Updated TOC for 11.2.5 PTR and fixed some bugs to be compatible with PTR
 
 ### 🐛 Fixed
 
 - **Mouse:** Trail could stop updating when “Show ring only in combat” was enabled. Trail now runs independently.
 - **DataPanel – Friends:** Cross‑realm display sanitized (no repeated realm suffixes like “-Antonidas-Antonidas”).
+- **Dungeon Portal:** Division-by-zero when no teleports were available under certain filters.
+
+---
 
 ## [4.10.1] – 2025-09-03
 

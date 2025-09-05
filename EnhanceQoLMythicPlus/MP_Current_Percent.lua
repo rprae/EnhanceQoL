@@ -1,3 +1,11 @@
+local parentAddonName = "EnhanceQoL"
+local addonName, addon = ...
+if _G[parentAddonName] then
+    addon = _G[parentAddonName]
+else
+    error(parentAddonName .. " is not loaded")
+end
+
 -- Ultra‑lightweight tracker for current pull percent in M+.
 -- Design goals:
 --  - Zero cost when MDT is not loaded or when not in/entering an M+ run
@@ -208,6 +216,8 @@ local function OnMDTReady()
 end
 
 f:SetScript("OnEvent", function(_, ev, arg1)
+    -- Feature must be enabled explicitly in settings
+    if not (addon and addon.db and addon.db["mythicPlusCurrentPull"]) then return end
     if ev == "ADDON_LOADED" then
         -- Lazy detect MDT when it loads after us
         if not MDT and _G.MDT then MDT = _G.MDT end
@@ -266,9 +276,35 @@ f:SetScript("OnEvent", function(_, ev, arg1)
     end
 end)
 
--- Always listen for ADDON_LOADED + PLAYER_ENTERING_WORLD to catch MDT loading order and initial state.
-f:RegisterEvent("ADDON_LOADED")
-f:RegisterEvent("PLAYER_ENTERING_WORLD")
+-- Toggle registration from the MythicPlus UI
+addon.MythicPlus = addon.MythicPlus or {}
+addon.MythicPlus.functions = addon.MythicPlus.functions or {}
+function addon.MythicPlus.functions.ToggleCurrentPull(enabled)
+    if enabled then
+        f:RegisterEvent("ADDON_LOADED")
+        f:RegisterEvent("PLAYER_ENTERING_WORLD")
+        -- If MDT is around already, initialize immediately
+        if _G.MDT and not MDT then MDT = _G.MDT end
+        if MDT and not mdtInitDone then
+            mdtInitDone = true
+            OnMDTReady()
+        end
+    else
+        f:UnregisterEvent("ADDON_LOADED")
+        f:UnregisterEvent("PLAYER_ENTERING_WORLD")
+        f:UnregisterEvent("CHALLENGE_MODE_START")
+        f:UnregisterEvent("CHALLENGE_MODE_RESET")
+        f:UnregisterEvent("CHALLENGE_MODE_COMPLETED")
+        f:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+        DeactivateRun()
+        baseEventsRegistered = false
+    end
+end
+
+-- Apply initial state based on saved setting
+if addon and addon.db and addon.db["mythicPlusCurrentPull"] then
+    addon.MythicPlus.functions.ToggleCurrentPull(true)
+end
 
 -- === UI Throttle (optional) ===
     local function OnUpdateUI(elapsed)

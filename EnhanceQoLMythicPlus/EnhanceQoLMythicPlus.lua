@@ -506,6 +506,17 @@ local function addKeystoneFrame(container)
 				var = "mythicPlusChestTimer",
 			},
 			{
+				text = L["mythicPlusCurrentPull"],
+				var = "mythicPlusCurrentPull",
+				desc = L["mythicPlusCurrentPullDesc"],
+				func = function(self, _, value)
+					addon.db["mythicPlusCurrentPull"] = value
+					if addon.MythicPlus and addon.MythicPlus.functions and addon.MythicPlus.functions.ToggleCurrentPull then
+						addon.MythicPlus.functions.ToggleCurrentPull(value)
+					end
+				end,
+			},
+			{
 				text = L["groupfinderShowPartyKeystone"],
 				var = "groupfinderShowPartyKeystone",
 				func = function(self, _, value)
