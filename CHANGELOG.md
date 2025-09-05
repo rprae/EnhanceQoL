@@ -11,6 +11,7 @@
 - **Tooltip · Mythic+ rating:** Optional modifier requirement (Shift/Alt/Ctrl) before showing the rating.
 - **Mouse:** Independent “only show in combat” toggles for Ring and Trail.
 - **Mouse:** Optional class‑color tint for Ring and Trail (disables the color picker while active).
+- **Mythic+:** Option to show the current pull count
 
 ### 🔄 Changed
 
@@ -20,6 +21,7 @@
 
 ### 🐛 Fixed
 
+- **Vehicle Exit** was hidden, when ActionBar set to mouseover
 - **Mouse:** Trail could stop updating when “Show ring only in combat” was enabled. Trail now runs independently.
 - **DataPanel – Friends:** Cross‑realm display sanitized (no repeated realm suffixes like “-Antonidas-Antonidas”).
 - **Dungeon Portal:** Division-by-zero when no teleports were available under certain filters.
