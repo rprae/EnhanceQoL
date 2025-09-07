@@ -3577,9 +3577,9 @@ local function updateFlyoutButtonInfo(button)
 		if not location then return end
 
 		-- TODO 12.0: EquipmentManager_UnpackLocation will change once Void Storage is removed
-		local itemLink
+		local itemLink, player, bank, bags, _, slot, bag
 		if type(button.location) == "number" then
-			local player, bank, bags, voidStorage, slot, bag = EquipmentManager_UnpackLocation(location)
+			player, bank, bags, _, slot, bag = EquipmentManager_UnpackLocation(location)
 
 			if bags then
 				itemLink = C_Container.GetContainerItemLink(bag, slot)
