@@ -5,6 +5,7 @@
 ### 🐛 Fixed
 
 - **Mouse:** Options had some wrong conditions
+- **Cast Tracker/Aura Tracker:** Guarding against wrong import strings
 
 ---
 
