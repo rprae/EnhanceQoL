@@ -6,10 +6,18 @@ local AceGUI = addon.AceGUI
 local db
 local stream
 
+-- Micro-optimizations: localize frequently used globals
+local floor = math.floor
+local min = math.min
+local format = string.format
+local GetTime = GetTime
+local GetFramerate = GetFramerate
+local GetNetStats = GetNetStats
+
 -- Runtime state for smoothing and cadence
-local fpsSamples = {} -- queue of { t = now, v = fps }
 local lastPingUpdate = 0
 local pingHome, pingWorld = nil, nil
+local emaFPS -- exponential moving average for FPS
 
 -- Color helpers (hex without leading #)
 local function fpsColorHex(v)
@@ -69,13 +77,23 @@ local function createAceWindow()
         db.y = yOfs
     end)
 
+    -- Debounce RequestUpdate calls while dragging sliders
+    local sliderTimer
+    local function scheduleUpdate()
+        if sliderTimer then sliderTimer:Cancel() end
+        sliderTimer = C_Timer.NewTimer(0.05, function()
+            sliderTimer = nil
+            if stream then addon.DataHub:RequestUpdate(stream) end
+        end)
+    end
+
     local fontSize = AceGUI:Create("Slider")
     fontSize:SetLabel("Font size")
     fontSize:SetSliderValues(8, 32, 1)
     fontSize:SetValue(db.fontSize)
     fontSize:SetCallback("OnValueChanged", function(_, _, val)
         db.fontSize = val
-        addon.DataHub:RequestUpdate(stream)
+        scheduleUpdate()
     end)
     frame:AddChild(fontSize)
 
@@ -86,7 +104,10 @@ local function createAceWindow()
     fpsRate:SetCallback("OnValueChanged", function(_, _, val)
         db.fpsInterval = val
         if stream then stream.interval = val end -- driver picks up new cadence
-        addon.DataHub:RequestUpdate(stream)
+        -- Reset EMA so the new cadence takes immediate effect visually
+        emaFPS = nil
+        lastFps = nil
+        scheduleUpdate()
     end)
     frame:AddChild(fpsRate)
 
@@ -96,7 +117,10 @@ local function createAceWindow()
     smooth:SetValue(db.fpsSmoothWindow)
     smooth:SetCallback("OnValueChanged", function(_, _, val)
         db.fpsSmoothWindow = val
-        addon.DataHub:RequestUpdate(stream)
+        -- Reset EMA for a fresh smoothing window
+        emaFPS = nil
+        lastFps = nil
+        scheduleUpdate()
     end)
     frame:AddChild(smooth)
 
@@ -106,7 +130,7 @@ local function createAceWindow()
     pingRate:SetValue(db.pingInterval)
     pingRate:SetCallback("OnValueChanged", function(_, _, val)
         db.pingInterval = val
-        addon.DataHub:RequestUpdate(stream)
+        scheduleUpdate()
     end)
     frame:AddChild(pingRate)
 
@@ -116,43 +140,29 @@ local function createAceWindow()
     mode:SetValue(db.pingMode)
     mode:SetCallback("OnValueChanged", function(_, _, key)
         db.pingMode = key or "max"
-        addon.DataHub:RequestUpdate(stream)
+        -- Invalidate cache to force re-render even if values are equal
+        lastMode = nil
+        lastHome, lastWorld = nil, nil
+        scheduleUpdate()
     end)
     frame:AddChild(mode)
 
     frame.frame:Show()
 end
 
-local function trimOldSamples(now, window)
-    if window <= 0 then
-        -- drop all previous samples when smoothing is disabled
-        wipe(fpsSamples)
-        return
+-- EMA-based smoothing (no tables, constant work per tick)
+local function smoothFPS(current, interval, window)
+    if (window or 0) <= 0 then
+        emaFPS = current
+        return current
     end
-    local cutoff = now - window
-    local i = 1
-    while i <= #fpsSamples do
-        if fpsSamples[i].t < cutoff then
-            table.remove(fpsSamples, i)
-        else
-            break -- samples are appended in time order
-        end
-    end
+    local alpha = min(1, (interval or 0.25) / window)
+    emaFPS = emaFPS and (emaFPS + alpha * (current - emaFPS)) or current
+    return emaFPS
 end
 
-local function averageFPS(now, window, current)
-    if window <= 0 then return current end
-    trimOldSamples(now, window)
-    -- Include current sample too for a tighter feel
-    local sum, n = current, 1
-    for i = 1, #fpsSamples do
-        sum = sum + fpsSamples[i].v
-        n = n + 1
-    end
-    return sum / n
-end
-
-local lastText -- for cheap change detection in this provider before UI
+-- Change detection to avoid unnecessary string work
+local lastFps, lastHome, lastWorld, lastMode
 
 local function updateLatency(s)
     s = s or stream
@@ -162,16 +172,14 @@ local function updateLatency(s)
     if s and s.interval ~= db.fpsInterval then s.interval = db.fpsInterval end
 
     local size = db.fontSize or 14
-    s.snapshot.fontSize = size
     if not s.snapshot.tooltip then s.snapshot.tooltip = L and L["Right-Click for options"] or "Right-Click for options" end
 
     local now = GetTime()
 
     -- FPS sampling + smoothing
     local fpsNow = GetFramerate() or 0
-    fpsSamples[#fpsSamples + 1] = { t = now, v = fpsNow }
-    local fpsAvg = averageFPS(now, db.fpsSmoothWindow or 0, fpsNow)
-    local fpsValue = math.floor(fpsAvg + 0.5)
+    local fpsAvg = smoothFPS(fpsNow, db.fpsInterval or 0.25, db.fpsSmoothWindow or 0)
+    local fpsValue = floor(fpsAvg + 0.5)
 
     -- Ping sampling (gated)
     if (now - (lastPingUpdate or 0)) >= (db.pingInterval or 1.0) or not pingHome or not pingWorld then
@@ -180,21 +188,26 @@ local function updateLatency(s)
         lastPingUpdate = now
     end
 
-    local pingText
-    if db.pingMode == "split" then
-        local ph = pingHome or 0
-        local pw = pingWorld or 0
-        pingText = string.format("|cff%s%d|r| |cff%s%d|r ms", pingColorHex(ph), ph, pingColorHex(pw), pw)
-    else
-        local p = pingHome or 0
-        if pingWorld and pingWorld > p then p = pingWorld end
-        pingText = string.format("|cff%s%d|r ms", pingColorHex(p), p)
+    if fpsValue ~= lastFps or (pingHome or 0) ~= (lastHome or -1) or (pingWorld or 0) ~= (lastWorld or -1) or db.pingMode ~= lastMode then
+        local pingText
+        if db.pingMode == "split" then
+            local ph = pingHome or 0
+            local pw = pingWorld or 0
+            pingText = format("|cff%s%d|r| |cff%s%d|r ms", pingColorHex(ph), ph, pingColorHex(pw), pw)
+        else
+            local p = pingHome or 0
+            if pingWorld and pingWorld > p then p = pingWorld end
+            pingText = format("|cff%s%d|r ms", pingColorHex(p), p)
+        end
+        local text = format("FPS |cff%s%d|r | %s", fpsColorHex(fpsValue), fpsValue, pingText)
+        s.snapshot.text = text
+        lastFps, lastHome, lastWorld, lastMode = fpsValue, pingHome or 0, pingWorld or 0, db.pingMode
     end
 
-    local text = string.format("FPS |cff%s%d|r | %s", fpsColorHex(fpsValue), fpsValue, pingText)
-    if text ~= lastText then
-        s.snapshot.text = text
-        lastText = text
+    -- Only touch fontSize if actually changed
+    if s.snapshot._fs ~= size then
+        s.snapshot.fontSize = size
+        s.snapshot._fs = size
     end
 end
 
@@ -212,21 +225,21 @@ local provider = {
         tip:ClearLines()
         tip:SetOwner(btn, "ANCHOR_TOPLEFT")
 
-        local fps = math.floor((GetFramerate() or 0) + 0.5)
+        local fps = floor((GetFramerate() or 0) + 0.5)
         local _, _, home, world = GetNetStats()
         home = home or 0
         world = world or 0
 
         -- Build FPS line using the global format, coloring only the value
         local fpsFmt = (MAINMENUBAR_FPS_LABEL or "Framerate: %.0f fps"):gsub("%%%.0f", "%%s")
-        local fpsLine = fpsFmt:format(string.format("|cff%s%.0f|r", fpsColorHex(fps), fps))
+        local fpsLine = fpsFmt:format(format("|cff%s%.0f|r", fpsColorHex(fps), fps))
 
         -- Build Latency block using the global format, coloring each value
         local latFmt = (MAINMENUBAR_LATENCY_LABEL or "Latency:\n%.0f ms (home)\n%.0f ms (world)")
         latFmt = latFmt:gsub("%%%.0f", "%%s")
         local latencyBlock = latFmt:format(
-            string.format("|cff%s%.0f|r", pingColorHex(home), home),
-            string.format("|cff%s%.0f|r", pingColorHex(world), world)
+            format("|cff%s%.0f|r", pingColorHex(home), home),
+            format("|cff%s%.0f|r", pingColorHex(world), world)
         )
 
         tip:SetText(fpsLine .. "\n" .. latencyBlock)
