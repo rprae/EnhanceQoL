@@ -1,11 +1,32 @@
 # Changelog
 
+## [4.17.0] – 2025-09-13
+
+### ✨ Added
+
+- **Teleport Compendium:** New Spells
+  - Potion of Deepholm
+  - Flightmaster's Whistle
+  - Dimensional Ripper - Area 52
+  - Dimensional Ripper - Everlook
+  - Ultrasafe Transporter: Toshley's Station
+  - Ultrasafe Transporter: Gadgetzan
+  - Delver's Mana-Bound Ethergate
+  - The Last Relic of Argus
+  - Mobile Telemancy Beacon (Zone based - Only in Suramar)
+  - The Schools of Arcane Magic - Mastery (Zone based - Only in Dalaran WotLK)
+  - Reaves Module: Wormhole Generator Mode (Special option)
+  - Kirin Tor Beacon (Zone based - Throne of Thunder/Isle of Thunder)
+  - Sunreaver Beacon (Zone based - Throne of Thunder/Isle of Thunder)
+
+---
+
 ## [4.16.0] – 2025-09-13
 
 ### ✨ Added
 
 - **Drink Macro:** Option to use Mana-Potions in combat
-  - *±80 mana potions* known
+  - _±80 mana potions_ known
   - 10 missing mana drinks of 11.2.5 were added
 
 ---

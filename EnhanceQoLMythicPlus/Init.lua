@@ -84,14 +84,12 @@ addon.functions.InitDBValue("talentReminderCustomSoundFile", "")
 
 -- Backward compatibility migration: convert old numeric value to table
 do
-    local v = addon.db["talentReminderActiveBuildShowOnly"]
-    if type(v) ~= "table" then
-        local newVal = {}
-        if type(v) == "number" and v >= 1 and v <= 3 then
-            newVal[v] = true
-        end
-        addon.db["talentReminderActiveBuildShowOnly"] = newVal
-    end
+	local v = addon.db["talentReminderActiveBuildShowOnly"]
+	if type(v) ~= "table" then
+		local newVal = {}
+		if type(v) == "number" and v >= 1 and v <= 3 then newVal[v] = true end
+		addon.db["talentReminderActiveBuildShowOnly"] = newVal
+	end
 end
 
 addon.MythicPlus = {}
@@ -113,6 +111,7 @@ addon.functions.InitDBValue("teleportFrameLocked", true)
 addon.functions.InitDBValue("teleportFrameData", {})
 addon.functions.InitDBValue("teleportCompendiumLocked", true)
 addon.functions.InitDBValue("teleportCompendiumFrameData", {})
+addon.functions.InitDBValue("portalUseReavesModule", false)
 addon.functions.InitDBValue("dungeonScoreFrameLocked", true)
 addon.functions.InitDBValue("dungeonScoreFrameData", {})
 
@@ -440,6 +439,8 @@ addon.MythicPlus.variables.portalCompendium = {
 			[1223041] = { text = "HS", isItem = true, itemID = 234389, isRaid = true, icon = 3718248, map = 2406 },
 			[1239155] = { text = "MFO", isRaid = true },
 			[467470] = { text = "DELVE", isToy = true, toyID = 230850 },
+
+			[1234526] = { text = "HS", isItem = true, itemID = 243056, isHearthstone = true, icon = 7137505 },
 		},
 	},
 	[110] = {
@@ -531,6 +532,12 @@ addon.MythicPlus.variables.portalCompendium = {
 			-- Dalaran (Broken Isles, Legion)
 			[224869] = { text = "DalB", isClassTP = "MAGE" },
 			[224871] = { text = "DalB", isMagePortal = true },
+
+			[227334] = { text = "HS", isItem = true, itemID = 141605, isHearthstone = true, icon = 132161 },
+			[82674] = { text = "HS", isItem = true, itemID = 64457, isHearthstone = true, icon = 458240 },
+			[223444] = { text = "HS", isToy = true, toyID = 140324, isHearthstone = true, icon = 237445, map = 680 },
+
+			[200061] = { text = "HS", isItem = true, itemID = { 144341, 132523 }, isEngineering = true, icon = 1405815, isReaves = true },
 		},
 	},
 	[70] = {
@@ -576,6 +583,11 @@ addon.MythicPlus.variables.portalCompendium = {
 			[87215] = { text = "ENGI", isToy = true, toyID = 87215, isEngineering = true }, -- spellID ist noch falsch
 			[120145] = { text = "DALA", isClassTP = "MAGE" },
 			[120146] = { text = "DALA", isMagePortal = true },
+
+			-- Alliance beacon
+			[140295] = { text = "HS", isToy = true, toyID = 95567, isHearthstone = true, icon = 801132, map = { [504] = true, [508] = true }, faction = FACTION_ALLIANCE },
+			-- Horde beacon
+			[140300] = { text = "HS", isToy = true, toyID = 95568, isHearthstone = true, icon = 838819, map = { [504] = true, [508] = true }, faction = FACTION_HORDE },
 		},
 	},
 	[50] = {
@@ -589,6 +601,9 @@ addon.MythicPlus.variables.portalCompendium = {
 			[88345] = { text = "TolB", isMagePortal = true, faction = FACTION_ALLIANCE },
 			[88346] = { text = "TolB", isClassTP = "MAGE", faction = FACTION_HORDE },
 			[88347] = { text = "TolB", isMagePortal = true, faction = FACTION_HORDE },
+
+			[80256] = { text = "HS", isItem = true, itemID = 58487, isHearthstone = true, icon = 463898 },
+			[59317] = { text = "HS", isToy = true, toyID = 58487, isHearthstone = true, icon = 133743, map = 125 },
 		},
 	},
 	[40] = {
@@ -612,6 +627,9 @@ addon.MythicPlus.variables.portalCompendium = {
 			[32266] = { text = "Exod", isMagePortal = true, faction = FACTION_ALLIANCE }, -- Portal: Exodar
 			[32272] = { text = "SMC", isClassTP = "MAGE", faction = FACTION_HORDE }, -- Teleport: Silvermoon
 			[32267] = { text = "SMC", isMagePortal = true, faction = FACTION_HORDE }, -- Portal: Silvermoon
+
+			[36941] = { text = "ENGI", isToy = true, toyID = 30544, isEngineering = true, isGnomish = true },
+			[36890] = { text = "ENGI", isToy = true, toyID = 30542, isEngineering = true, isGoblin = true },
 		},
 	},
 	[20] = {
@@ -632,6 +650,9 @@ addon.MythicPlus.variables.portalCompendium = {
 			[11418] = { text = "UC", isMagePortal = true, faction = FACTION_HORDE },
 			[3566] = { text = "ThBl", isClassTP = "MAGE", faction = FACTION_HORDE },
 			[11420] = { text = "ThBl", isMagePortal = true, faction = FACTION_HORDE },
+
+			[23453] = { text = "ENGI", isToy = true, toyID = 18986, isEngineering = true, isGnomish = true },
+			[23442] = { text = "ENGI", isToy = true, toyID = 18984, isEngineering = true, isGoblin = true },
 		},
 	},
 	[10] = {

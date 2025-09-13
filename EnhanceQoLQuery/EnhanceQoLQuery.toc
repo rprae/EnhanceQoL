@@ -20,4 +20,3 @@
 ## Globe-Main: EnhanceQoL
 
 EnhanceQoLQuery.lua
-EnhanceQoLQuery.xml

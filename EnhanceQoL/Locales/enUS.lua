@@ -238,6 +238,10 @@ L["UnitFrameHideExplain"] = "Hide the element and only show it on mouseover"
 L["chatFrameFadeEnabled"] = "Enable chat fading"
 L["chatFrameFadeTimeVisibleText"] = "Text remains visible for"
 L["chatFrameFadeDurationText"] = "Fade animation duration"
+
+-- Merchant
+L["enableExtendedMerchant"] = "Expand merchant frame (20 items per page)"
+L["enableExtendedMerchantDesc"] = "Expands the merchant window to show 20 items (2x10). Disabling requires a reload."
 L["chatHideLearnUnlearn"] = "Hide learn/unlearn messages"
 L["chatHideLearnUnlearnDesc"] = "Hide system messages like 'You have learned …' and 'You have unlearned …' from the chat frame"
 L["enableChatIM"] = "Enable Instant Messenger"
