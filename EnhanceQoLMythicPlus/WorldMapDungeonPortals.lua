@@ -16,6 +16,8 @@ local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_MythicPlus")
 
 local f = CreateFrame("Frame")
 local DISPLAY_MODE = "EQOL_DungeonPortals"
+local ICON_ACTIVE = "Interface\\AddOns\\EnhanceQoLMythicPlus\\Art\\teleport_active.tga"
+local ICON_INACTIVE = "Interface\\AddOns\\EnhanceQoLMythicPlus\\Art\\teleport_inactive.tga"
 
 -- Cache some frequently used API
 local FirstOwnedItemID
@@ -167,12 +169,26 @@ local function EnsurePanel(parent)
     -- QuestLog-like border frame
     if not panel.BorderFrame then
         local bf = CreateFrame("Frame", nil, panel, "QuestLogBorderFrameTemplate")
-        bf:SetAllPoints(panel)
+        -- Anchor the border slightly outside the scrollframe to reveal artwork like MapLegend
+        bf:ClearAllPoints()
+        if panel.Scroll then
+            bf:SetPoint("TOPLEFT", panel.Scroll, "TOPLEFT", -3, 13)
+            bf:SetPoint("BOTTOMRIGHT", panel.Scroll, "BOTTOMRIGHT", 3, 0)
+        else
+            bf:SetAllPoints(panel)
+        end
         -- Keep border art above background & content
         bf:SetFrameStrata(panel:GetFrameStrata())
         bf:SetFrameLevel((panel:GetFrameLevel() or 2) + 3)
         panel.BorderFrame = bf
     else
+        panel.BorderFrame:ClearAllPoints()
+        if panel.Scroll then
+            panel.BorderFrame:SetPoint("TOPLEFT", panel.Scroll, "TOPLEFT", -3, 13)
+            panel.BorderFrame:SetPoint("BOTTOMRIGHT", panel.Scroll, "BOTTOMRIGHT", 3, 0)
+        else
+            panel.BorderFrame:SetAllPoints(panel)
+        end
         panel.BorderFrame:SetFrameStrata(panel:GetFrameStrata())
         panel.BorderFrame:SetFrameLevel((panel:GetFrameLevel() or 2) + 3)
     end
@@ -195,9 +211,15 @@ local function EnsurePanel(parent)
     if not s.Background then
         local bg = s:CreateTexture(nil, "BACKGROUND")
         if bg.SetAtlas then bg:SetAtlas("QuestLog-main-background", true) end
-        bg:SetPoint("TOPLEFT")
-        bg:SetPoint("BOTTOMRIGHT")
+        -- Inset background to reveal border artwork (similar to MapLegend)
+        bg:ClearAllPoints()
+        bg:SetPoint("TOPLEFT", s, "TOPLEFT")
+        bg:SetPoint("BOTTOMRIGHT", s, "BOTTOMRIGHT")
         s.Background = bg
+    else
+        s.Background:ClearAllPoints()
+        s.Background:SetPoint("TOPLEFT", s, "TOPLEFT")
+        s.Background:SetPoint("BOTTOMRIGHT", s, "BOTTOMRIGHT")
     end
 
     -- Align scrollbar like MapLegend: x=+8, topY=+2, bottomY=-4
@@ -412,14 +434,24 @@ local function EnsureTab(parent, anchorTo)
     tabButton.tooltipText = (L["DungeonCompendium"] or "Dungeon Portals")
     tabButton.displayMode = DISPLAY_MODE
 
-	-- Hide template's atlas-driven icon and add our persistent custom icon
-	if tabButton.Icon then tabButton.Icon:Hide() end
-	local customIcon = tabButton:CreateTexture(nil, "ARTWORK")
-	customIcon:SetPoint("CENTER", -2, 0)
-	customIcon:SetSize(20, 20)
-	customIcon:SetTexture("Interface\\AddOns\\EnhanceQoL\\Icons\\Dungeon.tga")
-	customIcon:SetTexCoord(0.1, 0.9, 0.1, 0.9)
-	tabButton.CustomIcon = customIcon
+    -- Hide template's atlas-driven icon and add our persistent custom icon
+    if tabButton.Icon then tabButton.Icon:Hide() end
+    local customIcon = tabButton:CreateTexture(nil, "ARTWORK")
+    customIcon:SetPoint("CENTER", -2, 0)
+    customIcon:SetSize(20, 20)
+    customIcon:SetTexture(ICON_INACTIVE)
+    customIcon:SetTexCoord(0.1, 0.9, 0.1, 0.9)
+    tabButton.CustomIcon = customIcon
+
+    -- helper to flip icon depending on selection
+    local function UpdateTabIcon(tb)
+        if not tb or not tb.CustomIcon then return end
+        if tb.GetChecked and tb:GetChecked() then
+            tb.CustomIcon:SetTexture(ICON_ACTIVE)
+        else
+            tb.CustomIcon:SetTexture(ICON_INACTIVE)
+        end
+    end
 
 	-- Guard against Blizzard re-showing the template icon
 	if tabButton.Icon and not tabButton.Icon._eqolHook then
@@ -433,18 +465,22 @@ local function EnsureTab(parent, anchorTo)
 	if tabButton.SelectedTexture then tabButton.SelectedTexture:Hide() end
 
 	-- Keep custom icon clear on state changes
-	if not tabButton._eqolStateHooks then
-		hooksecurefunc(tabButton, "SetChecked", function(self)
-			if self.CustomIcon then self.CustomIcon:SetDesaturated(false) end
-		end)
-		hooksecurefunc(tabButton, "Disable", function(self)
-			if self.CustomIcon then self.CustomIcon:SetDesaturated(true) end
-		end)
-		hooksecurefunc(tabButton, "Enable", function(self)
-			if self.CustomIcon then self.CustomIcon:SetDesaturated(false) end
-		end)
-		tabButton._eqolStateHooks = true
-	end
+    if not tabButton._eqolStateHooks then
+        hooksecurefunc(tabButton, "SetChecked", function(self)
+            if self.CustomIcon then self.CustomIcon:SetDesaturated(false) end
+            UpdateTabIcon(self)
+        end)
+        hooksecurefunc(tabButton, "Disable", function(self)
+            if self.CustomIcon then self.CustomIcon:SetDesaturated(true) end
+        end)
+        hooksecurefunc(tabButton, "Enable", function(self)
+            if self.CustomIcon then self.CustomIcon:SetDesaturated(false) end
+        end)
+        tabButton._eqolStateHooks = true
+    end
+
+    -- Initialize icon for current state
+    UpdateTabIcon(tabButton)
 
 	tabButton:SetScript("OnEnter", function(self)
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
