@@ -18020,6 +18020,7 @@ globals = {
 	"MerchantMoneyBg",
 	"MerchantNextPageButton",
 	"MerchantPrevPageButton",
+	"MerchantPageText",
 	"ProfessionsFrame",
 	"EQOLCrafterMultiply",
 	"TRACK_QUEST",
