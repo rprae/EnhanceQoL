@@ -84,14 +84,12 @@ addon.functions.InitDBValue("talentReminderCustomSoundFile", "")
 
 -- Backward compatibility migration: convert old numeric value to table
 do
-    local v = addon.db["talentReminderActiveBuildShowOnly"]
-    if type(v) ~= "table" then
-        local newVal = {}
-        if type(v) == "number" and v >= 1 and v <= 3 then
-            newVal[v] = true
-        end
-        addon.db["talentReminderActiveBuildShowOnly"] = newVal
-    end
+	local v = addon.db["talentReminderActiveBuildShowOnly"]
+	if type(v) ~= "table" then
+		local newVal = {}
+		if type(v) == "number" and v >= 1 and v <= 3 then newVal[v] = true end
+		addon.db["talentReminderActiveBuildShowOnly"] = newVal
+	end
 end
 
 addon.MythicPlus = {}
@@ -612,6 +610,9 @@ addon.MythicPlus.variables.portalCompendium = {
 			[32266] = { text = "Exod", isMagePortal = true, faction = FACTION_ALLIANCE }, -- Portal: Exodar
 			[32272] = { text = "SMC", isClassTP = "MAGE", faction = FACTION_HORDE }, -- Teleport: Silvermoon
 			[32267] = { text = "SMC", isMagePortal = true, faction = FACTION_HORDE }, -- Portal: Silvermoon
+
+			[36941] = { text = "ENGI", isToy = true, toyID = 30544, isEngineering = true, isGnomish = true },
+			[36890] = { text = "ENGI", isToy = true, toyID = 30542, isEngineering = true, isGoblin = true },
 		},
 	},
 	[20] = {
@@ -632,6 +633,9 @@ addon.MythicPlus.variables.portalCompendium = {
 			[11418] = { text = "UC", isMagePortal = true, faction = FACTION_HORDE },
 			[3566] = { text = "ThBl", isClassTP = "MAGE", faction = FACTION_HORDE },
 			[11420] = { text = "ThBl", isMagePortal = true, faction = FACTION_HORDE },
+
+			[23453] = { text = "ENGI", isToy = true, toyID = 18986, isEngineering = true, isGnomish = true },
+			[23442] = { text = "ENGI", isToy = true, toyID = 18984, isEngineering = true, isGoblin = true },
 		},
 	},
 	[10] = {

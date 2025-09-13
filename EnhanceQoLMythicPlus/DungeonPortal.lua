@@ -488,8 +488,23 @@ local function checkProfession()
 	return false
 end
 
+local GNOMISH = 20219
+local GOBLIN = 20222
+local function GetEngineeringBranch()
+	if IsPlayerSpell(GNOMISH) or IsSpellKnown(GNOMISH) then
+		return true, false -- Gnomish Engineering
+	elseif IsPlayerSpell(GOBLIN) or IsSpellKnown(GOBLIN) then
+		return false, true -- Goblin Engineering
+	else
+		return false, false -- keine Spezialisierung (oder kein Engineering)
+	end
+end
+
 local function CreatePortalCompendium(frame, compendium)
-	local hasEngineering = checkProfession()
+	local hasEngineering, hasGnomish, hasGoblin = checkProfession(), false, false
+	if hasEngineering then
+		hasGnomish, hasGoblin = GetEngineeringBranch()
+	end
 	addon.MythicPlus.functions.setRandomHearthstone()
 	-- Entferne alle bestehenden Elemente
 	for _, button in pairs(frame.buttons or {}) do
