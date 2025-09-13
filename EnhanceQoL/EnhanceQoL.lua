@@ -1891,9 +1891,8 @@ local function addMerchantFrame(container)
         {
             parent = MERCHANT,
             var = "enableExtendedMerchant",
-            text = (MERCHANT .. ": 20 Items per page"),
             type = "CheckBox",
-            desc = "Expands the merchant window to show 20 items (2x10). Disabling requires a reload.",
+            desc = L["enableExtendedMerchantDesc"],
             callback = function(self, _, value)
                 addon.db["enableExtendedMerchant"] = value
                 if addon.Merchant then
