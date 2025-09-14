@@ -680,19 +680,30 @@ end
 
 -- Events to build/refresh --------------------------------------------------
 f:SetScript("OnEvent", function(self, event, arg1)
-    if event == "PLAYER_LOGIN" or (event == "ADDON_LOADED" and (arg1 == "Blizzard_WorldMap" or arg1 == addonName or arg1 == parentAddonName)) then
-        C_Timer.After(0.3, function()
-            if addon.db and addon.db["teleportsWorldMapUseModern"] then
-                f:TryInit()
-                f:RefreshPanel()
-            end
-        end)
-    elseif event == "SPELLS_CHANGED" or event == "BAG_UPDATE_DELAYED" or event == "TOYS_UPDATED" then
+    if event == "ADDON_LOADED" and arg1 == "Blizzard_WorldMap" then
+        -- Late-load: attach our OnShow hook once the World Map exists
+        if WorldMapFrame and not WorldMapFrame._eqolTeleportHook then
+            WorldMapFrame:HookScript("OnShow", function()
+                if addon.db and addon.db["teleportsWorldMapUseModern"] then
+                    f:TryInit()
+                    C_Timer.After(0, function() f:RefreshPanel() end)
+                else
+                    if panel then panel:Hide() end
+                    if tabButton then tabButton:Hide() end
+                end
+            end)
+            WorldMapFrame._eqolTeleportHook = true
+        end
+        return
+    end
+
+    -- Only refresh when the map is actually visible; avoid work while hidden
+    if not WorldMapFrame or not WorldMapFrame:IsShown() then return end
+    if event == "SPELLS_CHANGED" or event == "BAG_UPDATE_DELAYED" or event == "TOYS_UPDATED" then
         if addon.db and addon.db["teleportsWorldMapUseModern"] then f:RefreshPanel() end
     end
 end)
 
-f:RegisterEvent("PLAYER_LOGIN")
 f:RegisterEvent("ADDON_LOADED")
 f:RegisterEvent("SPELLS_CHANGED")
 f:RegisterEvent("BAG_UPDATE_DELAYED")
@@ -704,7 +715,37 @@ if WorldMapFrame and not WorldMapFrame._eqolTeleportHook then
         if addon.db and addon.db["teleportsWorldMapUseModern"] then
             f:TryInit()
             C_Timer.After(0, function() f:RefreshPanel() end)
+        else
+            -- Ensure our UI is fully hidden when the feature is disabled
+            if panel then panel:Hide() end
+            if tabButton then tabButton:Hide() end
         end
     end)
     WorldMapFrame._eqolTeleportHook = true
+end
+
+-- Export a small helper so options code can trigger a live refresh
+function addon.MythicPlus.functions.RefreshWorldMapTeleportPanel()
+    if not addon or not addon.db then return end
+    if not WorldMapFrame then return end
+
+    -- If feature is disabled now, hide our panel and switch away if selected
+    if not addon.db["teleportsWorldMapUseModern"] then
+        if QuestMapFrame and QuestMapFrame.GetDisplayMode and QuestMapFrame:GetDisplayMode() == DISPLAY_MODE then
+            if QuestMapFrame.MapLegendTab and QuestMapFrame.MapLegendTab.Click then
+                QuestMapFrame.MapLegendTab:Click()
+            elseif QuestMapFrame.QuestsTab and QuestMapFrame.QuestsTab.Click then
+                QuestMapFrame.QuestsTab:Click()
+            end
+        end
+        if panel then panel:Hide() end
+        if tabButton then tabButton:Hide() end
+        return
+    end
+
+    if WorldMapFrame:IsShown() then
+        f:TryInit()
+        if tabButton then tabButton:Show() end
+        f:RefreshPanel()
+    end
 end
