@@ -4,20 +4,21 @@
 
 ### ✨ Added
 
-- **Teleport Compendium:** New Spells
+- **Teleport Compendium:** New spells
+
   - Potion of Deepholm
-  - Flightmaster's Whistle
-  - Dimensional Ripper - Area 52
-  - Dimensional Ripper - Everlook
+  - Flight Master's Whistle
+  - Dimensional Ripper – Area 52
+  - Dimensional Ripper – Everlook
   - Ultrasafe Transporter: Toshley's Station
   - Ultrasafe Transporter: Gadgetzan
   - Delver's Mana-Bound Ethergate
   - The Last Relic of Argus
-  - Mobile Telemancy Beacon (Zone based - Only in Suramar)
-  - The Schools of Arcane Magic - Mastery (Zone based - Only in Dalaran WotLK)
-  - Reaves Module: Wormhole Generator Mode (Special option)
-  - Kirin Tor Beacon (Zone based - Throne of Thunder/Isle of Thunder)
-  - Sunreaver Beacon (Zone based - Throne of Thunder/Isle of Thunder)
+  - Mobile Telemancy Beacon _(zone-restricted: Suramar)_
+  - The Schools of Arcane Magic – Mastery _(zone-restricted: Dalaran (Wrath))_
+  - Reaves Module: Wormhole Generator Mode _(special option)_
+  - Kirin Tor Beacon _(zone-restricted: Throne of Thunder / Isle of Thunder)_
+  - Sunreaver Beacon _(zone-restricted: Throne of Thunder / Isle of Thunder)_
   - Shroud of Cooperation
   - Cloak of Coordination
   - Wrap of Unity
@@ -27,7 +28,26 @@
   - Violet Seal of the Grand Magus
   - Blessed Medallion of Karabor
   - Kirin Tor Rings
-- **Bigger Merchant Frame:** Option to increase the Merchant Frame size
+  - Direbrew's Remote
+  - Argent Crusader's Tabard
+  - Boots of the Bay
+  - Atiesh, Greatstaff of the Guardian
+  - The Brassiest Knuckle
+
+- **Merchant Frame:** Option to expand the Merchant frame size (20 items per page)
+
+- **Tooltip (Mythic+):** Option to choose which score details to show on units  
+  _(overall score, best dungeon, season overview)_
+
+- **Teleport Compendium UI:** Modern world-map integration with a native-feeling UI
+  _(seamless; looks and behaves like a Blizzard panel)_
+
+- **Item level upgrades:** Option to show a small arrow on items, that are better than your currently equipped items
+  - On flyouts it compares the actual item with the inventory ones not just your slot (trinket1/2 if one is better, it ignores upgrades on those)
+
+### 🐛 Fixed
+
+- _Invigorating Healing Potion_ had the wrong health regeneration for **Healthmacro**
 
 ---
 

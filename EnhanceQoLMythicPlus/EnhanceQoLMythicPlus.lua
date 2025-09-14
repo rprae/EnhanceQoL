@@ -769,6 +769,19 @@ local function addTeleportFrame(container)
 				container:ReleaseChildren()
 				addTeleportFrame(container)
 				addon.MythicPlus.functions.toggleFrame()
+				if addon.MythicPlus.functions.RefreshWorldMapTeleportPanel then addon.MythicPlus.functions.RefreshWorldMapTeleportPanel() end
+			end,
+		},
+		{
+			text = L["teleportsWorldMapUseModern"],
+			var = "teleportsWorldMapUseModern",
+			func = function(self, _, value)
+				addon.db["teleportsWorldMapUseModern"] = value
+				if value == false then addon.variables.requireReload = true end
+				container:ReleaseChildren()
+				addTeleportFrame(container)
+				-- World map panel will initialize itself on next map open or immediately if visible
+				if addon.MythicPlus.functions.RefreshWorldMapTeleportPanel then addon.MythicPlus.functions.RefreshWorldMapTeleportPanel() end
 			end,
 		},
 		{
@@ -778,7 +791,10 @@ local function addTeleportFrame(container)
 		{
 			text = L["portalShowTooltip"],
 			var = "portalShowTooltip",
-			func = function(self, _, value) addon.db["portalShowTooltip"] = value end,
+			func = function(self, _, value)
+				addon.db["portalShowTooltip"] = value
+				if addon.MythicPlus.functions.RefreshWorldMapTeleportPanel then addon.MythicPlus.functions.RefreshWorldMapTeleportPanel() end
+			end,
 		},
 	}
 
@@ -788,6 +804,7 @@ local function addTeleportFrame(container)
 		local uFunc = function(self, _, value)
 			addon.db[cbData.var] = value
 			addon.MythicPlus.functions.toggleFrame()
+			if addon.MythicPlus.functions.RefreshWorldMapTeleportPanel then addon.MythicPlus.functions.RefreshWorldMapTeleportPanel() end
 		end
 		if cbData.func then uFunc = cbData.func end
 		local cbElement = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], uFunc)
@@ -838,6 +855,7 @@ local function addTeleportFrame(container)
 			local uFunc = function(self, _, value)
 				addon.db[cbData.var] = value
 				addon.MythicPlus.functions.toggleFrame()
+				if addon.MythicPlus.functions.RefreshWorldMapTeleportPanel then addon.MythicPlus.functions.RefreshWorldMapTeleportPanel() end
 			end
 			if cbData.func then uFunc = cbData.func end
 			local cbElement = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], uFunc)
@@ -863,6 +881,7 @@ local function addTeleportFrame(container)
 			local uFunc = function(self, _, value)
 				addon.db[cbData.var] = value
 				addon.MythicPlus.functions.toggleFrame()
+				if addon.MythicPlus.functions.RefreshWorldMapTeleportPanel then addon.MythicPlus.functions.RefreshWorldMapTeleportPanel() end
 			end
 			if cbData.func then uFunc = cbData.func end
 			local cbElement = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], uFunc, cbData.desc)
@@ -893,6 +912,7 @@ local function addTeleportFrame(container)
 			local uFunc = function(self, _, value)
 				addon.db[cbData.var] = value
 				addon.MythicPlus.functions.toggleFrame()
+				if addon.MythicPlus.functions.RefreshWorldMapTeleportPanel then addon.MythicPlus.functions.RefreshWorldMapTeleportPanel() end
 			end
 			if cbData.func then uFunc = cbData.func end
 			local cbElement = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], uFunc)

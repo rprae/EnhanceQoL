@@ -402,6 +402,15 @@ local function updateButtonInfo(itemButton, bag, slot, frameName)
 		itemButton.ItemBoundType:SetAlpha(1)
 		itemButton.ItemBoundType:SetText("")
 	end
+	-- Reset upgrade marker each update to avoid stale icons when buttons are recycled
+	if itemButton.ItemUpgradeArrow then
+		itemButton.ItemUpgradeArrow:SetAlpha(1)
+		itemButton.ItemUpgradeArrow:Hide()
+	end
+	if itemButton.ItemUpgradeIcon then
+		itemButton.ItemUpgradeIcon:SetAlpha(1)
+		itemButton.ItemUpgradeIcon:Hide()
+	end
 	local itemLink = C_Container.GetContainerItemLink(bag, slot)
 	if itemLink then
 		local _, _, itemQuality, _, _, _, _, _, itemEquipLoc, _, sellPrice, classID, subclassID, tBindType, expId = GetItemInfo(itemLink)
@@ -494,6 +503,94 @@ local function updateButtonInfo(itemButton, bag, slot, frameName)
 
 				itemButton.ItemLevelText:Show()
 
+				-- Upgrade arrow (bag): indicate if this item is higher ilvl than equipped
+				if addon.db["showUpgradeArrowOnBagItems"] then
+					local function getEquipSlotsFor(equipLoc)
+						if equipLoc == "INVTYPE_FINGER" then
+							return { 11, 12 }
+						elseif equipLoc == "INVTYPE_TRINKET" then
+							return { 13, 14 }
+						elseif equipLoc == "INVTYPE_HEAD" then
+							return { 1 }
+						elseif equipLoc == "INVTYPE_NECK" then
+							return { 2 }
+						elseif equipLoc == "INVTYPE_SHOULDER" then
+							return { 3 }
+						elseif equipLoc == "INVTYPE_CLOAK" then
+							return { 15 }
+						elseif equipLoc == "INVTYPE_CHEST" or equipLoc == "INVTYPE_ROBE" then
+							return { 5 }
+						elseif equipLoc == "INVTYPE_WRIST" then
+							return { 9 }
+						elseif equipLoc == "INVTYPE_HAND" then
+							return { 10 }
+						elseif equipLoc == "INVTYPE_WAIST" then
+							return { 6 }
+						elseif equipLoc == "INVTYPE_LEGS" then
+							return { 7 }
+						elseif equipLoc == "INVTYPE_FEET" then
+							return { 8 }
+						elseif equipLoc == "INVTYPE_WEAPONMAINHAND" or equipLoc == "INVTYPE_2HWEAPON" or equipLoc == "INVTYPE_RANGED" or equipLoc == "INVTYPE_RANGEDRIGHT" then
+							return { 16 }
+						elseif equipLoc == "INVTYPE_WEAPONOFFHAND" or equipLoc == "INVTYPE_HOLDABLE" or equipLoc == "INVTYPE_SHIELD" then
+							return { 17 }
+						elseif equipLoc == "INVTYPE_WEAPON" then
+							-- One-hand weapon: compare against both if present
+							return { 16, 17 }
+						end
+						return nil
+					end
+
+					local slots = getEquipSlotsFor(itemEquipLoc)
+					local baseline
+					if slots and #slots > 0 then
+						for _, invSlot in ipairs(slots) do
+							local link = GetInventoryItemLink("player", invSlot)
+							if link then
+								local eqIlvl = C_Item.GetDetailedItemLevelInfo(link) or 0
+								if baseline == nil then
+									baseline = eqIlvl
+								else
+									baseline = math.min(baseline, eqIlvl) -- favor upgrade vs the worse of two (rings/trinkets/1H weapons)
+								end
+							else
+								-- empty slot counts as 0
+								if baseline == nil then baseline = 0 else baseline = math.min(baseline, 0) end
+							end
+						end
+					end
+
+					local isUpgrade = false
+					if baseline ~= nil and itemLevelText and tonumber(itemLevelText) then
+						isUpgrade = tonumber(itemLevelText) > baseline
+					end
+
+					if isUpgrade then
+						if not itemButton.ItemUpgradeIcon then
+							itemButton.ItemUpgradeIcon = itemButton:CreateTexture(nil, "ARTWORK")
+							itemButton.ItemUpgradeIcon:SetDrawLayer("ARTWORK", 2)
+							itemButton.ItemUpgradeIcon:SetSize(14, 14)
+						end
+						itemButton.ItemUpgradeIcon:SetTexture("Interface\\AddOns\\EnhanceQoL\\Icons\\upgradeilvl.tga")
+                    itemButton.ItemUpgradeIcon:ClearAllPoints()
+                    local posUp = addon.db["bagUpgradeIconPosition"] or "BOTTOMRIGHT"
+                    if posUp == "TOPRIGHT" then
+                        itemButton.ItemUpgradeIcon:SetPoint("TOPRIGHT", itemButton, "TOPRIGHT", -1, -2)
+                    elseif posUp == "TOPLEFT" then
+                        itemButton.ItemUpgradeIcon:SetPoint("TOPLEFT", itemButton, "TOPLEFT", 2, -2)
+                    elseif posUp == "BOTTOMLEFT" then
+                        itemButton.ItemUpgradeIcon:SetPoint("BOTTOMLEFT", itemButton, "BOTTOMLEFT", 2, 2)
+                    else -- BOTTOMRIGHT
+                        itemButton.ItemUpgradeIcon:SetPoint("BOTTOMRIGHT", itemButton, "BOTTOMRIGHT", -1, 2)
+                    end
+						itemButton.ItemUpgradeIcon:Show()
+					else
+						if itemButton.ItemUpgradeIcon then itemButton.ItemUpgradeIcon:Hide() end
+					end
+				else
+					if itemButton.ItemUpgradeIcon then itemButton.ItemUpgradeIcon:Hide() end
+				end
+
 				if addon.db["showBindOnBagItems"] and bType then
 					if not itemButton.ItemBoundType then
 						-- Position behind Blizzard's overlay
@@ -519,6 +616,7 @@ local function updateButtonInfo(itemButton, bag, slot, frameName)
 				end
 			elseif itemButton.ItemLevelText then
 				if itemButton.ItemBoundType then itemButton.ItemBoundType:Hide() end
+				if itemButton.ItemUpgradeIcon then itemButton.ItemUpgradeIcon:Hide() end
 				itemButton.ItemLevelText:Hide()
 			end
 		end
@@ -532,17 +630,20 @@ local function updateButtonInfo(itemButton, bag, slot, frameName)
 
 			if itemButton.ItemLevelText then itemButton.ItemLevelText:SetAlpha(0.1) end
 			if itemButton.ItemBoundType then itemButton.ItemBoundType:SetAlpha(0.1) end
+			if itemButton.ItemUpgradeIcon then itemButton.ItemUpgradeIcon:SetAlpha(0.1) end
 			if itemButton.ProfessionQualityOverlay and addon.db["fadeBagQualityIcons"] then itemButton.ProfessionQualityOverlay:SetAlpha(0.1) end
 		else
 			itemButton:SetAlpha(1)
 			if itemButton.ItemContextOverlay then itemButton.ItemContextOverlay:Hide() end
 			if itemButton.ItemLevelText then itemButton.ItemLevelText:SetAlpha(1) end
 			if itemButton.ItemBoundType then itemButton.ItemBoundType:SetAlpha(1) end
+			if itemButton.ItemUpgradeIcon then itemButton.ItemUpgradeIcon:SetAlpha(1) end
 			if itemButton.ProfessionQualityOverlay and addon.db["fadeBagQualityIcons"] then itemButton.ProfessionQualityOverlay:SetAlpha(1) end
 		end
 		-- end)
 	elseif itemButton.ItemLevelText then
 		if itemButton.ItemBoundType then itemButton.ItemBoundType:Hide() end
+		if itemButton.ItemUpgradeIcon then itemButton.ItemUpgradeIcon:Hide() end
 		itemButton.ItemLevelText:Hide()
 	end
 end
