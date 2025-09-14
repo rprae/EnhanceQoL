@@ -103,8 +103,7 @@ addon.MythicPlus.variables = {}
 addon.functions.InitDBValue("teleportFrame", false)
 addon.functions.InitDBValue("portalHideMissing", false)
 addon.functions.InitDBValue("portalShowTooltip", false)
--- World Map: modern compendium always used; keep DB table for cache only
-addon.functions.InitDBValue("teleportsWorldMapUseModern", true)
+-- World Map panel enable toggle (modern compendium)
 -- Cache for resolved map/zone names used by modern frame
 addon.functions.InitDBValue("teleportNameCache", {})
 addon.functions.InitDBValue("teleportFavorites", {})
@@ -420,6 +419,11 @@ function addon.MythicPlus.functions.removeExistingButton()
 end
 
 addon.MythicPlus.variables.portalCompendium = {
+
+	[9999] = {
+		headline = HOME,
+		spells = {},
+	},
 	[120] = {
 		headline = EXPANSION_NAME10,
 		spells = {
@@ -709,10 +713,6 @@ addon.MythicPlus.variables.portalCompendium = {
 			[312372] = { text = "RACE", isRaceTP = "Vulpera" },
 		},
 	},
-	[11] = {
-		headline = HOME,
-		spells = {},
-	},
 }
 
 -- Pre-Stage all icon to have less calls to LUA API
@@ -800,7 +800,7 @@ function addon.MythicPlus.functions.setRandomHearthstone()
 	local randomIndex = math.random(1, #availableHearthstones)
 
 	local hs = availableHearthstones[randomIndex]
-	addon.MythicPlus.variables.portalCompendium[11].spells = {
+	addon.MythicPlus.variables.portalCompendium[9999].spells = {
 		[RANDOM_HS_ID] = {
 			text = "HS",
 			isItem = hs.isItem or false,

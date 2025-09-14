@@ -536,20 +536,24 @@ function addon.MythicPlus.functions.BuildTeleportCompendiumSections()
 
 				-- Handle multiple itemIDs by splitting into separate entries
 				-- If a class-specific mapping exists, only include the item for the player's class
-				if data.isItem and type(data.itemID) == "table" then
-					local allowedIDs = data.itemID
-					if data.classItemID and addon.variables and addon.variables.unitClass then
-						local classToken = addon.variables.unitClass
-						local classSpecific = data.classItemID[classToken]
-						if classSpecific then
-							allowedIDs = { classSpecific }
-						else
-							allowedIDs = {} -- this class cannot use any of these variants
-						end
-					end
-                    local baseShow = specOk
-                        and (not data.faction or data.faction == faction)
-                        and (not data.map or ((type(data.map) == "number" and data.map == aMapID) or (type(data.map) == "table" and data.map[aMapID])))
+            if data.isItem and type(data.itemID) == "table" then
+                local allowedIDs = data.itemID
+                if data.classItemID and addon.variables and addon.variables.unitClass then
+                    local classToken = addon.variables.unitClass
+                    local classSpecific = data.classItemID[classToken]
+                    if classSpecific then
+                        allowedIDs = { classSpecific }
+                    else
+                        allowedIDs = {} -- this class cannot use any of these variants
+                    end
+                end
+                local baseShow = specOk
+                    and (not data.faction or data.faction == faction)
+                    and (not data.map or ((type(data.map) == "number" and data.map == aMapID) or (type(data.map) == "table" and data.map[aMapID])))
+                    and (not data.isEngineering or hasEngineering)
+                    and (not data.isClassTP or (addon.variables and addon.variables.unitClass == data.isClassTP))
+                    and (not data.isRaceTP or (addon.variables and addon.variables.unitRace == data.isRaceTP))
+                    and (not data.isMagePortal or (addon.variables and addon.variables.unitClass == "MAGE"))
 
 					for _, iid in ipairs(allowedIDs) do
                     local knownX = C_Item.GetItemCount(iid) > 0
@@ -580,7 +584,7 @@ function addon.MythicPlus.functions.BuildTeleportCompendiumSections()
 							})
 						end
 					end
-				else
+            else
                 local known = (C_SpellBook.IsSpellInSpellBook(spellID) and not data.isToy)
                     or (hasEngineering and specOk and data.toyID and not data.isHearthstone and isToyUsable(data.toyID))
                     or (data.isItem and C_Item.GetItemCount(FirstOwnedItemID(data.itemID)) > 0)
@@ -589,6 +593,10 @@ function addon.MythicPlus.functions.BuildTeleportCompendiumSections()
                 local showSpell = specOk
                     and (not data.faction or data.faction == faction)
                     and (not data.map or ((type(data.map) == "number" and data.map == aMapID) or (type(data.map) == "table" and data.map[aMapID])))
+                    and (not data.isEngineering or hasEngineering)
+                    and (not data.isClassTP or (addon.variables and addon.variables.unitClass == data.isClassTP))
+                    and (not data.isRaceTP or (addon.variables and addon.variables.unitRace == data.isRaceTP))
+                    and (not data.isMagePortal or (addon.variables and addon.variables.unitClass == "MAGE"))
                     and (not addon.db["portalHideMissing"] or (addon.db["portalHideMissing"] and known))
 
                 -- Favourites always bypass non-availability filters (except Hide Missing)
@@ -596,7 +604,7 @@ function addon.MythicPlus.functions.BuildTeleportCompendiumSections()
                     showSpell = (not addon.db["portalHideMissing"] or (addon.db["portalHideMissing"] and known))
                 end
 
-					if showSpell then
+                if showSpell then
 						local iconID
 						local chosenItemID
 						if data.isItem then
