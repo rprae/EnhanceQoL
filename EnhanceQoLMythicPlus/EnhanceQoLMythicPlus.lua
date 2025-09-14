@@ -772,6 +772,16 @@ local function addTeleportFrame(container)
 			end,
 		},
 		{
+			text = L["teleportsWorldMapUseModern"],
+			var = "teleportsWorldMapUseModern",
+			func = function(self, _, value)
+				addon.db["teleportsWorldMapUseModern"] = value
+				container:ReleaseChildren()
+				addTeleportFrame(container)
+				-- World map panel will initialize itself on next map open or immediately if visible
+			end,
+		},
+		{
 			text = L["portalHideMissing"],
 			var = "portalHideMissing",
 		},

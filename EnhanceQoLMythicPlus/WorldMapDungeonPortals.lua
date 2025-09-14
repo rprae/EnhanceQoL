@@ -49,81 +49,10 @@ local function IsToyUsable(id)
 end
 
 local function BuildSpellEntries()
-	local faction = select(2, UnitFactionGroup("player"))
-	local comp = addon.MythicPlus and addon.MythicPlus.variables and addon.MythicPlus.variables.portalCompendium
-	if not comp then return {} end
-
-	local out = {}
-	local favorites = addon.db.teleportFavorites or {}
-
-	local function shouldInclude(data, spellID)
-		local aMapID = C_Map.GetBestMapForUnit("player")
-		local ok = true
-		if data.faction and data.faction ~= faction then ok = false end
-		if data.map then
-			if type(data.map) == "number" then
-				ok = ok and (data.map == aMapID)
-			elseif type(data.map) == "table" then
-				ok = ok and (data.map[aMapID] == true)
-			end
-		end
-		if addon.db["portalHideMissing"] then
-			if data.isToy then
-				ok = ok and IsToyUsable(data.toyID)
-			elseif data.isItem then
-				local iid = FirstOwnedItemID(data.itemID)
-				ok = ok and (iid and C_Item.GetItemCount(iid) > 0)
-			else
-				ok = ok and C_SpellBook.IsSpellInSpellBook(spellID)
-			end
-		end
-		if not ok and addon.db.teleportFavoritesIgnoreFilters and favorites[spellID] then ok = true end
-		return ok
-	end
-
-	for _, section in pairs(comp) do
-		local list = {}
-		for spellID, data in pairs(section.spells) do
-			if shouldInclude(data, spellID) then
-				local known = (C_SpellBook.IsSpellInSpellBook(spellID) and not data.isToy)
-					or (data.isToy and IsToyUsable(data.toyID))
-					or (data.isItem and C_Item.GetItemCount(FirstOwnedItemID(data.itemID)) > 0)
-
-				table.insert(list, {
-					spellID = spellID,
-					text = data.text,
-					iconID = data.iconID,
-					isToy = data.isToy,
-					toyID = data.toyID,
-					isItem = data.isItem,
-					itemID = FirstOwnedItemID(data.itemID),
-					isKnown = known,
-					isFavorite = favorites[spellID] or false,
-				})
-			end
-		end
-		if #list > 0 then
-			table.sort(list, function(a, b)
-				if a.isFavorite ~= b.isFavorite then return a.isFavorite end
-				if a.text ~= b.text then return a.text < b.text end
-				return (a.spellID or 0) < (b.spellID or 0)
-			end)
-			table.insert(out, { title = section.headline, items = list })
-		end
-	end
-
-	-- Favorites block on top (if any)
-	local favs = {}
-	for _, sec in ipairs(out) do
-		for _, it in ipairs(sec.items) do
-			if it.isFavorite then table.insert(favs, it) end
-		end
-	end
-	if #favs > 0 then
-		table.sort(favs, function(a, b) return a.text < b.text end)
-		table.insert(out, 1, { title = FAVORITES, items = favs })
-	end
-	return out
+    if not addon or not addon.MythicPlus or not addon.MythicPlus.functions then return {} end
+    if not addon.db or not addon.db["teleportsWorldMapUseModern"] then return {} end
+    if not addon.MythicPlus.functions.BuildTeleportCompendiumSections then return {} end
+    return addon.MythicPlus.functions.BuildTeleportCompendiumSections()
 end
 
 -- Panel creation -----------------------------------------------------------
@@ -275,28 +204,44 @@ local function CreateSecureSpellButton(parent, entry)
 
 	local tex = b:CreateTexture(nil, "ARTWORK")
 	tex:SetAllPoints(b)
-	if entry.iconID then
-		tex:SetTexture(entry.iconID)
-	else
-		tex:SetTexture(136121) -- generic portal swirl icon fallback
-	end
-	b.Icon = tex
+    if entry.iconID then tex:SetTexture(entry.iconID) else tex:SetTexture(136121) end
+    b.Icon = tex
 
 	b.cooldownFrame = CreateFrame("Cooldown", nil, b, "CooldownFrameTemplate")
 	b.cooldownFrame:SetAllPoints(b)
 	b.cooldownFrame:SetSwipeColor(0, 0, 0, 0.35)
 
-	-- Casting setup (Left click)
-	if entry.isToy then
-		b:SetAttribute("type1", "toy")
-		b:SetAttribute("toy", entry.toyID)
-	elseif entry.isItem then
-		b:SetAttribute("type1", "item")
-		b:SetAttribute("item", entry.itemID)
-	else
-		b:SetAttribute("type1", "spell")
-		b:SetAttribute("spell", entry.spellID)
-	end
+    -- Casting setup (Left click) — mirror compendium logic
+    if entry.isToy then
+        if entry.isKnown then
+            b:SetAttribute("type1", "macro")
+            b:SetAttribute("macrotext1", "/use item:" .. entry.toyID)
+        end
+    elseif entry.isItem then
+        if entry.isKnown then
+            b.itemID = entry.itemID
+            b.equipSlot = entry.equipSlot
+            b:SetAttribute("type1", "macro")
+            b:SetAttribute("macrotext1", "/use item:" .. entry.itemID)
+            if entry.equipSlot then
+                b:SetScript("PreClick", function(self)
+                    local slot = self.equipSlot
+                    if not slot or not self.itemID then return end
+                    local equippedID = GetInventoryItemID("player", slot)
+                    if equippedID ~= self.itemID then
+                        self:SetAttribute("type1", "macro")
+                        self:SetAttribute("macrotext1", "/equip item:" .. self.itemID)
+                    else
+                        self:SetAttribute("type1", "macro")
+                        self:SetAttribute("macrotext1", "/use item:" .. self.itemID)
+                    end
+                end)
+            end
+        end
+    else
+        b:SetAttribute("type1", "spell")
+        b:SetAttribute("spell", entry.spellID)
+    end
 
 	-- Favorite toggle (Right click)
 	b:RegisterForClicks("AnyUp")
@@ -331,9 +276,9 @@ local function CreateSecureSpellButton(parent, entry)
 	local fav = b:CreateTexture(nil, "OVERLAY")
 	fav:SetPoint("TOPRIGHT", 5, 5)
 	fav:SetSize(14, 14)
-	fav:SetAtlas("auctionhouse-icon-favorite")
-	fav:SetShown(entry.isFavorite)
-	b.FavOverlay = fav
+    fav:SetAtlas("auctionhouse-icon-favorite")
+    fav:SetShown(entry.isFavorite)
+    b.FavOverlay = fav
 
 	return b
 end
@@ -342,10 +287,10 @@ local function PopulatePanel()
 	if not panel then return end
 	ClearContent()
 
-	local sections = BuildSpellEntries()
-	if not sections or #sections == 0 then
-		local msg = (L["teleportCompendiumHeadline"] or "Teleports") .. ": None available"
-		local label = scrollBox:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+    local sections = BuildSpellEntries()
+    if not sections or #sections == 0 then
+        local msg = (L["teleportCompendiumHeadline"] or "Teleports") .. ": None available"
+        local label = scrollBox:CreateFontString(nil, "OVERLAY", "GameFontDisable")
 		label:SetPoint("TOPLEFT", 10, -10)
 		label:SetText(msg)
 		scrollBox:SetHeight(40)
@@ -354,7 +299,7 @@ local function PopulatePanel()
 
     local y = -24 -- approximate topPadding like MapLegend
     local xStart = 12 -- left padding like MapLegend
-	local x = xStart
+    local x = xStart
     local scrollW = panel.Scroll:GetWidth()
 	if not scrollW or scrollW <= 1 then
 		local pw = panel:GetWidth() or 0
@@ -364,14 +309,18 @@ local function PopulatePanel()
     -- subtract an allowance for the scrollbar + right padding
     local scrollbarWidth = (panel.Scroll.ScrollBar and panel.Scroll.ScrollBar:GetWidth()) or 18
     local maxWidth = math.max(100, scrollW - scrollbarWidth - 20)
-    local perRow = math.max(1, math.floor(maxWidth / 44))
-	local countInRow = 0
+    local tile = 28
+    local gap = 16 -- horizontal spacing between buttons
+    local labelH = 12 -- approx height of "GameFontNormalSmall"
+    local rowH = tile + 8 + labelH + 4 -- button + small top/bottom padding + label
+    local perRow = math.max(1, math.floor(maxWidth / (tile + gap)))
+    local countInRow = 0
 
-	local function nextRow()
-		y = y - 44
-		x = xStart
-		countInRow = 0
-	end
+    local function nextRow()
+        y = y - rowH
+        x = xStart
+        countInRow = 0
+    end
 
 	for _, section in ipairs(sections) do
         local header = scrollBox:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
@@ -379,35 +328,43 @@ local function PopulatePanel()
         header:SetText(section.title)
         y = y - 18
 
-		for _, entry in ipairs(section.items) do
-			if countInRow >= perRow then nextRow() end
-			local b = CreateSecureSpellButton(scrollBox, entry)
-			b:SetPoint("TOPLEFT", x, y)
+        for _, entry in ipairs(section.items) do
+            if countInRow >= perRow then nextRow() end
+            local b = CreateSecureSpellButton(scrollBox, entry)
+            b:SetPoint("TOPLEFT", x, y)
 
 			local label = scrollBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-			label:SetPoint("TOPLEFT", b, "BOTTOMLEFT", 0, -2)
-			label:SetText(entry.text)
+            label:SetPoint("TOPLEFT", b, "BOTTOMLEFT", 0, -2)
+            label:SetText(entry.text)
+            -- If unknown, visually mute and disable clicks to match compendium
+            if not entry.isKnown then
+                if b.Icon then b.Icon:SetDesaturated(true); b.Icon:SetAlpha(0.5) end
+                b:EnableMouse(false)
+            else
+                if b.Icon then b.Icon:SetDesaturated(false); b.Icon:SetAlpha(1) end
+                b:EnableMouse(true)
+            end
 
 			-- cooldown display
 			local cd
-			if entry.isToy and entry.toyID then
-				local st, dur, en = C_Item.GetItemCooldown(entry.toyID)
-				cd = { startTime = st, duration = dur, modRate = 1, isEnabled = en }
-			elseif entry.isItem and entry.itemID then
-				local st, dur, en = C_Item.GetItemCooldown(entry.itemID)
-				cd = { startTime = st, duration = dur, modRate = 1, isEnabled = en }
-			else
-				cd = C_Spell.GetSpellCooldown(entry.spellID)
-			end
-			if cd and cd.isEnabled and b.cooldownFrame then b.cooldownFrame:SetCooldown(cd.startTime, cd.duration, cd.modRate) end
+            if entry.isToy and entry.toyID then
+                local st, dur, en = C_Item.GetItemCooldown(entry.toyID)
+                cd = { startTime = st, duration = dur, modRate = 1, isEnabled = en }
+            elseif entry.isItem and entry.itemID then
+                local st, dur, en = C_Item.GetItemCooldown(entry.itemID)
+                cd = { startTime = st, duration = dur, modRate = 1, isEnabled = en }
+            else
+                cd = C_Spell.GetSpellCooldown(entry.spellID)
+            end
+            if cd and cd.isEnabled and b.cooldownFrame then b.cooldownFrame:SetCooldown(cd.startTime, cd.duration, cd.modRate) end
 
-			x = x + 44
-			countInRow = countInRow + 1
-		end
-		nextRow()
-	end
+            x = x + (tile + gap)
+            countInRow = countInRow + 1
+        end
+        nextRow()
+    end
 
-    scrollBox:SetHeight(math.abs(y) + 44)
+    scrollBox:SetHeight(math.abs(y) + rowH)
     if panel.Scroll and panel.Scroll.UpdateScrollChildRect then panel.Scroll:UpdateScrollChildRect() end
 end
 
@@ -507,8 +464,9 @@ end
 -- Glue into World Map ------------------------------------------------------
 local initialized = false
 function f:TryInit()
-	if initialized then return end
-	if not QuestMapFrame then return end
+    if initialized then return end
+    if not QuestMapFrame then return end
+    if not addon.db or not addon.db["teleportsWorldMapUseModern"] then return end
 
     local parent = QuestMapFrame
     EnsurePanel(parent)
@@ -587,24 +545,30 @@ function f:TryInit()
 		f._eqolDisplayEvent = true
 	end
 
-	initialized = panel and tabButton
+    initialized = panel and tabButton
 end
 
 function f:RefreshPanel()
-	if not panel or not panel:IsShown() then return end
-	PopulatePanel()
+    if not addon.db or not addon.db["teleportsWorldMapUseModern"] then
+        if panel then panel:Hide() end
+        return
+    end
+    if not panel or not panel:IsShown() then return end
+    PopulatePanel()
 end
 
 -- Events to build/refresh --------------------------------------------------
 f:SetScript("OnEvent", function(self, event, arg1)
-	if event == "PLAYER_LOGIN" or (event == "ADDON_LOADED" and (arg1 == "Blizzard_WorldMap" or arg1 == addonName or arg1 == parentAddonName)) then
-		C_Timer.After(0.3, function()
-			f:TryInit()
-			f:RefreshPanel()
-		end)
-	elseif event == "SPELLS_CHANGED" or event == "BAG_UPDATE_DELAYED" or event == "TOYS_UPDATED" then
-		f:RefreshPanel()
-	end
+    if event == "PLAYER_LOGIN" or (event == "ADDON_LOADED" and (arg1 == "Blizzard_WorldMap" or arg1 == addonName or arg1 == parentAddonName)) then
+        C_Timer.After(0.3, function()
+            if addon.db and addon.db["teleportsWorldMapUseModern"] then
+                f:TryInit()
+                f:RefreshPanel()
+            end
+        end)
+    elseif event == "SPELLS_CHANGED" or event == "BAG_UPDATE_DELAYED" or event == "TOYS_UPDATED" then
+        if addon.db and addon.db["teleportsWorldMapUseModern"] then f:RefreshPanel() end
+    end
 end)
 
 f:RegisterEvent("PLAYER_LOGIN")
@@ -615,9 +579,11 @@ f:RegisterEvent("TOYS_UPDATED")
 
 -- make sure we also initialize when the WorldMap opens
 if WorldMapFrame and not WorldMapFrame._eqolTeleportHook then
-	WorldMapFrame:HookScript("OnShow", function()
-		f:TryInit()
-		C_Timer.After(0, function() f:RefreshPanel() end)
-	end)
-	WorldMapFrame._eqolTeleportHook = true
+    WorldMapFrame:HookScript("OnShow", function()
+        if addon.db and addon.db["teleportsWorldMapUseModern"] then
+            f:TryInit()
+            C_Timer.After(0, function() f:RefreshPanel() end)
+        end
+    end)
+    WorldMapFrame._eqolTeleportHook = true
 end

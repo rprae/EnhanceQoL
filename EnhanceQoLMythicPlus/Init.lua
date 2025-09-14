@@ -104,6 +104,8 @@ addon.functions.InitDBValue("teleportFrame", false)
 addon.functions.InitDBValue("portalHideMissing", false)
 addon.functions.InitDBValue("portalShowTooltip", false)
 addon.functions.InitDBValue("teleportsEnableCompendium", false)
+-- World Map: modern compendium toggle
+addon.functions.InitDBValue("teleportsWorldMapUseModern", false)
 addon.functions.InitDBValue("teleportFavorites", {})
 addon.functions.InitDBValue("teleportFavoritesIgnoreExpansionHide", false)
 addon.functions.InitDBValue("teleportFavoritesIgnoreFilters", false)
