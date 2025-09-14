@@ -661,7 +661,7 @@ addon.MythicPlus.variables.portalCompendium = {
 				icon = 135226,
 				equipSlot = 16,
 			},
-			[39937] = { text = "KARA", isItem = true, itemID = 28585, isHearthstone = true, icon = 132566, equipSlot = 8 },
+			[39937] = { text = "HS", isItem = true, itemID = 28585, isHearthstone = true, icon = 132566, equipSlot = 8 },
 		},
 	},
 	[20] = {
