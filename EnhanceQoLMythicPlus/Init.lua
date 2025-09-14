@@ -648,7 +648,16 @@ addon.MythicPlus.variables.portalCompendium = {
 			[36890] = { text = "ENGI", isToy = true, toyID = 30542, isEngineering = true, isGoblin = true },
 
 			[41234] = { text = "HS", isItem = true, itemID = 32757, isHearthstone = true, icon = 133279, equipSlot = 2 },
-			[28148] = { text = "KARA", isItem = true, itemID = { 22589, 22632, 22630, 22631 }, isHearthstone = true, icon = 135226, equipSlot = 16 },
+			-- Atiesh variants are class-specific: map IDs by class so we can pick the right one
+			[28148] = {
+				text = "KARA",
+				isItem = true,
+				itemID = { 22589, 22632, 22630, 22631 },
+				classItemID = { MAGE = 22589, DRUID = 22632, WARLOCK = 22630, PRIEST = 22631 },
+				isHearthstone = true,
+				icon = 135226,
+				equipSlot = 16,
+			},
 			[39937] = { text = "KARA", isItem = true, itemID = 28585, isHearthstone = true, icon = 132566, equipSlot = 8 },
 		},
 	},
