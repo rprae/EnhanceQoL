@@ -283,6 +283,142 @@ local function CreateSecureSpellButton(parent, entry)
 	return b
 end
 
+-- MapLegend-style row button: icon left, text right, full-row highlight
+local function CreateLegendRowButton(parent, entry, width, height)
+    local b = CreateFrame("Button", nil, parent, "SecureActionButtonTemplate")
+    b:SetSize(width, height)
+    b.entry = entry
+
+    -- icon
+    local icon = b:CreateTexture(nil, "ARTWORK")
+    icon:SetPoint("LEFT", 4, 0)
+    icon:SetSize(height - 6, height - 6)
+    icon:SetTexture(entry.iconID or 136121)
+    b.Icon = icon
+
+    -- cooldown overlay on icon only
+    local cd = CreateFrame("Cooldown", nil, b, "CooldownFrameTemplate")
+    cd:SetPoint("CENTER", icon, "CENTER")
+    cd:SetSize(icon:GetWidth(), icon:GetHeight())
+    cd:SetSwipeColor(0, 0, 0, 0.35)
+    b.cooldownFrame = cd
+
+    -- favorite star overlay (on icon)
+    local fav = b:CreateTexture(nil, "OVERLAY")
+    fav:SetPoint("TOPRIGHT", icon, "TOPRIGHT", 4, 4)
+    fav:SetSize(14, 14)
+    fav:SetAtlas("auctionhouse-icon-favorite")
+    fav:SetShown(entry.isFavorite)
+    b.FavOverlay = fav
+
+    -- label to the right of the icon
+    local label = b:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    label:SetPoint("LEFT", icon, "RIGHT", 8, 0)
+    label:SetPoint("RIGHT", -6, 0)
+    label:SetJustifyH("LEFT")
+    label:SetWordWrap(false)
+    label:SetText(entry.text or "")
+    b.Label = label
+
+    -- full-row highlight
+    local hl = b:CreateTexture(nil, "HIGHLIGHT")
+    hl:SetAllPoints(b)
+    hl:SetColorTexture(1, 1, 1, 0.08)
+    b:SetHighlightTexture(hl)
+
+    -- Casting setup (Left click) — mirror compendium logic
+    if entry.isToy then
+        if entry.isKnown then
+            b:SetAttribute("type1", "macro")
+            b:SetAttribute("macrotext1", "/use item:" .. entry.toyID)
+        end
+    elseif entry.isItem then
+        if entry.isKnown then
+            b.itemID = entry.itemID
+            b.equipSlot = entry.equipSlot
+            b:SetAttribute("type1", "macro")
+            b:SetAttribute("macrotext1", "/use item:" .. entry.itemID)
+            if entry.equipSlot then
+                b:SetScript("PreClick", function(self)
+                    local slot = self.equipSlot
+                    if not slot or not self.itemID then return end
+                    local equippedID = GetInventoryItemID("player", slot)
+                    if equippedID ~= self.itemID then
+                        self:SetAttribute("type1", "macro")
+                        self:SetAttribute("macrotext1", "/equip item:" .. self.itemID)
+                    else
+                        self:SetAttribute("type1", "macro")
+                        self:SetAttribute("macrotext1", "/use item:" .. self.itemID)
+                    end
+                end)
+            end
+        end
+    else
+        b:SetAttribute("type1", "spell")
+        b:SetAttribute("spell", entry.spellID)
+    end
+
+    -- Right click: toggle favorite
+    b:RegisterForClicks("AnyUp")
+    b:SetScript("OnClick", function(self, btn)
+        if btn == "RightButton" then
+            local favs = addon.db.teleportFavorites or {}
+            if favs[self.entry.spellID] then
+                favs[self.entry.spellID] = nil
+            else
+                favs[self.entry.spellID] = true
+            end
+            addon.db.teleportFavorites = favs
+            f:RefreshPanel()
+        end
+    end)
+
+    -- Tooltip
+    b:SetScript("OnEnter", function(self)
+        if not addon.db["portalShowTooltip"] then return end
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        if entry.isToy then
+            GameTooltip:SetToyByItemID(entry.toyID)
+        elseif entry.isItem then
+            GameTooltip:SetItemByID(entry.itemID)
+        else
+            GameTooltip:SetSpellByID(entry.spellID)
+        end
+        GameTooltip:Show()
+    end)
+    b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+    -- Unknown/disabled visual state
+    if not entry.isKnown then
+        if b.Icon then b.Icon:SetDesaturated(true); b.Icon:SetAlpha(0.5) end
+        b:EnableMouse(false)
+    else
+        if b.Icon then b.Icon:SetDesaturated(false); b.Icon:SetAlpha(1) end
+        b:EnableMouse(true)
+    end
+
+    -- Set frame strata above background art
+    if panel then
+        b:SetFrameStrata(panel:GetFrameStrata())
+        b:SetFrameLevel((panel:GetFrameLevel() or 1) + 10)
+    end
+
+    -- apply cooldown state
+    local cdData
+    if entry.isToy and entry.toyID then
+        local st, dur, en = C_Item.GetItemCooldown(entry.toyID)
+        cdData = { startTime = st, duration = dur, modRate = 1, isEnabled = en }
+    elseif entry.isItem and entry.itemID then
+        local st, dur, en = C_Item.GetItemCooldown(entry.itemID)
+        cdData = { startTime = st, duration = dur, modRate = 1, isEnabled = en }
+    else
+        cdData = C_Spell.GetSpellCooldown(entry.spellID)
+    end
+    if cdData and cdData.isEnabled and b.cooldownFrame then b.cooldownFrame:SetCooldown(cdData.startTime, cdData.duration, cdData.modRate) end
+
+    return b
+end
+
 local function PopulatePanel()
 	if not panel then return end
 	ClearContent()
@@ -297,74 +433,59 @@ local function PopulatePanel()
 		return
 	end
 
-    local y = -24 -- approximate topPadding like MapLegend
-    local xStart = 12 -- left padding like MapLegend
-    local x = xStart
-    local scrollW = panel.Scroll:GetWidth()
-	if not scrollW or scrollW <= 1 then
-		local pw = panel:GetWidth() or 0
-		if pw <= 1 then pw = (panel:GetParent() and panel:GetParent():GetWidth()) or 0 end
-		scrollW = (pw > 1 and pw or 330) - 30
-	end
-    -- subtract an allowance for the scrollbar + right padding
+    -- Layout metrics similar to MapLegendScrollFrame
+    local leftPadding = 12
+    local topPadding = 25
+    local categorySpacing = 10
+    local buttonSpacingY = 5
+    local stride = 2 -- 2 columns
+    local rowHeight = 28
+
+    -- compute available width per column
+    local scrollW = panel.Scroll:GetWidth() or 330
     local scrollbarWidth = (panel.Scroll.ScrollBar and panel.Scroll.ScrollBar:GetWidth()) or 18
-    local maxWidth = math.max(100, scrollW - scrollbarWidth - 20)
-    local tile = 28
-    local gap = 16 -- horizontal spacing between buttons
-    local labelH = 12 -- approx height of "GameFontNormalSmall"
-    local rowH = tile + 8 + labelH + 4 -- button + small top/bottom padding + label
-    local perRow = math.max(1, math.floor(maxWidth / (tile + gap)))
-    local countInRow = 0
+    local usableWidth = math.max(120, scrollW - scrollbarWidth - 20)
+    local colWidth = math.floor((usableWidth - 0) / stride) -- no horizontal spacing requested
 
-    local function nextRow()
-        y = y - rowH
-        x = xStart
-        countInRow = 0
-    end
+    local yOffset = -topPadding
+    for _, section in ipairs(sections) do
+        -- category container
+        local category = CreateFrame("Frame", nil, scrollBox)
+        category:SetPoint("TOPLEFT", leftPadding, yOffset)
+        category:SetSize(usableWidth, 10) -- temporary height; will expand below
 
-	for _, section in ipairs(sections) do
-        local header = scrollBox:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-        header:SetPoint("TOPLEFT", xStart - 2, y)
-        header:SetText(section.title)
-        y = y - 18
+        -- title
+        local titleFS = category:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        titleFS:SetPoint("TOPLEFT", 0, 0)
+        titleFS:SetText(section.title or "")
 
-        for _, entry in ipairs(section.items) do
-            if countInRow >= perRow then nextRow() end
-            local b = CreateSecureSpellButton(scrollBox, entry)
-            b:SetPoint("TOPLEFT", x, y)
-
-			local label = scrollBox:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-            label:SetPoint("TOPLEFT", b, "BOTTOMLEFT", 0, -2)
-            label:SetText(entry.text)
-            -- If unknown, visually mute and disable clicks to match compendium
-            if not entry.isKnown then
-                if b.Icon then b.Icon:SetDesaturated(true); b.Icon:SetAlpha(0.5) end
-                b:EnableMouse(false)
-            else
-                if b.Icon then b.Icon:SetDesaturated(false); b.Icon:SetAlpha(1) end
-                b:EnableMouse(true)
-            end
-
-			-- cooldown display
-			local cd
-            if entry.isToy and entry.toyID then
-                local st, dur, en = C_Item.GetItemCooldown(entry.toyID)
-                cd = { startTime = st, duration = dur, modRate = 1, isEnabled = en }
-            elseif entry.isItem and entry.itemID then
-                local st, dur, en = C_Item.GetItemCooldown(entry.itemID)
-                cd = { startTime = st, duration = dur, modRate = 1, isEnabled = en }
-            else
-                cd = C_Spell.GetSpellCooldown(entry.spellID)
-            end
-            if cd and cd.isEnabled and b.cooldownFrame then b.cooldownFrame:SetCooldown(cd.startTime, cd.duration, cd.modRate) end
-
-            x = x + (tile + gap)
-            countInRow = countInRow + 1
+        -- build buttons for this category
+        local buttons = {}
+        for i, entry in ipairs(section.items or {}) do
+            local b = CreateLegendRowButton(category, entry, colWidth, rowHeight)
+            table.insert(buttons, b)
         end
-        nextRow()
+
+        -- grid layout with 2 columns, xSpacing=0, ySpacing=5
+        if #buttons > 0 then
+            local layout = AnchorUtil.CreateGridLayout(GridLayoutMixin.Direction.TopLeftToBottomRight, stride, 0, buttonSpacingY)
+            local anchor = CreateAnchor("TOPLEFT", category, "TOPLEFT", 0, -3 - (titleFS:GetStringHeight() or 14))
+            AnchorUtil.GridLayout(buttons, anchor, layout)
+
+            -- adjust button widths to column width
+            for _, b in ipairs(buttons) do b:SetWidth(colWidth) end
+        end
+
+        -- compute category height: title + rows*rowHeight + spacing
+        local rows = math.ceil((#buttons) / stride)
+        local catHeight = (titleFS:GetStringHeight() or 14) + 3 + (rows > 0 and ((rows - 1) * (rowHeight + buttonSpacingY) + rowHeight) or 0)
+        category:SetHeight(catHeight)
+
+        yOffset = yOffset - catHeight - categorySpacing
     end
 
-    scrollBox:SetHeight(math.abs(y) + rowH)
+    -- update scroll child extents
+    scrollBox:SetHeight(math.abs(yOffset) + topPadding)
     if panel.Scroll and panel.Scroll.UpdateScrollChildRect then panel.Scroll:UpdateScrollChildRect() end
 end
 
