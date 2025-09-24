@@ -20,7 +20,9 @@
 
 - **Health Macro:** Option to use **combat potions** in combat
 
--- **GameMenu size:** Option to scale the Game Menu
+- **GameMenu size:** Option to scale the Game Menu
+
+- **Castbars:** Option to hide Player, Target and Focus-castbar
 
 ### 🔄 Changed
 

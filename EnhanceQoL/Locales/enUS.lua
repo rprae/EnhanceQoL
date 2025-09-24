@@ -240,6 +240,13 @@ L["lockMinimapButtonBin"] = "Lock the button sink frame"
 L["enableGameMenuScale"] = "Enable Game Menu scaling"
 L["gameMenuScale"] = "Game Menu scale"
 
+-- Unit Frames: Cast bars
+L["CastBars"] = "Cast Bars"
+L["castBarsToHide"] = "Cast bars to hide"
+L["castBar_player"] = "Player"
+L["castBar_target"] = "Target"
+L["castBar_focus"] = "Focus"
+
 L["UnitFrameHideExplain"] = "Hide the element and only show it on mouseover"
 L["chatFrameFadeEnabled"] = "Enable chat fading"
 L["chatFrameFadeTimeVisibleText"] = "Text remains visible for"

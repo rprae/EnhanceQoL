@@ -3,7 +3,7 @@
 -- luacheck: globals GenericTraitUI_LoadUI GenericTraitFrame
 -- luacheck: globals CancelDuel DeclineGroup C_PetBattles
 -- luacheck: globals ExpansionLandingPage ExpansionLandingPageMinimapButton ShowGarrisonLandingPage GarrisonLandingPage GarrisonLandingPage_Toggle GarrisonLandingPageMinimapButton CovenantSanctumFrame CovenantSanctumFrame_LoadUI EasyMenu
--- luacheck: globals ActionButton_UpdateRangeIndicator MAINMENU_BUTTON
+-- luacheck: globals ActionButton_UpdateRangeIndicator MAINMENU_BUTTON PlayerCastingBarFrame TargetFrameSpellBar FocusFrameSpellBar
 local addonName, addon = ...
 
 local LDB = LibStub("LibDataBroker-1.1")
@@ -1820,6 +1820,33 @@ local function addUnitFrame(container)
 	groupCoreUF:AddChild(sliderScale)
 
 	groupCoreUF:AddChild(addon.functions.createSpacerAce())
+
+	-- Cast bars multiselect dropdown
+	local groupCast = addon.functions.createContainer("InlineGroup", "List")
+	groupCast:SetTitle(L["CastBars"] or "Cast Bars")
+	groupCoreUF:AddChild(groupCast)
+
+	local dd = AceGUI:Create("Dropdown")
+	dd:SetLabel(L["castBarsToHide"] or "Cast bars to hide")
+	local list = {
+		PlayerCastingBarFrame = L["castBar_player"] or _G.PLAYER or "Player",
+		TargetFrameSpellBar = L["castBar_target"] or TARGET or "Target",
+		FocusFrameSpellBar = L["castBar_focus"] or FOCUS or "Focus",
+	}
+	local order = { "PlayerCastingBarFrame", "TargetFrameSpellBar", "FocusFrameSpellBar" }
+	dd:SetList(list, order)
+	dd:SetMultiselect(true)
+	dd:SetFullWidth(true)
+	dd:SetCallback("OnValueChanged", function(widget, _, key, checked)
+		addon.db.hiddenCastBars = addon.db.hiddenCastBars or {}
+		addon.db.hiddenCastBars[key] = checked and true or false
+		addon.functions.ApplyCastBarVisibility()
+	end)
+	-- Initialize selection state
+	if type(addon.db.hiddenCastBars) == "table" then
+		for k, v in pairs(addon.db.hiddenCastBars) do if v then dd:SetItemValue(k, true) end end
+	end
+	groupCast:AddChild(dd)
 
 	if addon.db["showPartyFrameInSoloContent"] then
 		local cbHidePlayerFrame = addon.functions.createCheckboxAce(L["hidePlayerFrame"], addon.db["hidePlayerFrame"], function(self, _, value)
@@ -4494,6 +4521,7 @@ local function initUnitFrame()
 	addon.functions.InitDBValue("unitFrameMaxNameLength", addon.variables.unitFrameMaxNameLength)
 	addon.functions.InitDBValue("unitFrameScaleEnabled", false)
 	addon.functions.InitDBValue("unitFrameScale", addon.variables.unitFrameScale)
+	addon.functions.InitDBValue("hiddenCastBars", addon.db["hiddenCastBars"] or {})
 	if addon.db["hideHitIndicatorPlayer"] then PlayerFrame.PlayerFrameContent.PlayerFrameContentMain.HitIndicator:Hide() end
 
 	if PetHitIndicator then hooksecurefunc(PetHitIndicator, "Show", function(self)
@@ -4594,9 +4622,38 @@ local function initUnitFrame()
 		if CompactPartyFrame then CompactPartyFrame:SetScale(addon.db["unitFrameScale"]) end
 	end
 
+	-- Cast bar visibility handling
+	local castBarFrames = {
+		PlayerCastingBarFrame = function() return _G.PlayerCastingBarFrame end,
+		TargetFrameSpellBar = function() return _G.TargetFrameSpellBar end,
+		FocusFrameSpellBar = function() return _G.FocusFrameSpellBar end,
+	}
+
+	local function EnsureCastbarHook(frame)
+		if not frame or frame.EQOL_CastbarHooked then return end
+		frame:HookScript("OnShow", function(self)
+			if addon.db and addon.db.hiddenCastBars and addon.db.hiddenCastBars[self:GetName()] then self:Hide() end
+		end)
+		frame.EQOL_CastbarHooked = true
+	end
+
+	function addon.functions.ApplyCastBarVisibility()
+		if not addon.db or type(addon.db.hiddenCastBars) ~= "table" then return end
+		for key, getter in pairs(castBarFrames) do
+			local frame = getter and getter() or _G[key]
+			if frame then
+				EnsureCastbarHook(frame)
+				if addon.db.hiddenCastBars[key] then
+					frame:Hide()
+				end
+			end
+		end
+	end
+
 	if addon.db["hideRaidFrameBuffs"] then addon.functions.updateRaidFrameBuffs() end
 	if addon.db["unitFrameTruncateNames"] then addon.functions.updateUnitFrameNames() end
 	if addon.db["unitFrameScaleEnabled"] then addon.functions.updatePartyFrameScale() end
+	addon.functions.ApplyCastBarVisibility()
 
 	for _, cbData in ipairs(addon.variables.unitFrameNames) do
 		if cbData.var and cbData.name then
