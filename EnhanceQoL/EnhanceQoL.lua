@@ -1416,282 +1416,313 @@ end
 
 -- New modular minimap UI builder that avoids full page rebuilds
 local function addMinimapFrame(container)
-    local ui = { groups = {} }
+	local ui = { groups = {} }
 
-    local scroll = addon.functions.createContainer("ScrollFrame", "Flow")
-    scroll:SetFullWidth(true)
-    scroll:SetFullHeight(true)
-    container:AddChild(scroll)
+	local scroll = addon.functions.createContainer("ScrollFrame", "Flow")
+	scroll:SetFullWidth(true)
+	scroll:SetFullHeight(true)
+	container:AddChild(scroll)
 
-    local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
-    scroll:AddChild(wrapper)
+	local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
+	scroll:AddChild(wrapper)
 
-    ui.scroll = scroll
-    ui.wrapper = wrapper
+	ui.scroll = scroll
+	ui.wrapper = wrapper
 
-    local function doLayout()
-        if ui.scroll and ui.scroll.DoLayout then ui.scroll:DoLayout() end
-    end
+	local function doLayout()
+		if ui.scroll and ui.scroll.DoLayout then ui.scroll:DoLayout() end
+	end
 
-    local function ensureGroup(key, title)
-        local g = ui.groups[key]
-        if not g then
-            g = addon.functions.createContainer("InlineGroup", "List")
-            g:SetTitle(title)
-            ui.groups[key] = g
-            wrapper:AddChild(g)
-        end
-        g:ReleaseChildren()
-        return g
-    end
+	local function ensureGroup(key, title)
+		local g = ui.groups[key]
+		if not g then
+			g = addon.functions.createContainer("InlineGroup", "List")
+			g:SetTitle(title)
+			ui.groups[key] = g
+			wrapper:AddChild(g)
+		end
+		g:ReleaseChildren()
+		return g
+	end
 
-    local function buildGeneral()
-        local g = ensureGroup("general", MINIMAP_LABEL)
-        local cb = addon.functions.createCheckboxAce(L["enableWayCommand"], addon.db["enableWayCommand"], function(self, _, value)
-            addon.db["enableWayCommand"] = value
-            if value then
-                addon.functions.registerWayCommand()
-            else
-                addon.variables.requireReload = true
-            end
-        end, L["enableWayCommandDesc"])
-        g:AddChild(cb)
-        doLayout()
-    end
+	local function buildGeneral()
+		local g = ensureGroup("general", MINIMAP_LABEL)
+		local cb = addon.functions.createCheckboxAce(L["enableWayCommand"], addon.db["enableWayCommand"], function(self, _, value)
+			addon.db["enableWayCommand"] = value
+			if value then
+				addon.functions.registerWayCommand()
+			else
+				addon.variables.requireReload = true
+			end
+		end, L["enableWayCommandDesc"])
+		g:AddChild(cb)
+		doLayout()
+	end
 
-    local function buildSpec()
-        local g = ensureGroup("spec", SPECIALIZATION)
-        local cb = addon.functions.createCheckboxAce(L["enableLootspecQuickswitch"], addon.db["enableLootspecQuickswitch"], function(self, _, value)
-            addon.db["enableLootspecQuickswitch"] = value
-            if value then
-                addon.functions.createLootspecFrame()
-            else
-                addon.functions.removeLootspecframe()
-            end
-        end, L["enableLootspecQuickswitchDesc"])
-        g:AddChild(cb)
-        doLayout()
-    end
+	local function buildSpec()
+		local g = ensureGroup("spec", SPECIALIZATION)
+		local cb = addon.functions.createCheckboxAce(L["enableLootspecQuickswitch"], addon.db["enableLootspecQuickswitch"], function(self, _, value)
+			addon.db["enableLootspecQuickswitch"] = value
+			if value then
+				addon.functions.createLootspecFrame()
+			else
+				addon.functions.removeLootspecframe()
+			end
+		end, L["enableLootspecQuickswitchDesc"])
+		g:AddChild(cb)
+		doLayout()
+	end
 
-    local function buildHideElements()
-        local g = ensureGroup("hideElements", HUD_EDIT_MODE_MINIMAP_LABEL)
-        local dd = AceGUI:Create("Dropdown")
-        dd:SetLabel(L["minimapHideElements"])
-        local list = {
-            Tracking = L["minimapHideElements_Tracking"],
-            ZoneInfo = L["minimapHideElements_ZoneInfo"],
-            Clock = L["minimapHideElements_Clock"],
-            Calendar = L["minimapHideElements_Calendar"],
-            Mail = L["minimapHideElements_Mail"],
-            AddonCompartment = L["minimapHideElements_AddonCompartment"],
-        }
-        local order = { "Tracking", "ZoneInfo", "Clock", "Calendar", "Mail", "AddonCompartment" }
-        dd:SetList(list, order)
-        dd:SetMultiselect(true)
-        dd:SetFullWidth(true)
-        dd:SetCallback("OnValueChanged", function(widget, _, key, checked)
-            addon.db.hiddenMinimapElements = addon.db.hiddenMinimapElements or {}
-            addon.db.hiddenMinimapElements[key] = checked and true or false
-            if addon.functions.ApplyMinimapElementVisibility then addon.functions.ApplyMinimapElementVisibility() end
-        end)
-        if type(addon.db.hiddenMinimapElements) == "table" then
-            for k, v in pairs(addon.db.hiddenMinimapElements) do
-                if v then dd:SetItemValue(k, true) end
-            end
-        end
-        addon.elements["minimapHideElementsDD"] = dd
-        g:AddChild(dd)
-        doLayout()
-    end
+	local function buildHideElements()
+		local g = ensureGroup("hideElements", HUD_EDIT_MODE_MINIMAP_LABEL)
+		local dd = AceGUI:Create("Dropdown")
+		dd:SetLabel(L["minimapHideElements"])
+		local list = {
+			Tracking = L["minimapHideElements_Tracking"],
+			ZoneInfo = L["minimapHideElements_ZoneInfo"],
+			Clock = L["minimapHideElements_Clock"],
+			Calendar = L["minimapHideElements_Calendar"],
+			Mail = L["minimapHideElements_Mail"],
+			AddonCompartment = L["minimapHideElements_AddonCompartment"],
+		}
+		local order = { "Tracking", "ZoneInfo", "Clock", "Calendar", "Mail", "AddonCompartment" }
+		dd:SetList(list, order)
+		dd:SetMultiselect(true)
+		dd:SetFullWidth(true)
+		dd:SetCallback("OnValueChanged", function(widget, _, key, checked)
+			addon.db.hiddenMinimapElements = addon.db.hiddenMinimapElements or {}
+			addon.db.hiddenMinimapElements[key] = checked and true or false
+			if addon.functions.ApplyMinimapElementVisibility then addon.functions.ApplyMinimapElementVisibility() end
+		end)
+		if type(addon.db.hiddenMinimapElements) == "table" then
+			for k, v in pairs(addon.db.hiddenMinimapElements) do
+				if v then dd:SetItemValue(k, true) end
+			end
+		end
+		addon.elements["minimapHideElementsDD"] = dd
+		g:AddChild(dd)
+		doLayout()
+	end
 
-    local function buildSquare()
-        local g = ensureGroup("square", L["SquareMinimap"])
-        local cbSquare = addon.functions.createCheckboxAce(L["enableSquareMinimap"], addon.db["enableSquareMinimap"], function(self, _, value)
-            addon.db["enableSquareMinimap"] = value
-            addon.variables.requireReload = true
-            addon.functions.checkReloadFrame()
-        end, L["enableSquareMinimapDesc"])
-        g:AddChild(cbSquare)
+	local function buildSquare()
+		local g = ensureGroup("square", L["SquareMinimap"])
+		local cbSquare = addon.functions.createCheckboxAce(L["enableSquareMinimap"], addon.db["enableSquareMinimap"], function(self, _, value)
+			addon.db["enableSquareMinimap"] = value
+			addon.variables.requireReload = true
+			addon.functions.checkReloadFrame()
+		end, L["enableSquareMinimapDesc"])
+		g:AddChild(cbSquare)
 
-        if addon.db["enableSquareMinimap"] then
-            local cbBorder = addon.functions.createCheckboxAce(L["enableSquareMinimapBorder"], addon.db["enableSquareMinimapBorder"], function(self, _, value)
-                addon.db["enableSquareMinimapBorder"] = value
-                if addon.functions.applySquareMinimapBorder then addon.functions.applySquareMinimapBorder() end
-                buildSquare()
-            end, L["enableSquareMinimapBorderDesc"])
-            g:AddChild(cbBorder)
+		if addon.db["enableSquareMinimap"] then
+			local cbBorder = addon.functions.createCheckboxAce(L["enableSquareMinimapBorder"], addon.db["enableSquareMinimapBorder"], function(self, _, value)
+				addon.db["enableSquareMinimapBorder"] = value
+				if addon.functions.applySquareMinimapBorder then addon.functions.applySquareMinimapBorder() end
+				buildSquare()
+			end, L["enableSquareMinimapBorderDesc"])
+			g:AddChild(cbBorder)
 
-            if addon.db["enableSquareMinimapBorder"] then
-                local size = addon.functions.createSliderAce(L["squareMinimapBorderSize"] .. ": " .. (addon.db["squareMinimapBorderSize"] or 1), addon.db["squareMinimapBorderSize"], 1, 8, 1, function(self, _, val)
-                    addon.db["squareMinimapBorderSize"] = val
-                    self:SetLabel(L["squareMinimapBorderSize"] .. ": " .. tostring(val))
-                    if addon.functions.applySquareMinimapBorder then addon.functions.applySquareMinimapBorder() end
-                end)
-                g:AddChild(size)
+			if addon.db["enableSquareMinimapBorder"] then
+				local size = addon.functions.createSliderAce(
+					L["squareMinimapBorderSize"] .. ": " .. (addon.db["squareMinimapBorderSize"] or 1),
+					addon.db["squareMinimapBorderSize"],
+					1,
+					8,
+					1,
+					function(self, _, val)
+						addon.db["squareMinimapBorderSize"] = val
+						self:SetLabel(L["squareMinimapBorderSize"] .. ": " .. tostring(val))
+						if addon.functions.applySquareMinimapBorder then addon.functions.applySquareMinimapBorder() end
+					end
+				)
+				g:AddChild(size)
 
-                local cp = AceGUI:Create("ColorPicker")
-                cp:SetLabel(L["squareMinimapBorderColor"])
-                local c = addon.db["squareMinimapBorderColor"] or { r = 0, g = 0, b = 0 }
-                cp:SetColor(c.r or 0, c.g or 0, c.b or 0)
-                cp:SetCallback("OnValueChanged", function(_, _, r, g, b)
-                    addon.db["squareMinimapBorderColor"] = { r = r, g = g, b = b }
-                    if addon.functions.applySquareMinimapBorder then addon.functions.applySquareMinimapBorder() end
-                end)
-                g:AddChild(cp)
-            end
-        end
-        doLayout()
-    end
+				local cp = AceGUI:Create("ColorPicker")
+				cp:SetLabel(L["squareMinimapBorderColor"])
+				local c = addon.db["squareMinimapBorderColor"] or { r = 0, g = 0, b = 0 }
+				cp:SetColor(c.r or 0, c.g or 0, c.b or 0)
+				cp:SetCallback("OnValueChanged", function(_, _, r, g, b)
+					addon.db["squareMinimapBorderColor"] = { r = r, g = g, b = b }
+					if addon.functions.applySquareMinimapBorder then addon.functions.applySquareMinimapBorder() end
+				end)
+				g:AddChild(cp)
+			end
+		end
+		doLayout()
+	end
 
-    local function buildButtonBin()
-        local g = ensureGroup("buttonBin", L["MinimapButtonSinkGroup"])
-        local cb = addon.functions.createCheckboxAce(L["enableMinimapButtonBin"], addon.db["enableMinimapButtonBin"], function(self, _, value)
-            addon.db["enableMinimapButtonBin"] = value
-            addon.functions.toggleButtonSink()
-            buildButtonBin()
-        end, L["enableMinimapButtonBinDesc"])
-        g:AddChild(cb)
+	local function buildButtonBin()
+		local g = ensureGroup("buttonBin", L["MinimapButtonSinkGroup"])
+		local cb = addon.functions.createCheckboxAce(L["enableMinimapButtonBin"], addon.db["enableMinimapButtonBin"], function(self, _, value)
+			addon.db["enableMinimapButtonBin"] = value
+			addon.functions.toggleButtonSink()
+			buildButtonBin()
+		end, L["enableMinimapButtonBinDesc"])
+		g:AddChild(cb)
 
-        if addon.db["enableMinimapButtonBin"] then
-            local cbIcon = addon.functions.createCheckboxAce(L["useMinimapButtonBinIcon"], addon.db["useMinimapButtonBinIcon"], function(self, _, value)
-                addon.db["useMinimapButtonBinIcon"] = value
-                if value then addon.db["useMinimapButtonBinMouseover"] = false end
-                addon.functions.toggleButtonSink()
-                buildButtonBin()
-            end)
-            g:AddChild(cbIcon)
+		if addon.db["enableMinimapButtonBin"] then
+			local cbIcon = addon.functions.createCheckboxAce(L["useMinimapButtonBinIcon"], addon.db["useMinimapButtonBinIcon"], function(self, _, value)
+				addon.db["useMinimapButtonBinIcon"] = value
+				if value then addon.db["useMinimapButtonBinMouseover"] = false end
+				addon.functions.toggleButtonSink()
+				buildButtonBin()
+			end)
+			g:AddChild(cbIcon)
 
-            local cbMouse = addon.functions.createCheckboxAce(L["useMinimapButtonBinMouseover"], addon.db["useMinimapButtonBinMouseover"], function(self, _, value)
-                addon.db["useMinimapButtonBinMouseover"] = value
-                if value then addon.db["useMinimapButtonBinIcon"] = false end
-                addon.functions.toggleButtonSink()
-                buildButtonBin()
-            end)
-            g:AddChild(cbMouse)
+			local cbMouse = addon.functions.createCheckboxAce(L["useMinimapButtonBinMouseover"], addon.db["useMinimapButtonBinMouseover"], function(self, _, value)
+				addon.db["useMinimapButtonBinMouseover"] = value
+				if value then addon.db["useMinimapButtonBinIcon"] = false end
+				addon.functions.toggleButtonSink()
+				buildButtonBin()
+			end)
+			g:AddChild(cbMouse)
 
-            if not addon.db["useMinimapButtonBinIcon"] then
-                local cbLock = addon.functions.createCheckboxAce(L["lockMinimapButtonBin"], addon.db["lockMinimapButtonBin"], function(self, _, value)
-                    addon.db["lockMinimapButtonBin"] = value
-                    addon.functions.toggleButtonSink()
-                end)
-                g:AddChild(cbLock)
-            end
+			if not addon.db["useMinimapButtonBinIcon"] then
+				local cbLock = addon.functions.createCheckboxAce(L["lockMinimapButtonBin"], addon.db["lockMinimapButtonBin"], function(self, _, value)
+					addon.db["lockMinimapButtonBin"] = value
+					addon.functions.toggleButtonSink()
+				end)
+				g:AddChild(cbLock)
+			end
 
-            local lbl = AceGUI:Create("Label")
-            lbl:SetText(MINIMAP_LABEL .. ": " .. L["ignoreMinimapSinkHole"])
-            lbl:SetFont(addon.variables.defaultFont, 12, "OUTLINE")
-            lbl:SetFullWidth(true)
-            g:AddChild(lbl)
+			local lbl = AceGUI:Create("Label")
+			lbl:SetText(MINIMAP_LABEL .. ": " .. L["ignoreMinimapSinkHole"])
+			lbl:SetFont(addon.variables.defaultFont, 12, "OUTLINE")
+			lbl:SetFullWidth(true)
+			g:AddChild(lbl)
 
-            for i, _ in pairs(addon.variables.bagButtonState) do
-                local cbIg = addon.functions.createCheckboxAce(i, addon.db["ignoreMinimapButtonBin_" .. i] or false, function(self, _, value)
-                    addon.db["ignoreMinimapButtonBin_" .. i] = value
-                    addon.functions.LayoutButtons()
-                end)
-                g:AddChild(cbIg)
-            end
-        end
+			for i, _ in pairs(addon.variables.bagButtonState) do
+				local cbIg = addon.functions.createCheckboxAce(i, addon.db["ignoreMinimapButtonBin_" .. i] or false, function(self, _, value)
+					addon.db["ignoreMinimapButtonBin_" .. i] = value
+					addon.functions.LayoutButtons()
+				end)
+				g:AddChild(cbIg)
+			end
+		end
 
-        doLayout()
-    end
+		doLayout()
+	end
 
-    local function buildLanding()
-        local g = ensureGroup("landing", L["LandingPage"])
-        local cb = addon.functions.createCheckboxAce(L["enableLandingPageMenu"], addon.db["enableLandingPageMenu"], function(self, _, value)
-            addon.db["enableLandingPageMenu"] = value
-        end, L["enableLandingPageMenuDesc"])
-        g:AddChild(cb)
+	local function buildLanding()
+		local g = ensureGroup("landing", L["LandingPage"])
+		local cb = addon.functions.createCheckboxAce(
+			L["enableLandingPageMenu"],
+			addon.db["enableLandingPageMenu"],
+			function(self, _, value) addon.db["enableLandingPageMenu"] = value end,
+			L["enableLandingPageMenuDesc"]
+		)
+		g:AddChild(cb)
 
-        local lbl = AceGUI:Create("Label")
-        lbl:SetText(L["landingPageHide"])
-        lbl:SetFont(addon.variables.defaultFont, 12, "OUTLINE")
-        lbl:SetFullWidth(true)
-        g:AddChild(lbl)
+		local lbl = AceGUI:Create("Label")
+		lbl:SetText(L["landingPageHide"])
+		lbl:SetFont(addon.variables.defaultFont, 12, "OUTLINE")
+		lbl:SetFullWidth(true)
+		g:AddChild(lbl)
 
-        for id in pairs(addon.variables.landingPageType) do
-            local page = addon.variables.landingPageType[id]
-            local actValue = addon.db["hiddenLandingPages"][id] or false
-            local cbLP = addon.functions.createCheckboxAce(page.checkbox, actValue, function(self, _, value)
-                addon.db["hiddenLandingPages"][id] = value
-                addon.functions.toggleLandingPageButton(page.title, value)
-            end)
-            g:AddChild(cbLP)
-        end
-        doLayout()
-    end
+		for id in pairs(addon.variables.landingPageType) do
+			local page = addon.variables.landingPageType[id]
+			local actValue = addon.db["hiddenLandingPages"][id] or false
+			local cbLP = addon.functions.createCheckboxAce(page.checkbox, actValue, function(self, _, value)
+				addon.db["hiddenLandingPages"][id] = value
+				addon.functions.toggleLandingPageButton(page.title, value)
+			end)
+			g:AddChild(cbLP)
+		end
+		doLayout()
+	end
 
-    local function buildInstanceDifficulty()
-        local g = ensureGroup("instanceDiff", L["showInstanceDifficulty"])
-        local cb = addon.functions.createCheckboxAce(L["showInstanceDifficulty"], addon.db["showInstanceDifficulty"], function(self, _, value)
-            addon.db["showInstanceDifficulty"] = value
-            if addon.InstanceDifficulty and addon.InstanceDifficulty.SetEnabled then addon.InstanceDifficulty:SetEnabled(value) end
-            buildInstanceDifficulty()
-        end, L["showInstanceDifficultyDesc"])
-        g:AddChild(cb)
+	local function buildInstanceDifficulty()
+		local g = ensureGroup("instanceDiff", L["showInstanceDifficulty"])
+		local cb = addon.functions.createCheckboxAce(L["showInstanceDifficulty"], addon.db["showInstanceDifficulty"], function(self, _, value)
+			addon.db["showInstanceDifficulty"] = value
+			if addon.InstanceDifficulty and addon.InstanceDifficulty.SetEnabled then addon.InstanceDifficulty:SetEnabled(value) end
+			buildInstanceDifficulty()
+		end, L["showInstanceDifficultyDesc"])
+		g:AddChild(cb)
 
-        if addon.db["showInstanceDifficulty"] then
-            local sliderSize = addon.functions.createSliderAce(L["instanceDifficultyFontSize"] .. ": " .. addon.db["instanceDifficultyFontSize"], addon.db["instanceDifficultyFontSize"], 8, 28, 1, function(self, _, val)
-                addon.db["instanceDifficultyFontSize"] = val
-                self:SetLabel(L["instanceDifficultyFontSize"] .. ": " .. tostring(val))
-                if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
-            end)
-            g:AddChild(sliderSize)
+		if addon.db["showInstanceDifficulty"] then
+			local sliderSize = addon.functions.createSliderAce(
+				L["instanceDifficultyFontSize"] .. ": " .. addon.db["instanceDifficultyFontSize"],
+				addon.db["instanceDifficultyFontSize"],
+				8,
+				28,
+				1,
+				function(self, _, val)
+					addon.db["instanceDifficultyFontSize"] = val
+					self:SetLabel(L["instanceDifficultyFontSize"] .. ": " .. tostring(val))
+					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
+				end
+			)
+			g:AddChild(sliderSize)
 
-            local sliderX = addon.functions.createSliderAce(L["instanceDifficultyOffsetX"] .. ": " .. addon.db["instanceDifficultyOffsetX"], addon.db["instanceDifficultyOffsetX"], -400, 400, 1, function(self, _, val)
-                addon.db["instanceDifficultyOffsetX"] = val
-                self:SetLabel(L["instanceDifficultyOffsetX"] .. ": " .. tostring(val))
-                if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
-            end)
-            g:AddChild(sliderX)
+			local sliderX = addon.functions.createSliderAce(
+				L["instanceDifficultyOffsetX"] .. ": " .. addon.db["instanceDifficultyOffsetX"],
+				addon.db["instanceDifficultyOffsetX"],
+				-400,
+				400,
+				1,
+				function(self, _, val)
+					addon.db["instanceDifficultyOffsetX"] = val
+					self:SetLabel(L["instanceDifficultyOffsetX"] .. ": " .. tostring(val))
+					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
+				end
+			)
+			g:AddChild(sliderX)
 
-            local sliderY = addon.functions.createSliderAce(L["instanceDifficultyOffsetY"] .. ": " .. addon.db["instanceDifficultyOffsetY"], addon.db["instanceDifficultyOffsetY"], -400, 400, 1, function(self, _, val)
-                addon.db["instanceDifficultyOffsetY"] = val
-                self:SetLabel(L["instanceDifficultyOffsetY"] .. ": " .. tostring(val))
-                if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
-            end)
-            g:AddChild(sliderY)
+			local sliderY = addon.functions.createSliderAce(
+				L["instanceDifficultyOffsetY"] .. ": " .. addon.db["instanceDifficultyOffsetY"],
+				addon.db["instanceDifficultyOffsetY"],
+				-400,
+				400,
+				1,
+				function(self, _, val)
+					addon.db["instanceDifficultyOffsetY"] = val
+					self:SetLabel(L["instanceDifficultyOffsetY"] .. ": " .. tostring(val))
+					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
+				end
+			)
+			g:AddChild(sliderY)
 
-            local cbColors = addon.functions.createCheckboxAce(L["instanceDifficultyUseColors"], addon.db["instanceDifficultyUseColors"], function(self, _, v)
-                addon.db["instanceDifficultyUseColors"] = v
-                if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
-                buildInstanceDifficulty()
-            end)
-            g:AddChild(cbColors)
+			local cbColors = addon.functions.createCheckboxAce(L["instanceDifficultyUseColors"], addon.db["instanceDifficultyUseColors"], function(self, _, v)
+				addon.db["instanceDifficultyUseColors"] = v
+				if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
+				buildInstanceDifficulty()
+			end)
+			g:AddChild(cbColors)
 
-            if addon.db["instanceDifficultyUseColors"] then
-                local colors = addon.db["instanceDifficultyColors"] or {}
+			if addon.db["instanceDifficultyUseColors"] then
+				local colors = addon.db["instanceDifficultyColors"] or {}
 
-                local function addCP(label, key)
-                    local cp = AceGUI:Create("ColorPicker")
-                    cp:SetLabel(label)
-                    local cc = colors[key] or { r = 1, g = 1, b = 1 }
-                    cp:SetColor(cc.r or 1, cc.g or 1, cc.b or 1)
-                    cp:SetCallback("OnValueChanged", function(_, _, r, g, b)
-                        addon.db["instanceDifficultyColors"][key] = { r = r, g = g, b = b }
-                        if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
-                    end)
-                    g:AddChild(cp)
-                end
+				local function addCP(label, key)
+					local cp = AceGUI:Create("ColorPicker")
+					cp:SetLabel(label)
+					local cc = colors[key] or { r = 1, g = 1, b = 1 }
+					cp:SetColor(cc.r or 1, cc.g or 1, cc.b or 1)
+					cp:SetCallback("OnValueChanged", function(_, _, r, g, b)
+						addon.db["instanceDifficultyColors"][key] = { r = r, g = g, b = b }
+						if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
+					end)
+					g:AddChild(cp)
+				end
 
-                addCP(_G["PLAYER_DIFFICULTY3"] or "Raid Finder", "LFR")
-                addCP(_G["PLAYER_DIFFICULTY1"] or "Normal", "NM")
-                addCP(_G["PLAYER_DIFFICULTY2"] or "Heroic", "HC")
-                addCP(_G["PLAYER_DIFFICULTY6"] or "Mythic", "M")
-                addCP(_G["PLAYER_DIFFICULTY_MYTHIC_PLUS"] or "Mythic+", "MPLUS")
-                addCP(_G["PLAYER_DIFFICULTY_TIMEWALKER"] or "Timewalking", "TW")
-            end
-        end
+				addCP(_G["PLAYER_DIFFICULTY3"] or "Raid Finder", "LFR")
+				addCP(_G["PLAYER_DIFFICULTY1"] or "Normal", "NM")
+				addCP(_G["PLAYER_DIFFICULTY2"] or "Heroic", "HC")
+				addCP(_G["PLAYER_DIFFICULTY6"] or "Mythic", "M")
+				addCP(_G["PLAYER_DIFFICULTY_MYTHIC_PLUS"] or "Mythic+", "MPLUS")
+				addCP(_G["PLAYER_DIFFICULTY_TIMEWALKER"] or "Timewalking", "TW")
+			end
+		end
 
-        doLayout()
-    end
+		doLayout()
+	end
 
-    buildGeneral()
-    buildSpec()
-    buildHideElements()
-    buildSquare()
-    buildButtonBin()
-    buildLanding()
-    buildInstanceDifficulty()
+	buildGeneral()
+	buildSpec()
+	buildHideElements()
+	buildSquare()
+	buildButtonBin()
+	buildLanding()
+	buildInstanceDifficulty()
 end
 
 local function addUnitFrame(container)
@@ -1910,217 +1941,223 @@ end
 
 -- New modular Unit Frames UI builder
 local function addUnitFrame2(container)
-    local ui = { groups = {} }
+	local ui = { groups = {} }
 
-    local scroll = addon.functions.createContainer("ScrollFrame", "Flow")
-    scroll:SetFullWidth(true)
-    scroll:SetFullHeight(true)
-    container:AddChild(scroll)
+	local scroll = addon.functions.createContainer("ScrollFrame", "Flow")
+	scroll:SetFullWidth(true)
+	scroll:SetFullHeight(true)
+	container:AddChild(scroll)
 
-    local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
-    scroll:AddChild(wrapper)
+	local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
+	scroll:AddChild(wrapper)
 
-    local function doLayout()
-        if scroll and scroll.DoLayout then scroll:DoLayout() end
-    end
+	local function doLayout()
+		if scroll and scroll.DoLayout then scroll:DoLayout() end
+	end
 
-    local function ensureGroup(key, title)
-        local g = ui.groups[key]
-        if not g then
-            g = addon.functions.createContainer("InlineGroup", "List")
-            g:SetTitle(title)
-            ui.groups[key] = g
-            wrapper:AddChild(g)
-        end
-        g:ReleaseChildren()
-        return g
-    end
+	local function ensureGroup(key, title)
+		local g = ui.groups[key]
+		if not g then
+			g = addon.functions.createContainer("InlineGroup", "List")
+			g:SetTitle(title)
+			ui.groups[key] = g
+			wrapper:AddChild(g)
+		end
+		g:ReleaseChildren()
+		return g
+	end
 
-    local function buildHitIndicator()
-        local g = ensureGroup("hit", COMBAT_TEXT_LABEL)
-        local data = {
-            {
-                var = "hideHitIndicatorPlayer",
-                text = L["hideHitIndicatorPlayer"],
-                func = function(_, _, value)
-                    addon.db["hideHitIndicatorPlayer"] = value
-                    if value then
-                        PlayerFrame.PlayerFrameContent.PlayerFrameContentMain.HitIndicator:Hide()
-                    else
-                        PlayerFrame.PlayerFrameContent.PlayerFrameContentMain.HitIndicator:Show()
-                    end
-                end,
-            },
-            {
-                var = "hideHitIndicatorPet",
-                text = L["hideHitIndicatorPet"],
-                func = function(_, _, value)
-                    addon.db["hideHitIndicatorPet"] = value
-                    if value and PetHitIndicator then PetHitIndicator:Hide() end
-                end,
-            },
-        }
-        table.sort(data, function(a, b) return a.text < b.text end)
-        for _, cb in ipairs(data) do
-            local w = addon.functions.createCheckboxAce(cb.text, addon.db[cb.var], cb.func)
-            g:AddChild(w)
-        end
-        doLayout()
-    end
+	local function buildHitIndicator()
+		local g = ensureGroup("hit", COMBAT_TEXT_LABEL)
+		local data = {
+			{
+				var = "hideHitIndicatorPlayer",
+				text = L["hideHitIndicatorPlayer"],
+				func = function(_, _, value)
+					addon.db["hideHitIndicatorPlayer"] = value
+					if value then
+						PlayerFrame.PlayerFrameContent.PlayerFrameContentMain.HitIndicator:Hide()
+					else
+						PlayerFrame.PlayerFrameContent.PlayerFrameContentMain.HitIndicator:Show()
+					end
+				end,
+			},
+			{
+				var = "hideHitIndicatorPet",
+				text = L["hideHitIndicatorPet"],
+				func = function(_, _, value)
+					addon.db["hideHitIndicatorPet"] = value
+					if value and PetHitIndicator then PetHitIndicator:Hide() end
+				end,
+			},
+		}
+		table.sort(data, function(a, b) return a.text < b.text end)
+		for _, cb in ipairs(data) do
+			local w = addon.functions.createCheckboxAce(cb.text, addon.db[cb.var], cb.func)
+			g:AddChild(w)
+		end
+		doLayout()
+	end
 
-    local function buildCore()
-        local g = ensureGroup("core", "")
-        local labelHeadline = addon.functions.createLabelAce("|cffffd700" .. L["UnitFrameHideExplain"] .. "|r", nil, nil, 14)
-        labelHeadline:SetFullWidth(true)
-        g:AddChild(labelHeadline)
-        g:AddChild(addon.functions.createSpacerAce())
+	local function buildCore()
+		local g = ensureGroup("core", "")
+		local labelHeadline = addon.functions.createLabelAce("|cffffd700" .. L["UnitFrameHideExplain"] .. "|r", nil, nil, 14)
+		labelHeadline:SetFullWidth(true)
+		g:AddChild(labelHeadline)
+		g:AddChild(addon.functions.createSpacerAce())
 
-        for _, cbData in ipairs(addon.variables.unitFrameNames) do
-            local desc = cbData.desc
-            local w = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], function(self, _, value)
-                addon.db[cbData.var] = value
-                UpdateUnitFrameMouseover(cbData.name, cbData)
-            end, desc)
-            g:AddChild(w)
-        end
-        doLayout()
-    end
+		for _, cbData in ipairs(addon.variables.unitFrameNames) do
+			local desc = cbData.desc
+			local w = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], function(self, _, value)
+				addon.db[cbData.var] = value
+				UpdateUnitFrameMouseover(cbData.name, cbData)
+			end, desc)
+			g:AddChild(w)
+		end
+		doLayout()
+	end
 
-    local function buildBoss()
-        local g = ensureGroup("boss", L["Boss Frames"] or "Boss Frames")
-        local dd = AceGUI:Create("Dropdown")
-        dd:SetLabel(L["BossHealthText"] or "Boss health text")
-        local bossList = { OFF = VIDEO_OPTIONS_DISABLED, PERCENT = STATUS_TEXT_PERCENT, ABS = STATUS_TEXT_VALUE, BOTH = STATUS_TEXT_BOTH }
-        local bossOrder = { "OFF", "PERCENT", "ABS", "BOTH" }
-        dd:SetList(bossList, bossOrder)
-        dd:SetValue(addon.db and addon.db["bossHealthMode"] or "OFF")
-        dd:SetCallback("OnValueChanged", function(_, _, key)
-            addon.db["bossHealthMode"] = key or "OFF"
-            if addon.BossFrames and addon.BossFrames.SetMode then addon.BossFrames:SetMode(addon.db["bossHealthMode"]) end
-        end)
-        g:AddChild(dd)
+	local function buildBoss()
+		local g = ensureGroup("boss", L["Boss Frames"] or "Boss Frames")
+		local dd = AceGUI:Create("Dropdown")
+		dd:SetLabel(L["BossHealthText"] or "Boss health text")
+		local bossList = { OFF = VIDEO_OPTIONS_DISABLED, PERCENT = STATUS_TEXT_PERCENT, ABS = STATUS_TEXT_VALUE, BOTH = STATUS_TEXT_BOTH }
+		local bossOrder = { "OFF", "PERCENT", "ABS", "BOTH" }
+		dd:SetList(bossList, bossOrder)
+		dd:SetValue(addon.db and addon.db["bossHealthMode"] or "OFF")
+		dd:SetCallback("OnValueChanged", function(_, _, key)
+			addon.db["bossHealthMode"] = key or "OFF"
+			if addon.BossFrames and addon.BossFrames.SetMode then addon.BossFrames:SetMode(addon.db["bossHealthMode"]) end
+		end)
+		g:AddChild(dd)
 
-        local note = addon.functions.createLabelAce("|cffffd700" .. (L["BossHealthCVarNote"] or "This setting has no effect if 'statusText' CVar is enabled.") .. "|r", nil, nil, 10)
-        note:SetFullWidth(true)
-        g:AddChild(note)
-        doLayout()
-    end
+		local note = addon.functions.createLabelAce("|cffffd700" .. (L["BossHealthCVarNote"] or "This setting has no effect if 'statusText' CVar is enabled.") .. "|r", nil, nil, 10)
+		note:SetFullWidth(true)
+		g:AddChild(note)
+		doLayout()
+	end
 
-    local function buildCoreUF()
-        local g = ensureGroup("coreUF", "")
-        local labelHeadlineUF = addon.functions.createLabelAce("|cffffd700" .. L["UnitFrameUFExplain"] .. "|r", nil, nil, 14)
-        labelHeadlineUF:SetFullWidth(true)
-        g:AddChild(labelHeadlineUF)
-        g:AddChild(addon.functions.createSpacerAce())
+	local function buildCoreUF()
+		local g = ensureGroup("coreUF", "")
+		local labelHeadlineUF = addon.functions.createLabelAce("|cffffd700" .. L["UnitFrameUFExplain"] .. "|r", nil, nil, 14)
+		labelHeadlineUF:SetFullWidth(true)
+		g:AddChild(labelHeadlineUF)
+		g:AddChild(addon.functions.createSpacerAce())
 
-        local cbRaid = addon.functions.createCheckboxAce(L["hideRaidFrameBuffs"], addon.db["hideRaidFrameBuffs"], function(_, _, value)
-            addon.db["hideRaidFrameBuffs"] = value
-            addon.functions.updateRaidFrameBuffs()
-            addon.variables.requireReload = true
-        end)
-        g:AddChild(cbRaid)
+		local cbRaid = addon.functions.createCheckboxAce(L["hideRaidFrameBuffs"], addon.db["hideRaidFrameBuffs"], function(_, _, value)
+			addon.db["hideRaidFrameBuffs"] = value
+			addon.functions.updateRaidFrameBuffs()
+			addon.variables.requireReload = true
+		end)
+		g:AddChild(cbRaid)
 
-        local cbLeader = addon.functions.createCheckboxAce(L["showLeaderIconRaidFrame"], addon.db["showLeaderIconRaidFrame"], function(_, _, value)
-            addon.db["showLeaderIconRaidFrame"] = value
-            if value then setLeaderIcon() else removeLeaderIcon() end
-        end)
-        g:AddChild(cbLeader)
+		local cbLeader = addon.functions.createCheckboxAce(L["showLeaderIconRaidFrame"], addon.db["showLeaderIconRaidFrame"], function(_, _, value)
+			addon.db["showLeaderIconRaidFrame"] = value
+			if value then
+				setLeaderIcon()
+			else
+				removeLeaderIcon()
+			end
+		end)
+		g:AddChild(cbLeader)
 
-        local cbSolo = addon.functions.createCheckboxAce(L["showPartyFrameInSoloContent"], addon.db["showPartyFrameInSoloContent"], function(_, _, value)
-            addon.db["showPartyFrameInSoloContent"] = value
-            addon.variables.requireReload = true
-            buildCoreUF()
-            addon.functions.togglePlayerFrame(addon.db["hidePlayerFrame"])
-            addon.functions.togglePartyFrameTitle(addon.db["hidePartyFrameTitle"])
-        end)
-        g:AddChild(cbSolo)
+		local cbSolo = addon.functions.createCheckboxAce(L["showPartyFrameInSoloContent"], addon.db["showPartyFrameInSoloContent"], function(_, _, value)
+			addon.db["showPartyFrameInSoloContent"] = value
+			addon.variables.requireReload = true
+			buildCoreUF()
+			addon.functions.togglePlayerFrame(addon.db["hidePlayerFrame"])
+			addon.functions.togglePartyFrameTitle(addon.db["hidePartyFrameTitle"])
+		end)
+		g:AddChild(cbSolo)
 
-        local cbTitle = addon.functions.createCheckboxAce(L["hidePartyFrameTitle"], addon.db["hidePartyFrameTitle"], function(_, _, value)
-            addon.db["hidePartyFrameTitle"] = value
-            addon.functions.togglePartyFrameTitle(value)
-        end)
-        g:AddChild(cbTitle)
+		local cbTitle = addon.functions.createCheckboxAce(L["hidePartyFrameTitle"], addon.db["hidePartyFrameTitle"], function(_, _, value)
+			addon.db["hidePartyFrameTitle"] = value
+			addon.functions.togglePartyFrameTitle(value)
+		end)
+		g:AddChild(cbTitle)
 
-        local sliderName
-        local cbTrunc = addon.functions.createCheckboxAce(L["unitFrameTruncateNames"], addon.db.unitFrameTruncateNames, function(_, _, v)
-            addon.db.unitFrameTruncateNames = v
-            if sliderName then sliderName:SetDisabled(not v) end
-            addon.functions.updateUnitFrameNames()
-        end)
-        g:AddChild(cbTrunc)
+		local sliderName
+		local cbTrunc = addon.functions.createCheckboxAce(L["unitFrameTruncateNames"], addon.db.unitFrameTruncateNames, function(_, _, v)
+			addon.db.unitFrameTruncateNames = v
+			if sliderName then sliderName:SetDisabled(not v) end
+			addon.functions.updateUnitFrameNames()
+		end)
+		g:AddChild(cbTrunc)
 
-        sliderName = addon.functions.createSliderAce(L["unitFrameMaxNameLength"] .. ": " .. addon.db.unitFrameMaxNameLength, addon.db.unitFrameMaxNameLength, 1, 20, 1, function(self, _, val)
-            addon.db.unitFrameMaxNameLength = val
-            self:SetLabel(L["unitFrameMaxNameLength"] .. ": " .. val)
-            addon.functions.updateUnitFrameNames()
-        end)
-        sliderName:SetDisabled(not addon.db.unitFrameTruncateNames)
-        g:AddChild(sliderName)
+		sliderName = addon.functions.createSliderAce(L["unitFrameMaxNameLength"] .. ": " .. addon.db.unitFrameMaxNameLength, addon.db.unitFrameMaxNameLength, 1, 20, 1, function(self, _, val)
+			addon.db.unitFrameMaxNameLength = val
+			self:SetLabel(L["unitFrameMaxNameLength"] .. ": " .. val)
+			addon.functions.updateUnitFrameNames()
+		end)
+		sliderName:SetDisabled(not addon.db.unitFrameTruncateNames)
+		g:AddChild(sliderName)
 
-        local sliderScale
-        local cbScale = addon.functions.createCheckboxAce(L["unitFrameScaleEnable"], addon.db.unitFrameScaleEnabled, function(_, _, v)
-            addon.db.unitFrameScaleEnabled = v
-            if sliderScale then sliderScale:SetDisabled(not v) end
-            if v then
-                addon.functions.updatePartyFrameScale()
-            else
-                addon.variables.requireReload = true
-                addon.functions.checkReloadFrame()
-            end
-        end)
-        g:AddChild(cbScale)
+		local sliderScale
+		local cbScale = addon.functions.createCheckboxAce(L["unitFrameScaleEnable"], addon.db.unitFrameScaleEnabled, function(_, _, v)
+			addon.db.unitFrameScaleEnabled = v
+			if sliderScale then sliderScale:SetDisabled(not v) end
+			if v then
+				addon.functions.updatePartyFrameScale()
+			else
+				addon.variables.requireReload = true
+				addon.functions.checkReloadFrame()
+			end
+		end)
+		g:AddChild(cbScale)
 
-        sliderScale = addon.functions.createSliderAce(L["unitFrameScale"] .. ": " .. addon.db.unitFrameScale, addon.db.unitFrameScale, 0.5, 2, 0.05, function(self, _, val)
-            addon.db.unitFrameScale = val
-            self:SetLabel(L["unitFrameScale"] .. ": " .. string.format("%.2f", val))
-            addon.functions.updatePartyFrameScale()
-        end)
-        sliderScale:SetDisabled(not addon.db.unitFrameScaleEnabled)
-        g:AddChild(sliderScale)
+		sliderScale = addon.functions.createSliderAce(L["unitFrameScale"] .. ": " .. addon.db.unitFrameScale, addon.db.unitFrameScale, 0.5, 2, 0.05, function(self, _, val)
+			addon.db.unitFrameScale = val
+			self:SetLabel(L["unitFrameScale"] .. ": " .. string.format("%.2f", val))
+			addon.functions.updatePartyFrameScale()
+		end)
+		sliderScale:SetDisabled(not addon.db.unitFrameScaleEnabled)
+		g:AddChild(sliderScale)
 
-        g:AddChild(addon.functions.createSpacerAce())
+		g:AddChild(addon.functions.createSpacerAce())
 
-        if addon.db["showPartyFrameInSoloContent"] then
-            local cbHidePlayer = addon.functions.createCheckboxAce(L["hidePlayerFrame"], addon.db["hidePlayerFrame"], function(_, _, value)
-                addon.db["hidePlayerFrame"] = value
-                addon.functions.togglePlayerFrame(addon.db["hidePlayerFrame"])
-            end)
-            g:AddChild(cbHidePlayer)
-        end
+		if addon.db["showPartyFrameInSoloContent"] then
+			local cbHidePlayer = addon.functions.createCheckboxAce(L["hidePlayerFrame"], addon.db["hidePlayerFrame"], function(_, _, value)
+				addon.db["hidePlayerFrame"] = value
+				addon.functions.togglePlayerFrame(addon.db["hidePlayerFrame"])
+			end)
+			g:AddChild(cbHidePlayer)
+		end
 
-        doLayout()
-    end
+		doLayout()
+	end
 
-    local function buildCast()
-        local g = ensureGroup("cast", L["CastBars"] or "Cast Bars")
-        local dd = AceGUI:Create("Dropdown")
-        dd:SetLabel(L["castBarsToHide"] or "Cast bars to hide")
-        local list = {
-            PlayerCastingBarFrame = L["castBar_player"] or _G.PLAYER or "Player",
-            TargetFrameSpellBar = L["castBar_target"] or TARGET or "Target",
-            FocusFrameSpellBar = L["castBar_focus"] or FOCUS or "Focus",
-        }
-        local order = { "PlayerCastingBarFrame", "TargetFrameSpellBar", "FocusFrameSpellBar" }
-        dd:SetList(list, order)
-        dd:SetMultiselect(true)
-        dd:SetFullWidth(true)
-        dd:SetCallback("OnValueChanged", function(widget, _, key, checked)
-            addon.db.hiddenCastBars = addon.db.hiddenCastBars or {}
-            addon.db.hiddenCastBars[key] = checked and true or false
-            addon.functions.ApplyCastBarVisibility()
-        end)
-        if type(addon.db.hiddenCastBars) == "table" then
-            for k, v in pairs(addon.db.hiddenCastBars) do if v then dd:SetItemValue(k, true) end end
-        end
-        g:AddChild(dd)
-        doLayout()
-    end
+	local function buildCast()
+		local g = ensureGroup("cast", L["CastBars"] or "Cast Bars")
+		local dd = AceGUI:Create("Dropdown")
+		dd:SetLabel(L["castBarsToHide"] or "Cast bars to hide")
+		local list = {
+			PlayerCastingBarFrame = L["castBar_player"] or _G.PLAYER or "Player",
+			TargetFrameSpellBar = L["castBar_target"] or TARGET or "Target",
+			FocusFrameSpellBar = L["castBar_focus"] or FOCUS or "Focus",
+		}
+		local order = { "PlayerCastingBarFrame", "TargetFrameSpellBar", "FocusFrameSpellBar" }
+		dd:SetList(list, order)
+		dd:SetMultiselect(true)
+		dd:SetFullWidth(true)
+		dd:SetCallback("OnValueChanged", function(widget, _, key, checked)
+			addon.db.hiddenCastBars = addon.db.hiddenCastBars or {}
+			addon.db.hiddenCastBars[key] = checked and true or false
+			addon.functions.ApplyCastBarVisibility()
+		end)
+		if type(addon.db.hiddenCastBars) == "table" then
+			for k, v in pairs(addon.db.hiddenCastBars) do
+				if v then dd:SetItemValue(k, true) end
+			end
+		end
+		g:AddChild(dd)
+		doLayout()
+	end
 
-    buildHitIndicator()
-    buildCore()
-    buildBoss()
-    buildCoreUF()
-    buildCast()
+	buildHitIndicator()
+	buildCore()
+	buildBoss()
+	buildCoreUF()
+	buildCast()
 end
 
 -- New modular Vendor & Economy UI builder
@@ -2132,193 +2169,196 @@ local function addVendorMainFrame2(container)
 
 	local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
 	scroll:AddChild(wrapper)
-    local function doLayout()
-        if scroll and scroll.DoLayout then scroll:DoLayout() end
-    end
+	local function doLayout()
+		if scroll and scroll.DoLayout then scroll:DoLayout() end
+	end
 
-    local function ensureGroup(key, title)
-        local g = wrapper["_g_" .. key]
-        if not g then
-            g = addon.functions.createContainer("InlineGroup", "List")
-            g:SetTitle(title)
-            wrapper["_g_" .. key] = g
-            wrapper:AddChild(g)
-        end
-        g:ReleaseChildren()
-        g:SetTitle(title)
-        return g
-    end
+	local function ensureGroup(key, title)
+		local g = wrapper["_g_" .. key]
+		if not g then
+			g = addon.functions.createContainer("InlineGroup", "List")
+			g:SetTitle(title)
+			wrapper["_g_" .. key] = g
+			wrapper:AddChild(g)
+		end
+		g:ReleaseChildren()
+		g:SetTitle(title)
+		return g
+	end
 
-    local function buildAHCore()
-        local g = ensureGroup("ahcore", BUTTON_LAG_AUCTIONHOUSE)
-        local items = {
-            {
-                text = L["persistAuctionHouseFilter"],
-                var = "persistAuctionHouseFilter",
-                func = function(_, _, v) addon.db["persistAuctionHouseFilter"] = v end,
-            },
-            {
-                text = (function()
-                    local label = _G["AUCTION_HOUSE_FILTER_CURRENTEXPANSION_ONLY"] or "Current Expansion Only"
-                    return L["alwaysUserCurExpAuctionHouse"]:format(label)
-                end)(),
-                var = "alwaysUserCurExpAuctionHouse",
-                func = function(_, _, v) addon.db["alwaysUserCurExpAuctionHouse"] = v end,
-            },
-        }
-        table.sort(items, function(a, b) return a.text < b.text end)
-        for _, it in ipairs(items) do
-            local w = addon.functions.createCheckboxAce(it.text, addon.db[it.var], it.func, it.desc)
-            g:AddChild(w)
-        end
-        doLayout()
-    end
+	local function buildAHCore()
+		local g = ensureGroup("ahcore", BUTTON_LAG_AUCTIONHOUSE)
+		local items = {
+			{
+				text = L["persistAuctionHouseFilter"],
+				var = "persistAuctionHouseFilter",
+				func = function(_, _, v) addon.db["persistAuctionHouseFilter"] = v end,
+			},
+			{
+				text = (function()
+					local label = _G["AUCTION_HOUSE_FILTER_CURRENTEXPANSION_ONLY"] or "Current Expansion Only"
+					return L["alwaysUserCurExpAuctionHouse"]:format(label)
+				end)(),
+				var = "alwaysUserCurExpAuctionHouse",
+				func = function(_, _, v) addon.db["alwaysUserCurExpAuctionHouse"] = v end,
+			},
+		}
+		table.sort(items, function(a, b) return a.text < b.text end)
+		for _, it in ipairs(items) do
+			local w = addon.functions.createCheckboxAce(it.text, addon.db[it.var], it.func, it.desc)
+			g:AddChild(w)
+		end
+		doLayout()
+	end
 
-    local function buildConvenience()
-        local g = ensureGroup("conv", L["Convenience"])
-        local items = {
-            {
-                var = "autoRepair",
-                text = L["autoRepair"],
-                func = function(_, _, v) addon.db["autoRepair"] = v end,
-                desc = L["autoRepairDesc"],
-            },
-            {
-                var = "sellAllJunk",
-                text = L["sellAllJunk"],
-                func = function(_, _, v) addon.db["sellAllJunk"] = v if v then checkBagIgnoreJunk() end end,
-                desc = L["sellAllJunkDesc"],
-            },
-        }
-        table.sort(items, function(a, b) return a.text < b.text end)
-        for _, it in ipairs(items) do
-            local w = addon.functions.createCheckboxAce(it.text, addon.db[it.var], it.func, it.desc)
-            g:AddChild(w)
-        end
-        doLayout()
-    end
+	local function buildConvenience()
+		local g = ensureGroup("conv", L["Convenience"])
+		local items = {
+			{
+				var = "autoRepair",
+				text = L["autoRepair"],
+				func = function(_, _, v) addon.db["autoRepair"] = v end,
+				desc = L["autoRepairDesc"],
+			},
+			{
+				var = "sellAllJunk",
+				text = L["sellAllJunk"],
+				func = function(_, _, v)
+					addon.db["sellAllJunk"] = v
+					if v then checkBagIgnoreJunk() end
+				end,
+				desc = L["sellAllJunkDesc"],
+			},
+		}
+		table.sort(items, function(a, b) return a.text < b.text end)
+		for _, it in ipairs(items) do
+			local w = addon.functions.createCheckboxAce(it.text, addon.db[it.var], it.func, it.desc)
+			g:AddChild(w)
+		end
+		doLayout()
+	end
 
-    local function buildMerchant()
-        local g = ensureGroup("merchant", MERCHANT)
-        local w = addon.functions.createCheckboxAce(L["enableExtendedMerchant"], addon.db["enableExtendedMerchant"], function(_, _, value)
-            addon.db["enableExtendedMerchant"] = value
-            if addon.Merchant then
-                if value and addon.Merchant.Enable then
-                    addon.Merchant:Enable()
-                elseif not value and addon.Merchant.Disable then
-                    addon.Merchant:Disable()
-                    addon.variables.requireReload = true
-                    addon.functions.checkReloadFrame()
-                end
-            end
-        end, L["enableExtendedMerchantDesc"])
-        g:AddChild(w)
-        doLayout()
-    end
+	local function buildMerchant()
+		local g = ensureGroup("merchant", MERCHANT)
+		local w = addon.functions.createCheckboxAce(L["enableExtendedMerchant"], addon.db["enableExtendedMerchant"], function(_, _, value)
+			addon.db["enableExtendedMerchant"] = value
+			if addon.Merchant then
+				if value and addon.Merchant.Enable then
+					addon.Merchant:Enable()
+				elseif not value and addon.Merchant.Disable then
+					addon.Merchant:Disable()
+					addon.variables.requireReload = true
+					addon.functions.checkReloadFrame()
+				end
+			end
+		end, L["enableExtendedMerchantDesc"])
+		g:AddChild(w)
+		doLayout()
+	end
 
-    local function buildMailbox()
-        local g = ensureGroup("mail", MINIMAP_TRACKING_MAILBOX)
-        local w = addon.functions.createCheckboxAce(L["enableMailboxAddressBook"], addon.db["enableMailboxAddressBook"], function(_, _, value)
-            addon.db["enableMailboxAddressBook"] = value
-            if addon.Mailbox then
-                if addon.Mailbox.SetEnabled then addon.Mailbox:SetEnabled(value) end
-                if value and addon.Mailbox.AddSelfToContacts then addon.Mailbox:AddSelfToContacts() end
-                if value and addon.Mailbox.RefreshList then addon.Mailbox:RefreshList() end
-            end
-            buildMailbox()
-        end, L["enableMailboxAddressBookDesc"])
-        g:AddChild(w)
+	local function buildMailbox()
+		local g = ensureGroup("mail", MINIMAP_TRACKING_MAILBOX)
+		local w = addon.functions.createCheckboxAce(L["enableMailboxAddressBook"], addon.db["enableMailboxAddressBook"], function(_, _, value)
+			addon.db["enableMailboxAddressBook"] = value
+			if addon.Mailbox then
+				if addon.Mailbox.SetEnabled then addon.Mailbox:SetEnabled(value) end
+				if value and addon.Mailbox.AddSelfToContacts then addon.Mailbox:AddSelfToContacts() end
+				if value and addon.Mailbox.RefreshList then addon.Mailbox:RefreshList() end
+			end
+			buildMailbox()
+		end, L["enableMailboxAddressBookDesc"])
+		g:AddChild(w)
 
-        if addon.db["enableMailboxAddressBook"] then
-            local sub = addon.functions.createContainer("InlineGroup", "List")
-            sub:SetTitle(L["mailboxRemoveHeader"])
-            g:AddChild(sub)
+		if addon.db["enableMailboxAddressBook"] then
+			local sub = addon.functions.createContainer("InlineGroup", "List")
+			sub:SetTitle(L["mailboxRemoveHeader"])
+			g:AddChild(sub)
 
-            local tList = {}
-            for key, rec in pairs(addon.db["mailboxContacts"]) do
-                local class = rec and rec.class
-                local col = (CUSTOM_CLASS_COLORS or RAID_CLASS_COLORS)[class or ""] or { r = 1, g = 1, b = 1 }
-                tList[key] = string.format("|cff%02x%02x%02x%s|r", col.r * 255, col.g * 255, col.b * 255, key)
-            end
-            local list, order = addon.functions.prepareListForDropdown(tList)
-            local drop = addon.functions.createDropdownAce(L["mailboxRemoveSelect"], list, order, nil)
-            sub:AddChild(drop)
+			local tList = {}
+			for key, rec in pairs(addon.db["mailboxContacts"]) do
+				local class = rec and rec.class
+				local col = (CUSTOM_CLASS_COLORS or RAID_CLASS_COLORS)[class or ""] or { r = 1, g = 1, b = 1 }
+				tList[key] = string.format("|cff%02x%02x%02x%s|r", col.r * 255, col.g * 255, col.b * 255, key)
+			end
+			local list, order = addon.functions.prepareListForDropdown(tList)
+			local drop = addon.functions.createDropdownAce(L["mailboxRemoveSelect"], list, order, nil)
+			sub:AddChild(drop)
 
-            local btn = addon.functions.createButtonAce(REMOVE, 120, function()
-                local selected = drop:GetValue()
-                if selected and addon.db["mailboxContacts"][selected] then
-                    addon.db["mailboxContacts"][selected] = nil
-                    local refresh = {}
-                    for key, rec in pairs(addon.db["mailboxContacts"]) do
-                        local class = rec and rec.class
-                        local col = (CUSTOM_CLASS_COLORS or RAID_CLASS_COLORS)[class or ""] or { r = 1, g = 1, b = 1 }
-                        refresh[key] = string.format("|cff%02x%02x%02x%s|r", col.r * 255, col.g * 255, col.b * 255, key)
-                    end
-                    local nl, no = addon.functions.prepareListForDropdown(refresh)
-                    drop:SetList(nl, no)
-                    drop:SetValue(nil)
-                    if addon.Mailbox and addon.Mailbox.RefreshList then addon.Mailbox:RefreshList() end
-                end
-            end)
-            sub:AddChild(btn)
-        end
-        doLayout()
-    end
+			local btn = addon.functions.createButtonAce(REMOVE, 120, function()
+				local selected = drop:GetValue()
+				if selected and addon.db["mailboxContacts"][selected] then
+					addon.db["mailboxContacts"][selected] = nil
+					local refresh = {}
+					for key, rec in pairs(addon.db["mailboxContacts"]) do
+						local class = rec and rec.class
+						local col = (CUSTOM_CLASS_COLORS or RAID_CLASS_COLORS)[class or ""] or { r = 1, g = 1, b = 1 }
+						refresh[key] = string.format("|cff%02x%02x%02x%s|r", col.r * 255, col.g * 255, col.b * 255, key)
+					end
+					local nl, no = addon.functions.prepareListForDropdown(refresh)
+					drop:SetList(nl, no)
+					drop:SetValue(nil)
+					if addon.Mailbox and addon.Mailbox.RefreshList then addon.Mailbox:RefreshList() end
+				end
+			end)
+			sub:AddChild(btn)
+		end
+		doLayout()
+	end
 
-    local function buildMoney()
-        local g = ensureGroup("money", MONEY)
-        local cbEnable = addon.functions.createCheckboxAce(L["enableMoneyTracker"], addon.db["enableMoneyTracker"], function(_, _, v)
-            addon.db["enableMoneyTracker"] = v
-            buildMoney()
-        end, L["enableMoneyTrackerDesc"])
-        g:AddChild(cbEnable)
+	local function buildMoney()
+		local g = ensureGroup("money", MONEY)
+		local cbEnable = addon.functions.createCheckboxAce(L["enableMoneyTracker"], addon.db["enableMoneyTracker"], function(_, _, v)
+			addon.db["enableMoneyTracker"] = v
+			buildMoney()
+		end, L["enableMoneyTrackerDesc"])
+		g:AddChild(cbEnable)
 
-        if addon.db["enableMoneyTracker"] then
-            local sub = addon.functions.createContainer("InlineGroup", "List")
-            g:AddChild(sub)
+		if addon.db["enableMoneyTracker"] then
+			local sub = addon.functions.createContainer("InlineGroup", "List")
+			g:AddChild(sub)
 
-            local cbGoldOnly = addon.functions.createCheckboxAce(L["showOnlyGoldOnMoney"], addon.db["showOnlyGoldOnMoney"], function(_, _, v) addon.db["showOnlyGoldOnMoney"] = v end)
-            sub:AddChild(cbGoldOnly)
+			local cbGoldOnly = addon.functions.createCheckboxAce(L["showOnlyGoldOnMoney"], addon.db["showOnlyGoldOnMoney"], function(_, _, v) addon.db["showOnlyGoldOnMoney"] = v end)
+			sub:AddChild(cbGoldOnly)
 
-            local tList = {}
-            for guid, v in pairs(addon.db["moneyTracker"]) do
-                if guid ~= UnitGUID("player") then
-                    local col = (CUSTOM_CLASS_COLORS or RAID_CLASS_COLORS)[v.class] or { r = 1, g = 1, b = 1 }
-                    local displayName = string.format("|cff%02x%02x%02x%s-%s|r", (col.r or 1) * 255, (col.g or 1) * 255, (col.b or 1) * 255, v.name or "?", v.realm or "?")
-                    tList[guid] = displayName
-                end
-            end
+			local tList = {}
+			for guid, v in pairs(addon.db["moneyTracker"]) do
+				if guid ~= UnitGUID("player") then
+					local col = (CUSTOM_CLASS_COLORS or RAID_CLASS_COLORS)[v.class] or { r = 1, g = 1, b = 1 }
+					local displayName = string.format("|cff%02x%02x%02x%s-%s|r", (col.r or 1) * 255, (col.g or 1) * 255, (col.b or 1) * 255, v.name or "?", v.realm or "?")
+					tList[guid] = displayName
+				end
+			end
 
-            local list, order = addon.functions.prepareListForDropdown(tList)
-            local dropRemove = addon.functions.createDropdownAce(L["moneyTrackerRemovePlayer"], list, order, nil)
-            local btnRemove = addon.functions.createButtonAce(REMOVE, 100, function()
-                local sel = dropRemove:GetValue()
-                if sel and addon.db["moneyTracker"][sel] then
-                    addon.db["moneyTracker"][sel] = nil
-                    local tList2 = {}
-                    for guid, v in pairs(addon.db["moneyTracker"]) do
-                        if guid ~= UnitGUID("player") then
-                            local col = (CUSTOM_CLASS_COLORS or RAID_CLASS_COLORS)[v.class] or { r = 1, g = 1, b = 1 }
-                            local displayName = string.format("|cff%02x%02x%02x%s-%s|r", (col.r or 1) * 255, (col.g or 1) * 255, (col.b or 1) * 255, v.name or "?", v.realm or "?")
-                            tList2[guid] = displayName
-                        end
-                    end
-                    local nl, no = addon.functions.prepareListForDropdown(tList2)
-                    dropRemove:SetList(nl, no)
-                    dropRemove:SetValue(nil)
-                end
-            end)
-            sub:AddChild(dropRemove)
-            sub:AddChild(btnRemove)
-        end
-        doLayout()
-    end
+			local list, order = addon.functions.prepareListForDropdown(tList)
+			local dropRemove = addon.functions.createDropdownAce(L["moneyTrackerRemovePlayer"], list, order, nil)
+			local btnRemove = addon.functions.createButtonAce(REMOVE, 100, function()
+				local sel = dropRemove:GetValue()
+				if sel and addon.db["moneyTracker"][sel] then
+					addon.db["moneyTracker"][sel] = nil
+					local tList2 = {}
+					for guid, v in pairs(addon.db["moneyTracker"]) do
+						if guid ~= UnitGUID("player") then
+							local col = (CUSTOM_CLASS_COLORS or RAID_CLASS_COLORS)[v.class] or { r = 1, g = 1, b = 1 }
+							local displayName = string.format("|cff%02x%02x%02x%s-%s|r", (col.r or 1) * 255, (col.g or 1) * 255, (col.b or 1) * 255, v.name or "?", v.realm or "?")
+							tList2[guid] = displayName
+						end
+					end
+					local nl, no = addon.functions.prepareListForDropdown(tList2)
+					dropRemove:SetList(nl, no)
+					dropRemove:SetValue(nil)
+				end
+			end)
+			sub:AddChild(dropRemove)
+			sub:AddChild(btnRemove)
+		end
+		doLayout()
+	end
 
-    buildAHCore()
-    buildConvenience()
-    buildMerchant()
-    buildMailbox()
-    buildMoney()
+	buildAHCore()
+	buildConvenience()
+	buildMerchant()
+	buildMailbox()
+	buildMoney()
 end
 
 -- Mailbox address book options
@@ -6371,6 +6411,39 @@ local function CreateUI()
 		},
 	})
 
+	-- TODO new structure
+	addon.functions.addToTree(nil, {
+		value = "combat",
+		text = L["CombatDungeons"],
+	})
+
+	addon.functions.addToTree(
+		nil, -- Items & Inventory
+		{
+			value = "items",
+			text = L["ItemsInventory"],
+			children = {
+				{ value = "loot", text = L["Loot"] },
+				{
+					value = "gear",
+					text = L["GearUpgrades"],
+				},
+				{
+					value = "economy",
+					text = L["VendorsEconomy"],
+				},
+			},
+		}
+	)
+	addon.functions.addToTree(nil, {
+		value = "nav",
+		text = L["MapNavigation"],
+	})
+	addon.functions.addToTree(nil, {
+		value = "ui",
+		text = L["UIInput"],
+	})
+
 	-- Conditionally add "Container Actions" under Items if it exists
 	if hasMiscOption("automaticallyOpenContainer") then
 		addon.functions.addToTree("general\001items", { value = "container", text = L["ContainerActions"] }, true)
@@ -6405,8 +6478,8 @@ local function CreateUI()
 		elseif group == "general\001gear" then
 			addCharacterFrame(container)
 		-- Vendors & Economy
-    elseif group == "general\001economy" then
-            addVendorMainFrame2(container)
+		elseif group == "general\001economy" then
+			addVendorMainFrame2(container)
 		elseif group == "general\001economy\001mailbox" then
 			addMailboxFrame(container)
 		elseif string.sub(group, 1, string.len("general\001economy\001selling")) == "general\001economy\001selling" then
@@ -6421,8 +6494,8 @@ local function CreateUI()
 		elseif string.sub(group, 1, string.len("general\001combat\001")) == "general\001combat\001" then
 			addon.MythicPlus.functions.treeCallback(container, group)
 		-- Map & Navigation
-    elseif group == "general\001nav" then
-            addMinimapFrame(container)
+		elseif group == "general\001nav" then
+			addMinimapFrame(container)
 		elseif group == "general\001nav\001teleports" then
 			addon.MythicPlus.functions.treeCallback(container, group)
 		-- UI & Input
@@ -6432,8 +6505,8 @@ local function CreateUI()
 			addActionBarFrame(container)
 		elseif group == "general\001ui\001chatframe" then
 			addChatFrame(container)
-    elseif group == "general\001ui\001unitframe" then
-            addUnitFrame2(container)
+		elseif group == "general\001ui\001unitframe" then
+			addUnitFrame2(container)
 		elseif group == "general\001ui\001datapanel" then
 			buildDatapanelFrame(container)
 		-- Quests & Social
