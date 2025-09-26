@@ -1979,14 +1979,10 @@ local function addDynamicFlightFrame(container)
 	local groupCore = addon.functions.createContainer("InlineGroup", "List")
 	wrapper:AddChild(groupCore)
 
-	local cb = addon.functions.createCheckboxAce(
-		L["hideDynamicFlightBar"]:format(DYNAMIC_FLIGHT),
-		addon.db["hideDynamicFlightBar"],
-		function(self, _, value)
-			addon.db["hideDynamicFlightBar"] = value
-			addon.functions.toggleDynamicFlightBar(addon.db["hideDynamicFlightBar"])
-		end
-	)
+	local cb = addon.functions.createCheckboxAce(L["hideDynamicFlightBar"]:format(DYNAMIC_FLIGHT), addon.db["hideDynamicFlightBar"], function(self, _, value)
+		addon.db["hideDynamicFlightBar"] = value
+		addon.functions.toggleDynamicFlightBar(addon.db["hideDynamicFlightBar"])
+	end)
 	groupCore:AddChild(cb)
 end
 
@@ -2853,6 +2849,24 @@ local function addCharacterFrame(container)
 			end,
 		},
 
+		-- Moved from Upgrades submenu into Character page
+		{
+			parent = INFO,
+			var = "instantCatalystEnabled",
+			type = "CheckBox",
+			desc = L["instantCatalystEnabledDesc"],
+			callback = function(self, _, value)
+				addon.db["instantCatalystEnabled"] = value
+				addon.functions.toggleInstantCatalystButton(value)
+			end,
+		},
+		{
+			parent = INFO,
+			var = "openCharframeOnUpgrade",
+			type = "CheckBox",
+			callback = function(self, _, value) addon.db["openCharframeOnUpgrade"] = value end,
+		},
+
 		{
 			parent = AUCTION_CATEGORY_GEMS,
 			var = "enableGemHelper",
@@ -3066,26 +3080,10 @@ local function getMiscOptions()
 
 		{
 			parent = "",
-			var = "openCharframeOnUpgrade",
-			type = "CheckBox",
-			callback = function(self, _, value) addon.db["openCharframeOnUpgrade"] = value end,
-		},
-		{
-			parent = "",
 			var = "autoCancelCinematic",
 			type = "CheckBox",
 			desc = L["autoCancelCinematicDesc"] .. "\n" .. L["interruptWithShift"],
 			callback = function(self, _, value) addon.db["autoCancelCinematic"] = value end,
-		},
-		{
-			parent = "",
-			var = "instantCatalystEnabled",
-			type = "CheckBox",
-			desc = L["instantCatalystEnabledDesc"],
-			callback = function(self, _, value)
-				addon.db["instantCatalystEnabled"] = value
-				addon.functions.toggleInstantCatalystButton(value)
-			end,
 		},
 	}
 	return data
@@ -6145,7 +6143,6 @@ local function CreateUI()
 				value = "items",
 				text = L["ItemsInventory"],
 				children = {
-					{ value = "bags", text = HUD_EDIT_MODE_BAGS_LABEL },
 					{ value = "loot", text = L["Loot"] },
 					-- "container" will be conditionally added below if available
 					{ value = "confirmations", text = L["Confirmations"] },
@@ -6155,10 +6152,6 @@ local function CreateUI()
 			{
 				value = "gear",
 				text = L["GearUpgrades"],
-				children = {
-					{ value = "character", text = L["Character"] },
-					{ value = "upgrades", text = L["CatalystUpgrades"] },
-				},
 			},
 			-- Vendors & Economy
 			{
@@ -6232,8 +6225,6 @@ local function CreateUI()
 		-- Prüfen, welche Gruppe ausgewählt wurde
 		-- Items & Inventory
 		if group == "general\001items" then
-			addCategoryIntro(container, "ItemsInventory", "ItemsInventoryIntro")
-		elseif group == "general\001items\001bags" then
 			addBagFrame(container)
 		elseif group == "general\001items\001loot" then
 			addLootFrame(container, true)
@@ -6249,11 +6240,7 @@ local function CreateUI()
 			})
 		-- Gear & Upgrades
 		elseif group == "general\001gear" then
-			addCategoryIntro(container, "GearUpgrades", "GearUpgradesIntro")
-		elseif group == "general\001gear\001character" then
 			addCharacterFrame(container)
-		elseif group == "general\001gear\001upgrades" then
-			addMiscSubsetFrame(container, { "instantCatalystEnabled", "openCharframeOnUpgrade" })
 		-- Vendors & Economy
 		elseif group == "general\001economy" then
 			addCategoryIntro(container, "VendorsEconomy", "VendorsEconomyIntro")
