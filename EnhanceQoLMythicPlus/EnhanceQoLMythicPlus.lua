@@ -1285,8 +1285,6 @@ addon.variables.statusTable.groups["general\001combat\001dungeon"] = true
 local mpChildren = {
     { value = "keystone", text = L["Keystone"] },
     { value = "automark", text = L["AutoMark"] },
-    { value = "potiontracker", text = L["Potion Tracker"] },
-    { value = "teleports", text = L["Teleports"] },
     { value = "brtracker", text = L["BRTracker"] },
     { value = "rating", text = DUNGEON_SCORE },
     { value = "talents", text = L["TalentReminder"] },
@@ -1299,6 +1297,12 @@ end
 
 -- Place Group Filter under Party
 addon.functions.addToTree("general\001combat\001party", { value = "groupfilter", text = L["groupFilter"] }, true)
+
+-- Place Potion Tracker under Party (works everywhere)
+addon.functions.addToTree("general\001combat\001party", { value = "potiontracker", text = L["Potion Tracker"] }, true)
+
+-- Place Teleports under Map & Navigation
+addon.functions.addToTree("general\001nav", { value = "teleports", text = L["Teleports"] }, true)
 
 function addon.MythicPlus.functions.treeCallback(container, group)
 	container:ReleaseChildren() -- Entfernt vorherige Inhalte
@@ -1315,6 +1319,10 @@ function addon.MythicPlus.functions.treeCallback(container, group)
         else
             local ppos = group:find("party\001groupfilter", 1, true)
             if ppos then group = "mythicplus\001groupfilter" end
+            local ppos2 = group:find("party\001potiontracker", 1, true)
+            if ppos2 then group = "mythicplus\001potiontracker" end
+            local npos = group:find("nav\001teleports", 1, true)
+            if npos then group = "mythicplus\001teleports" end
         end
     end
 

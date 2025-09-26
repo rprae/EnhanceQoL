@@ -6301,6 +6301,8 @@ local function CreateUI()
 			addon.MythicPlus.functions.treeCallback(container, group)
 		elseif group == "general\001combat\001party\001groupfilter" then
 			addon.MythicPlus.functions.treeCallback(container, group)
+		elseif group == "general\001combat\001party\001potiontracker" then
+			addon.MythicPlus.functions.treeCallback(container, group)
 		-- Map & Navigation
 			elseif group == "general\001nav" then
 				addCategoryIntro(container, "MapNavigation", "MapNavigationIntro")
@@ -6310,6 +6312,8 @@ local function CreateUI()
 			addMinimapFrame(container)
 		elseif group == "general\001nav\001dynamicflight" then
 			addDynamicFlightFrame(container)
+		elseif group == "general\001nav\001teleports" then
+			addon.MythicPlus.functions.treeCallback(container, group)
 		-- UI & Input
 			elseif group == "general\001ui" then
 				addCategoryIntro(container, "UIInput", "UIInputIntro")
