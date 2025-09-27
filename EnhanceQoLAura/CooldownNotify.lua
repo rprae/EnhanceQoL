@@ -673,13 +673,13 @@ local function buildCategoryOptions(container, catId)
 				hideOnEscape = true,
 				preferredIndex = 3,
 			}
-		StaticPopupDialogs["EQOL_EXPORT_CATEGORY"].OnShow = function(self)
-			local editBox = self.editBox or self.GetEditBox and self:GetEditBox()
-			self:SetFrameStrata("FULLSCREEN_DIALOG")
-			editBox:SetText(data)
-			editBox:HighlightText()
-			editBox:SetFocus()
-		end
+    StaticPopupDialogs["EQOL_EXPORT_CATEGORY"].OnShow = function(self)
+        local editBox = self.editBox or self.GetEditBox and self:GetEditBox()
+        self:SetFrameStrata("TOOLTIP")
+        editBox:SetText(data)
+        editBox:HighlightText()
+        editBox:SetFocus()
+    end
 		StaticPopup_Show("EQOL_EXPORT_CATEGORY")
 	end)
 	exportBtn:SetRelativeWidth(0.5)
@@ -738,7 +738,7 @@ local function buildCategoryOptions(container, catId)
 				hideOnEscape = true,
 				preferredIndex = 3,
 			}
-		StaticPopupDialogs["EQOL_DELETE_CDN_CATEGORY"].OnShow = function(self) self:SetFrameStrata("FULLSCREEN_DIALOG") end
+    StaticPopupDialogs["EQOL_DELETE_CDN_CATEGORY"].OnShow = function(self) self:SetFrameStrata("TOOLTIP") end
 		StaticPopupDialogs["EQOL_DELETE_CDN_CATEGORY"].OnAccept = function()
 			addon.db.cooldownNotifyCategories[catId] = nil
 			addon.db.cooldownNotifyEnabled[catId] = nil
@@ -881,13 +881,14 @@ function CN.functions.addCooldownNotifyOptions(container)
 					hideOnEscape = true,
 					preferredIndex = 3,
 				}
-			StaticPopupDialogs["EQOL_IMPORT_CATEGORY"].OnShow = function(self)
-				local editBox = self.editBox or self.GetEditBox and self:GetEditBox()
-				editBox:SetText("")
-				editBox:SetFocus()
-				local txt = self.text or self.Text
-				if txt then txt:SetText(L["ImportCategory"]) end
-			end
+            StaticPopupDialogs["EQOL_IMPORT_CATEGORY"].OnShow = function(self)
+                local editBox = self.editBox or self.GetEditBox and self:GetEditBox()
+                self:SetFrameStrata("TOOLTIP")
+                editBox:SetText("")
+                editBox:SetFocus()
+                local txt = self.text or self.Text
+                if txt then txt:SetText(L["ImportCategory"]) end
+            end
 			StaticPopupDialogs["EQOL_IMPORT_CATEGORY"].EditBoxOnTextChanged = function(editBox)
 				local frame = editBox:GetParent()
 				local name, count = previewImportCategory(editBox:GetText())
@@ -1121,17 +1122,18 @@ local function HandleEQOLLink(link, text, button, frame)
 				if newId then refreshTree(newId) end
 			end,
 		}
-	StaticPopupDialogs["EQOL_IMPORT_FROM_SHARE"].OnShow = function(self, data)
-		local encoded = incoming[data]
-		local name, count = previewImportCategory(encoded or "")
-		local txt = self.text or self.Text
-		if not txt then return end
-		if name then
-			txt:SetFormattedText("%s\n%s", L["ImportCategory"], (L["ImportCategoryPreview"] or "Category: %s (%d auras)"):format(name, count))
-		else
-			txt:SetText(L["ImportCategory"])
-		end
-	end
+    StaticPopupDialogs["EQOL_IMPORT_FROM_SHARE"].OnShow = function(self, data)
+        self:SetFrameStrata("TOOLTIP")
+        local encoded = incoming[data]
+        local name, count = previewImportCategory(encoded or "")
+        local txt = self.text or self.Text
+        if not txt then return end
+        if name then
+            txt:SetFormattedText("%s\n%s", L["ImportCategory"], (L["ImportCategoryPreview"] or "Category: %s (%d auras)"):format(name, count))
+        else
+            txt:SetText(L["ImportCategory"])
+        end
+    end
 	StaticPopup_Show("EQOL_IMPORT_FROM_SHARE", nil, nil, pktID)
 end
 
