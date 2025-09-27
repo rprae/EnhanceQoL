@@ -2670,8 +2670,13 @@ local function addTotemHideToggle(dbValue, data)
 end
 
 local function addCVarFrame(container, d)
+	local scroll = addon.functions.createContainer("ScrollFrame", "List")
+	scroll:SetFullWidth(true)
+	scroll:SetFullHeight(true)
+	container:AddChild(scroll)
+
 	local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
-	container:AddChild(wrapper)
+	scroll:AddChild(wrapper)
 
 	local groupCore = addon.functions.createContainer("InlineGroup", "List")
 	groupCore:SetTitle(L["CVar"])
@@ -2715,6 +2720,7 @@ local function addCVarFrame(container, d)
 
 		groupCore:AddChild(cbElement)
 	end
+	scroll:DoLayout()
 end
 
 -- removed: addPartyFrame (party settings relocated to Social/UI sections)
@@ -3755,8 +3761,12 @@ end
 local function addQuestFrame(container, d)
 	local list, order = addon.functions.prepareListForDropdown(addon.db["ignoredQuestNPC"])
 
+	local scroll = addon.functions.createContainer("ScrollFrame", "List")
+	scroll:SetFullWidth(true)
+	scroll:SetFullHeight(true)
+	container:AddChild(scroll)
 	local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
-	container:AddChild(wrapper)
+	scroll:AddChild(wrapper)
 
 	local groupCore = addon.functions.createContainer("InlineGroup", "List")
 	wrapper:AddChild(groupCore)
@@ -3885,11 +3895,17 @@ local function addQuestFrame(container, d)
 	groupNPC:AddChild(btnAddNPC)
 	groupNPC:AddChild(dropIncludeList)
 	groupNPC:AddChild(btnRemoveNPC)
+	scroll:DoLayout()
 end
 
 local function addSocialFrame(container)
+	local scroll = addon.functions.createContainer("ScrollFrame", "List")
+	scroll:SetFullWidth(true)
+	scroll:SetFullHeight(true)
+	container:AddChild(scroll)
+
 	local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
-	container:AddChild(wrapper)
+	scroll:AddChild(wrapper)
 
 	local groupCore = addon.functions.createContainer("InlineGroup", "List")
 	wrapper:AddChild(groupCore)
@@ -4054,6 +4070,7 @@ local function addSocialFrame(container)
 	wrapper:DoLayout()
 	groupCore:DoLayout()
 	groupInv:DoLayout()
+	scroll:DoLayout()
 end
 
 local function buildDatapanelFrame(container)
@@ -6624,11 +6641,15 @@ local function CreateUI()
 		elseif group == "ui\001system" then
 			addCVarFrame(container, true)
 		elseif group == "profiles" then
-			local sub = AceGUI:Create("SimpleGroup")
-			sub:SetFullWidth(true)
-			sub:SetFullHeight(true)
-			container:AddChild(sub)
+			local scroll = addon.functions.createContainer("ScrollFrame", "List")
+			scroll:SetFullWidth(true)
+			scroll:SetFullHeight(true)
+			container:AddChild(scroll)
+
+			local sub = addon.functions.createContainer("SimpleGroup", "Flow")
+			scroll:AddChild(sub)
 			AceConfigDlg:Open("EQOL_Profiles", sub)
+			scroll:DoLayout()
 		-- Media & Sound wrappers
 		elseif group == "media" then
 			-- Show Shared Media content directly when available

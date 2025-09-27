@@ -217,8 +217,13 @@ local function removeMouseRing()
 end
 
 local function addGeneralFrame(container)
+	local scroll = addon.functions.createContainer("ScrollFrame", "List")
+	scroll:SetFullWidth(true)
+	scroll:SetFullHeight(true)
+	container:AddChild(scroll)
+
 	local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
-	container:AddChild(wrapper)
+	scroll:AddChild(wrapper)
 
 	local groupCore = addon.functions.createContainer("InlineGroup", "List")
 	wrapper:AddChild(groupCore)
@@ -392,6 +397,7 @@ local function addGeneralFrame(container)
 		end)
 		groupTrail:AddChild(cbUseClass)
 	end
+	scroll:DoLayout()
 end
 addon.variables.statusTable.groups["mouse"] = true
 -- Place Mouse under UI & Input

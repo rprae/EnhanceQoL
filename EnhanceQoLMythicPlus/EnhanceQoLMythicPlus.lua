@@ -114,42 +114,42 @@ local function setBRInfo(info)
 end
 
 hooksecurefunc(ScenarioObjectiveTracker.ChallengeModeBlock, "UpdateTime", function(self, elapsedTime)
-    if addon.db["mythicPlusBRTrackerEnabled"] then
-        if not brButton or not brButton.cooldownFrame or not brButton.cooldownFrame.cooldownSet then
-            createBRFrame()
-            if brButton and brButton.cooldownFrame then
-                brButton.cooldownFrame.cooldownSet = true
-                local info = C_Spell.GetSpellCharges(20484)
-                setBRInfo(info)
-            end
-        end
-    end
-    -- Always show chest timers in challenge mode
-    local timeLeft = math.max(0, self.timeLimit - elapsedTime)
-    local chest3Time = self.timeLimit * 0.4
-    local chest2Time = self.timeLimit * 0.2
+	if addon.db["mythicPlusBRTrackerEnabled"] then
+		if not brButton or not brButton.cooldownFrame or not brButton.cooldownFrame.cooldownSet then
+			createBRFrame()
+			if brButton and brButton.cooldownFrame then
+				brButton.cooldownFrame.cooldownSet = true
+				local info = C_Spell.GetSpellCharges(20484)
+				setBRInfo(info)
+			end
+		end
+	end
+	-- Always show chest timers in challenge mode
+	local timeLeft = math.max(0, self.timeLimit - elapsedTime)
+	local chest3Time = self.timeLimit * 0.4
+	local chest2Time = self.timeLimit * 0.2
 
-    if not self.CustomTextAdded then
-        self.ChestTimeText2 = self:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-        self.ChestTimeText2:SetPoint("TOPLEFT", self.TimeLeft, "TOPRIGHT", 3, 2)
-        self.ChestTimeText3 = self:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-        self.ChestTimeText3:SetPoint("BOTTOMLEFT", self.TimeLeft, "BOTTOMRIGHT", 3, 0)
-        self.CustomTextAdded = true
-    end
+	if not self.CustomTextAdded then
+		self.ChestTimeText2 = self:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+		self.ChestTimeText2:SetPoint("TOPLEFT", self.TimeLeft, "TOPRIGHT", 3, 2)
+		self.ChestTimeText3 = self:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+		self.ChestTimeText3:SetPoint("BOTTOMLEFT", self.TimeLeft, "BOTTOMRIGHT", 3, 0)
+		self.CustomTextAdded = true
+	end
 
-    if timeLeft > 0 then
-        local chestText3 = ""
-        local chestText2 = ""
+	if timeLeft > 0 then
+		local chestText3 = ""
+		local chestText2 = ""
 
-        if timeLeft >= chest3Time then chestText3 = string.format("+3: %s", SecondsToClock(timeLeft - chest3Time)) end
-        if timeLeft >= chest2Time then chestText2 = string.format("+2: %s", SecondsToClock(timeLeft - chest2Time)) end
+		if timeLeft >= chest3Time then chestText3 = string.format("+3: %s", SecondsToClock(timeLeft - chest3Time)) end
+		if timeLeft >= chest2Time then chestText2 = string.format("+2: %s", SecondsToClock(timeLeft - chest2Time)) end
 
-        self.ChestTimeText2:SetText(chestText2)
-        self.ChestTimeText3:SetText(chestText3)
-    else
-        self.ChestTimeText2:SetText("")
-        self.ChestTimeText3:SetText("")
-    end
+		self.ChestTimeText2:SetText(chestText2)
+		self.ChestTimeText3:SetText(chestText3)
+	else
+		self.ChestTimeText2:SetText("")
+		self.ChestTimeText3:SetText("")
+	end
 end)
 
 local function GetScenarioPercent(criteriaIndex)
@@ -166,30 +166,30 @@ local function GetScenarioPercent(criteriaIndex)
 end
 
 hooksecurefunc(ScenarioTrackerProgressBarMixin, "SetValue", function(self, percentage)
-    -- Always show decimal progress for enemy forces in M+
-    if not IsInInstance() or not self:IsVisible() then return end
-    local _, _, diff = GetInstanceInfo()
-    if diff ~= 8 then return end -- only in mythic challenge mode
-    local sData = C_ScenarioInfo.GetScenarioStepInfo()
-    if nil == sData then return end
+	-- Always show decimal progress for enemy forces in M+
+	if not IsInInstance() or not self:IsVisible() then return end
+	local _, _, diff = GetInstanceInfo()
+	if diff ~= 8 then return end -- only in mythic challenge mode
+	local sData = C_ScenarioInfo.GetScenarioStepInfo()
+	if nil == sData then return end
 
-    local truePercent
-    if self.criteriaIndex then self.criteriaIndex = nil end
-    for criteriaIndex = 1, sData.numCriteria do
-        if nil == truePercent then
-            truePercent = GetScenarioPercent(criteriaIndex)
-            if truePercent then
-                self.Bar.Label:SetFormattedText(truePercent .. "%%")
-                self.percentage = percentage
-            end
-        end
-    end
+	local truePercent
+	if self.criteriaIndex then self.criteriaIndex = nil end
+	for criteriaIndex = 1, sData.numCriteria do
+		if nil == truePercent then
+			truePercent = GetScenarioPercent(criteriaIndex)
+			if truePercent then
+				self.Bar.Label:SetFormattedText(truePercent .. "%%")
+				self.percentage = percentage
+			end
+		end
+	end
 end)
 
 local function createButtons()
-    -- Always use improved Keystone Helper UI
-    addon.MythicPlus.functions.addRCButton()
-    addon.MythicPlus.functions.addPullButton()
+	-- Always use improved Keystone Helper UI
+	addon.MythicPlus.functions.addRCButton()
+	addon.MythicPlus.functions.addPullButton()
 end
 
 local function checkKeyStone()
@@ -346,24 +346,24 @@ frameLoad:SetScript("OnEvent", eventHandler)
 local function addDungeonBrowserFrame(container) end
 
 local function addKeystoneFrame(container)
-    local groupCore
-    local embedded = container and container._eqolEmbed
-    if embedded then
-        groupCore = container
-        if groupCore.PauseLayout then groupCore:PauseLayout() end
-        groupCore:ReleaseChildren()
-    else
-        local scroll = addon.functions.createContainer("ScrollFrame", "Flow")
-        scroll:SetFullWidth(true)
-        scroll:SetFullHeight(true)
-        container:AddChild(scroll)
+	local groupCore
+	local embedded = container and container._eqolEmbed
+	if embedded then
+		groupCore = container
+		if groupCore.PauseLayout then groupCore:PauseLayout() end
+		groupCore:ReleaseChildren()
+	else
+		local scroll = addon.functions.createContainer("ScrollFrame", "Flow")
+		scroll:SetFullWidth(true)
+		scroll:SetFullHeight(true)
+		container:AddChild(scroll)
 
-        local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
-        scroll:AddChild(wrapper)
+		local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
+		scroll:AddChild(wrapper)
 
-        groupCore = addon.functions.createContainer("InlineGroup", "List")
-        wrapper:AddChild(groupCore)
-    end
+		groupCore = addon.functions.createContainer("InlineGroup", "List")
+		wrapper:AddChild(groupCore)
+	end
 
 	local data = {
 		{
@@ -371,8 +371,8 @@ local function addKeystoneFrame(container)
 			var = "enableKeystoneHelper",
 			func = function(self, _, value)
 				addon.db["enableKeystoneHelper"] = value
-            groupCore:ReleaseChildren()
-            addKeystoneFrame(groupCore)
+				groupCore:ReleaseChildren()
+				addKeystoneFrame(groupCore)
 				if _G["ChallengesKeystoneFrame"] and ChallengesKeystoneFrame:IsShown() then checkKeyStone() end
 			end,
 			desc = L["enableKeystoneHelperDesc"],
@@ -380,12 +380,12 @@ local function addKeystoneFrame(container)
 	}
 	table.sort(data, function(a, b) return a.text < b.text end)
 
-    for _, cbData in ipairs(data) do
-        local uFunc = function(self, _, value) addon.db[cbData.var] = value end
-        if cbData.func then uFunc = cbData.func end
-        local cbElement = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], uFunc, cbData.desc)
-        groupCore:AddChild(cbElement)
-    end
+	for _, cbData in ipairs(data) do
+		local uFunc = function(self, _, value) addon.db[cbData.var] = value end
+		if cbData.func then uFunc = cbData.func end
+		local cbElement = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], uFunc, cbData.desc)
+		groupCore:AddChild(cbElement)
+	end
 
 	if addon.db["enableKeystoneHelper"] then
 		local groupEnabled = addon.functions.createContainer("InlineGroup", "List")
@@ -426,17 +426,17 @@ local function addKeystoneFrame(container)
 
 		local list, order = addon.functions.prepareListForDropdown({ [1] = L["None"], [2] = L["Blizzard Pull Timer"], [3] = L["DBM / BigWigs Pull Timer"], [4] = L["Both"] })
 
-        local row0 = addon.functions.createContainer("SimpleGroup", "Flow")
-        groupEnabled:AddChild(row0)
-        local dropPullTimerType = addon.functions.createDropdownAce(L["PullTimer"], list, order, function(self, _, value) addon.db["PullTimerType"] = value end)
-        dropPullTimerType:SetValue(addon.db["PullTimerType"])
-        dropPullTimerType:SetFullWidth(false)
-        if dropPullTimerType.SetRelativeWidth then dropPullTimerType:SetRelativeWidth(0.5) end
-        row0:AddChild(dropPullTimerType)
+		local row0 = addon.functions.createContainer("SimpleGroup", "Flow")
+		groupEnabled:AddChild(row0)
+		local dropPullTimerType = addon.functions.createDropdownAce(L["PullTimer"], list, order, function(self, _, value) addon.db["PullTimerType"] = value end)
+		dropPullTimerType:SetValue(addon.db["PullTimerType"])
+		dropPullTimerType:SetFullWidth(false)
+		if dropPullTimerType.SetRelativeWidth then dropPullTimerType:SetRelativeWidth(0.5) end
+		row0:AddChild(dropPullTimerType)
 
-        local cbNoChat = addon.functions.createCheckboxAce(L["noChatOnPullTimer"], addon.db["noChatOnPullTimer"], function(_, _, v) addon.db["noChatOnPullTimer"] = v end)
-        if cbNoChat.SetRelativeWidth then cbNoChat:SetRelativeWidth(0.5) end
-        row0:AddChild(cbNoChat)
+		local cbNoChat = addon.functions.createCheckboxAce(L["noChatOnPullTimer"], addon.db["noChatOnPullTimer"], function(_, _, v) addon.db["noChatOnPullTimer"] = v end)
+		if cbNoChat.SetRelativeWidth then cbNoChat:SetRelativeWidth(0.5) end
+		row0:AddChild(cbNoChat)
 
 		local longSlider = addon.functions.createSliderAce(L["sliderLongTime"] .. ": " .. addon.db["pullTimerLongTime"] .. "s", addon.db["pullTimerLongTime"], 0, 60, 1, function(self, _, value2)
 			addon.db["pullTimerLongTime"] = value2
@@ -455,14 +455,18 @@ local function addKeystoneFrame(container)
 		shortSlider:SetFullWidth(false)
 		shortSlider:SetWidth(300)
 		groupEnabled:AddChild(shortSlider)
-    end
+	end
 
-    if embedded and groupCore.ResumeLayout then groupCore:ResumeLayout() end
+	if embedded and groupCore.ResumeLayout then groupCore:ResumeLayout() end
 end
 
 local function addPotionTrackerFrame(container)
+	local scroll = addon.functions.createContainer("ScrollFrame", "List")
+	scroll:SetFullWidth(true)
+	scroll:SetFullHeight(true)
+	container:AddChild(scroll)
 	local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
-	container:AddChild(wrapper)
+	scroll:AddChild(wrapper)
 
 	local groupCore = addon.functions.createContainer("InlineGroup", "List")
 	wrapper:AddChild(groupCore)
@@ -581,34 +585,35 @@ local function addPotionTrackerFrame(container)
 			dd:SetValue(v)
 		end
 	end
+	scroll:DoLayout()
 end
 
 local function addBRFrame(container)
-    local groupCore
-    local embedded = container and container._eqolEmbed
-    if embedded then
-        groupCore = container
-        if groupCore.PauseLayout then groupCore:PauseLayout() end
-        groupCore:ReleaseChildren()
-    else
-        local scroll = addon.functions.createContainer("ScrollFrame", "Flow")
-        scroll:SetFullWidth(true)
-        scroll:SetFullHeight(true)
-        container:AddChild(scroll)
+	local groupCore
+	local embedded = container and container._eqolEmbed
+	if embedded then
+		groupCore = container
+		if groupCore.PauseLayout then groupCore:PauseLayout() end
+		groupCore:ReleaseChildren()
+	else
+		local scroll = addon.functions.createContainer("ScrollFrame", "Flow")
+		scroll:SetFullWidth(true)
+		scroll:SetFullHeight(true)
+		container:AddChild(scroll)
 
-        local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
-        scroll:AddChild(wrapper)
+		local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
+		scroll:AddChild(wrapper)
 
-        groupCore = addon.functions.createContainer("InlineGroup", "List")
-        wrapper:AddChild(groupCore)
-    end
+		groupCore = addon.functions.createContainer("InlineGroup", "List")
+		wrapper:AddChild(groupCore)
+	end
 	groupCore:SetTitle(L["brTrackerHeadline"])
 
 	local cbBREnabled = addon.functions.createCheckboxAce(L["mythicPlusBRTrackerEnabled"], addon.db["mythicPlusBRTrackerEnabled"], function(self, _, value)
 		addon.db["mythicPlusBRTrackerEnabled"] = value
 		createBRFrame()
-        groupCore:ReleaseChildren()
-        addBRFrame(groupCore)
+		groupCore:ReleaseChildren()
+		addBRFrame(groupCore)
 	end)
 	groupCore:AddChild(cbBREnabled)
 
@@ -649,9 +654,9 @@ local function addBRFrame(container)
 			end
 		)
 		groupCore:AddChild(sButtonSize)
-    end
+	end
 
-    if embedded and groupCore.ResumeLayout then groupCore:ResumeLayout() end
+	if embedded and groupCore.ResumeLayout then groupCore:ResumeLayout() end
 end
 
 local function addTeleportFrame(container)
@@ -898,24 +903,24 @@ local function addAutoMarkFrame(container)
 end
 
 local function addObjectiveTrackerFrame(container)
-    local groupCore
-    local embedded = container and container._eqolEmbed
-    if embedded then
-        groupCore = container
-        if groupCore.PauseLayout then groupCore:PauseLayout() end
-        groupCore:ReleaseChildren()
-    else
-        local scroll = addon.functions.createContainer("ScrollFrame", "Flow")
-        scroll:SetFullWidth(true)
-        scroll:SetFullHeight(true)
-        container:AddChild(scroll)
+	local groupCore
+	local embedded = container and container._eqolEmbed
+	if embedded then
+		groupCore = container
+		if groupCore.PauseLayout then groupCore:PauseLayout() end
+		groupCore:ReleaseChildren()
+	else
+		local scroll = addon.functions.createContainer("ScrollFrame", "Flow")
+		scroll:SetFullWidth(true)
+		scroll:SetFullHeight(true)
+		container:AddChild(scroll)
 
-        local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
-        scroll:AddChild(wrapper)
+		local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
+		scroll:AddChild(wrapper)
 
-        groupCore = addon.functions.createContainer("InlineGroup", "List")
-        wrapper:AddChild(groupCore)
-    end
+		groupCore = addon.functions.createContainer("InlineGroup", "List")
+		wrapper:AddChild(groupCore)
+	end
 
 	local data = {
 		{
@@ -923,8 +928,8 @@ local function addObjectiveTrackerFrame(container)
 			var = "mythicPlusEnableObjectiveTracker",
 			func = function(self, _, value)
 				addon.db["mythicPlusEnableObjectiveTracker"] = value
-            groupCore:ReleaseChildren()
-            addObjectiveTrackerFrame(groupCore)
+				groupCore:ReleaseChildren()
+				addObjectiveTrackerFrame(groupCore)
 				addon.MythicPlus.functions.setObjectiveFrames()
 			end,
 			desc = L["mythicPlusEnableObjectiveTrackerDesc"],
@@ -943,10 +948,10 @@ local function addObjectiveTrackerFrame(container)
 		end)
 		if addon.db["mythicPlusObjectiveTrackerSetting"] then dropHideCollapseTracker:SetValue(addon.db["mythicPlusObjectiveTrackerSetting"]) end
 
-        groupCore:AddChild(dropHideCollapseTracker)
-    end
+		groupCore:AddChild(dropHideCollapseTracker)
+	end
 
-    if embedded and groupCore.ResumeLayout then groupCore:ResumeLayout() end
+	if embedded and groupCore.ResumeLayout then groupCore:ResumeLayout() end
 end
 
 local function addGroupFilterFrame(container)
@@ -990,19 +995,19 @@ local function addGroupFilterFrame(container)
 end
 
 local function addRatingFrame(container)
-    local groupCore
-    local embedded = container and container._eqolEmbed
-    if embedded then
-        groupCore = container
-        if groupCore.PauseLayout then groupCore:PauseLayout() end
-        groupCore:ReleaseChildren()
-    else
-        local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
-        container:AddChild(wrapper)
+	local groupCore
+	local embedded = container and container._eqolEmbed
+	if embedded then
+		groupCore = container
+		if groupCore.PauseLayout then groupCore:PauseLayout() end
+		groupCore:ReleaseChildren()
+	else
+		local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
+		container:AddChild(wrapper)
 
-        groupCore = addon.functions.createContainer("InlineGroup", "List")
-        wrapper:AddChild(groupCore)
-    end
+		groupCore = addon.functions.createContainer("InlineGroup", "List")
+		wrapper:AddChild(groupCore)
+	end
 
 	local data = {
 		{
@@ -1019,10 +1024,10 @@ local function addRatingFrame(container)
 		local uFunc = function(self, _, value) addon.db[cbData.var] = value end
 		if cbData.func then uFunc = cbData.func end
 		local cbElement = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], uFunc)
-        groupCore:AddChild(cbElement)
-    end
+		groupCore:AddChild(cbElement)
+	end
 
-    if embedded and groupCore.ResumeLayout then groupCore:ResumeLayout() end
+	if embedded and groupCore.ResumeLayout then groupCore:ResumeLayout() end
 end
 
 local activeTalentContainer
@@ -1257,208 +1262,242 @@ for _, child in ipairs(mpChildren) do
 	addon.functions.addToTree("combat", child, true)
 end
 
-
 -- Place Potion Tracker under Combat (works everywhere)
 addon.functions.addToTree("combat", { value = "potiontracker", text = L["Potion Tracker"] }, true)
 
 -- Place Teleports under Map & Navigation
 addon.functions.addToTree("nav", { value = "teleports", text = L["Teleports"] }, true)
 
-    -- Combined Mythic+ category root
-    local function addMythicPlusRootFrame(container)
-        local scroll = addon.functions.createContainer("ScrollFrame", "Flow")
-        scroll:SetFullWidth(true)
-        scroll:SetFullHeight(true)
-        container:AddChild(scroll)
+-- Combined Mythic+ category root
+local function addMythicPlusRootFrame(container)
+	local scroll = addon.functions.createContainer("ScrollFrame", "Flow")
+	scroll:SetFullWidth(true)
+	scroll:SetFullHeight(true)
+	container:AddChild(scroll)
 
-        local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
-        scroll:AddChild(wrapper)
+	local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
+	scroll:AddChild(wrapper)
 
-        local groups = {}
-        if wrapper.PauseLayout then wrapper:PauseLayout() end
-        local function doLayout()
-            if scroll and scroll.DoLayout then scroll:DoLayout() end
-        end
-        local function ensureGroup(key, title)
-            local g = groups[key]
-            local known = false
-            if g then
-                known = true
-                g:PauseLayout()
-                g:ReleaseChildren()
-            else
-                g = addon.functions.createContainer("InlineGroup", "List")
-                if title and title ~= "" then g:SetTitle(title) end
-                groups[key] = g
-                wrapper:AddChild(g)
-            end
-            return g, known
-        end
+	local groups = {}
+	if wrapper.PauseLayout then wrapper:PauseLayout() end
+	local function doLayout()
+		if scroll and scroll.DoLayout then scroll:DoLayout() end
+	end
+	local function ensureGroup(key, title)
+		local g = groups[key]
+		local known = false
+		if g then
+			known = true
+			g:PauseLayout()
+			g:ReleaseChildren()
+		else
+			g = addon.functions.createContainer("InlineGroup", "List")
+			if title and title ~= "" then g:SetTitle(title) end
+			groups[key] = g
+			wrapper:AddChild(g)
+		end
+		return g, known
+	end
 
-        -- Section builders (inline, migrated from old frames)
-        local function buildKeystone()
-            local g, known = ensureGroup("keystone", L["Keystone"])
-            local cbEnable = addon.functions.createCheckboxAce(L["enableKeystoneHelper"], addon.db["enableKeystoneHelper"], function(_, _, value)
-                addon.db["enableKeystoneHelper"] = value
-                buildKeystone()
-                if _G["ChallengesKeystoneFrame"] and ChallengesKeystoneFrame:IsShown() then checkKeyStone() end
-            end, L["enableKeystoneHelperDesc"])
-            g:AddChild(cbEnable)
+	-- Section builders (inline, migrated from old frames)
+	local function buildKeystone()
+		local g, known = ensureGroup("keystone", L["Keystone"])
+		local cbEnable = addon.functions.createCheckboxAce(L["enableKeystoneHelper"], addon.db["enableKeystoneHelper"], function(_, _, value)
+			addon.db["enableKeystoneHelper"] = value
+			buildKeystone()
+			if _G["ChallengesKeystoneFrame"] and ChallengesKeystoneFrame:IsShown() then checkKeyStone() end
+		end, L["enableKeystoneHelperDesc"])
+		g:AddChild(cbEnable)
 
-            if addon.db["enableKeystoneHelper"] then
-                local data = {
-                    { text = L["Automatically insert keystone"], var = "autoInsertKeystone" },
-                    { text = L["Close all bags on keystone insert"], var = "closeBagsOnKeyInsert" },
-                    { text = L["autoKeyStart"], var = "autoKeyStart" },
-                    { text = L["groupfinderShowPartyKeystone"], var = "groupfinderShowPartyKeystone", func = function(_, _, v) addon.db["groupfinderShowPartyKeystone"] = v; addon.MythicPlus.functions.togglePartyKeystone() end, desc = L["groupfinderShowPartyKeystoneDesc"] },
-                }
-                table.sort(data, function(a, b) return a.text < b.text end)
-                for _, cb in ipairs(data) do
-                    local u = cb.func or function(_, _, v) addon.db[cb.var] = v end
-                    local el = addon.functions.createCheckboxAce(cb.text, addon.db[cb.var], u, cb.desc)
-                    g:AddChild(el)
-                end
+		if addon.db["enableKeystoneHelper"] then
+			local data = {
+				{ text = L["Automatically insert keystone"], var = "autoInsertKeystone" },
+				{ text = L["Close all bags on keystone insert"], var = "closeBagsOnKeyInsert" },
+				{ text = L["autoKeyStart"], var = "autoKeyStart" },
+				{
+					text = L["groupfinderShowPartyKeystone"],
+					var = "groupfinderShowPartyKeystone",
+					func = function(_, _, v)
+						addon.db["groupfinderShowPartyKeystone"] = v
+						addon.MythicPlus.functions.togglePartyKeystone()
+					end,
+					desc = L["groupfinderShowPartyKeystoneDesc"],
+				},
+			}
+			table.sort(data, function(a, b) return a.text < b.text end)
+			for _, cb in ipairs(data) do
+				local u = cb.func or function(_, _, v) addon.db[cb.var] = v end
+				local el = addon.functions.createCheckboxAce(cb.text, addon.db[cb.var], u, cb.desc)
+				g:AddChild(el)
+			end
 
-                local list, order = addon.functions.prepareListForDropdown({ [1] = L["None"], [2] = L["Blizzard Pull Timer"], [3] = L["DBM / BigWigs Pull Timer"], [4] = L["Both"] })
-                local row0 = addon.functions.createContainer("SimpleGroup", "Flow")
-                g:AddChild(row0)
-                local dropPullTimerType = addon.functions.createDropdownAce(L["PullTimer"], list, order, function(self, _, value) addon.db["PullTimerType"] = value end)
-                dropPullTimerType:SetValue(addon.db["PullTimerType"])
-                dropPullTimerType:SetFullWidth(false)
-                if dropPullTimerType.SetRelativeWidth then dropPullTimerType:SetRelativeWidth(0.5) end
-                row0:AddChild(dropPullTimerType)
+			local list, order = addon.functions.prepareListForDropdown({ [1] = L["None"], [2] = L["Blizzard Pull Timer"], [3] = L["DBM / BigWigs Pull Timer"], [4] = L["Both"] })
+			local row0 = addon.functions.createContainer("SimpleGroup", "Flow")
+			g:AddChild(row0)
+			local dropPullTimerType = addon.functions.createDropdownAce(L["PullTimer"], list, order, function(self, _, value) addon.db["PullTimerType"] = value end)
+			dropPullTimerType:SetValue(addon.db["PullTimerType"])
+			dropPullTimerType:SetFullWidth(false)
+			if dropPullTimerType.SetRelativeWidth then dropPullTimerType:SetRelativeWidth(0.5) end
+			row0:AddChild(dropPullTimerType)
 
-                local cbNoChat = addon.functions.createCheckboxAce(L["noChatOnPullTimer"], addon.db["noChatOnPullTimer"], function(_, _, v) addon.db["noChatOnPullTimer"] = v end)
-                if cbNoChat.SetRelativeWidth then cbNoChat:SetRelativeWidth(0.5) end
-                row0:AddChild(cbNoChat)
+			local cbNoChat = addon.functions.createCheckboxAce(L["noChatOnPullTimer"], addon.db["noChatOnPullTimer"], function(_, _, v) addon.db["noChatOnPullTimer"] = v end)
+			if cbNoChat.SetRelativeWidth then cbNoChat:SetRelativeWidth(0.5) end
+			row0:AddChild(cbNoChat)
 
-                -- Sliders in one row (50% width each)
-                local row = addon.functions.createContainer("SimpleGroup", "Flow")
-                g:AddChild(row)
+			-- Sliders in one row (50% width each)
+			local row = addon.functions.createContainer("SimpleGroup", "Flow")
+			g:AddChild(row)
 
-                local longSlider = addon.functions.createSliderAce(L["sliderLongTime"] .. ": " .. addon.db["pullTimerLongTime"] .. "s", addon.db["pullTimerLongTime"], 0, 60, 1, function(self, _, v)
-                    addon.db["pullTimerLongTime"] = v
-                    self:SetLabel(L["sliderLongTime"] .. ": " .. v .. "s")
-                end)
-                longSlider:SetFullWidth(false)
-                if longSlider.SetRelativeWidth then longSlider:SetRelativeWidth(0.5) end
-                row:AddChild(longSlider)
+			local longSlider = addon.functions.createSliderAce(L["sliderLongTime"] .. ": " .. addon.db["pullTimerLongTime"] .. "s", addon.db["pullTimerLongTime"], 0, 60, 1, function(self, _, v)
+				addon.db["pullTimerLongTime"] = v
+				self:SetLabel(L["sliderLongTime"] .. ": " .. v .. "s")
+			end)
+			longSlider:SetFullWidth(false)
+			if longSlider.SetRelativeWidth then longSlider:SetRelativeWidth(0.5) end
+			row:AddChild(longSlider)
 
-                local shortSlider = addon.functions.createSliderAce(L["sliderShortTime"] .. ": " .. addon.db["pullTimerShortTime"] .. "s", addon.db["pullTimerShortTime"], 0, 60, 1, function(self, _, v)
-                    addon.db["pullTimerShortTime"] = v
-                    self:SetLabel(L["sliderShortTime"] .. ": " .. v .. "s")
-                end)
-                shortSlider:SetFullWidth(false)
-                if shortSlider.SetRelativeWidth then shortSlider:SetRelativeWidth(0.5) end
-                row:AddChild(shortSlider)
-            end
+			local shortSlider = addon.functions.createSliderAce(L["sliderShortTime"] .. ": " .. addon.db["pullTimerShortTime"] .. "s", addon.db["pullTimerShortTime"], 0, 60, 1, function(self, _, v)
+				addon.db["pullTimerShortTime"] = v
+				self:SetLabel(L["sliderShortTime"] .. ": " .. v .. "s")
+			end)
+			shortSlider:SetFullWidth(false)
+			if shortSlider.SetRelativeWidth then shortSlider:SetRelativeWidth(0.5) end
+			row:AddChild(shortSlider)
+		end
 
-            if known then g:ResumeLayout(); doLayout() end
-        end
+		if known then
+			g:ResumeLayout()
+			doLayout()
+		end
+	end
 
-        local function buildObjective()
-            local g, known = ensureGroup("objective", HUD_EDIT_MODE_OBJECTIVE_TRACKER_LABEL)
-            local cb = addon.functions.createCheckboxAce(L["mythicPlusEnableObjectiveTracker"], addon.db["mythicPlusEnableObjectiveTracker"], function(_, _, v)
-                addon.db["mythicPlusEnableObjectiveTracker"] = v
-                buildObjective()
-                addon.MythicPlus.functions.setObjectiveFrames()
-            end, L["mythicPlusEnableObjectiveTrackerDesc"])
-            g:AddChild(cb)
+	local function buildObjective()
+		local g, known = ensureGroup("objective", HUD_EDIT_MODE_OBJECTIVE_TRACKER_LABEL)
+		local cb = addon.functions.createCheckboxAce(L["mythicPlusEnableObjectiveTracker"], addon.db["mythicPlusEnableObjectiveTracker"], function(_, _, v)
+			addon.db["mythicPlusEnableObjectiveTracker"] = v
+			buildObjective()
+			addon.MythicPlus.functions.setObjectiveFrames()
+		end, L["mythicPlusEnableObjectiveTrackerDesc"])
+		g:AddChild(cb)
 
-            if addon.db["mythicPlusEnableObjectiveTracker"] then
-                local list, order = addon.functions.prepareListForDropdown({ [1] = L["HideTracker"], [2] = L["collapse"] })
-                local drop = addon.functions.createDropdownAce(L["mythicPlusObjectiveTrackerSetting"], list, order, function(_, _, value)
-                    addon.db["mythicPlusObjectiveTrackerSetting"] = value
-                    addon.MythicPlus.functions.setObjectiveFrames()
-                end)
-                if addon.db["mythicPlusObjectiveTrackerSetting"] then drop:SetValue(addon.db["mythicPlusObjectiveTrackerSetting"]) end
-                g:AddChild(drop)
-            end
+		if addon.db["mythicPlusEnableObjectiveTracker"] then
+			local list, order = addon.functions.prepareListForDropdown({ [1] = L["HideTracker"], [2] = L["collapse"] })
+			local drop = addon.functions.createDropdownAce(L["mythicPlusObjectiveTrackerSetting"], list, order, function(_, _, value)
+				addon.db["mythicPlusObjectiveTrackerSetting"] = value
+				addon.MythicPlus.functions.setObjectiveFrames()
+			end)
+			if addon.db["mythicPlusObjectiveTrackerSetting"] then drop:SetValue(addon.db["mythicPlusObjectiveTrackerSetting"]) end
+			g:AddChild(drop)
+		end
 
-            if known then g:ResumeLayout(); doLayout() end
-        end
+		if known then
+			g:ResumeLayout()
+			doLayout()
+		end
+	end
 
-        local function buildRating()
-            local g, known = ensureGroup("rating", DUNGEON_SCORE)
-            local el = addon.functions.createCheckboxAce(L["groupfinderShowDungeonScoreFrame"]:format(DUNGEON_SCORE), addon.db["groupfinderShowDungeonScoreFrame"], function(_, _, v)
-                addon.db["groupfinderShowDungeonScoreFrame"] = v
-                addon.MythicPlus.functions.toggleFrame()
-            end)
-            g:AddChild(el)
-            if known then g:ResumeLayout(); doLayout() end
-        end
+	local function buildRating()
+		local g, known = ensureGroup("rating", DUNGEON_SCORE)
+		local el = addon.functions.createCheckboxAce(L["groupfinderShowDungeonScoreFrame"]:format(DUNGEON_SCORE), addon.db["groupfinderShowDungeonScoreFrame"], function(_, _, v)
+			addon.db["groupfinderShowDungeonScoreFrame"] = v
+			addon.MythicPlus.functions.toggleFrame()
+		end)
+		g:AddChild(el)
+		if known then
+			g:ResumeLayout()
+			doLayout()
+		end
+	end
 
-        local function buildBR()
-            local g, known = ensureGroup("brtracker", L["BRTracker"])
-            local cb = addon.functions.createCheckboxAce(L["mythicPlusBRTrackerEnabled"], addon.db["mythicPlusBRTrackerEnabled"], function(_, _, v)
-                addon.db["mythicPlusBRTrackerEnabled"] = v
-                createBRFrame()
-                buildBR()
-            end)
-            g:AddChild(cb)
+	local function buildBR()
+		local g, known = ensureGroup("brtracker", L["BRTracker"])
+		local cb = addon.functions.createCheckboxAce(L["mythicPlusBRTrackerEnabled"], addon.db["mythicPlusBRTrackerEnabled"], function(_, _, v)
+			addon.db["mythicPlusBRTrackerEnabled"] = v
+			createBRFrame()
+			buildBR()
+		end)
+		g:AddChild(cb)
 
-            if addon.db["mythicPlusBRTrackerEnabled"] then
-                local data = {
-                    { text = L["mythicPlusBRTrackerLocked"], var = "mythicPlusBRTrackerLocked", func = function(_, _, v2) addon.db["mythicPlusBRTrackerLocked"] = v2; createBRFrame() end },
-                }
-                table.sort(data, function(a, b) return a.text < b.text end)
-                for _, cbData in ipairs(data) do
-                    local u = cbData.func or function(_, _, v3) addon.db[cbData.var] = v3; addon.MythicPlus.functions.toggleFrame() end
-                    local el = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], u)
-                    g:AddChild(el)
-                end
+		if addon.db["mythicPlusBRTrackerEnabled"] then
+			local data = {
+				{
+					text = L["mythicPlusBRTrackerLocked"],
+					var = "mythicPlusBRTrackerLocked",
+					func = function(_, _, v2)
+						addon.db["mythicPlusBRTrackerLocked"] = v2
+						createBRFrame()
+					end,
+				},
+			}
+			table.sort(data, function(a, b) return a.text < b.text end)
+			for _, cbData in ipairs(data) do
+				local u = cbData.func or function(_, _, v3)
+					addon.db[cbData.var] = v3
+					addon.MythicPlus.functions.toggleFrame()
+				end
+				local el = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], u)
+				g:AddChild(el)
+			end
 
-                local s = addon.functions.createSliderAce(L["mythicPlusBRButtonSizeHeadline"] .. ": " .. addon.db["mythicPlusBRButtonSize"], addon.db["mythicPlusBRButtonSize"], 20, 100, 1, function(self, _, v4)
-                    addon.db["mythicPlusBRButtonSize"] = v4
-                    createBRFrame()
-                    self:SetLabel(L["mythicPlusBRButtonSizeHeadline"] .. ": " .. v4)
-                end)
-                g:AddChild(s)
-            end
+			local s = addon.functions.createSliderAce(
+				L["mythicPlusBRButtonSizeHeadline"] .. ": " .. addon.db["mythicPlusBRButtonSize"],
+				addon.db["mythicPlusBRButtonSize"],
+				20,
+				100,
+				1,
+				function(self, _, v4)
+					addon.db["mythicPlusBRButtonSize"] = v4
+					createBRFrame()
+					self:SetLabel(L["mythicPlusBRButtonSizeHeadline"] .. ": " .. v4)
+				end
+			)
+			g:AddChild(s)
+		end
 
-            if known then g:ResumeLayout(); doLayout() end
-        end
+		if known then
+			g:ResumeLayout()
+			doLayout()
+		end
+	end
 
-        local function buildGroupFilter()
-            local g, known = ensureGroup("groupfilter", LFG_TITLE)
-            local cb = addon.functions.createCheckboxAce(
-                L["mythicPlusEnableDungeonFilter"],
-                addon.db["mythicPlusEnableDungeonFilter"],
-                function(_, _, v)
-                    addon.db["mythicPlusEnableDungeonFilter"] = v
-                    if v then
-                        addon.MythicPlus.functions.addDungeonFilter()
-                    else
-                        addon.MythicPlus.functions.removeDungeonFilter()
-                    end
-                    buildGroupFilter()
-                end,
-                L["mythicPlusEnableDungeonFilterDesc"]:format(REPORT_GROUP_FINDER_ADVERTISEMENT)
-            )
-            g:AddChild(cb)
+	local function buildGroupFilter()
+		local g, known = ensureGroup("groupfilter", LFG_TITLE)
+		local cb = addon.functions.createCheckboxAce(L["mythicPlusEnableDungeonFilter"], addon.db["mythicPlusEnableDungeonFilter"], function(_, _, v)
+			addon.db["mythicPlusEnableDungeonFilter"] = v
+			if v then
+				addon.MythicPlus.functions.addDungeonFilter()
+			else
+				addon.MythicPlus.functions.removeDungeonFilter()
+			end
+			buildGroupFilter()
+		end, L["mythicPlusEnableDungeonFilterDesc"]:format(REPORT_GROUP_FINDER_ADVERTISEMENT))
+		g:AddChild(cb)
 
-            if addon.db["mythicPlusEnableDungeonFilter"] then
-                local cb2 = addon.functions.createCheckboxAce(
-                    L["mythicPlusEnableDungeonFilterClearReset"],
-                    addon.db["mythicPlusEnableDungeonFilterClearReset"],
-                    function(_, _, v) addon.db["mythicPlusEnableDungeonFilterClearReset"] = v end
-                )
-                g:AddChild(cb2)
-            end
+		if addon.db["mythicPlusEnableDungeonFilter"] then
+			local cb2 = addon.functions.createCheckboxAce(
+				L["mythicPlusEnableDungeonFilterClearReset"],
+				addon.db["mythicPlusEnableDungeonFilterClearReset"],
+				function(_, _, v) addon.db["mythicPlusEnableDungeonFilterClearReset"] = v end
+			)
+			g:AddChild(cb2)
+		end
 
-            if known then g:ResumeLayout(); doLayout() end
-        end
+		if known then
+			g:ResumeLayout()
+			doLayout()
+		end
+	end
 
-        -- Build sections
-        buildBR()
-        buildGroupFilter()
-        buildKeystone()
-        buildRating()
-        buildObjective()
+	-- Build sections
+	buildBR()
+	buildGroupFilter()
+	buildKeystone()
+	buildRating()
+	buildObjective()
 
-        if wrapper.ResumeLayout then wrapper:ResumeLayout() end
-        doLayout()
-    end
+	if wrapper.ResumeLayout then wrapper:ResumeLayout() end
+	doLayout()
+end
 
 function addon.MythicPlus.functions.treeCallback(container, group)
 	container:ReleaseChildren() -- Entfernt vorherige Inhalte
@@ -1493,21 +1532,28 @@ function addon.MythicPlus.functions.treeCallback(container, group)
 	end
 
 	-- Force combined view for direct leaf routes under mythicplus
-    if group == "mythicplus" or group == "mythicplus\001mythicplus" or group == "mythicplus\001keystone" or group == "mythicplus\001brtracker" or group == "mythicplus\001rating" or group == "mythicplus\001objectivetracker" then
-        addMythicPlusRootFrame(container)
-        return
-    elseif group == "mythicplus\001potiontracker" then
-        addPotionTrackerFrame(container)
-        -- TODO rename automark to Dungeon and put brtracker into that frame, each in his own group in the container
-    elseif group == "mythicplus\001automark" then
-        addAutoMarkFrame(container)
-    elseif group == "mythicplus\001teleports" then
-        addTeleportFrame(container)
-    elseif group == "mythicplus\001talents" then
-        addTalentFrame(container)
-    elseif group == "mythicplus\001groupfilter" then
-        addMythicPlusRootFrame(container)
-    end
+	if
+		group == "mythicplus"
+		or group == "mythicplus\001mythicplus"
+		or group == "mythicplus\001keystone"
+		or group == "mythicplus\001brtracker"
+		or group == "mythicplus\001rating"
+		or group == "mythicplus\001objectivetracker"
+	then
+		addMythicPlusRootFrame(container)
+		return
+	elseif group == "mythicplus\001potiontracker" then
+		addPotionTrackerFrame(container)
+		-- TODO rename automark to Dungeon and put brtracker into that frame, each in his own group in the container
+	elseif group == "mythicplus\001automark" then
+		addAutoMarkFrame(container)
+	elseif group == "mythicplus\001teleports" then
+		addTeleportFrame(container)
+	elseif group == "mythicplus\001talents" then
+		addTalentFrame(container)
+	elseif group == "mythicplus\001groupfilter" then
+		addMythicPlusRootFrame(container)
+	end
 end
 
 if addon.db["mythicPlusEnableDungeonFilter"] then addon.MythicPlus.functions.addDungeonFilter() end

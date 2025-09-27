@@ -39,6 +39,7 @@
 - **Bag filter:** Sometimes the bag filter was empty
 - **Instance difficulty:** Disabling this setting while not in Dungeon showed the default icon
 - **Aura Tracker:** After deleting all auras, switching menus could auto‑select “+ Add Category” and spawn a new frame. New categories now start disabled so nothing pops up unexpectedly.
+- **Option UI:** Resizing sometimes overlapped outside of the option menu
 
 ---
 

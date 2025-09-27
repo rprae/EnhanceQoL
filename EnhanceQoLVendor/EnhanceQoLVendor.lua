@@ -260,8 +260,13 @@ local function addVendorFrame(container, type)
 	local uText = {} -- Text for upgrade track
 	local value = addon.Vendor.variables.tabNames[type]
 	local labelHeadlineExplain
+
+	local scroll = addon.functions.createContainer("ScrollFrame", "List")
+	scroll:SetFullWidth(true)
+	scroll:SetFullHeight(true)
+	container:AddChild(scroll)
 	local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
-	container:AddChild(wrapper)
+	scroll:AddChild(wrapper)
 
 	local iqColor = ITEM_QUALITY_COLORS[type].hex .. _G["ITEM_QUALITY" .. type .. "_DESC"] .. "|r"
 
@@ -389,6 +394,7 @@ local function addVendorFrame(container, type)
 		labelHeadlineExplain:SetFullWidth(true)
 	end
 	updateSellMarks(nil, true)
+	scroll:DoLayout()
 end
 
 local function addInExcludeFrame(container, type)
@@ -579,8 +585,8 @@ end
 
 -- Create the Selling node under Vendors & Economy (includes Craft Shopper)
 addon.functions.addToTree("items\001economy", {
-    value = "selling",
-    text = L["SellingAndShopping"] or "Selling & Shopping",
+	value = "selling",
+	text = L["SellingAndShopping"] or "Selling & Shopping",
 }, true)
 
 -- Add Vendor pages under Selling
@@ -600,15 +606,15 @@ function addon.Vendor.functions.treeCallback(container, group)
 	local _, avgItemLevelEquipped = GetAverageItemLevel()
 	addon.Vendor.variables.avgItemLevelEquipped = avgItemLevelEquipped
 	-- Normalize to old paths so existing logic can be reused
-    local prefix = "items\001economy\001selling"
-    if group == prefix then group = "vendor" end
-    if group:sub(1, #prefix + 1) == prefix .. "\001" then group = "vendor" .. group:sub(#prefix + 1) end
+	local prefix = "items\001economy\001selling"
+	if group == prefix then group = "vendor" end
+	if group:sub(1, #prefix + 1) == prefix .. "\001" then group = "vendor" .. group:sub(#prefix + 1) end
 
 	-- Prüfen, welche Gruppe ausgewählt wurde
 	if group == "vendor" then
 		addGeneralFrame(container)
-    elseif group == "vendor\001common" then
-        addVendorFrame(container, 1)
+	elseif group == "vendor\001common" then
+		addVendorFrame(container, 1)
 	elseif group == "vendor\001uncommon" then
 		addVendorFrame(container, 2)
 	elseif group == "vendor\001rare" then
