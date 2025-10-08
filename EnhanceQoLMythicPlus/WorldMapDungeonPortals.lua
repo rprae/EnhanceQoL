@@ -114,6 +114,7 @@ end
 -- Panel creation -----------------------------------------------------------
 local panel -- content frame
 local scrollBox
+local tabButton -- forward-declare for SafeSetVisible
 -- Safe visibility toggles (avoid Show/Hide taint during combat)
 local function SafeSetVisible(frame, visible)
 	if not frame then return end
@@ -708,7 +709,7 @@ local function PopulatePanel()
 end
 
 -- Tab creation -------------------------------------------------------------
-local tabButton
+-- tabButton declared above for forward reference
 
 -- Prefer anchoring below WorldQuestTab's custom tab if present
 local function GetPreferredTabAnchor()
