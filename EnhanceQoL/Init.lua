@@ -1,7 +1,6 @@
 local addonName, addon = ...
 _G[addonName] = addon
 addon.saveVariables = {} -- Cross-Module variables for DB Save
-addon.saveVariables["hidePlayerFrame"] = false -- Default for hiding the Player Frame
 addon.saveVariables["hideRaidFrameBuffs"] = false -- Default for hiding buffs on raid-style frames
 addon.saveVariables["hidePartyFrameTitle"] = false -- Default for hiding party frame title
 addon.saveVariables["unitFrameTruncateNames"] = false -- Default for truncating unit names
@@ -762,7 +761,12 @@ addon.variables.actionBarNames = {
 
 addon.variables.unitFrameNames = {
 	{ name = "PlayerFrame", var = "unitframeSettingPlayerFrame", text = HUD_EDIT_MODE_PLAYER_FRAME_LABEL },
-	{ name = "BossTargetFrameContainer", var = "unitframeSettingBossTargetFrame", text = HUD_EDIT_MODE_BOSS_FRAMES_LABEL },
+	{
+		name = "BossTargetFrameContainer",
+		var = "unitframeSettingBossTargetFrame",
+		text = HUD_EDIT_MODE_BOSS_FRAMES_LABEL,
+		allowedVisibility = { "NONE", "MOUSEOVER", "HIDE" },
+	},
 	{ name = "TargetFrame", var = "unitframeSettingTargetFrame", text = HUD_EDIT_MODE_TARGET_FRAME_LABEL },
 }
 

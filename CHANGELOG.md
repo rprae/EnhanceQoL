@@ -1,5 +1,18 @@
 # Changelog
 
+## [5.6.0] – 2025-10-15
+
+### ✨ Added
+
+- Tooltip: Unit tab now includes a "Hide health bar on Tooltip" toggle so you can hide the GameTooltip health bar.
+- Action Bars: New "Hide macro names" checkbox (disabled by default) to suppress macro labels on action buttons.
+
+### 🔄 Changed
+
+- Unit Frames & UI: Former mouseover-only toggles for Player, Target, Boss frames as well as the Micro Menu and Bags Bar are now unified dropdowns with multiple visibility options (always show, mouseover, hide in combat, etc.), replacing the old standalone “Hide” checkboxes.
+
+---
+
 ## [5.5.0] – 2025-10-14
 
 ### ✨ Added

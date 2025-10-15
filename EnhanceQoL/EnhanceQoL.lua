@@ -202,34 +202,176 @@ local function GameTooltipActionButton(button)
 	button:HookScript("OnLeave", function(self) GameTooltip:Hide() end)
 end
 
-local function genericHoverOutCheck(frame, cbData)
-	-- If the feature is disabled, do nothing and ensure the frame stays visible.
-	if not cbData or not cbData.var or (addon.db and not addon.db[cbData.var]) then
-		if frame and frame.SetAlpha then frame:SetAlpha(1) end
-		if cbData and cbData.children then
-			for _, v in pairs(cbData.children) do
-				if v.SetAlpha then v:SetAlpha(1) end
-			end
-		end
-		if cbData and cbData.hideChildren then
-			for _, v in pairs(cbData.hideChildren) do
-				if v.Show then v:Show() end
-			end
-		end
-		return
+local unitFrameVisibilityOptions = {
+	NONE = { label = L["unitframeVisibility_none"] or NONE or "None", value = false },
+	MOUSEOVER = { label = L["unitframeVisibility_mouseover"] or "Mouseover", value = "MOUSEOVER" },
+	HIDE = { label = L["unitframeVisibility_hide"] or HIDE or "Hide", value = "hide" },
+	SHOW_COMBAT = { label = L["unitframeVisibility_showCombat"] or "Show in combat", value = "[combat] show; hide" },
+	HIDE_COMBAT = { label = L["unitframeVisibility_hideCombat"] or "Hide in combat", value = "[combat] hide; show" },
+}
+local unitFrameVisibilityOrder = { "NONE", "MOUSEOVER", "HIDE", "SHOW_COMBAT", "HIDE_COMBAT" }
+local unitFrameVisibilityList = {}
+local unitFrameVisibilityKeyByValue = {}
+
+for key, option in pairs(unitFrameVisibilityOptions) do
+	unitFrameVisibilityList[key] = option.label
+	if option.value then unitFrameVisibilityKeyByValue[option.value] = key end
+end
+unitFrameVisibilityKeyByValue[false] = "NONE"
+
+local function NormalizeUnitFrameSettingValue(value)
+	if value == true then return "MOUSEOVER" end
+	if value == false or value == "" then return nil end
+	return value
+end
+
+local function GetUnitFrameDropdownKey(value)
+	local normalized = NormalizeUnitFrameSettingValue(value)
+	if not normalized then return "NONE" end
+	return unitFrameVisibilityKeyByValue[normalized] or "NONE"
+end
+
+local function GetUnitFrameValueFromKey(key)
+	local option = unitFrameVisibilityOptions[key]
+	if not option then return nil end
+	if option.value == false then return nil end
+	return option.value
+end
+
+local function IsVisibilityKeyAllowed(cbData, key)
+	if not key or key == "" then key = "NONE" end
+	if not cbData or not cbData.allowedVisibility then return true end
+	for _, allowedKey in ipairs(cbData.allowedVisibility) do
+		if allowedKey == key then return true end
 	end
+	return false
+end
+
+local function GetUnitFrameDropdownData(cbData)
+	local list = {}
+	local order = {}
+	local sourceOrder = (cbData and cbData.allowedVisibility) or unitFrameVisibilityOrder
+	for _, key in ipairs(sourceOrder) do
+		local label = unitFrameVisibilityList[key]
+		if label then
+			list[key] = label
+			table.insert(order, key)
+		end
+	end
+	return list, order
+end
+
+local function GetUnitFrameSettingKey(varName)
+	if not addon.db or not varName then return "NONE" end
+	return GetUnitFrameDropdownKey(addon.db[varName])
+end
+
+local function IsUnitFrameSetting(varName, key)
+	return GetUnitFrameSettingKey(varName) == key
+end
+
+local function ShouldUseMouseoverSetting(cbData)
+	if not cbData or not cbData.var then return false end
+	return IsUnitFrameSetting(cbData.var, "MOUSEOVER")
+end
+
+local function MigrateLegacyVisibilityFlag(oldKey, targetVar)
+	if not addon.db or addon.db[oldKey] == nil then return end
+	local legacy = addon.db[oldKey]
+	addon.db[oldKey] = nil
+	if legacy then addon.db[targetVar] = "hide" end
+end
+
+local function MigrateLegacyVisibilityFlags()
+	if not addon.db then return end
+	MigrateLegacyVisibilityFlag("hidePlayerFrame", "unitframeSettingPlayerFrame")
+	MigrateLegacyVisibilityFlag("hideMicroMenu", "unitframeSettingMicroMenu")
+	MigrateLegacyVisibilityFlag("hideBagsBar", "unitframeSettingBagsBar")
+end
+
+local function RestoreUnitFrameVisibility(frame, cbData)
+	if frame and frame.SetAlpha then frame:SetAlpha(1) end
+	if cbData and cbData.children then
+		for _, child in pairs(cbData.children) do
+			if child and child.SetAlpha then child:SetAlpha(1) end
+		end
+	end
+	if cbData and cbData.hideChildren then
+		for _, child in pairs(cbData.hideChildren) do
+			if child and child.Show then child:Show() end
+		end
+	end
+end
+
+local UpdateUnitFrameMouseover -- forward declaration
+
+local function ApplyUnitFrameStateDriverImmediate(frame, expression)
+	if not frame then return true end
+	if UnregisterStateDriver then pcall(UnregisterStateDriver, frame, "visibility") end
+	if expression and RegisterStateDriver then
+		local ok, err = pcall(RegisterStateDriver, frame, "visibility", expression)
+		if not ok then
+			frame.EQOL_VisibilityStateDriver = nil
+			return false, err
+		end
+		frame.EQOL_VisibilityStateDriver = expression
+	else
+		frame.EQOL_VisibilityStateDriver = nil
+	end
+	return true
+end
+
+local function EnsureUnitFrameDriverWatcher()
+	addon.variables = addon.variables or {}
+	if addon.variables.unitFrameDriverWatcher then return end
+
+	local watcher = CreateFrame("Frame")
+	watcher:SetScript("OnEvent", function(self, event)
+		if event ~= "PLAYER_REGEN_ENABLED" then return end
+		local pending = addon.variables.pendingUnitFrameDriverUpdates
+		if not pending then return end
+
+		addon.variables.pendingUnitFrameDriverUpdates = nil
+		for frameRef, data in pairs(pending) do
+			if frameRef then
+				ApplyUnitFrameStateDriverImmediate(frameRef, data.expression)
+				if data.cbData and data.cbData.name then UpdateUnitFrameMouseover(data.cbData.name, data.cbData) end
+			end
+		end
+	end)
+	watcher:RegisterEvent("PLAYER_REGEN_ENABLED")
+	addon.variables.unitFrameDriverWatcher = watcher
+end
+
+local function QueueUnitFrameDriverUpdate(frame, expression, cbData)
+	EnsureUnitFrameDriverWatcher()
+	addon.variables.pendingUnitFrameDriverUpdates = addon.variables.pendingUnitFrameDriverUpdates or {}
+	addon.variables.pendingUnitFrameDriverUpdates[frame] = { expression = expression, cbData = cbData }
+end
+
+local function ApplyUnitFrameStateDriver(frame, expression, cbData)
+	if not frame then return true end
+	if InCombatLockdown and InCombatLockdown() then
+		QueueUnitFrameDriverUpdate(frame, expression, cbData)
+		return nil, "DEFERRED"
+	end
+	return ApplyUnitFrameStateDriverImmediate(frame, expression)
+end
+
+local function genericHoverOutCheck(frame, cbData)
+	if not ShouldUseMouseoverSetting(cbData) then return end
 
 	if frame and frame:IsVisible() then
 		if not MouseIsOver(frame) then
-			frame:SetAlpha(0)
-			if cbData.children then
+			if frame.SetAlpha then frame:SetAlpha(0) end
+			if cbData and cbData.children then
 				for _, v in pairs(cbData.children) do
-					v:SetAlpha(0)
+					if v and v.SetAlpha then v:SetAlpha(0) end
 				end
 			end
-			if cbData.hideChildren then
+			if cbData and cbData.hideChildren then
 				for _, v in pairs(cbData.hideChildren) do
-					v:Hide()
+					if v and v.Hide then v:Hide() end
 				end
 			end
 		else
@@ -239,133 +381,170 @@ local function genericHoverOutCheck(frame, cbData)
 end
 
 local hookedUnitFrames = {}
-local function UpdateUnitFrameMouseover(barName, cbData)
-	local enable = addon.db[cbData.var]
+UpdateUnitFrameMouseover = function(barName, cbData)
+	if not cbData or not cbData.var then return end
 
-	if enable and cbData.disableSetting then
-		for i, v in pairs(cbData.disableSetting) do
-			addon.db[v] = false
-		end
+	local frame = _G[barName]
+	if not frame then return end
+
+	local stored = addon.db and addon.db[cbData.var]
+	if stored == true then
+		stored = "MOUSEOVER"
+	elseif stored == false or stored == "" then
+		stored = nil
 	end
 
-	local uf = _G[barName]
+	local currentKey = GetUnitFrameDropdownKey(stored)
+	if not IsVisibilityKeyAllowed(cbData, currentKey) then
+		currentKey = "NONE"
+		stored = nil
+	end
 
-	if enable then
-		if not hookedUnitFrames[uf] then
-			if uf.OnEnter or uf:GetScript("OnEnter") then
-				uf:HookScript("OnEnter", function(self)
-					self:SetAlpha(1)
-					if cbData.children then
-						for _, v in pairs(cbData.children) do
-							v:SetAlpha(1)
-						end
-					end
-					if cbData.hideChildren then
-						for _, v in pairs(cbData.hideChildren) do
-							v:Show()
-						end
-					end
-				end)
-				hookedUnitFrames[uf] = true
-			else
-				uf:SetScript("OnEnter", function(self)
-					self:SetAlpha(1)
-					if cbData.children then
-						for _, v in pairs(cbData.children) do
-							v:SetAlpha(1)
-						end
-					end
-					if cbData.hideChildren then
-						for _, v in pairs(cbData.hideChildren) do
-							v:Show()
-						end
-					end
-				end)
-			end
-			if uf.OnLeave or uf:GetScript("OnLeave") then
-				uf:HookScript("OnLeave", function(self) genericHoverOutCheck(self, cbData) end)
-			else
-				uf:SetScript("OnLeave", function(self) genericHoverOutCheck(self, cbData) end)
-			end
-			-- Initialize state based on current hover status
-			uf:SetAlpha(0)
+	if currentKey ~= "NONE" and cbData.disableSetting then
+		for _, v in pairs(cbData.disableSetting) do addon.db[v] = false end
+	end
+	local isMouseover = currentKey == "MOUSEOVER"
+	local driverExpression
+	if currentKey ~= "NONE" and currentKey ~= "MOUSEOVER" then
+		local option = unitFrameVisibilityOptions[currentKey]
+		driverExpression = option and option.value or nil
+		stored = driverExpression
+	elseif isMouseover then
+		stored = "MOUSEOVER"
+	else
+		stored = nil
+	end
+
+	if addon.db then addon.db[cbData.var] = stored end
+
+	if not hookedUnitFrames[frame] then
+		local function handleEnter(self)
+			if not ShouldUseMouseoverSetting(cbData) then return end
+			if self and self.SetAlpha then self:SetAlpha(1) end
 			if cbData.children then
-				for _, v in ipairs(cbData.children) do
-					if cbData.revealAllChilds then
-						v:HookScript("OnEnter", function(self)
-							uf:SetAlpha(1)
-							for _, sv in ipairs(cbData.children) do
-								sv:SetAlpha(1)
-							end
-						end)
-						v:HookScript("OnLeave", function(self) genericHoverOutCheck(uf, cbData) end)
-					end
-					v:SetAlpha(0)
+				for _, child in pairs(cbData.children) do
+					if child and child.SetAlpha then child:SetAlpha(1) end
 				end
 			end
 			if cbData.hideChildren then
-				for _, v in ipairs(cbData.hideChildren) do
-					v:Hide()
+				for _, child in pairs(cbData.hideChildren) do
+					if child and child.Show then child:Show() end
 				end
 			end
 		end
-		-- Ensure the initial state matches whether the mouse is currently over the frame/children
+
+		local function handleLeave(self)
+			if not ShouldUseMouseoverSetting(cbData) then return end
+			genericHoverOutCheck(self, cbData)
+		end
+
+		if frame.OnEnter or frame:GetScript("OnEnter") then
+			frame:HookScript("OnEnter", handleEnter)
+		else
+			frame:SetScript("OnEnter", handleEnter)
+		end
+
+		if frame.OnLeave or frame:GetScript("OnLeave") then
+			frame:HookScript("OnLeave", handleLeave)
+		else
+			frame:SetScript("OnLeave", handleLeave)
+		end
+
+		if cbData.children then
+			for _, child in ipairs(cbData.children) do
+				if child and cbData.revealAllChilds then
+					child:HookScript("OnEnter", function()
+						if not ShouldUseMouseoverSetting(cbData) then return end
+						if frame.SetAlpha then frame:SetAlpha(1) end
+						for _, sibling in ipairs(cbData.children) do
+							if sibling and sibling.SetAlpha then sibling:SetAlpha(1) end
+						end
+					end)
+					child:HookScript("OnLeave", function()
+						genericHoverOutCheck(frame, cbData)
+					end)
+				end
+				if child then child.EQOL_MouseoverHooked = true end
+			end
+		end
+
+		hookedUnitFrames[frame] = true
+	end
+
+	if isMouseover then
+		ApplyUnitFrameStateDriver(frame, nil, cbData)
+		RestoreUnitFrameVisibility(frame, cbData)
+		if frame.Show then frame:Show() end
+		if frame.SetAlpha then frame:SetAlpha(0) end
+		if cbData.children then
+			for _, child in ipairs(cbData.children) do
+				if child and child.SetAlpha then child:SetAlpha(0) end
+			end
+		end
+		if cbData.hideChildren then
+			for _, child in ipairs(cbData.hideChildren) do
+				if child and child.Hide then child:Hide() end
+			end
+		end
+
 		C_Timer.After(0, function()
-			if not addon.db or not addon.db[cbData.var] then return end
-			local hovered = MouseIsOver(uf)
+			if not ShouldUseMouseoverSetting(cbData) then return end
+			if not frame then return end
+			local hovered = MouseIsOver(frame)
 			if not hovered and cbData and cbData.revealAllChilds and cbData.children then
-				for _, v in pairs(cbData.children) do
-					if v:IsVisible() and MouseIsOver(v) then
+				for _, child in pairs(cbData.children) do
+					if child and child:IsVisible() and MouseIsOver(child) then
 						hovered = true
 						break
 					end
 				end
 			end
 			if hovered then
-				uf:SetAlpha(1)
+				if frame.SetAlpha then frame:SetAlpha(1) end
 				if cbData.children then
-					for _, v in pairs(cbData.children) do
-						v:SetAlpha(1)
+					for _, child in pairs(cbData.children) do
+						if child and child.SetAlpha then child:SetAlpha(1) end
 					end
 				end
 				if cbData.hideChildren then
-					for _, v in pairs(cbData.hideChildren) do
-						v:Show()
+					for _, child in pairs(cbData.hideChildren) do
+						if child and child.Show then child:Show() end
 					end
 				end
 			else
-				uf:SetAlpha(0)
+				if frame.SetAlpha then frame:SetAlpha(0) end
 				if cbData.children then
-					for _, v in pairs(cbData.children) do
-						v:SetAlpha(0)
+					for _, child in pairs(cbData.children) do
+						if child and child.SetAlpha then child:SetAlpha(0) end
 					end
 				end
 				if cbData.hideChildren then
-					for _, v in pairs(cbData.hideChildren) do
-						v:Hide()
+					for _, child in pairs(cbData.hideChildren) do
+						if child and child.Hide then child:Hide() end
 					end
 				end
 			end
 		end)
 	else
-		if not hookedUnitFrames[uf] then
-			uf:SetScript("OnEnter", nil)
-			uf:SetScript("OnLeave", nil)
-		end
-		uf:SetAlpha(1)
-		if cbData.children then
-			for _, v in pairs(cbData.children) do
-				v:SetAlpha(1)
+		RestoreUnitFrameVisibility(frame, cbData)
+		local ok, err = ApplyUnitFrameStateDriver(frame, driverExpression, cbData)
+		if not ok then
+			if err ~= "DEFERRED" then
+				addon.variables.requireReload = true
+				if addon.functions and addon.functions.checkReloadFrame then addon.functions.checkReloadFrame() end
 			end
+			return
 		end
-		if cbData.hideChildren then
-			for _, v in pairs(cbData.hideChildren) do
-				v:Show()
-			end
-		end
-		if cbData.revealAllChilds then
-			-- to completely remove the hookscript we need a full reload
-			addon.variables.requireReload = true
+		if not driverExpression and frame.Show then frame:Show() end
+	end
+end
+
+local function ApplyUnitFrameSettingByVar(varName)
+	if not varName then return end
+	for _, data in ipairs(addon.variables.unitFrameNames) do
+		if data.var == varName and data.name then
+			UpdateUnitFrameMouseover(data.name, data)
+			break
 		end
 	end
 end
@@ -525,6 +704,37 @@ local function RefreshAllRangeOverlays()
 		for i = 1, 12 do
 			local button = _G[prefix .. i]
 			if button then ActionButton_UpdateRangeIndicator(button) end
+		end
+	end
+end
+
+local function UpdateMacroNameVisibility(button, hide)
+	if not button or not button.GetName then return end
+
+	local nameFrame = button.Name or _G[button:GetName() .. "Name"]
+	if not nameFrame then return end
+
+	if hide then
+		if not nameFrame.EQOL_IsHiddenByEQOL then
+			nameFrame.EQOL_OriginalAlpha = nameFrame:GetAlpha()
+			nameFrame:SetAlpha(0)
+			nameFrame.EQOL_IsHiddenByEQOL = true
+		end
+	elseif nameFrame.EQOL_IsHiddenByEQOL then
+		nameFrame:SetAlpha(nameFrame.EQOL_OriginalAlpha or 1)
+		nameFrame.EQOL_IsHiddenByEQOL = nil
+	end
+end
+
+local function RefreshAllMacroNameVisibility()
+	local hide = addon.db and addon.db.hideMacroNames
+	for _, info in ipairs(addon.variables.actionBarNames or {}) do
+		if info.name ~= "PetActionBar" and info.name ~= "StanceBar" then
+			local prefix = info.name == "MainMenuBar" and "ActionButton" or (info.name .. "Button")
+			for i = 1, 12 do
+				local button = _G[prefix .. i]
+				if button then UpdateMacroNameVisibility(button, hide) end
+			end
 		end
 	end
 end
@@ -1841,18 +2051,30 @@ local function addUnitFrame2(container)
 
 	local function buildCore()
 		local g, known = ensureGroup("core", "")
+		g:SetLayout("Flow")
 		local labelHeadline = addon.functions.createLabelAce("|cffffd700" .. L["UnitFrameHideExplain"] .. "|r", nil, nil, 14)
 		labelHeadline:SetFullWidth(true)
 		g:AddChild(labelHeadline)
 		g:AddChild(addon.functions.createSpacerAce())
 
 		for _, cbData in ipairs(addon.variables.unitFrameNames) do
-			local desc = cbData.desc
-			local w = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], function(self, _, value)
-				addon.db[cbData.var] = value
+			local dd = AceGUI:Create("Dropdown")
+			dd:SetLabel(cbData.text)
+			local list, order = GetUnitFrameDropdownData(cbData)
+			dd:SetList(list, order)
+			local currentKey = GetUnitFrameDropdownKey(addon.db and addon.db[cbData.var])
+			if not IsVisibilityKeyAllowed(cbData, currentKey) then
+				currentKey = "NONE"
+				if addon.db then addon.db[cbData.var] = nil end
+			end
+			dd:SetValue(currentKey)
+			dd:SetRelativeWidth(0.33)
+			dd:SetCallback("OnValueChanged", function(_, _, key)
+				if not IsVisibilityKeyAllowed(cbData, key) then return end
+				addon.db[cbData.var] = GetUnitFrameValueFromKey(key)
 				UpdateUnitFrameMouseover(cbData.name, cbData)
-			end, desc)
-			g:AddChild(w)
+			end)
+			g:AddChild(dd)
 		end
 		if known then
 			g:ResumeLayout()
@@ -1942,7 +2164,7 @@ local function addUnitFrame2(container)
 			addon.db["showPartyFrameInSoloContent"] = value
 			addon.variables.requireReload = true
 			buildCoreUF()
-			addon.functions.togglePlayerFrame(addon.db["hidePlayerFrame"])
+			ApplyUnitFrameSettingByVar("unitframeSettingPlayerFrame")
 			addon.functions.togglePartyFrameTitle(addon.db["hidePartyFrameTitle"])
 		end)
 		g:AddChild(cbSolo)
@@ -1998,14 +2220,6 @@ local function addUnitFrame2(container)
 		g:AddChild(sliderScale)
 
 		g:AddChild(addon.functions.createSpacerAce())
-
-		if addon.db["showPartyFrameInSoloContent"] then
-			local cbHidePlayer = addon.functions.createCheckboxAce(L["hidePlayerFrame"], addon.db["hidePlayerFrame"], function(_, _, value)
-				addon.db["hidePlayerFrame"] = value
-				addon.functions.togglePlayerFrame(addon.db["hidePlayerFrame"])
-			end)
-			g:AddChild(cbHidePlayer)
-		end
 
 		if known then
 			g:ResumeLayout()
@@ -2330,6 +2544,12 @@ local function addActionBarFrame(container, d)
 		groupCore:AddChild(cbElement)
 	end
 
+	local cbHideMacroNames = addon.functions.createCheckboxAce(L["hideMacroNames"], addon.db["hideMacroNames"], function(_, _, value)
+		addon.db["hideMacroNames"] = value
+		RefreshAllMacroNameVisibility()
+	end, L["hideMacroNamesDesc"])
+	groupCore:AddChild(cbHideMacroNames)
+
 	groupCore:AddChild(addon.functions.createSpacerAce())
 
 	local cbRange = addon.functions.createCheckboxAce(L["fullButtonRangeColoring"], addon.db["actionBarFullRangeColoring"], function(_, _, value)
@@ -2553,38 +2773,12 @@ local function addUIFrame(container)
 		},
 		{
 			parent = "",
-			var = "hideBagsBar",
-			type = "CheckBox",
-			callback = function(self, _, value)
-				addon.db["hideBagsBar"] = value
-				addon.functions.toggleBagsBar(addon.db["hideBagsBar"])
-				if value and addon.db["unitframeSettingBagsBar"] then
-					addon.db["unitframeSettingBagsBar"] = false
-					addon.variables.requireReload = true
-				end
-			end,
-		},
-		{
-			parent = "",
 			var = "hideQuickJoinToast",
 			text = HIDE .. " " .. COMMUNITIES_NOTIFICATION_SETTINGS_DIALOG_QUICK_JOIN_LABEL,
 			type = "CheckBox",
 			callback = function(self, _, value)
 				addon.db["hideQuickJoinToast"] = value
 				addon.functions.toggleQuickJoinToastButton(addon.db["hideQuickJoinToast"])
-			end,
-		},
-		{
-			parent = "",
-			var = "hideMicroMenu",
-			type = "CheckBox",
-			callback = function(self, _, value)
-				addon.db["hideMicroMenu"] = value
-				addon.functions.toggleMicroMenu(addon.db["hideMicroMenu"])
-				if value and addon.db["unitframeSettingMicroMenu"] then
-					addon.db["unitframeSettingMicroMenu"] = false
-					addon.variables.requireReload = true
-				end
 			end,
 		},
 		{
@@ -4870,11 +5064,13 @@ local function initActionBars()
 	addon.functions.InitDBValue("actionBarFullRangeColoring", false)
 	addon.functions.InitDBValue("actionBarFullRangeColor", { r = 1, g = 0.1, b = 0.1 })
 	addon.functions.InitDBValue("actionBarFullRangeAlpha", 0.35)
+	addon.functions.InitDBValue("hideMacroNames", false)
 	for _, cbData in ipairs(addon.variables.actionBarNames) do
 		if cbData.var and cbData.name then
 			if addon.db[cbData.var] then UpdateActionBarMouseover(cbData.name, addon.db[cbData.var], cbData.var) end
 		end
 	end
+	RefreshAllMacroNameVisibility()
 end
 
 local function initParty()
@@ -5044,8 +5240,6 @@ local function initMisc()
 	addon.functions.InitDBValue("hiddenLandingPages", {})
 	addon.functions.InitDBValue("enableLandingPageMenu", false)
 	addon.functions.InitDBValue("hideMinimapButton", false)
-	addon.functions.InitDBValue("hideBagsBar", false)
-	addon.functions.InitDBValue("hideMicroMenu", false)
 	addon.functions.InitDBValue("hideZoneText", false)
 	addon.functions.InitDBValue("instantCatalystEnabled", false)
 	addon.functions.InitDBValue("automaticallyOpenContainer", false)
@@ -5184,11 +5378,11 @@ local function initLoot()
 end
 
 local function initUnitFrame()
+	MigrateLegacyVisibilityFlags()
 	addon.functions.InitDBValue("hideHitIndicatorPlayer", false)
 	addon.functions.InitDBValue("hideHitIndicatorPet", false)
 	-- Player resting visuals (ZZZ + glow)
 	addon.functions.InitDBValue("hideRestingGlow", false)
-	addon.functions.InitDBValue("hidePlayerFrame", false)
 	addon.functions.InitDBValue("hideRaidFrameBuffs", false)
 	addon.functions.InitDBValue("hidePartyFrameTitle", false)
 	addon.functions.InitDBValue("unitFrameTruncateNames", false)
@@ -5256,18 +5450,6 @@ local function initUnitFrame()
 	end
 
 	addon.functions.ApplyRestingVisuals = ApplyRestingVisuals
-
-	function addon.functions.togglePlayerFrame(value)
-		if addon.db["showPartyFrameInSoloContent"] and value then
-			PlayerFrame:Hide()
-		else
-			PlayerFrame:Show()
-		end
-	end
-	PlayerFrame:HookScript("OnShow", function(self)
-		if addon.db["showPartyFrameInSoloContent"] and addon.db["hidePlayerFrame"] then self:Hide() end
-	end)
-	addon.functions.togglePlayerFrame(addon.db["hidePlayerFrame"])
 
 	function addon.functions.togglePartyFrameTitle(value)
 		if not CompactPartyFrameTitle then return end
@@ -5393,9 +5575,7 @@ local function initUnitFrame()
 	addon.functions.ApplyCastBarVisibility()
 
 	for _, cbData in ipairs(addon.variables.unitFrameNames) do
-		if cbData.var and cbData.name then
-			if addon.db[cbData.var] then UpdateUnitFrameMouseover(cbData.name, cbData) end
-		end
+		if cbData.var and cbData.name then UpdateUnitFrameMouseover(cbData.name, cbData) end
 	end
 end
 
@@ -5555,6 +5735,7 @@ initLootToast = function()
 end
 
 local function initUI()
+	MigrateLegacyVisibilityFlags()
 	addon.functions.InitDBValue("enableMinimapButtonBin", false)
 	addon.functions.InitDBValue("buttonsink", {})
 	addon.functions.InitDBValue("enableLootspecQuickswitch", false)
@@ -5617,21 +5798,17 @@ local function initUI()
 		name = "MicroMenu",
 		var = "unitframeSettingMicroMenu",
 		text = addon.L["MicroMenu"],
+		allowedVisibility = { "NONE", "MOUSEOVER", "HIDE" },
 		children = { MicroMenu:GetChildren() },
 		revealAllChilds = true,
-		disableSetting = {
-			"hideMicroMenu",
-		},
 	})
 	table.insert(addon.variables.unitFrameNames, {
 		name = "BagsBar",
 		var = "unitframeSettingBagsBar",
 		text = addon.L["BagsBar"],
+		allowedVisibility = { "NONE", "MOUSEOVER", "HIDE" },
 		children = { BagsBar:GetChildren() },
 		revealAllChilds = true,
-		disableSetting = {
-			"hideBagsBar",
-		},
 	})
 
 	local function makeSquareMinimap()
@@ -5713,23 +5890,6 @@ local function initUI()
 			LDBIcon:Hide(addonName)
 		end
 	end
-	function addon.functions.toggleBagsBar(value)
-		if value == false then
-			BagsBar:Show()
-		else
-			BagsBar:Hide()
-		end
-	end
-	addon.functions.toggleBagsBar(addon.db["hideBagsBar"])
-	function addon.functions.toggleMicroMenu(value)
-		if value == false then
-			MicroMenu:Show()
-		else
-			MicroMenu:Hide()
-		end
-	end
-	addon.functions.toggleMicroMenu(addon.db["hideMicroMenu"])
-
 	function addon.functions.toggleZoneText(value)
 		if value then
 			ZoneTextFrame:UnregisterAllEvents()

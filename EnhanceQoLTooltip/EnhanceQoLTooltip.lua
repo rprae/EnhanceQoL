@@ -434,7 +434,82 @@ local function checkAdditionalTooltip(tooltip)
 	end
 end
 
+local function UpdateTooltipHealthBarVisibility(tooltip)
+	if not tooltip or not addon.db then return end
+	local hideBar = addon.db["TooltipUnitHideHealthBar"] and true or false
+
+	local function handleAlpha(obj)
+		if not obj or not obj.SetAlpha then return end
+		if not obj.__EnhanceQoLTooltipOriginalAlpha then obj.__EnhanceQoLTooltipOriginalAlpha = (obj.GetAlpha and obj:GetAlpha()) or 1 end
+		local alpha = hideBar and 0 or obj.__EnhanceQoLTooltipOriginalAlpha or 1
+		obj:SetAlpha(alpha)
+	end
+
+	local function apply(bar)
+		if not bar then return end
+		if hideBar then
+			if bar.SetShown then
+				bar:SetShown(false)
+			elseif bar.Hide then
+				bar:Hide()
+			end
+		else
+			if bar.SetShown then
+				bar:SetShown(true)
+			elseif bar.Show then
+				bar:Show()
+			end
+		end
+		handleAlpha(bar)
+		handleAlpha(bar.Fill or bar.fill)
+		handleAlpha(bar.Spark or bar.spark)
+		handleAlpha(bar.Bg or bar.BG or bar.bg)
+		handleAlpha(bar.Background or bar.background)
+		handleAlpha(bar.TextString or bar.textString)
+		handleAlpha(bar.Text or bar.text)
+		handleAlpha(bar.Value or bar.value)
+		handleAlpha(bar.LeftText)
+		handleAlpha(bar.RightText)
+		local texture = bar.GetStatusBarTexture and bar:GetStatusBarTexture()
+		handleAlpha(texture)
+		local name = bar.GetName and bar:GetName()
+		if name then
+			handleAlpha(_G[name .. "Spark"])
+			handleAlpha(_G[name .. "BG"])
+			handleAlpha(_G[name .. "Background"])
+			handleAlpha(_G[name .. "Border"])
+			handleAlpha(_G[name .. "BorderLeft"])
+			handleAlpha(_G[name .. "BorderRight"])
+		end
+	end
+
+	apply(tooltip.StatusBar)
+	apply(tooltip.statusBar)
+	apply(tooltip.healthBar)
+	if tooltip.statusBarPool and tooltip.statusBarPool.EnumerateActive then
+		for bar in tooltip.statusBarPool:EnumerateActive() do
+			apply(bar)
+		end
+	end
+	if tooltip.StatusBarPool and tooltip.StatusBarPool.EnumerateActive then
+		for bar in tooltip.StatusBarPool:EnumerateActive() do
+			apply(bar)
+		end
+	end
+	if tooltip.healthBarPool and tooltip.healthBarPool.EnumerateActive then
+		for bar in tooltip.healthBarPool:EnumerateActive() do
+			apply(bar)
+		end
+	end
+	if tooltip == GameTooltip then
+		apply(GameTooltipStatusBar)
+		handleAlpha(GameTooltipStatusBarTexture)
+		handleAlpha(GameTooltipStatusBarBackground)
+	end
+end
+
 local function checkUnit(tooltip)
+	UpdateTooltipHealthBarVisibility(tooltip)
 	if addon.db["TooltipUnitHideInDungeon"] and select(1, IsInInstance()) == false then
 		checkAdditionalTooltip(tooltip)
 		return
@@ -639,311 +714,326 @@ addon.variables.statusTable.groups["tooltip"] = true
 
 -- Place Tooltip under UI & Input
 addon.functions.addToTree("ui", {
-    value = "tooltip",
-    text = L["Tooltip"],
+	value = "tooltip",
+	text = L["Tooltip"],
 })
 
 -- New unified Tooltip options UI using root wrapper + ensureGroup
 local function addTooltipFrame2(container, which)
-    local scroll = addon.functions.createContainer("ScrollFrame", "Flow")
-    scroll:SetFullWidth(true)
-    scroll:SetFullHeight(true)
-    container:AddChild(scroll)
+	local scroll = addon.functions.createContainer("ScrollFrame", "Flow")
+	scroll:SetFullWidth(true)
+	scroll:SetFullHeight(true)
+	container:AddChild(scroll)
 
-    local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
-    scroll:AddChild(wrapper)
-    local function doLayout()
-        if scroll and scroll.DoLayout then scroll:DoLayout() end
-    end
-    wrapper:PauseLayout()
+	local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
+	scroll:AddChild(wrapper)
+	local function doLayout()
+		if scroll and scroll.DoLayout then scroll:DoLayout() end
+	end
+	wrapper:PauseLayout()
 
-    local groups = {}
+	local groups = {}
 
-    local function ensureGroup(key, title)
-        local g, known
-        if groups[key] then
-            g = groups[key]
-            groups[key]:PauseLayout()
-            groups[key]:ReleaseChildren()
-            known = true
-        else
-            g = addon.functions.createContainer("InlineGroup", "List")
-            if title and title ~= "" then g:SetTitle(title) end
-            wrapper:AddChild(g)
-            groups[key] = g
-        end
-        return g, known
-    end
+	local function ensureGroup(key, title)
+		local g, known
+		if groups[key] then
+			g = groups[key]
+			groups[key]:PauseLayout()
+			groups[key]:ReleaseChildren()
+			known = true
+		else
+			g = addon.functions.createContainer("InlineGroup", "List")
+			if title and title ~= "" then g:SetTitle(title) end
+			wrapper:AddChild(g)
+			groups[key] = g
+		end
+		return g, known
+	end
 
-    local function buildBuffDebuff()
-        local g, known = ensureGroup("buff_debuff", L["Buff_Debuff"])
-        local list, order = addon.functions.prepareListForDropdown({ [1] = L["TooltipOFF"], [2] = L["TooltipON"] })
-        local dropTooltipBuffHideType = addon.functions.createDropdownAce(L["TooltipBuffHideType"], list, order, function(self)
-            addon.db["TooltipBuffHideType"] = self:GetValue()
-        end)
-        dropTooltipBuffHideType:SetValue(addon.db["TooltipBuffHideType"])
-        dropTooltipBuffHideType:SetFullWidth(false)
-        dropTooltipBuffHideType:SetWidth(150)
-        g:AddChild(dropTooltipBuffHideType)
+	local function buildBuffDebuff()
+		local g, known = ensureGroup("buff_debuff", L["Buff_Debuff"])
+		local list, order = addon.functions.prepareListForDropdown({ [1] = L["TooltipOFF"], [2] = L["TooltipON"] })
+		local dropTooltipBuffHideType = addon.functions.createDropdownAce(L["TooltipBuffHideType"], list, order, function(self) addon.db["TooltipBuffHideType"] = self:GetValue() end)
+		dropTooltipBuffHideType:SetValue(addon.db["TooltipBuffHideType"])
+		dropTooltipBuffHideType:SetFullWidth(false)
+		dropTooltipBuffHideType:SetWidth(150)
+		g:AddChild(dropTooltipBuffHideType)
 
-        local data = {
-            { text = L["TooltipBuffHideInCombat"], var = "TooltipBuffHideInCombat" },
-            { text = L["TooltipBuffHideInDungeon"], var = "TooltipBuffHideInDungeon" },
-        }
-        table.sort(data, function(a, b) return a.text < b.text end)
-        for _, cbData in ipairs(data) do
-            local cb = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], function(_, _, v) addon.db[cbData.var] = v end)
-            g:AddChild(cb)
-        end
-        if known then g:ResumeLayout(); doLayout() end
-    end
+		local data = {
+			{ text = L["TooltipBuffHideInCombat"], var = "TooltipBuffHideInCombat" },
+			{ text = L["TooltipBuffHideInDungeon"], var = "TooltipBuffHideInDungeon" },
+		}
+		table.sort(data, function(a, b) return a.text < b.text end)
+		for _, cbData in ipairs(data) do
+			local cb = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], function(_, _, v) addon.db[cbData.var] = v end)
+			g:AddChild(cb)
+		end
+		if known then
+			g:ResumeLayout()
+			doLayout()
+		end
+	end
 
-    local function buildItem()
-        local g, known = ensureGroup("item", L["Item"])
-        local list, order = addon.functions.prepareListForDropdown({ [1] = L["TooltipOFF"], [2] = L["TooltipON"] })
-        local dropTooltipItemHideType = addon.functions.createDropdownAce(L["TooltipItemHideType"], list, order, function(self)
-            addon.db["TooltipItemHideType"] = self:GetValue()
-        end)
-        dropTooltipItemHideType:SetValue(addon.db["TooltipItemHideType"])
-        dropTooltipItemHideType:SetFullWidth(false)
-        dropTooltipItemHideType:SetWidth(150)
-        g:AddChild(dropTooltipItemHideType)
+	local function buildItem()
+		local g, known = ensureGroup("item", L["Item"])
+		local list, order = addon.functions.prepareListForDropdown({ [1] = L["TooltipOFF"], [2] = L["TooltipON"] })
+		local dropTooltipItemHideType = addon.functions.createDropdownAce(L["TooltipItemHideType"], list, order, function(self) addon.db["TooltipItemHideType"] = self:GetValue() end)
+		dropTooltipItemHideType:SetValue(addon.db["TooltipItemHideType"])
+		dropTooltipItemHideType:SetFullWidth(false)
+		dropTooltipItemHideType:SetWidth(150)
+		g:AddChild(dropTooltipItemHideType)
 
-        local items = {
-            { text = L["TooltipItemHideInCombat"], var = "TooltipItemHideInCombat" },
-            { text = L["TooltipItemHideInDungeon"], var = "TooltipItemHideInDungeon" },
-            { text = L["TooltipShowItemID"], var = "TooltipShowItemID" },
-            { text = L["TooltipShowTempEnchant"], var = "TooltipShowTempEnchant", desc = L["TooltipShowTempEnchantDesc"] },
-            { text = L["TooltipShowItemCount"], var = "TooltipShowItemCount" },
-            { text = L["TooltipShowSeperateItemCount"], var = "TooltipShowSeperateItemCount" },
-        }
-        table.sort(items, function(a, b) return a.text < b.text end)
-        for _, it in ipairs(items) do
-            local cb = addon.functions.createCheckboxAce(it.text, addon.db[it.var], function(_, _, v) addon.db[it.var] = v end, it.desc)
-            g:AddChild(cb)
-        end
-        if known then g:ResumeLayout(); doLayout() end
-    end
+		local items = {
+			{ text = L["TooltipItemHideInCombat"], var = "TooltipItemHideInCombat" },
+			{ text = L["TooltipItemHideInDungeon"], var = "TooltipItemHideInDungeon" },
+			{ text = L["TooltipShowItemID"], var = "TooltipShowItemID" },
+			{ text = L["TooltipShowTempEnchant"], var = "TooltipShowTempEnchant", desc = L["TooltipShowTempEnchantDesc"] },
+			{ text = L["TooltipShowItemCount"], var = "TooltipShowItemCount" },
+			{ text = L["TooltipShowSeperateItemCount"], var = "TooltipShowSeperateItemCount" },
+		}
+		table.sort(items, function(a, b) return a.text < b.text end)
+		for _, it in ipairs(items) do
+			local cb = addon.functions.createCheckboxAce(it.text, addon.db[it.var], function(_, _, v) addon.db[it.var] = v end, it.desc)
+			g:AddChild(cb)
+		end
+		if known then
+			g:ResumeLayout()
+			doLayout()
+		end
+	end
 
-    local function buildSpell()
-        local g, known = ensureGroup("spell", L["Spell"])
-        local list, order = addon.functions.prepareListForDropdown({ [1] = L["TooltipOFF"], [2] = L["TooltipON"] })
-        local dropTooltipSpellHideType = addon.functions.createDropdownAce(L["TooltipSpellHideType"], list, order, function(self)
-            addon.db["TooltipSpellHideType"] = self:GetValue()
-        end)
-        dropTooltipSpellHideType:SetValue(addon.db["TooltipSpellHideType"])
-        dropTooltipSpellHideType:SetFullWidth(false)
-        dropTooltipSpellHideType:SetWidth(150)
-        g:AddChild(dropTooltipSpellHideType)
+	local function buildSpell()
+		local g, known = ensureGroup("spell", L["Spell"])
+		local list, order = addon.functions.prepareListForDropdown({ [1] = L["TooltipOFF"], [2] = L["TooltipON"] })
+		local dropTooltipSpellHideType = addon.functions.createDropdownAce(L["TooltipSpellHideType"], list, order, function(self) addon.db["TooltipSpellHideType"] = self:GetValue() end)
+		dropTooltipSpellHideType:SetValue(addon.db["TooltipSpellHideType"])
+		dropTooltipSpellHideType:SetFullWidth(false)
+		dropTooltipSpellHideType:SetWidth(150)
+		g:AddChild(dropTooltipSpellHideType)
 
-        local items = {
-            { text = L["TooltipSpellHideInCombat"], var = "TooltipSpellHideInCombat" },
-            { text = L["TooltipSpellHideInDungeon"], var = "TooltipSpellHideInDungeon" },
-            { text = L["TooltipShowSpellID"], var = "TooltipShowSpellID" },
-            { text = L["TooltipShowSpellIcon"], var = "TooltipShowSpellIcon" },
-        }
-        table.sort(items, function(a, b) return a.text < b.text end)
-        for _, it in ipairs(items) do
-            local cb = addon.functions.createCheckboxAce(it.text, addon.db[it.var], function(_, _, v) addon.db[it.var] = v end)
-            g:AddChild(cb)
-        end
-        if known then g:ResumeLayout(); doLayout() end
-    end
+		local items = {
+			{ text = L["TooltipSpellHideInCombat"], var = "TooltipSpellHideInCombat" },
+			{ text = L["TooltipSpellHideInDungeon"], var = "TooltipSpellHideInDungeon" },
+			{ text = L["TooltipShowSpellID"], var = "TooltipShowSpellID" },
+			{ text = L["TooltipShowSpellIcon"], var = "TooltipShowSpellIcon" },
+		}
+		table.sort(items, function(a, b) return a.text < b.text end)
+		for _, it in ipairs(items) do
+			local cb = addon.functions.createCheckboxAce(it.text, addon.db[it.var], function(_, _, v) addon.db[it.var] = v end)
+			g:AddChild(cb)
+		end
+		if known then
+			g:ResumeLayout()
+			doLayout()
+		end
+	end
 
-    local function buildQuests()
-        local g, known = ensureGroup("quests", QUESTLOG_BUTTON)
-        local data = {
-            { text = L["TooltipShowQuestID"], var = "TooltipShowQuestID" },
-        }
-        table.sort(data, function(a, b) return a.text < b.text end)
-        for _, cbData in ipairs(data) do
-            local cb = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], function(_, _, v) addon.db[cbData.var] = v end)
-            g:AddChild(cb)
-        end
-        if known then g:ResumeLayout(); doLayout() end
-    end
+	local function buildQuests()
+		local g, known = ensureGroup("quests", QUESTLOG_BUTTON)
+		local data = {
+			{ text = L["TooltipShowQuestID"], var = "TooltipShowQuestID" },
+		}
+		table.sort(data, function(a, b) return a.text < b.text end)
+		for _, cbData in ipairs(data) do
+			local cb = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], function(_, _, v) addon.db[cbData.var] = v end)
+			g:AddChild(cb)
+		end
+		if known then
+			g:ResumeLayout()
+			doLayout()
+		end
+	end
 
-    local function buildUnit()
-        local g, known = ensureGroup("unit", L["Unit"])
-        local list, order = addon.functions.prepareListForDropdown({ [1] = L["None"], [2] = L["Enemies"], [3] = L["Friendly"], [4] = L["Both"] })
-        local dropTooltipUnitHideType = addon.functions.createDropdownAce(L["TooltipUnitHideType"], list, order, function(self)
-            addon.db["TooltipUnitHideType"] = self:GetValue()
-        end)
-        dropTooltipUnitHideType:SetValue(addon.db["TooltipUnitHideType"])
-        dropTooltipUnitHideType:SetFullWidth(false)
-        dropTooltipUnitHideType:SetWidth(150)
-        g:AddChild(dropTooltipUnitHideType)
+	local function buildUnit()
+		local g, known = ensureGroup("unit", L["Unit"])
+		local list, order = addon.functions.prepareListForDropdown({ [1] = L["None"], [2] = L["Enemies"], [3] = L["Friendly"], [4] = L["Both"] })
+		local dropTooltipUnitHideType = addon.functions.createDropdownAce(L["TooltipUnitHideType"], list, order, function(self) addon.db["TooltipUnitHideType"] = self:GetValue() end)
+		dropTooltipUnitHideType:SetValue(addon.db["TooltipUnitHideType"])
+		dropTooltipUnitHideType:SetFullWidth(false)
+		dropTooltipUnitHideType:SetWidth(150)
+		g:AddChild(dropTooltipUnitHideType)
 
-        local items = {
-            { text = L["TooltipUnitHideInCombat"], var = "TooltipUnitHideInCombat" },
-            { text = L["TooltipUnitHideInDungeon"], var = "TooltipUnitHideInDungeon" },
-            { text = L["TooltipShowMythicScore"]:format(DUNGEON_SCORE), var = "TooltipShowMythicScore" },
-            { text = L["TooltipMythicScoreRequireModifier"]:format(DUNGEON_SCORE), var = "TooltipMythicScoreRequireModifier" },
-            { text = L["TooltipUnitHideRightClickInstruction"]:format(UNIT_POPUP_RIGHT_CLICK), var = "TooltipUnitHideRightClickInstruction" },
-            { text = L["TooltipUnitShowItemLevel"], var = "TooltipUnitShowItemLevel", desc = L["TooltipUnitShowItemLevel_desc"] },
-            { text = L["TooltipUnitShowSpec"], var = "TooltipUnitShowSpec", desc = L["TooltipUnitShowSpec_desc"] },
-            { text = L["TooltipShowClassColor"], var = "TooltipShowClassColor" },
-            { text = L["TooltipShowNPCID"], var = "TooltipShowNPCID" },
-        }
+		local items = {
+			{ text = L["TooltipUnitHideInCombat"], var = "TooltipUnitHideInCombat" },
+			{ text = L["TooltipUnitHideInDungeon"], var = "TooltipUnitHideInDungeon" },
+			{ text = L["TooltipUnitHideHealthBar"], var = "TooltipUnitHideHealthBar" },
+			{ text = L["TooltipShowMythicScore"]:format(DUNGEON_SCORE), var = "TooltipShowMythicScore" },
+			{ text = L["TooltipMythicScoreRequireModifier"]:format(DUNGEON_SCORE), var = "TooltipMythicScoreRequireModifier" },
+			{ text = L["TooltipUnitHideRightClickInstruction"]:format(UNIT_POPUP_RIGHT_CLICK), var = "TooltipUnitHideRightClickInstruction" },
+			{ text = L["TooltipUnitShowItemLevel"], var = "TooltipUnitShowItemLevel", desc = L["TooltipUnitShowItemLevel_desc"] },
+			{ text = L["TooltipUnitShowSpec"], var = "TooltipUnitShowSpec", desc = L["TooltipUnitShowSpec_desc"] },
+			{ text = L["TooltipShowClassColor"], var = "TooltipShowClassColor" },
+			{ text = L["TooltipShowNPCID"], var = "TooltipShowNPCID" },
+		}
 
-        local inspectFeatureEnabled = addon.db["TooltipUnitShowSpec"] or addon.db["TooltipUnitShowItemLevel"]
-        if inspectFeatureEnabled then table.insert(items, { text = L["TooltipUnitInspectRequireModifier"], var = "TooltipUnitInspectRequireModifier" }) end
+		local inspectFeatureEnabled = addon.db["TooltipUnitShowSpec"] or addon.db["TooltipUnitShowItemLevel"]
+		if inspectFeatureEnabled then table.insert(items, { text = L["TooltipUnitInspectRequireModifier"], var = "TooltipUnitInspectRequireModifier" }) end
 
-        table.sort(items, function(a, b) return a.text < b.text end)
-        for _, it in ipairs(items) do
-            local cb = addon.functions.createCheckboxAce(it.text, addon.db[it.var], function(_, _, v)
-                addon.db[it.var] = v
-                if
-                    it.text == L["TooltipMythicScoreRequireModifier"]:format(DUNGEON_SCORE)
-                    or it.var == "TooltipUnitInspectRequireModifier"
-                    or it.var == "TooltipUnitShowSpec"
-                    or it.var == "TooltipUnitShowItemLevel"
-                    or it.var == "TooltipShowMythicScore"
-                then
-                    buildUnit()
-                end
-                if it.var == "TooltipUnitShowSpec" or it.var == "TooltipUnitShowItemLevel" then UpdateInspectEventRegistration() end
-            end, it.desc)
-            g:AddChild(cb)
-        end
+		table.sort(items, function(a, b) return a.text < b.text end)
+		for _, it in ipairs(items) do
+			local cb = addon.functions.createCheckboxAce(it.text, addon.db[it.var], function(_, _, v)
+				addon.db[it.var] = v
+				if
+					it.text == L["TooltipMythicScoreRequireModifier"]:format(DUNGEON_SCORE)
+					or it.var == "TooltipUnitInspectRequireModifier"
+					or it.var == "TooltipUnitShowSpec"
+					or it.var == "TooltipUnitShowItemLevel"
+					or it.var == "TooltipShowMythicScore"
+				then
+					buildUnit()
+				end
+				if it.var == "TooltipUnitShowSpec" or it.var == "TooltipUnitShowItemLevel" then UpdateInspectEventRegistration() end
+				if it.var == "TooltipUnitHideHealthBar" and GameTooltip then UpdateTooltipHealthBarVisibility(GameTooltip) end
+			end, it.desc)
+			g:AddChild(cb)
+		end
 
-        local gatedMythic = addon.db["TooltipMythicScoreRequireModifier"] and addon.db["TooltipShowMythicScore"]
-        local gatedInspect = addon.db["TooltipUnitInspectRequireModifier"] and (addon.db["TooltipUnitShowSpec"] or addon.db["TooltipUnitShowItemLevel"])
-        if gatedMythic or gatedInspect then
-            local modList = { SHIFT = SHIFT_KEY_TEXT, ALT = ALT_KEY_TEXT, CTRL = CTRL_KEY_TEXT }
-            local list2, order2 = addon.functions.prepareListForDropdown(modList)
+		local gatedMythic = addon.db["TooltipMythicScoreRequireModifier"] and addon.db["TooltipShowMythicScore"]
+		local gatedInspect = addon.db["TooltipUnitInspectRequireModifier"] and (addon.db["TooltipUnitShowSpec"] or addon.db["TooltipUnitShowItemLevel"])
+		if gatedMythic or gatedInspect then
+			local modList = { SHIFT = SHIFT_KEY_TEXT, ALT = ALT_KEY_TEXT, CTRL = CTRL_KEY_TEXT }
+			local list2, order2 = addon.functions.prepareListForDropdown(modList)
 
-            local parts = {}
-            if gatedMythic then table.insert(parts, DUNGEON_SCORE) end
-            if gatedInspect then
-                if addon.db["TooltipUnitShowSpec"] and addon.db["TooltipUnitShowItemLevel"] then
-                    table.insert(parts, L["SpecAndIlvl"] or (SPECIALIZATION .. " & " .. (STAT_AVERAGE_ITEM_LEVEL or ITEM_LEVEL or "Item Level")))
-                elseif addon.db["TooltipUnitShowSpec"] then
-                    table.insert(parts, SPECIALIZATION)
-                elseif addon.db["TooltipUnitShowItemLevel"] then
-                    table.insert(parts, STAT_AVERAGE_ITEM_LEVEL or ITEM_LEVEL or "Item Level")
-                end
-            end
-            local label
-            if #parts <= 1 then
-                label = (L["TooltipMythicScoreModifier"] or "Required modifier for %s"):format(parts[1] or DUNGEON_SCORE)
-            else
-                label = (L["TooltipModifierForMultiple"] or "Required modifier for: %s"):format(table.concat(parts, ", "))
-            end
+			local parts = {}
+			if gatedMythic then table.insert(parts, DUNGEON_SCORE) end
+			if gatedInspect then
+				if addon.db["TooltipUnitShowSpec"] and addon.db["TooltipUnitShowItemLevel"] then
+					table.insert(parts, L["SpecAndIlvl"] or (SPECIALIZATION .. " & " .. (STAT_AVERAGE_ITEM_LEVEL or ITEM_LEVEL or "Item Level")))
+				elseif addon.db["TooltipUnitShowSpec"] then
+					table.insert(parts, SPECIALIZATION)
+				elseif addon.db["TooltipUnitShowItemLevel"] then
+					table.insert(parts, STAT_AVERAGE_ITEM_LEVEL or ITEM_LEVEL or "Item Level")
+				end
+			end
+			local label
+			if #parts <= 1 then
+				label = (L["TooltipMythicScoreModifier"] or "Required modifier for %s"):format(parts[1] or DUNGEON_SCORE)
+			else
+				label = (L["TooltipModifierForMultiple"] or "Required modifier for: %s"):format(table.concat(parts, ", "))
+			end
 
-            local dropMod = addon.functions.createDropdownAce(label, list2, order2, function(self)
-                addon.db["TooltipMythicScoreModifier"] = self:GetValue()
-            end)
-            dropMod:SetValue(addon.db["TooltipMythicScoreModifier"])
-            dropMod:SetFullWidth(false)
-            dropMod:SetWidth(340)
-            g:AddChild(dropMod)
-        end
+			local dropMod = addon.functions.createDropdownAce(label, list2, order2, function(self) addon.db["TooltipMythicScoreModifier"] = self:GetValue() end)
+			dropMod:SetValue(addon.db["TooltipMythicScoreModifier"])
+			dropMod:SetFullWidth(false)
+			dropMod:SetWidth(340)
+			g:AddChild(dropMod)
+		end
 
-        if addon.db["TooltipShowMythicScore"] then
-            local partsList = {
-                score = DUNGEON_SCORE,
-                best = L["BestMythic+run"],
-                dungeons = L["SeasonDungeons"] or "Season dungeons",
-            }
-            local dropParts = addon.functions.createDropdownAce(L["MythicScorePartsLabel"] or "Mythic+ details to show", partsList, nil, function(self, _, key, checked)
-                addon.db["TooltipMythicScoreParts"] = addon.db["TooltipMythicScoreParts"] or { score = true, best = true, dungeons = true }
-                if checked then
-                    addon.db["TooltipMythicScoreParts"][key] = true
-                else
-                    addon.db["TooltipMythicScoreParts"][key] = nil
-                end
-            end)
-            dropParts:SetMultiselect(true)
-            local selected = addon.db["TooltipMythicScoreParts"] or {}
-            for k, v in pairs(selected) do if v then dropParts:SetItemValue(k, true) end end
-            dropParts:SetFullWidth(false)
-            dropParts:SetWidth(340)
-            g:AddChild(dropParts)
-        end
+		if addon.db["TooltipShowMythicScore"] then
+			local partsList = {
+				score = DUNGEON_SCORE,
+				best = L["BestMythic+run"],
+				dungeons = L["SeasonDungeons"] or "Season dungeons",
+			}
+			local dropParts = addon.functions.createDropdownAce(L["MythicScorePartsLabel"] or "Mythic+ details to show", partsList, nil, function(self, _, key, checked)
+				addon.db["TooltipMythicScoreParts"] = addon.db["TooltipMythicScoreParts"] or { score = true, best = true, dungeons = true }
+				if checked then
+					addon.db["TooltipMythicScoreParts"][key] = true
+				else
+					addon.db["TooltipMythicScoreParts"][key] = nil
+				end
+			end)
+			dropParts:SetMultiselect(true)
+			local selected = addon.db["TooltipMythicScoreParts"] or {}
+			for k, v in pairs(selected) do
+				if v then dropParts:SetItemValue(k, true) end
+			end
+			dropParts:SetFullWidth(false)
+			dropParts:SetWidth(340)
+			g:AddChild(dropParts)
+		end
 
-        if known then g:ResumeLayout(); doLayout() end
-    end
+		if known then
+			g:ResumeLayout()
+			doLayout()
+		end
+	end
 
-    local function buildGeneral()
-        local g, known = ensureGroup("general", GENERAL)
-        local list, order = addon.functions.prepareListForDropdown({ [1] = DEFAULT, [2] = L["CursorCenter"], [3] = L["CursorLeft"], [4] = L["CursorRight"] })
+	local function buildGeneral()
+		local g, known = ensureGroup("general", GENERAL)
+		local list, order = addon.functions.prepareListForDropdown({ [1] = DEFAULT, [2] = L["CursorCenter"], [3] = L["CursorLeft"], [4] = L["CursorRight"] })
 
-        local drop = addon.functions.createDropdownAce(L["TooltipAnchorType"], list, order, function(self)
-            addon.db["TooltipAnchorType"] = self:GetValue()
-            buildGeneral()
-        end)
-        drop:SetValue(addon.db["TooltipAnchorType"])
-        drop:SetFullWidth(false)
-        drop:SetWidth(200)
-        g:AddChild(drop)
+		local drop = addon.functions.createDropdownAce(L["TooltipAnchorType"], list, order, function(self)
+			addon.db["TooltipAnchorType"] = self:GetValue()
+			buildGeneral()
+		end)
+		drop:SetValue(addon.db["TooltipAnchorType"])
+		drop:SetFullWidth(false)
+		drop:SetWidth(200)
+		g:AddChild(drop)
 
-        if addon.db["TooltipAnchorType"] > 1 then
-            local sliderOffsetX = addon.functions.createSliderAce(
-                L["TooltipAnchorOffsetX"] .. ": " .. addon.db["TooltipAnchorOffsetX"],
-                addon.db["TooltipAnchorOffsetX"],
-                -300,
-                300,
-                1,
-                function(self, _, value2)
-                    addon.db["TooltipAnchorOffsetX"] = value2
-                    self:SetLabel(L["TooltipAnchorOffsetX"] .. ": " .. value2)
-                end
-            )
-            g:AddChild(sliderOffsetX)
+		if addon.db["TooltipAnchorType"] > 1 then
+			local sliderOffsetX = addon.functions.createSliderAce(
+				L["TooltipAnchorOffsetX"] .. ": " .. addon.db["TooltipAnchorOffsetX"],
+				addon.db["TooltipAnchorOffsetX"],
+				-300,
+				300,
+				1,
+				function(self, _, value2)
+					addon.db["TooltipAnchorOffsetX"] = value2
+					self:SetLabel(L["TooltipAnchorOffsetX"] .. ": " .. value2)
+				end
+			)
+			g:AddChild(sliderOffsetX)
 
-            local sliderOffsetY = addon.functions.createSliderAce(
-                L["TooltipAnchorOffsetY"] .. ": " .. addon.db["TooltipAnchorOffsetY"],
-                addon.db["TooltipAnchorOffsetY"],
-                -300,
-                300,
-                1,
-                function(self, _, value2)
-                    addon.db["TooltipAnchorOffsetY"] = value2
-                    self:SetLabel(L["TooltipAnchorOffsetY"] .. ": " .. value2)
-                end
-            )
-            g:AddChild(sliderOffsetY)
-        end
-        if known then g:ResumeLayout(); doLayout() end
-    end
+			local sliderOffsetY = addon.functions.createSliderAce(
+				L["TooltipAnchorOffsetY"] .. ": " .. addon.db["TooltipAnchorOffsetY"],
+				addon.db["TooltipAnchorOffsetY"],
+				-300,
+				300,
+				1,
+				function(self, _, value2)
+					addon.db["TooltipAnchorOffsetY"] = value2
+					self:SetLabel(L["TooltipAnchorOffsetY"] .. ": " .. value2)
+				end
+			)
+			g:AddChild(sliderOffsetY)
+		end
+		if known then
+			g:ResumeLayout()
+			doLayout()
+		end
+	end
 
-    local function buildCurrency()
-        local g, known = ensureGroup("currency", CURRENCY)
-        local data = {
-            { text = L["TooltipShowCurrencyAccountWide"], var = "TooltipShowCurrencyAccountWide" },
-            { text = L["TooltipShowCurrencyID"], var = "TooltipShowCurrencyID" },
-        }
-        table.sort(data, function(a, b) return a.text < b.text end)
-        for _, cbData in ipairs(data) do
-            local cb = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], function(_, _, v) addon.db[cbData.var] = v end)
-            g:AddChild(cb)
-        end
-        if known then g:ResumeLayout(); doLayout() end
-    end
+	local function buildCurrency()
+		local g, known = ensureGroup("currency", CURRENCY)
+		local data = {
+			{ text = L["TooltipShowCurrencyAccountWide"], var = "TooltipShowCurrencyAccountWide" },
+			{ text = L["TooltipShowCurrencyID"], var = "TooltipShowCurrencyID" },
+		}
+		table.sort(data, function(a, b) return a.text < b.text end)
+		for _, cbData in ipairs(data) do
+			local cb = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], function(_, _, v) addon.db[cbData.var] = v end)
+			g:AddChild(cb)
+		end
+		if known then
+			g:ResumeLayout()
+			doLayout()
+		end
+	end
 
-    -- Build all sections into one scrollable view, sorted by translated title
-    local sections = {
-        { key = "general", title = GENERAL, builder = buildGeneral },
-        { key = "unit", title = L["Unit"], builder = buildUnit },
-        { key = "buff_debuff", title = L["Buff_Debuff"], builder = buildBuffDebuff },
-        { key = "item", title = L["Item"], builder = buildItem },
-        { key = "spell", title = L["Spell"], builder = buildSpell },
-        { key = "quests", title = QUESTLOG_BUTTON, builder = buildQuests },
-        { key = "currency", title = CURRENCY, builder = buildCurrency },
-    }
-    table.sort(sections, function(a, b)
-        return tostring(a.title) < tostring(b.title)
-    end)
-    for _, s in ipairs(sections) do s.builder() end
+	-- Build all sections into one scrollable view, sorted by translated title
+	local sections = {
+		{ key = "general", title = GENERAL, builder = buildGeneral },
+		{ key = "unit", title = L["Unit"], builder = buildUnit },
+		{ key = "buff_debuff", title = L["Buff_Debuff"], builder = buildBuffDebuff },
+		{ key = "item", title = L["Item"], builder = buildItem },
+		{ key = "spell", title = L["Spell"], builder = buildSpell },
+		{ key = "quests", title = QUESTLOG_BUTTON, builder = buildQuests },
+		{ key = "currency", title = CURRENCY, builder = buildCurrency },
+	}
+	table.sort(sections, function(a, b) return tostring(a.title) < tostring(b.title) end)
+	for _, s in ipairs(sections) do
+		s.builder()
+	end
 
-    wrapper:ResumeLayout()
-    doLayout()
+	wrapper:ResumeLayout()
+	doLayout()
 end
 
 function addon.Tooltip.functions.treeCallback(container, group)
-    container:ReleaseChildren()
-    addTooltipFrame2(container, group)
+	container:ReleaseChildren()
+	addTooltipFrame2(container, group)
 end
 
 hooksecurefunc("QuestMapLogTitleButton_OnEnter", function(self)
