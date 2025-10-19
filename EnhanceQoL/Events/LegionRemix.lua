@@ -231,7 +231,7 @@ function LegionRemix:BuildFilterButtons()
 		return btn
 	end
 
-	createButton("all", T("All", "All"), function() LegionRemix:ResetPhaseFilters() end, "all")
+	createButton("all", ALL, function() LegionRemix:ResetPhaseFilters() end, "all")
 	createButton("current", T("Current Available", "Current Available"), function() LegionRemix:SetPhaseFilterMode("current") end, "current")
 
 	self:LayoutFilterButtons()
@@ -325,7 +325,7 @@ end
 local CATEGORY_DATA = {
 	{
 		key = "mounts",
-		label = T("Mounts", MOUNTS or "Mounts"),
+		label = MOUNTS,
 		groups = {
 			{
 				type = "mount",
@@ -374,7 +374,7 @@ local CATEGORY_DATA = {
 	},
 	{
 		key = "toys",
-		label = T("Toy Box", TOY_BOX or TOYS or "Toy Box"),
+		label = TOY,
 		groups = {
 			{ type = "toy", cost = 10000, items = { 129165, 130169, 131717, 131724, 142528, 142529, 142530, 143662, 153193, 153204 } },
 			{ type = "toy", cost = 20000, items = { 140363 } },
@@ -386,7 +386,7 @@ local CATEGORY_DATA = {
 	},
 	{
 		key = "pets",
-		label = PET_JOURNAL or BATTLE_PETS or "Pets",
+		label = AUCTION_CATEGORY_BATTLE_PETS,
 		groups = {
 			{ type = "pet", cost = 5000, items = { 4802, 4801, 1751 } },
 			{ type = "pet", cost = 10000, items = { 1887, 2115, 2136, 1926, 1928, 1929 } },
@@ -398,7 +398,7 @@ local CATEGORY_DATA = {
 	},
 	{
 		key = "titles",
-		label = T(UNIT_NAME_PLAYER_TITLE, UNIT_NAME_PLAYER_TITLE),
+		label = UNIT_NAME_PLAYER_TITLE,
 		groups = {
 			{
 				type = "title",
@@ -413,7 +413,7 @@ local CATEGORY_DATA = {
 	},
 	{
 		key = "achievements",
-		label = T(TRANSMOG_SOURCE_5, TRANSMOG_SOURCE_5),
+		label = TRANSMOG_SOURCE_5,
 		groups = {
 			{
 				type = "set_achievement",
@@ -460,21 +460,21 @@ local CATEGORY_DATA = {
 	},
 	{
 		key = "rare_appearance",
-		label = T("Rare Appearance", RARE_APPEARANCES or "Rare Appearances"),
+		label = T("Rare Appearance", "Rare Appearances"),
 		groups = {
 			{ type = "transmog", cost = 30000, items = { 242368, 151524, 255006, 253273 } },
 		},
 	},
 	{
 		key = "raidfinder",
-		label = T("Raid Finder", RAID_FINDER or "Raid Finder"),
+		label = PLAYER_DIFFICULTY3,
 		groups = {
 			{ type = "set_mixed", cost = 20000, items = { 186, 182, 178, 174 } },
 		},
 	},
 	{
 		key = "mythic",
-		label = T("Mythic", DIFFICULTY_MYTHIC or "Mythic"),
+		label = PLAYER_DIFFICULTY6,
 		groups = {
 			{
 				type = "set_per_class",
@@ -498,7 +498,7 @@ local CATEGORY_DATA = {
 	},
 	{
 		key = "dungeon",
-		label = T("Dungeons", DUNGEONS or "Dungeons"),
+		label = DUNGEONS,
 		groups = {
 			{ type = "set_mixed", cost = 15000, items = { 4403, 4414, 4415, 4416 } },
 			{ type = "set_mixed", cost = 15000, items = { 4406, 4417, 4418, 4419 } },
@@ -508,7 +508,7 @@ local CATEGORY_DATA = {
 	},
 	{
 		key = "world",
-		label = T("World", WORLD or "World"),
+		label = WORLD,
 		groups = {
 			{ type = "set_mixed", cost = 15000, items = { 160, 4402, 4404, 4465, 4466, 4467, 4468, 4485, 4330, 4481 } },
 			{ type = "set_mixed", cost = 15000, items = { 159, 4405, 4407, 4469, 4470, 4471, 4472, 4486, 4399, 4482, 4458 } },
@@ -518,7 +518,7 @@ local CATEGORY_DATA = {
 	},
 	{
 		key = "unique",
-		label = T("Remix Exclusives", "Remix Exclusives"),
+		label = ITEM_UNIQUE,
 		groups = {
 			{ type = "set_mixed", cost = 7500, items = { 4427, 4428, 4429, 4430, 4431, 4432, 4489, 4491 } },
 			{ type = "set_mixed", cost = 7500, items = { 4433, 4434, 4435, 4436, 4437, 4457, 2337 } },
@@ -535,7 +535,7 @@ local CATEGORY_DATA = {
 	},
 	{
 		key = "cloaks",
-		label = T("Back", BACKSLOT or CLOAKSLOT or "Back"),
+		label = BACKSLOT,
 		groups = {
 			{ type = "set_mixed", cost = 2000, items = { 4502, 4500 } },
 			{ type = "set_mixed", cost = 4000, items = { 4494, 4495, 4511, 4498 } },
@@ -545,7 +545,7 @@ local CATEGORY_DATA = {
 	},
 	{
 		key = "lostfound",
-		label = T("Lost and Found", "Lost and Found"),
+		label = AUCTION_CATEGORY_MISCELLANEOUS,
 		groups = {
 			{ type = "set_mixed", cost = 15000, items = { 4440, 4442, 4446, 4449, 4454, 4456, 4492 } },
 		},
@@ -577,11 +577,11 @@ function LegionRemix:GetPhaseAchievements() return self.phaseAchievements end
 
 local ZONE_TYPE_LABELS = {
 	any = T("All Areas", "All Areas"),
-	world = T("World", "World"),
-	dungeon = T("Dungeon", "Dungeon"),
-	raid = T("Raid", "Raid"),
+	world = WORLD,
+	dungeon = LFG_TYPE_DUNGEON,
+	raid = LFG_TYPE_RAID,
 	starter = T("Starter Zone", "Starter Zone"),
-	other = T("Other", "Other"),
+	other = OTHER,
 }
 
 local ZONE_TYPE_ORDER = { "any", "world", "dungeon", "raid", "starter", "other" }
@@ -1578,14 +1578,7 @@ function LegionRemix:ApplyAnchor(frame)
 	local parent = UIParent
 
 	if db.anchor.point ~= "TOPLEFT" or db.anchor.relativePoint ~= "TOPLEFT" then
-		local convertedX, convertedY = computeTopLeftOffset(
-			frame,
-			parent,
-			db.anchor.point,
-			db.anchor.relativePoint,
-			db.anchor.x or 0,
-			db.anchor.y or 0
-		)
+		local convertedX, convertedY = computeTopLeftOffset(frame, parent, db.anchor.point, db.anchor.relativePoint, db.anchor.x or 0, db.anchor.y or 0)
 		if convertedX and convertedY then
 			db.anchor.point = "TOPLEFT"
 			db.anchor.relativePoint = "TOPLEFT"
@@ -1851,7 +1844,7 @@ function LegionRemix:ShowCategoryTooltip(row)
 	if not data then return end
 	GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
 	GameTooltip:SetText(data.label or "")
-	GameTooltip:AddDoubleLine(T("Items", "Items"), string.format("%d / %d", data.collectedCount or 0, data.totalCount or 0), 0.8, 0.8, 0.8, 0.8, 0.8, 0.8)
+	GameTooltip:AddDoubleLine(ITEMS, string.format("%d / %d", data.collectedCount or 0, data.totalCount or 0), 0.8, 0.8, 0.8, 0.8, 0.8, 0.8)
 	GameTooltip:AddDoubleLine(T("Bronze", "Bronze"), string.format("%s / %s", formatBronze(data.collectedCost), formatBronze(data.totalCost)), 0.8, 0.8, 0.8, 0.9, 0.9, 0.9)
 	GameTooltip:AddLine(" ")
 	local missing = data.filteredMissing or data.missing or {}
@@ -1870,7 +1863,7 @@ function LegionRemix:ShowCategoryTooltip(row)
 				local achievementName, completed = self:GetAchievementDetails(entry.requiredAchievement)
 				if not achievementName or achievementName == "" then achievementName = string.format(T("Achievement #%d", "Achievement #%d"), entry.requiredAchievement) end
 				local requirementLabel = string.format(T("Requires: %s", "Requires: %s"), achievementName)
-				local statusText = completed and T("Completed", "Completed") or T("Not Completed", "Not Completed")
+				local statusText = completed and CRITERIA_COMPLETED or CRITERIA_NOT_COMPLETED
 				local statusR, statusG, statusB
 				if completed then
 					statusR, statusG, statusB = 0.4, 1, 0.4
@@ -2412,9 +2405,12 @@ function LegionRemix:BuildOptionsUI(container)
 		return db and db.enhancedTracking
 	end, function(value) LegionRemix:SetEnhancedTracking(value) end)
 
-	addCheckbox(scroll, T("Hide complete categories", "Hide complete categories"), function()
-		return LegionRemix:IsHidingCompleteCategories()
-	end, function(value) LegionRemix:SetHideCompleteCategories(value) end)
+	addCheckbox(
+		scroll,
+		T("Hide complete categories", "Hide complete categories"),
+		function() return LegionRemix:IsHidingCompleteCategories() end,
+		function(value) LegionRemix:SetHideCompleteCategories(value) end
+	)
 
 	addSpacer(scroll)
 
@@ -2474,13 +2470,13 @@ function LegionRemix:BuildOptionsUI(container)
 	buttonsGroup:AddChild(hideBtn)
 
 	local resetBtn = AceGUI:Create("Button")
-	resetBtn:SetText(T("Reset position", "Reset position"))
+	resetBtn:SetText(RESET_POSITION)
 	resetBtn:SetWidth(160)
 	resetBtn:SetCallback("OnClick", function() LegionRemix:ResetPosition() end)
 	buttonsGroup:AddChild(resetBtn)
 
 	local refreshBtn = AceGUI:Create("Button")
-	refreshBtn:SetText(T("Refresh now", "Refresh now"))
+	refreshBtn:SetText(REFRESH)
 	refreshBtn:SetWidth(160)
 	refreshBtn:SetCallback("OnClick", function() LegionRemix:RefreshData() end)
 	buttonsGroup:AddChild(refreshBtn)
