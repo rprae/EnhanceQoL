@@ -3482,6 +3482,13 @@ local function addCharacterFrame(container)
 	end, L["instantCatalystEnabledDesc"])
 	groupInfo:AddChild(cbInstant)
 
+	local cbMovementSpeed =
+		addon.functions.createCheckboxAce(STAT_MOVEMENT_SPEED or "Movement Speed", addon.db["movementSpeedStatEnabled"], function(_, _, value)
+			addon.db["movementSpeedStatEnabled"] = value
+			if addon.MovementSpeedStat and addon.MovementSpeedStat.Refresh then addon.MovementSpeedStat.Refresh() end
+		end)
+	groupInfo:AddChild(cbMovementSpeed)
+
 	local cbOpenChar = addon.functions.createCheckboxAce(L["openCharframeOnUpgrade"], addon.db["openCharframeOnUpgrade"], function(_, _, value) addon.db["openCharframeOnUpgrade"] = value end)
 	groupInfo:AddChild(cbOpenChar)
 
@@ -7002,6 +7009,7 @@ local function initCharacter()
 	addon.functions.InitDBValue("showGemsTooltipOnCharframe", false)
 	addon.functions.InitDBValue("showEnchantOnCharframe", false)
 	addon.functions.InitDBValue("showCatalystChargesOnCharframe", false)
+	addon.functions.InitDBValue("movementSpeedStatEnabled", false)
 	addon.functions.InitDBValue("showCloakUpgradeButton", false)
 	addon.functions.InitDBValue("bagFilterFrameData", {})
 	addon.functions.InitDBValue("closeBagsOnAuctionHouse", false)
@@ -7042,6 +7050,7 @@ local function initCharacter()
 
 	-- Add Cataclyst charges in char frame
 	addon.functions.createCatalystFrame()
+	if addon.MovementSpeedStat and addon.MovementSpeedStat.Refresh then addon.MovementSpeedStat.Refresh() end
 	-- add durability icon on charframe
 
 	addon.general.durabilityIconFrame = CreateFrame("Button", nil, PaperDollFrame, "BackdropTemplate")
