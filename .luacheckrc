@@ -3363,6 +3363,7 @@ globals = {
 	"NoPlayTime",
 	"NotWhileDeadError",
 	"NotifyInspect",
+	"PAPERDOLL_STATCATEGORIES",
 	"NumTaxiNodes",
 	"HUD_EDIT_MODE_SETTING_BAGS_DIRECTION_LEFT",
 	"HUD_EDIT_MODE_SETTING_BAGS_DIRECTION_RIGHT",
