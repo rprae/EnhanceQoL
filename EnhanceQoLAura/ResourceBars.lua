@@ -96,6 +96,8 @@ local atlasByPower = {
 	FURY = "Unit_DemonHunter_Fury_Fill",
 	RUNIC_POWER = "UI-HUD-UnitFrame-Player-PortraitOn-Bar-RunicPower",
 	ENERGY = "UI-HUD-UnitFrame-Player-PortraitOn-ClassResource-Bar-Energy",
+	FOCUS = "UI-HUD-UnitFrame-Player-PortraitOn-Bar-Focus",
+	RAGE = "UI-HUD-UnitFrame-Player-PortraitOn-Bar-Rage",
 	MANA = "UI-HUD-UnitFrame-Player-PortraitOn-Bar-Mana",
 	HEALTH = "UI-HUD-UnitFrame-Player-PortraitOn-Bar-Health",
 }
