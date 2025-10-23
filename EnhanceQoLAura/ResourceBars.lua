@@ -81,12 +81,56 @@ local getBarSettings
 local getAnchor
 local layoutRunes
 local updatePowerBar
+local forceColorUpdate
 local lastBarSelectionPerSpec = {}
 local DEFAULT_STACK_SPACING = -1
 local SEPARATOR_THICKNESS = 1
 local SEP_DEFAULT = { 1, 1, 1, 0.5 }
 local DEFAULT_RB_TEX = "Interface\\Buttons\\WHITE8x8" -- historical default (Solid)
 BLIZZARD_TEX = "Interface\\TargetingFrame\\UI-StatusBar"
+
+-- Detect Atlas: /run local t=PlayerFrame_GetManaBar():GetStatusBarTexture(); print("tex:", t:GetTexture(), "atlas:", t:GetAtlas()); local a,b,c,d,e,f,g,h=t:GetTexCoord(); print("tc:",a,b,c,d,e,f,g,h)
+-- Healthbar: /run local t=PlayerFrame_GetHealthBar():GetStatusBarTexture(); print("tex:", t:GetTexture(), "atlas:", t:GetAtlas()); local a,b,c,d,e,f,g,h=t:GetTexCoord(); print("tc:",a,b,c,d,e,f,g,h)
+
+local atlasByPower = {
+	LUNAR_POWER = "Unit_Druid_AstralPower_Fill",
+	MAELSTROM = "Unit_Shaman_Maelstrom_Fill",
+	INSANITY = "Unit_Priest_Insanity_Fill",
+	FURY = "Unit_DemonHunter_Fury_Fill",
+	RUNIC_POWER = "UI-HUD-UnitFrame-Player-PortraitOn-Bar-RunicPower",
+	ENERGY = "UI-HUD-UnitFrame-Player-PortraitOn-ClassResource-Bar-Energy",
+	FOCUS = "UI-HUD-UnitFrame-Player-PortraitOn-Bar-Focus",
+	RAGE = "UI-HUD-UnitFrame-Player-PortraitOn-Bar-Rage",
+	MANA = "UI-HUD-UnitFrame-Player-PortraitOn-Bar-Mana",
+	HEALTH = "UI-HUD-UnitFrame-Player-PortraitOn-Bar-Health",
+}
+
+local function configureSpecialTexture(bar, pType, cfg)
+	if not bar then return end
+	local atlas = atlasByPower[pType]
+	if not atlas then return end
+	cfg = cfg or bar._cfg
+	if cfg and cfg.barTexture and cfg.barTexture ~= "" and cfg.barTexture ~= "DEFAULT" then return end
+	local tex = bar:GetStatusBarTexture()
+	if tex and tex.SetAtlas then
+		tex:SetAtlas(atlas, true)
+		if tex.SetHorizTile then tex:SetHorizTile(false) end
+		if tex.SetVertTile then tex:SetVertTile(false) end
+		local shouldNormalize = true
+		if cfg then
+			if cfg.useBarColor == true then shouldNormalize = false end
+			if cfg.useMaxColor == true and bar._usingMaxColor then shouldNormalize = false end
+		end
+		if shouldNormalize then
+			bar:SetStatusBarColor(1, 1, 1, 1)
+			bar._baseColor = bar._baseColor or {}
+			bar._baseColor[1], bar._baseColor[2], bar._baseColor[3], bar._baseColor[4] = 1, 1, 1, 1
+			bar._lastColor = bar._lastColor or {}
+			bar._lastColor[1], bar._lastColor[2], bar._lastColor[3], bar._lastColor[4] = 1, 1, 1, 1
+			bar._usingMaxColor = false
+		end
+	end
+end
 
 local function isValidStatusbarPath(path)
 	if not path or type(path) ~= "string" or path == "" then return false end
@@ -271,6 +315,7 @@ local function applyBarFillColor(bar, cfg, pType)
 	bar._lastColor = bar._lastColor or {}
 	bar._lastColor[1], bar._lastColor[2], bar._lastColor[3], bar._lastColor[4] = r, g, b, a or 1
 	bar._usingMaxColor = false
+	configureSpecialTexture(bar, pType, cfg)
 end
 
 local function configureBarBehavior(bar, cfg, pType)
@@ -919,7 +964,7 @@ function addon.Aura.functions.addResourceFrame(container)
 				return sliderX, sliderY
 			end
 
-			local function addColorControls(parent, cfg, specIndex)
+			local function addColorControls(parent, cfg, specIndex, pType)
 				cfg.barColor = cfg.barColor or { 1, 1, 1, 1 }
 				cfg.maxColor = cfg.maxColor or { 1, 1, 1, 1 }
 				local group = addon.functions.createContainer("InlineGroup", "Flow")
@@ -929,6 +974,7 @@ function addon.Aura.functions.addResourceFrame(container)
 
 				local function notifyRefresh()
 					if addon.Aura.ResourceBars and addon.Aura.ResourceBars.MaybeRefreshActive then addon.Aura.ResourceBars.MaybeRefreshActive(specIndex) end
+					if specIndex == addon.variables.unitSpec and forceColorUpdate then forceColorUpdate(pType) end
 				end
 
 				local colorPicker
@@ -1166,7 +1212,7 @@ function addon.Aura.functions.addResourceFrame(container)
 				textOffsetSliders = { addTextOffsetControlsUI(groupConfig, hCfg, specIndex) }
 				updateHealthOffsetDisabled()
 				addFontControls(groupConfig, hCfg)
-				addColorControls(groupConfig, hCfg, specIndex)
+				addColorControls(groupConfig, hCfg, specIndex, "HEALTH")
 
 				-- Bar Texture (Health)
 				local function buildTextureOptions()
@@ -1281,7 +1327,7 @@ function addon.Aura.functions.addResourceFrame(container)
 					textOffsetSliders = { addTextOffsetControlsUI(groupConfig, cfg, specIndex) }
 					updateOffsetDisabled()
 					addFontControls(groupConfig, cfg)
-					addColorControls(groupConfig, cfg, specIndex)
+					addColorControls(groupConfig, cfg, specIndex, sel)
 
 					-- Bar Texture (Power types incl. RUNES)
 					local function buildTextureOptions2()
@@ -1525,7 +1571,6 @@ local function updateHealthBar(evt)
 			healthBar:SetStatusBarColor(finalR, finalG, finalB, finalA or 1)
 			healthBar._lastColor = { finalR, finalG, finalB, finalA or 1 }
 		end
-
 
 		local absorbBar = healthBar.absorbBar
 		if absorbBar then
@@ -2063,8 +2108,17 @@ function updatePowerBar(type, runeSlot)
 			bar._usingMaxColor = false
 		end
 
-		local cr, cg, cb = bar:GetStatusBarColor()
+		configureSpecialTexture(bar, type, cfg)
 	end
+end
+
+function forceColorUpdate(pType)
+	if pType == "HEALTH" then
+		updateHealthBar("FORCE_COLOR")
+		return
+	end
+
+	if pType and powerbar[pType] then updatePowerBar(pType) end
 end
 
 -- Create/update separator ticks for a given bar type if enabled
@@ -2289,6 +2343,7 @@ local function createPowerBar(type, anchor)
 	do
 		local cfg2 = getBarSettings(type) or {}
 		bar:SetStatusBarTexture(resolveTexture(cfg2))
+		configureSpecialTexture(bar, type, cfg2)
 	end
 	bar:SetClampedToScreen(true)
 	local stackSpacing = DEFAULT_STACK_SPACING
@@ -2911,6 +2966,7 @@ function ResourceBars.Refresh()
 		local hCfg2 = getBarSettings("HEALTH") or {}
 		local hTex = resolveTexture(hCfg2)
 		healthBar:SetStatusBarTexture(hTex)
+		configureSpecialTexture(healthBar, "HEALTH", hCfg2)
 		if healthBar.absorbBar then healthBar.absorbBar:SetStatusBarTexture(hTex) end
 		healthBar:ClearAllPoints()
 		healthBar:SetPoint(a.point or "TOPLEFT", rel, a.relativePoint or a.point or "TOPLEFT", a.x or 0, a.y or 0)
@@ -2977,6 +3033,7 @@ function ResourceBars.Refresh()
 		local hCfg = getBarSettings("HEALTH") or {}
 		healthBar._cfg = hCfg
 		healthBar:SetStatusBarTexture(resolveTexture(hCfg))
+		configureSpecialTexture(healthBar, "HEALTH", hCfg)
 		applyBackdrop(healthBar, hCfg)
 		if healthBar.text then applyFontToString(healthBar.text, hCfg) end
 		applyTextPosition(healthBar, hCfg, 3, 0)
@@ -3002,6 +3059,7 @@ function ResourceBars.Refresh()
 				if tex then tex:SetAlpha(0) end
 			else
 				bar:SetStatusBarTexture(resolveTexture(cfg))
+				configureSpecialTexture(bar, pType, cfg)
 			end
 			applyBackdrop(bar, cfg)
 			configureBarBehavior(bar, cfg, pType)
