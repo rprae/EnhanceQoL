@@ -37,11 +37,6 @@ function ResourceBars.RefreshTextureDropdown()
 	dd:SetValue(cur)
 end
 
-LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
-if LSM and LSM.RegisterCallback then
-	LSM:RegisterCallback(ResourceBars, "LibSharedMedia_Registered", markTextureListDirty)
-	LSM:RegisterCallback(ResourceBars, "LibSharedMedia_SetGlobal", markTextureListDirty)
-end
 local AceGUI = addon.AceGUI
 local UnitPower, UnitPowerMax, UnitHealth, UnitHealthMax, UnitGetTotalAbsorbs, GetTime = UnitPower, UnitPowerMax, UnitHealth, UnitHealthMax, UnitGetTotalAbsorbs, GetTime
 local CreateFrame = CreateFrame
@@ -68,6 +63,8 @@ local powerfrequent = {}
 local getBarSettings
 local getAnchor
 local layoutRunes
+local createHealthBar
+local updateHealthBar
 local updatePowerBar
 local forceColorUpdate
 local lastBarSelectionPerSpec = {}
@@ -116,17 +113,13 @@ local function ensureSmoothUpdater(bar)
 			local step = diff * min(1, (elapsed or 0) * speed)
 			self:SetValue(current + step)
 		end
-
+	end
 end
 
 local function ensureSmoothVisibilityHooks(bar)
 	if not bar or bar._smoothVisibilityHooks then return end
-	bar:HookScript("OnHide", function(self)
-		stopSmoothUpdater(self)
-	end)
-	bar:HookScript("OnShow", function(self)
-		tryActivateSmooth(self)
-	end)
+	bar:HookScript("OnHide", function(self) stopSmoothUpdater(self) end)
+	bar:HookScript("OnShow", function(self) tryActivateSmooth(self) end)
 	bar._smoothVisibilityHooks = true
 end
 
@@ -178,9 +171,9 @@ local textureListCache = {
 	dirty = true,
 }
 
-local function markTextureListDirty()
-	textureListCache.dirty = true
-end
+local function markTextureListDirty() textureListCache.dirty = true end
+
+ResourceBars.MarkTextureListDirty = markTextureListDirty
 
 local function cloneMap(src)
 	if not src then return {} end
@@ -1623,7 +1616,7 @@ function addon.Aura.functions.addResourceFrame(container)
 	scroll:DoLayout()
 end
 
-local function updateHealthBar(evt)
+function updateHealthBar(evt)
 	if healthBar and healthBar:IsShown() then
 		local previousMax = healthBar._lastMax or 0
 		local newMax = UnitHealthMax("player") or previousMax or 1
@@ -1631,9 +1624,7 @@ local function updateHealthBar(evt)
 			healthBar._lastMax = newMax
 			healthBar:SetMinMaxValues(0, newMax)
 			local currentValue = healthBar:GetValue() or 0
-			if currentValue > newMax then
-				healthBar:SetValue(newMax)
-			end
+			if currentValue > newMax then healthBar:SetValue(newMax) end
 			if healthBar._smoothTarget and healthBar._smoothTarget > newMax then
 				healthBar._smoothTarget = newMax
 				if healthBar._smoothEnabled then tryActivateSmooth(healthBar) end
@@ -1801,7 +1792,7 @@ local function resolveAnchor(info, type)
 	return frame or UIParent, false
 end
 
-local function createHealthBar()
+function createHealthBar()
 	if mainFrame then
 		-- Ensure correct parent when re-enabling
 		if mainFrame:GetParent() ~= UIParent then mainFrame:SetParent(UIParent) end
@@ -1901,9 +1892,7 @@ local function createHealthBar()
 	end
 	absorbBar:SetStatusBarColor(0.8, 0.8, 0.8, 0.8)
 	local wantVertical = settings and settings.verticalFill == true
-	if absorbBar.SetOrientation and absorbBar._isVertical ~= wantVertical then
-		absorbBar:SetOrientation(wantVertical and "VERTICAL" or "HORIZONTAL")
-	end
+	if absorbBar.SetOrientation and absorbBar._isVertical ~= wantVertical then absorbBar:SetOrientation(wantVertical and "VERTICAL" or "HORIZONTAL") end
 	absorbBar._isVertical = wantVertical
 	if absorbBar.SetReverseFill then absorbBar:SetReverseFill(settings and settings.reverseFill == true) end
 	local absorbTex = absorbBar:GetStatusBarTexture()
@@ -2245,9 +2234,7 @@ function updatePowerBar(type, runeSlot)
 								end
 							end
 						end
-						if allReady then
-							deactivateRuneTicker(self)
-						end
+						if allReady then deactivateRuneTicker(self) end
 					end
 				end
 			end
@@ -2261,102 +2248,101 @@ function updatePowerBar(type, runeSlot)
 		if bar.text then bar.text:SetText("") end
 		return
 	end
-		local pType = POWER_ENUM[type]
-		local cfg = getBarSettings(type) or {}
-		local maxPower = bar._lastMax
-		if not maxPower then
-			maxPower = UnitPowerMax("player", pType)
-			bar._lastMax = maxPower
-			bar:SetMinMaxValues(0, maxPower)
-		end
-		local curPower = UnitPower("player", pType)
+	local pType = POWER_ENUM[type]
+	local cfg = getBarSettings(type) or {}
+	local maxPower = bar._lastMax
+	if not maxPower then
+		maxPower = UnitPowerMax("player", pType)
+		bar._lastMax = maxPower
+		bar:SetMinMaxValues(0, maxPower)
+	end
+	local curPower = UnitPower("player", pType)
 
-		local style = bar._style or ((type == "MANA") and "PERCENT" or "CURMAX")
-		local smooth = cfg.smoothFill == true
-		if smooth then
-			bar._smoothTarget = curPower
-			bar._smoothDeadzone = cfg.smoothDeadzone or bar._smoothDeadzone or DEFAULT_SMOOTH_DEADZONE
-			bar._smoothSpeed = SMOOTH_SPEED
-			if not bar._smoothInitialized then
-				bar:SetValue(curPower)
-				bar._smoothInitialized = true
+	local style = bar._style or ((type == "MANA") and "PERCENT" or "CURMAX")
+	local smooth = cfg.smoothFill == true
+	if smooth then
+		bar._smoothTarget = curPower
+		bar._smoothDeadzone = cfg.smoothDeadzone or bar._smoothDeadzone or DEFAULT_SMOOTH_DEADZONE
+		bar._smoothSpeed = SMOOTH_SPEED
+		if not bar._smoothInitialized then
+			bar:SetValue(curPower)
+			bar._smoothInitialized = true
+		end
+		bar._smoothEnabled = true
+		tryActivateSmooth(bar)
+	else
+		bar._smoothTarget = nil
+		bar._smoothDeadzone = cfg.smoothDeadzone or bar._smoothDeadzone or DEFAULT_SMOOTH_DEADZONE
+		bar._smoothSpeed = SMOOTH_SPEED
+		if bar._lastVal ~= curPower then bar:SetValue(curPower) end
+		bar._smoothInitialized = nil
+		bar._smoothEnabled = false
+		stopSmoothUpdater(bar)
+	end
+	bar._lastVal = curPower
+	if bar.text then
+		if style == "NONE" then
+			if bar._textShown then
+				bar.text:SetText("")
+				bar._lastText = ""
+				bar.text:Hide()
+				bar._textShown = false
+			elseif bar._lastText ~= "" then
+				bar.text:SetText("")
+				bar._lastText = ""
 			end
-			bar._smoothEnabled = true
-			tryActivateSmooth(bar)
 		else
-			bar._smoothTarget = nil
-			bar._smoothDeadzone = cfg.smoothDeadzone or bar._smoothDeadzone or DEFAULT_SMOOTH_DEADZONE
-			bar._smoothSpeed = SMOOTH_SPEED
-			if bar._lastVal ~= curPower then bar:SetValue(curPower) end
-			bar._smoothInitialized = nil
-			bar._smoothEnabled = false
-			stopSmoothUpdater(bar)
-		end
-		bar._lastVal = curPower
-		if bar.text then
-			if style == "NONE" then
-				if bar._textShown then
-					bar.text:SetText("")
-					bar._lastText = ""
-					bar.text:Hide()
-					bar._textShown = false
-				elseif bar._lastText ~= "" then
-					bar.text:SetText("")
-					bar._lastText = ""
-				end
-			else
-				local text
-				if style == "PERCENT" then
-					text = tostring(floor(((curPower / max(maxPower, 1)) * 100) + 0.5))
-				elseif style == "CURRENT" then
-					text = tostring(curPower)
-				else -- CURMAX
-					text = curPower .. " / " .. maxPower
-				end
-				if bar._lastText ~= text then
-					bar.text:SetText(text)
-					bar._lastText = text
-				end
-				if not bar._textShown then
-					bar.text:Show()
-					bar._textShown = true
-				end
+			local text
+			if style == "PERCENT" then
+				text = tostring(floor(((curPower / max(maxPower, 1)) * 100) + 0.5))
+			elseif style == "CURRENT" then
+				text = tostring(curPower)
+			else -- CURMAX
+				text = curPower .. " / " .. maxPower
+			end
+			if bar._lastText ~= text then
+				bar.text:SetText(text)
+				bar._lastText = text
+			end
+			if not bar._textShown then
+				bar.text:Show()
+				bar._textShown = true
 			end
 		end
-		bar._baseColor = bar._baseColor or {}
-		if bar._baseColor[1] == nil then
-			local br, bg, bb, ba = bar:GetStatusBarColor()
-			bar._baseColor[1], bar._baseColor[2], bar._baseColor[3], bar._baseColor[4] = br, bg, bb, ba or 1
-		end
+	end
+	bar._baseColor = bar._baseColor or {}
+	if bar._baseColor[1] == nil then
+		local br, bg, bb, ba = bar:GetStatusBarColor()
+		bar._baseColor[1], bar._baseColor[2], bar._baseColor[3], bar._baseColor[4] = br, bg, bb, ba or 1
+	end
 
-		local reachedCap = curPower >= max(maxPower, 1)
-		local useMaxColor = cfg.useMaxColor == true
-		if useMaxColor and reachedCap then
-			local maxCol = cfg.maxColor or { 1, 1, 1, 1 }
-			local mr, mg, mb, ma = maxCol[1] or 1, maxCol[2] or 1, maxCol[3] or 1, maxCol[4] or (bar._baseColor[4] or 1)
+	local reachedCap = curPower >= max(maxPower, 1)
+	local useMaxColor = cfg.useMaxColor == true
+	if useMaxColor and reachedCap then
+		local maxCol = cfg.maxColor or { 1, 1, 1, 1 }
+		local mr, mg, mb, ma = maxCol[1] or 1, maxCol[2] or 1, maxCol[3] or 1, maxCol[4] or (bar._baseColor[4] or 1)
+		local lc = bar._lastColor or {}
+		if bar._usingMaxColor ~= true or lc[1] ~= mr or lc[2] ~= mg or lc[3] ~= mb or lc[4] ~= ma then
+			lc[1], lc[2], lc[3], lc[4] = mr, mg, mb, ma
+			bar._lastColor = lc
+			bar:SetStatusBarColor(lc[1], lc[2], lc[3], lc[4])
+			bar._usingMaxColor = true
+		end
+	else
+		local base = bar._baseColor
+		if base then
 			local lc = bar._lastColor or {}
-			if bar._usingMaxColor ~= true or lc[1] ~= mr or lc[2] ~= mg or lc[3] ~= mb or lc[4] ~= ma then
-				lc[1], lc[2], lc[3], lc[4] = mr, mg, mb, ma
+			local br, bgc, bb, ba = base[1] or 1, base[2] or 1, base[3] or 1, base[4] or 1
+			if bar._usingMaxColor == true or lc[1] ~= br or lc[2] ~= bgc or lc[3] ~= bb or lc[4] ~= ba then
+				lc[1], lc[2], lc[3], lc[4] = br, bgc, bb, ba
 				bar._lastColor = lc
 				bar:SetStatusBarColor(lc[1], lc[2], lc[3], lc[4])
-				bar._usingMaxColor = true
 			end
-		else
-			local base = bar._baseColor
-			if base then
-				local lc = bar._lastColor or {}
-				local br, bgc, bb, ba = base[1] or 1, base[2] or 1, base[3] or 1, base[4] or 1
-				if bar._usingMaxColor == true or lc[1] ~= br or lc[2] ~= bgc or lc[3] ~= bb or lc[4] ~= ba then
-					lc[1], lc[2], lc[3], lc[4] = br, bgc, bb, ba
-					bar._lastColor = lc
-					bar:SetStatusBarColor(lc[1], lc[2], lc[3], lc[4])
-				end
-			end
-			bar._usingMaxColor = false
 		end
-
-		configureSpecialTexture(bar, type, cfg)
+		bar._usingMaxColor = false
 	end
+
+	configureSpecialTexture(bar, type, cfg)
 end
 
 function forceColorUpdate(pType)
@@ -3019,9 +3005,7 @@ function ResourceBars.DisableResourceBars()
 	for pType, bar in pairs(powerbar) do
 		if bar then
 			bar:Hide()
-			if pType == "RUNES" then
-				deactivateRuneTicker(bar)
-			end
+			if pType == "RUNES" then deactivateRuneTicker(bar) end
 		end
 		powerbar[pType] = nil
 	end
@@ -3041,9 +3025,7 @@ function ResourceBars.UpdateRuneEventRegistration()
 	elseif (not enabled) and frameAnchor._runeEvtRegistered then
 		frameAnchor:UnregisterEvent("RUNE_POWER_UPDATE")
 		frameAnchor._runeEvtRegistered = false
-		if powerbar and powerbar.RUNES then
-			deactivateRuneTicker(powerbar.RUNES)
-		end
+		if powerbar and powerbar.RUNES then deactivateRuneTicker(powerbar.RUNES) end
 	end
 end
 
@@ -3334,9 +3316,7 @@ function ResourceBars.Refresh()
 	-- Ensure RUNES animation stops when not visible/enabled
 	local rcfg = getBarSettings("RUNES")
 	local runesEnabled = rcfg and (rcfg.enabled == true)
-	if powerbar and powerbar.RUNES and (not powerbar.RUNES:IsShown() or not runesEnabled) then
-		deactivateRuneTicker(powerbar.RUNES)
-	end
+	if powerbar and powerbar.RUNES and (not powerbar.RUNES:IsShown() or not runesEnabled) then deactivateRuneTicker(powerbar.RUNES) end
 end
 
 ResourceBars._pendingRefresh = ResourceBars._pendingRefresh or {}
