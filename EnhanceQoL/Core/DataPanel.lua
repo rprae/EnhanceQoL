@@ -114,13 +114,13 @@ local function registerEditModePanel(panel)
 				end,
 				generator = function(_, rootDescription)
 					for _, streamName in ipairs(sortedStreams()) do
-						rootDescription:CreateCheckbox(streamDisplayName(streamName), function() return panel.info.streamSet and panel.info.streamSet[streamName] end, function(_, checked)
-							if checked then
-								panel:AddStream(streamName)
-							else
+						rootDescription:CreateCheckbox(streamDisplayName(streamName), function() return panel.info.streamSet and panel.info.streamSet[streamName] end, function()
+							local enabled = panel.info.streamSet and panel.info.streamSet[streamName]
+							if enabled then
 								panel:RemoveStream(streamName)
+							else
+								panel:AddStream(streamName)
 							end
-							panel:SyncEditModeStreams()
 						end)
 					end
 				end,
