@@ -38,6 +38,7 @@ lib.anonCallbacksExit = lib.anonCallbacksExit or {}
 lib.anonCallbacksLayout = lib.anonCallbacksLayout or {}
 
 local function resetSelection()
+	local inCombat = InCombatLockdown and InCombatLockdown()
 	internal.dialog:Hide()
 
 	for frame, selection in next, lib.frameSelections do
@@ -48,13 +49,20 @@ local function resetSelection()
 		if not lib.isEditing then
 			selection:Hide()
 			selection.isSelected = false
-		else
+		elseif not inCombat then
 			selection:ShowHighlighted()
+		else
+			selection:Hide()
+			selection.isSelected = false
 		end
 	end
 end
 
 local function onDragStart(self)
+	if InCombatLockdown and InCombatLockdown() then return end
+	if not (self.parent and self.parent:IsMovable()) then return end
+	self:RegisterEvent('PLAYER_REGEN_DISABLED')
+	self.combatDragActive = true
 	self.parent:StartMoving()
 end
 
@@ -109,7 +117,13 @@ end
 
 local function onDragStop(self)
 	local parent = self.parent
-	parent:StopMovingOrSizing()
+	if parent then parent:StopMovingOrSizing() end
+	if self.combatDragActive then
+		self:UnregisterEvent('PLAYER_REGEN_DISABLED')
+		self.combatDragActive = nil
+	end
+	if InCombatLockdown and InCombatLockdown() then return end
+	if not (parent and parent.IsMovable and parent:IsMovable()) then return end
 
 	-- TODO: snap position to grid
 	-- FrameXML/EditModeUtil.lua
@@ -121,7 +135,16 @@ local function onDragStop(self)
 	internal:TriggerCallback(parent, point, x, y)
 end
 
+local function onSelectionEvent(self, event)
+	if event == 'PLAYER_REGEN_DISABLED' then
+		onDragStop(self)
+		self:Hide()
+		self.isSelected = false
+	end
+end
+
 local function onMouseDown(self) -- replacement for EditModeSystemMixin:SelectSystem()
+	if InCombatLockdown and InCombatLockdown() then return end
 	resetSelection()
 	EditModeManagerFrame:ClearSelectedSystem() -- possible taint
 
@@ -199,6 +222,7 @@ function lib:AddFrame(frame, callback, default)
 	lib.frameSelections[frame] = selection
 	lib.frameCallbacks[frame] = callback
 	lib.frameDefaults[frame] = default
+	selection:SetScript('OnEvent', onSelectionEvent)
 
 	if not internal.dialog then
 		internal.dialog = internal:CreateDialog()

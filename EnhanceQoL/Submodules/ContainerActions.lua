@@ -274,7 +274,7 @@ function ContainerActions:EnsureButton()
 			GameTooltip:Show()
 			return
 		end
-		if not ContainerActions:IsEnabled() then return end
+		if not ContainerActions:IsEnabled() or not btn:IsMouseEnabled() or btn:IsForbidden() then return end
 		if btn.entry then
 			GameTooltip:SetOwner(btn, "ANCHOR_RIGHT")
 			GameTooltip:SetBagItem(btn.entry.bag, btn.entry.slot)
@@ -707,13 +707,20 @@ function ContainerActions:RequestVisibility(show, skipDesiredUpdate)
 	end
 	if InCombat() then
 		self.pendingVisibility = desired
-		if not desired then button:SetAlpha(0) end
+		if not desired then
+			button:SetAlpha(0)
+			button:EnableMouse(false)
+		else
+			button:EnableMouse(true)
+		end
 		return
 	end
 	if desired then
+		button:EnableMouse(true)
 		button:SetAlpha(1)
 		if not button:IsShown() then button:Show() end
 	else
+		button:EnableMouse(false)
 		button:SetAlpha(0)
 		if button:IsShown() then button:Hide() end
 	end

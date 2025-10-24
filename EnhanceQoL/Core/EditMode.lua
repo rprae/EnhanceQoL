@@ -68,8 +68,15 @@ function EditMode:_ensureCombatWatcher()
 	if self.combatWatcher then return end
 	local watcher = CreateFrame("Frame")
 	watcher:RegisterEvent("PLAYER_REGEN_ENABLED")
-	watcher:SetScript("OnEvent", function()
-		EditMode:_flushPendingVisibility()
+	watcher:RegisterEvent("PLAYER_REGEN_DISABLED")
+	watcher:SetScript("OnEvent", function(_, event)
+		if event == "PLAYER_REGEN_ENABLED" then
+			EditMode:_flushPendingLayout()
+			EditMode:_flushPendingVisibility()
+			EditMode:_refreshAllVisibility()
+		else
+			EditMode:_refreshAllVisibility()
+		end
 	end)
 	self.combatWatcher = watcher
 end
@@ -79,7 +86,26 @@ function EditMode:_flushPendingVisibility()
 	if not pending then return end
 	self.pendingVisibility = nil
 	for entry, shouldShow in pairs(pending) do
-		if entry then self:_setFrameShown(entry, shouldShow, true) end
+		if entry then
+			self:_applyVisibility(entry, nil, entry._lastEnabled, true)
+		end
+	end
+end
+
+function EditMode:_flushPendingLayout()
+	local pending = self.pendingLayout
+	if not pending then return end
+	self.pendingLayout = nil
+	for entry, data in pairs(pending) do
+		if entry and data then
+			self:_applyLayoutPosition(entry, data, true)
+		end
+	end
+end
+
+function EditMode:_refreshAllVisibility()
+	for _, entry in pairs(self.frames) do
+		self:_applyVisibility(entry, nil, entry._lastEnabled, true)
 	end
 end
 
@@ -91,11 +117,11 @@ function EditMode:_setFrameShown(entry, shouldShow, immediate)
 	if not immediate and isProtected and isInCombat() then
 		self.pendingVisibility = self.pendingVisibility or {}
 		self.pendingVisibility[entry] = shouldShow
-		self:_ensureCombatWatcher()
-		return
-	end
+	self:_ensureCombatWatcher()
+	return
+end
 
-	if self.pendingVisibility then self.pendingVisibility[entry] = nil end
+if self.pendingVisibility then self.pendingVisibility[entry] = nil end
 
 	local currentlyShown = frame:IsShown()
 	if shouldShow then
@@ -110,6 +136,35 @@ local function resolveRelativeFrame(entry)
 	local relative = entry.relativeTo
 	if type(relative) == "function" then relative = relative() end
 	return relative or UIParent
+end
+
+function EditMode:_applyLayoutPosition(entry, data, immediate)
+	local frame = entry.frame
+	if not frame then return end
+
+	if frame.IsProtected and frame:IsProtected() and not immediate and isInCombat() then
+		self.pendingLayout = self.pendingLayout or {}
+		local config = {
+			point = data.point,
+			relativePoint = data.relativePoint,
+			x = data.x,
+			y = data.y,
+		}
+		self.pendingLayout[entry] = config
+		self:_ensureCombatWatcher()
+		return
+	end
+
+	if self.pendingLayout then self.pendingLayout[entry] = nil end
+
+	local point = data.point
+	local relativePoint = data.relativePoint or point
+	local x = data.x or 0
+	local y = data.y or 0
+	local relative = resolveRelativeFrame(entry)
+
+	frame:ClearAllPoints()
+	frame:SetPoint(point, relative, relativePoint, x, y)
 end
 
 function EditMode:EnsureLayoutData(id, layoutName)
@@ -193,7 +248,7 @@ function EditMode:_isEntryEnabled(entry)
 	return true
 end
 
-function EditMode:_applyVisibility(entry, layoutName, enabled)
+function EditMode:_applyVisibility(entry, layoutName, enabled, forceImmediate)
 	local frame = entry.frame
 	local lib = self.lib
 	if enabled == nil then enabled = self:_isEntryEnabled(entry) end
@@ -201,14 +256,24 @@ function EditMode:_applyVisibility(entry, layoutName, enabled)
 
 	local selection = getSelection(lib, frame)
 	local inEditMode = self:IsInEditMode()
+	local inCombat = isInCombat()
 
 	if frame then
-		local shouldShow = enabled and (inEditMode or entry.showOutsideEditMode)
-		self:_setFrameShown(entry, shouldShow)
+		local shouldShow = false
+		if enabled then
+			if entry.showOutsideEditMode then
+				shouldShow = true
+			elseif inEditMode and not inCombat then
+				shouldShow = true
+			end
+		else
+			if entry.showOutsideEditMode and not inEditMode then shouldShow = true end
+		end
+		self:_setFrameShown(entry, shouldShow, forceImmediate)
 	end
 
 	if selection then
-		if enabled and inEditMode then
+		if enabled and inEditMode and not inCombat then
 			selection:Show()
 		else
 			selection:Hide()
@@ -235,14 +300,13 @@ function EditMode:ApplyLayout(id, layoutName)
 	if not data then return end
 
 	if entry.managePosition ~= false then
-		local point = data.point or entry.defaults.point or "CENTER"
-		local relativePoint = data.relativePoint or entry.defaults.relativePoint or point
-		local x = data.x or entry.defaults.x or 0
-		local y = data.y or entry.defaults.y or 0
-		local relative = resolveRelativeFrame(entry)
-
-		entry.frame:ClearAllPoints()
-		entry.frame:SetPoint(point, relative, relativePoint, x, y)
+		local position = {
+			point = data.point or entry.defaults.point or "CENTER",
+			relativePoint = data.relativePoint or entry.defaults.relativePoint or data.point or entry.defaults.point or "CENTER",
+			x = data.x or entry.defaults.x or 0,
+			y = data.y or entry.defaults.y or 0,
+		}
+		self:_applyLayoutPosition(entry, position)
 	end
 
 	if entry.onApply then entry.onApply(entry.frame, layoutName, data) end
