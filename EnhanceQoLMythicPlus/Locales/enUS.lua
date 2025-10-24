@@ -75,8 +75,7 @@ L["frameLock"] = "Click to lock this window to its default position.\nDoes not w
 L["BRTracker"] = "Combat Resurrection"
 L["brTrackerHeadline"] = "Adds a Combat Resurrection tracker in Mythic+ dungeons"
 L["mythicPlusBRTrackerEnabled"] = "Enable Combat Resurrection tracker"
-L["mythicPlusBRTrackerLocked"] = "Lock the tracker's position"
-L["mythicPlusBRTrackerShowAnchor"] = "Show tracker anchor"
+L["mythicPlusBRTrackerEditModeHint"] = "Adjust the button's position and size via Edit Mode."
 L["mythicPlusBRTrackerAnchor"] = "BR Tracker Anchor"
 L["mythicPlusBRButtonSizeHeadline"] = "Button Size"
 

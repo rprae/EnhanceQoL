@@ -12,6 +12,9 @@ local ContainerActions = addon.ContainerActions
 
 local L = LibStub("AceLocale-3.0"):GetLocale(parentAddonName)
 
+local EditMode = addon.EditMode
+local EDITMODE_ID = "containerActionsButton"
+
 local BUTTON_SIZE = 48
 local PREVIEW_ICON = "Interface\\Icons\\INV_Misc_Bag_10"
 local DEFAULT_ANCHOR = { point = "CENTER", relativePoint = "CENTER", x = 0, y = -200 }
@@ -49,6 +52,16 @@ end
 
 local function InCombat() return InCombatLockdown and InCombatLockdown() end
 
+local function CopyAnchorConfig(source)
+	source = source or {}
+	return {
+		point = source.point or DEFAULT_ANCHOR.point,
+		relativePoint = source.relativePoint or source.point or DEFAULT_ANCHOR.relativePoint,
+		x = source.x ~= nil and source.x or DEFAULT_ANCHOR.x,
+		y = source.y ~= nil and source.y or DEFAULT_ANCHOR.y,
+	}
+end
+
 local function FormatAnchorPoint(data)
 	data = data or {}
 	data.point = data.point or DEFAULT_ANCHOR.point
@@ -56,6 +69,13 @@ local function FormatAnchorPoint(data)
 	if data.x == nil then data.x = DEFAULT_ANCHOR.x end
 	if data.y == nil then data.y = DEFAULT_ANCHOR.y end
 	return data
+end
+
+local function BuildAnchorLayoutSnapshot(layoutName)
+	local layout = EditMode and EditMode:GetLayoutData(EDITMODE_ID, layoutName)
+	if layout then return CopyAnchorConfig(layout) end
+	addon.db.containerActionAnchor = FormatAnchorPoint(addon.db.containerActionAnchor)
+	return CopyAnchorConfig(addon.db.containerActionAnchor)
 end
 
 local function SecureSort(a, b)
@@ -104,9 +124,60 @@ end
 
 function ContainerActions:IsEnabled() return addon.db and addon.db["automaticallyOpenContainer"] end
 
-function ContainerActions:GetAnchorConfig()
-	addon.db.containerActionAnchor = FormatAnchorPoint(addon.db.containerActionAnchor)
-	return addon.db.containerActionAnchor
+local function GetAreaDisplayName(key)
+	local def = AREA_BLOCKS[key]
+	if not def then return key end
+	if def.label then return def.label end
+	if def.labelConst and _G and type(_G[def.labelConst]) == "string" and _G[def.labelConst] ~= "" then return _G[def.labelConst] end
+	if def.labelFallback then return def.labelFallback end
+	if def.labelKey and L and L[def.labelKey] then return L[def.labelKey] end
+	return def.labelConst or def.labelKey or key
+end
+
+function ContainerActions:GetAnchorConfig(layoutName)
+    local snapshot = BuildAnchorLayoutSnapshot(layoutName)
+    return FormatAnchorPoint(snapshot)
+end
+
+function ContainerActions:GetLayoutAreaBlocks(layoutName)
+	local targetLayout = layoutName or (EditMode and EditMode:GetActiveLayoutName()) or "_Global"
+	addon.db.containerActionLayouts = addon.db.containerActionLayouts or {}
+	local layoutData = addon.db.containerActionLayouts[targetLayout]
+	if not layoutData then
+		local copySource = addon.db.containerActionAreaBlocks
+		layoutData = {
+			areaBlocks = copySource and CopyTable(copySource) or {},
+		}
+		addon.db.containerActionLayouts[targetLayout] = layoutData
+	end
+	layoutData.areaBlocks = layoutData.areaBlocks or {}
+	return layoutData.areaBlocks
+end
+
+function ContainerActions:SetAreaBlock(layoutName, key, enabled)
+	layoutName = layoutName or (EditMode and EditMode:GetActiveLayoutName()) or "_Global"
+	local areaBlocks = self:GetLayoutAreaBlocks(layoutName)
+	if enabled then
+		areaBlocks[key] = true
+	else
+		areaBlocks[key] = nil
+	end
+	addon.db.containerActionAreaBlocks = CopyTable(areaBlocks)
+	self:OnAreaBlockSettingChanged()
+end
+
+function ContainerActions:ApplyAnchorLayout(data)
+    local cfg = CopyAnchorConfig(data)
+    addon.db.containerActionAnchor = CopyAnchorConfig(cfg)
+    local anchor = self.anchor
+    if anchor then
+        anchor:ClearAllPoints()
+        anchor:SetPoint(cfg.point, UIParent, cfg.relativePoint, cfg.x, cfg.y)
+    end
+    if self.button then
+        self.button:ClearAllPoints()
+        self.button:SetPoint("CENTER", self:EnsureAnchor(), "CENTER", 0, 0)
+    end
 end
 
 function ContainerActions:EnsureAnchor()
@@ -116,9 +187,7 @@ function ContainerActions:EnsureAnchor()
 	anchor:SetSize(BUTTON_SIZE + 12, BUTTON_SIZE + 12)
 	anchor:SetFrameStrata("MEDIUM")
 	anchor:SetClampedToScreen(true)
-	anchor:SetMovable(true)
-	anchor:EnableMouse(true)
-	anchor:RegisterForDrag("LeftButton")
+	anchor:EnableMouse(false)
 	anchor:SetBackdrop({
 		bgFile = "Interface\\Buttons\\WHITE8x8",
 		edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
@@ -131,60 +200,57 @@ function ContainerActions:EnsureAnchor()
 	anchor:SetBackdropBorderColor(1, 0.82, 0, 0.9)
 	anchor:Hide()
 
-	anchor:SetScript("OnDragStart", function() ContainerActions:OnAnchorDragStart() end)
-	anchor:SetScript("OnDragStop", function() ContainerActions:OnAnchorDragStop() end)
-	anchor:SetScript("OnHide", function(f)
-		f:StopMovingOrSizing()
-		ContainerActions.anchorDragging = nil
-	end)
-
 	local label = anchor:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	label:SetPoint("CENTER", 0, 0)
 	label:SetText(L["containerActionsAnchorLabel"] or "Container Button")
 
 	self.anchor = anchor
 	self.anchorLabel = label
-	self:ApplyAnchorPosition()
-	return anchor
-end
 
-function ContainerActions:OnAnchorDragStart()
-	if InCombat() then return end
-	local anchor = self:EnsureAnchor()
-	if not (anchor and anchor:IsShown()) then return end
-	anchor:StartMoving()
-	self.anchorDragging = true
-end
+	if EditMode and EditMode.IsAvailable and EditMode:IsAvailable() and not self.anchorRegistered then
+		local defaults = BuildAnchorLayoutSnapshot()
+		local dropdownSetting
+		local settingType = EditMode.lib and EditMode.lib.SettingType
+		if settingType then
+			dropdownSetting = {
+				name = L["containerActionsAreaHeader"],
+				kind = settingType.Dropdown,
+				height = 180,
+				generator = function(_, rootDescription)
+					for _, areaKey in ipairs(AREA_BLOCK_ORDER) do
+						local key = areaKey
+						rootDescription:CreateCheckbox(
+							GetAreaDisplayName(key),
+							function()
+								local layoutName = EditMode and EditMode:GetActiveLayoutName()
+								local cfg = ContainerActions:GetLayoutAreaBlocks(layoutName)
+								return not not cfg[key]
+							end,
+							function()
+								local layoutName = EditMode and EditMode:GetActiveLayoutName()
+								local cfg = ContainerActions:GetLayoutAreaBlocks(layoutName)
+								local newState = not not cfg[key]
+								ContainerActions:SetAreaBlock(layoutName, key, not newState)
+							end
+						)
+					end
+				end,
+			}
+		end
 
-function ContainerActions:OnAnchorDragStop()
-	if not self.anchorDragging then return end
-	self.anchorDragging = nil
-	local anchor = self:EnsureAnchor()
-	if anchor then anchor:StopMovingOrSizing() end
-	self:SaveAnchorPosition()
-	self:ApplyAnchorPosition()
-end
-
-function ContainerActions:SaveAnchorPosition()
-	if not self.anchor then return end
-	local point, _, relativePoint, x, y = self.anchor:GetPoint(1)
-	addon.db.containerActionAnchor = {
-		point = point,
-		relativePoint = relativePoint,
-		x = x,
-		y = y,
-	}
-end
-
-function ContainerActions:ApplyAnchorPosition()
-	local anchor = self:EnsureAnchor()
-	local cfg = self:GetAnchorConfig()
-	anchor:ClearAllPoints()
-	anchor:SetPoint(cfg.point or "CENTER", UIParent, cfg.relativePoint or "CENTER", cfg.x or 0, cfg.y or 0)
-	if self.button then
-		self.button:ClearAllPoints()
-		self.button:SetPoint("CENTER", anchor, "CENTER", 0, 0)
+		EditMode:RegisterFrame(EDITMODE_ID, {
+			frame = anchor,
+			title = L["containerActionsAnchorLabel"] or "Container Button",
+			layoutDefaults = defaults,
+			isEnabled = function() return ContainerActions:IsEnabled() end,
+			onApply = function(_, layoutName, data) ContainerActions:ApplyAnchorLayout(data) end,
+			settings = dropdownSetting and { dropdownSetting } or nil,
+		})
+		self.anchorRegistered = true
 	end
+	self:ApplyAnchorLayout(BuildAnchorLayoutSnapshot())
+
+	return anchor
 end
 
 function ContainerActions:EnsureButton()
@@ -202,13 +268,13 @@ function ContainerActions:EnsureButton()
 	button:Hide()
 
 	button:SetScript("OnEnter", function(btn)
-		if ContainerActions.previewActive then
+		if EditMode and EditMode:IsInEditMode() then
 			GameTooltip:SetOwner(btn, "ANCHOR_RIGHT")
 			GameTooltip:SetText(L["containerActionsAnchorHelp"] or "")
 			GameTooltip:Show()
 			return
 		end
-		if not ContainerActions:IsEnabled() then return end
+		if not ContainerActions:IsEnabled() or not btn:IsMouseEnabled() or btn:IsForbidden() then return end
 		if btn.entry then
 			GameTooltip:SetOwner(btn, "ANCHOR_RIGHT")
 			GameTooltip:SetBagItem(btn.entry.bag, btn.entry.slot)
@@ -228,11 +294,7 @@ function ContainerActions:EnsureButton()
 	end)
 	button:SetScript("OnLeave", GameTooltip_Hide)
 	button:SetScript("PostClick", function() ContainerActions:OnPostClick() end)
-	button:SetScript("OnMouseDown", function(_, mouseButton)
-		if mouseButton == "LeftButton" and ContainerActions.previewActive then ContainerActions:OnAnchorDragStart() end
-	end)
 	button:SetScript("OnMouseUp", function(_, mouseButton)
-		if mouseButton == "LeftButton" then ContainerActions:OnAnchorDragStop() end
 		if mouseButton == "RightButton" and IsShiftKeyDown() then ContainerActions:TryBlacklistCurrentEntry() end
 	end)
 
@@ -240,7 +302,7 @@ function ContainerActions:EnsureButton()
 
 	self.button = button
 	self.buttonIcon = GetButtonIcon(button)
-	self:ApplyAnchorPosition()
+	self:ApplyAnchorLayout(BuildAnchorLayoutSnapshot())
 	return button
 end
 
@@ -257,10 +319,7 @@ function ContainerActions:Init()
 	self.pendingItem = nil
 	self.pendingVisibility = nil
 	self.awaitingRefresh = nil
-	self.previewActive = false
-	self.previewRestoreAfterCombat = nil
 	self.desiredVisibility = nil
-	self.pendingPreviewEntry = nil
 	self:EnsureAnchor()
 	self:EnsureButton()
 
@@ -304,12 +363,7 @@ function ContainerActions:Init()
 	self:UpdateAreaBlocks()
 end
 
-function ContainerActions:OnCombatStart()
-	if self.previewActive then
-		self.previewRestoreAfterCombat = true
-		self:HideAnchorPreview(true)
-	end
-end
+function ContainerActions:OnCombatStart() end
 
 function ContainerActions:OnCombatEnd()
 	if self.pendingVisibility ~= nil then
@@ -326,63 +380,8 @@ function ContainerActions:OnCombatEnd()
 			self:ApplyButtonEntry(nil)
 		end
 	end
-	if self.previewRestoreAfterCombat then
-		self.previewRestoreAfterCombat = nil
-		self:ShowAnchorPreview()
-	end
 	if self.pendingVisibility == nil and self.desiredVisibility ~= nil then self:RequestVisibility(self.desiredVisibility) end
-end
-
-function ContainerActions:ShowAnchorPreview()
-	if InCombat() then
-		local msg = L["containerActionsAnchorLockedCombat"]
-		if msg and msg ~= "" then print("|cffff2020" .. msg .. "|r") end
-		return
-	end
-	local anchor = self:EnsureAnchor()
-	self.previewActive = true
-	self.pendingPreviewEntry = nil
-	anchor:Show()
-	self:ApplyAnchorPosition()
-
-	local button = self:EnsureButton()
-	button:SetAlpha(0.8)
-	SetButtonIconTexture(button, PREVIEW_ICON)
-	if button.Count then button.Count:SetText("") end
-	if button:GetAttribute("item") then button:SetAttribute("item", nil) end
-	button:SetAttribute("macrotext", nil)
-	button:SetAttribute("type1", nil)
-	button:SetAttribute("macrotext1", nil)
-	button:SetAttribute("type", nil)
-	button:SetAttribute("*type*", nil)
-	button:SetAttribute("macrotext2", nil)
-	button:SetAttribute("type2", nil)
-	button.entry = nil
-	self:RequestVisibility(true)
-end
-
-function ContainerActions:HideAnchorPreview(skipVisibility)
-	self.previewActive = false
-	self.pendingPreviewEntry = nil
-	if self.anchor then self.anchor:Hide() end
-	local button = self.button
-	if button then button:SetAlpha(1) end
-	if skipVisibility then return end
-	if not self:IsEnabled() or #self.secureItems == 0 then
-		self:ApplyButtonEntry(nil)
-		self:RequestVisibility(false)
-	else
-		self:ApplyButtonEntry(self.secureItems[1])
-		self:RequestVisibility(true)
-	end
-end
-
-function ContainerActions:ToggleAnchorPreview()
-	if self.previewActive then
-		self:HideAnchorPreview()
-	else
-		self:ShowAnchorPreview()
-	end
+	self:FlushDeferredEditRefresh()
 end
 
 function ContainerActions:GetTotalItemCount()
@@ -395,10 +394,6 @@ end
 
 function ContainerActions:UpdateCount()
 	if not self.button then return end
-	if self.previewActive then
-		if self.button.Count then self.button.Count:SetText("") end
-		return
-	end
 	local total = self:GetTotalItemCount()
 	if not self.button.Count then return end
 	if total > 1 then
@@ -583,7 +578,7 @@ function ContainerActions:GetBlacklistEntries()
 end
 
 function ContainerActions:TryBlacklistCurrentEntry()
-	if self.previewActive then return end
+	if EditMode and EditMode:IsInEditMode() then return end
 	local entry = self.currentEntry
 	if not entry or not entry.itemID then return end
 	local ok, reason = self:AddItemToBlacklist(entry.itemID)
@@ -642,10 +637,6 @@ end
 
 function ContainerActions:ApplyButtonEntry(entry)
 	self.currentEntry = entry
-	if self.previewActive then
-		self.pendingPreviewEntry = entry or false
-		return
-	end
 	local button = self:EnsureButton()
 	if InCombat() then
 		self.pendingItem = entry or false
@@ -689,7 +680,6 @@ function ContainerActions:SetVisibilityBlock(reason, blocked)
 	if shouldBlock then
 		if self.visibilityBlocks[reason] then return end
 		self.visibilityBlocks[reason] = true
-		if self.previewActive then self:HideAnchorPreview(true) end
 		self:RequestVisibility(false, true)
 	else
 		if not self.visibilityBlocks[reason] then return end
@@ -713,21 +703,26 @@ function ContainerActions:RequestVisibility(show, skipDesiredUpdate)
 	if not skipDesiredUpdate then self.desiredVisibility = show and true or false end
 	local button = self:EnsureButton()
 	local desired = show and true or false
-	if self:HasVisibilityBlock() and not self.previewActive then
+	if self:HasVisibilityBlock() then
 		desired = false
-	elseif self.previewActive then
-		desired = true
 	end
 	if InCombat() then
 		self.pendingVisibility = desired
-		if not desired and not self.previewActive then button:SetAlpha(0) end
+		if not desired then
+			button:SetAlpha(0)
+			button:EnableMouse(false)
+		else
+			button:EnableMouse(true)
+		end
 		return
 	end
 	if desired then
-		if not self.previewActive then button:SetAlpha(1) end
+		button:EnableMouse(true)
+		button:SetAlpha(1)
 		if not button:IsShown() then button:Show() end
 	else
-		if not self.previewActive then button:SetAlpha(0) end
+		button:EnableMouse(false)
+		button:SetAlpha(0)
 		if button:IsShown() then button:Hide() end
 	end
 end
@@ -751,7 +746,13 @@ function ContainerActions:UpdateItems(list)
 end
 
 function ContainerActions:UpdateAreaBlocks()
-	local config = addon.db and addon.db.containerActionAreaBlocks or {}
+	local layoutName = EditMode and EditMode:GetActiveLayoutName()
+	local config
+	if layoutName then
+		config = self:GetLayoutAreaBlocks(layoutName)
+	else
+		config = addon.db and addon.db.containerActionAreaBlocks or {}
+	end
 	local instanceType = GetCurrentInstanceType()
 	for _, key in ipairs(AREA_BLOCK_ORDER) do
 		local def = AREA_BLOCKS[key]
@@ -764,7 +765,23 @@ function ContainerActions:UpdateAreaBlocks()
 	end
 end
 
-function ContainerActions:OnAreaBlockSettingChanged() self:UpdateAreaBlocks() end
+function ContainerActions:OnAreaBlockSettingChanged()
+	self:UpdateAreaBlocks()
+	if EditMode and EditMode.RefreshFrame then
+		if InCombatLockdown and InCombatLockdown() then
+			self.deferEditModeRefresh = true
+		else
+			EditMode:RefreshFrame(EDITMODE_ID)
+		end
+	end
+end
+
+function ContainerActions:FlushDeferredEditRefresh()
+	if self.deferEditModeRefresh and EditMode and EditMode.RefreshFrame then
+		self.deferEditModeRefresh = nil
+		EditMode:RefreshFrame(EDITMODE_ID)
+	end
+end
 
 function ContainerActions:OnUnitEnteredVehicle(unit)
 	if unit ~= "player" then return end
@@ -983,13 +1000,13 @@ end
 function ContainerActions:OnSettingChanged(enabled)
 	self:Init()
 	if not enabled then
-		self:HideAnchorPreview()
 		self:UpdateItems({})
 	else
-		self:ApplyAnchorPosition()
+		self:ApplyAnchorLayout(BuildAnchorLayoutSnapshot())
 		self:UpdateAreaBlocks()
 		if addon.functions and addon.functions.checkForContainer then addon.functions.checkForContainer() end
 	end
+	if EditMode and EditMode.RefreshFrame then EditMode:RefreshFrame(EDITMODE_ID) end
 end
 
 function ContainerActions:OnPostClick()

@@ -18,6 +18,39 @@ local NAMES = {
 	[INT] = ITEM_MOD_INTELLECT_SHORT, -- "Intellect"
 }
 
+local PRIMARY_TOKENS = {
+	[STR] = "STRENGTH",
+	[AGI] = "AGILITY",
+	[INT] = "INTELLECT",
+}
+
+local STAT_TOKENS = {
+	haste = "HASTE",
+	mastery = "MASTERY",
+	versatility = "VERSATILITY",
+	crit = "CRITCHANCE",
+	lifesteal = "LIFESTEAL",
+	block = "BLOCK",
+	parry = "PARRY",
+	dodge = "DODGE",
+	avoidance = "AVOIDANCE",
+	speed = "SPEED",
+}
+
+local FALLBACK_ORDER = {
+	primary = 1,
+	haste = 2,
+	mastery = 3,
+	versatility = 4,
+	crit = 5,
+	lifesteal = 6,
+	block = 7,
+	parry = 8,
+	dodge = 9,
+	avoidance = 10,
+	speed = 11,
+}
+
 local function GetPlayerPrimaryStatIndex()
 	local spec = C_SpecializationInfo.GetSpecialization()
 	if spec then
@@ -41,7 +74,43 @@ end
 local function GetPlayerPrimaryStat()
 	if not idx then idx = GetPlayerPrimaryStatIndex() end
 	local base, effective = UnitStat("player", idx) -- effective enthält Buffs
-	return (effective or base), idx, (NAMES[idx] or "Primary")
+	return (effective or base), idx, (NAMES[idx] or "Primary"), PRIMARY_TOKENS[idx]
+end
+
+local function getPaperdollStatOrder()
+	local order = {}
+	local categories = PAPERDOLL_STATCATEGORIES
+	if not categories then return order end
+
+	local index = 1
+	for _, category in ipairs(categories) do
+		local stats = category and category.stats
+		if stats then
+			for _, entry in ipairs(stats) do
+				local token
+				if type(entry) == "table" then
+					token = entry.stat
+				else
+					token = entry
+				end
+				if token and order[token] == nil then
+					order[token] = index
+					index = index + 1
+				end
+			end
+		end
+	end
+
+	return order
+end
+
+local function getOptionsHint()
+	if addon.DataPanel and addon.DataPanel.GetOptionsHintText then
+		local text = addon.DataPanel.GetOptionsHintText()
+		if text ~= nil then return text end
+		return nil
+	end
+	return L["Right-Click for options"]
 end
 
 local function ensureDB()
@@ -204,14 +273,25 @@ end
 
 local function checkStats(stream)
 	ensureDB()
-	local texts = {}
 	local sep = db.vertical and "\n" or " "
 	local size = db.fontSize or 14
 	stream.snapshot.fontSize = size
-	stream.snapshot.tooltip = L["Right-Click for options"]
+	stream.snapshot.tooltip = getOptionsHint()
 
-	local primaryValue, _, primaryName = GetPlayerPrimaryStat()
-	if db.primary.enabled then texts[#texts + 1] = colorize(("%s: %d"):format(primaryName, primaryValue), db.primary.color) end
+	local orderMap = getPaperdollStatOrder()
+	local entries = {}
+
+	local function push(key, token, text, color)
+		if not text then return end
+		entries[#entries + 1] = {
+			sort = token and orderMap[token] or nil,
+			fallback = FALLBACK_ORDER[key] or (#entries + 100),
+			text = colorize(text, color),
+		}
+	end
+
+	local primaryValue, _, primaryName, primaryToken = GetPlayerPrimaryStat()
+	if db.primary.enabled then push("primary", primaryToken, ("%s: %d"):format(primaryName, primaryValue), db.primary.color) end
 
 	if db.haste.enabled then
 		local text
@@ -220,7 +300,7 @@ local function checkStats(stream)
 		else
 			text = formatStat(STAT_HASTE or "Haste", nil, GetHaste())
 		end
-		texts[#texts + 1] = colorize(text, db.haste.color)
+		push("haste", STAT_TOKENS.haste, text, db.haste.color)
 	end
 
 	if db.mastery.enabled then
@@ -230,7 +310,7 @@ local function checkStats(stream)
 		else
 			text = formatStat(STAT_MASTERY or "Mastery", nil, GetMasteryEffect())
 		end
-		texts[#texts + 1] = colorize(text, db.mastery.color)
+		push("mastery", STAT_TOKENS.mastery, text, db.mastery.color)
 	end
 
 	if db.versatility.enabled then
@@ -242,7 +322,7 @@ local function checkStats(stream)
 			local red = GetCombatRatingBonus(CR_VERSATILITY_DAMAGE_TAKEN) + GetVersatilityBonus(CR_VERSATILITY_DAMAGE_TAKEN)
 			text = ("%s %.2f%%/%.2f%%"):format(STAT_VERSATILITY or "Vers", dmg, red)
 		end
-		texts[#texts + 1] = colorize(text, db.versatility.color)
+		push("versatility", STAT_TOKENS.versatility, text, db.versatility.color)
 	end
 
 	if db.crit.enabled then
@@ -252,7 +332,7 @@ local function checkStats(stream)
 		else
 			text = formatStat(STAT_CRITICAL_STRIKE or "Crit", nil, GetCritChance())
 		end
-		texts[#texts + 1] = colorize(text, db.crit.color)
+		push("crit", STAT_TOKENS.crit, text, db.crit.color)
 	end
 
 	if db.lifesteal.enabled then
@@ -262,7 +342,7 @@ local function checkStats(stream)
 		else
 			text = formatStat(STAT_LIFESTEAL or "Leech", nil, GetLifesteal())
 		end
-		texts[#texts + 1] = colorize(text, db.lifesteal.color)
+		push("lifesteal", STAT_TOKENS.lifesteal, text, db.lifesteal.color)
 	end
 
 	if db.block.enabled then
@@ -272,7 +352,7 @@ local function checkStats(stream)
 		else
 			text = formatStat(STAT_BLOCK or "Block", nil, GetBlockChance())
 		end
-		texts[#texts + 1] = colorize(text, db.block.color)
+		push("block", STAT_TOKENS.block, text, db.block.color)
 	end
 
 	if db.parry.enabled then
@@ -282,7 +362,7 @@ local function checkStats(stream)
 		else
 			text = formatStat(STAT_PARRY or "Parry", nil, GetParryChance())
 		end
-		texts[#texts + 1] = colorize(text, db.parry.color)
+		push("parry", STAT_TOKENS.parry, text, db.parry.color)
 	end
 
 	if db.dodge.enabled then
@@ -292,7 +372,7 @@ local function checkStats(stream)
 		else
 			text = formatStat(STAT_DODGE or "Dodge", nil, GetDodgeChance())
 		end
-		texts[#texts + 1] = colorize(text, db.dodge.color)
+		push("dodge", STAT_TOKENS.dodge, text, db.dodge.color)
 	end
 
 	if db.avoidance.enabled then
@@ -302,7 +382,7 @@ local function checkStats(stream)
 		else
 			text = formatStat(STAT_AVOIDANCE or "Avoidance", nil, GetAvoidance())
 		end
-		texts[#texts + 1] = colorize(text, db.avoidance.color)
+		push("avoidance", STAT_TOKENS.avoidance, text, db.avoidance.color)
 	end
 
 	if db.speed.enabled then
@@ -312,7 +392,19 @@ local function checkStats(stream)
 		else
 			text = formatStat(STAT_SPEED or "Speed", nil, GetSpeed())
 		end
-		texts[#texts + 1] = colorize(text, db.speed.color)
+		push("speed", STAT_TOKENS.speed, text, db.speed.color)
+	end
+
+	table.sort(entries, function(a, b)
+		local aOrder = a.sort or a.fallback
+		local bOrder = b.sort or b.fallback
+		if aOrder == bOrder then return a.fallback < b.fallback end
+		return aOrder < bOrder
+	end)
+
+	local texts = {}
+	for i, entry in ipairs(entries) do
+		texts[i] = entry.text
 	end
 
 	stream.snapshot.text = table.concat(texts, sep)

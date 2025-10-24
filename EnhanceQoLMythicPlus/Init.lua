@@ -61,12 +61,10 @@ addon.functions.InitDBValue("mythicPlusShowChestTimers", true)
 
 -- BR Tracker
 addon.functions.InitDBValue("mythicPlusBRTrackerEnabled", false)
-addon.functions.InitDBValue("mythicPlusBRTrackerLocked", false)
 addon.functions.InitDBValue("mythicPlusBRButtonSize", 50)
 addon.functions.InitDBValue("mythicPlusBRTrackerPoint", "CENTER")
 addon.functions.InitDBValue("mythicPlusBRTrackerX", 0)
 addon.functions.InitDBValue("mythicPlusBRTrackerY", 0)
-addon.functions.InitDBValue("mythicPlusBRTrackerShowAnchor", false)
 
 -- Talent Reminder
 addon.functions.InitDBValue("talentReminderEnabled", false)

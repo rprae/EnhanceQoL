@@ -10,6 +10,7 @@
 ### 🐛 Fixed
 
 - Infinite Bazaar teleport was shown for non timerunner characters
+- Stat order in Statspanel not respects blizzard default stat order
 
 ---
 

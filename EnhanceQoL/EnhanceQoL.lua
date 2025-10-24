@@ -20,6 +20,7 @@ local defaults = {
 		cvarOverrides = {},
 		cvarPersistenceEnabled = false,
 		optionsFrameScale = 1,
+		editModeLayouts = {},
 		legionRemix = {},
 	},
 }
@@ -3705,82 +3706,17 @@ local function addContainerActionsFrame(container)
 		group:AddChild(featureLabel)
 	end
 
-	local anchorButton
-	local function updateAnchorButtonLabel()
-		if not anchorButton then return end
-		if addon.ContainerActions and addon.ContainerActions.previewActive then
-			anchorButton:SetText(L["containerActionsAnchorButtonLock"] or L["containerActionsAnchorButton"])
-		else
-			anchorButton:SetText(L["containerActionsAnchorButton"])
-		end
-	end
 	local checkbox = addon.functions.createCheckboxAce(L["automaticallyOpenContainer"], addon.db["automaticallyOpenContainer"], function(_, _, value)
 		addon.db["automaticallyOpenContainer"] = value
-		if anchorButton then anchorButton:SetDisabled(not value) end
 		if addon.ContainerActions and addon.ContainerActions.OnSettingChanged then addon.ContainerActions:OnSettingChanged(value) end
-		updateAnchorButtonLabel()
 	end)
 	group:AddChild(checkbox)
 
-	anchorButton = addon.functions.createButtonAce(L["containerActionsAnchorButton"], 260, function()
-		if InCombatLockdown and InCombatLockdown() then
-			local msg = L["containerActionsAnchorLockedCombat"]
-			if msg and msg ~= "" then print("|cffff2020" .. msg .. "|r") end
-			return
-		end
-		if addon.ContainerActions and addon.ContainerActions.ToggleAnchorPreview then addon.ContainerActions:ToggleAnchorPreview() end
-		updateAnchorButtonLabel()
-	end)
-	anchorButton:SetDisabled(not addon.db["automaticallyOpenContainer"])
-	updateAnchorButtonLabel()
-	group:AddChild(anchorButton)
-
-	local desc = L["containerActionsAnchorHelp"]
+	local desc = L["containerActionsEditModeHint"] or L["containerActionsAnchorHelp"]
 	if desc and desc ~= "" then
 		local helpLabel = addon.functions.createLabelAce(desc, { r = 0.8, g = 0.8, b = 0.8 })
 		helpLabel:SetFullWidth(true)
 		group:AddChild(helpLabel)
-	end
-
-	local areaGroup = addon.functions.createContainer("InlineGroup", "List")
-	areaGroup:SetFullWidth(true)
-	areaGroup:SetTitle(L["containerActionsAreaHeader"])
-	group:AddChild(areaGroup)
-
-	local areaDesc = L["containerActionsAreaDesc"]
-	if areaDesc and areaDesc ~= "" then
-		local areaLabel = addon.functions.createLabelAce(areaDesc, { r = 0.8, g = 0.8, b = 0.8 })
-		areaLabel:SetFullWidth(true)
-		areaGroup:AddChild(areaLabel)
-	end
-
-	if addon.ContainerActions and addon.ContainerActions.GetAreaBlockOptions then
-		local dropdown = AceGUI:Create("Dropdown")
-		dropdown:SetMultiselect(true)
-		dropdown:SetFullWidth(true)
-
-		local list, order = {}, {}
-		for _, option in ipairs(addon.ContainerActions:GetAreaBlockOptions()) do
-			local key = option.key
-			local text = option.label or key
-			list[key] = text
-			order[#order + 1] = key
-		end
-		dropdown:SetList(list, order)
-		dropdown:SetCallback("OnValueChanged", function(_, _, key, checked)
-			addon.db.containerActionAreaBlocks = addon.db.containerActionAreaBlocks or {}
-			addon.db.containerActionAreaBlocks[key] = checked and true or nil
-			if addon.ContainerActions and addon.ContainerActions.OnAreaBlockSettingChanged then addon.ContainerActions:OnAreaBlockSettingChanged(key, checked) end
-		end)
-
-		local config = addon.db.containerActionAreaBlocks
-		if type(config) == "table" then
-			for key, value in pairs(config) do
-				if value and list[key] then dropdown:SetItemValue(key, true) end
-			end
-		end
-
-		areaGroup:AddChild(dropdown)
 	end
 
 	local managedGroup = addon.functions.createContainer("InlineGroup", "List")
@@ -4548,6 +4484,40 @@ local function buildDatapanelFrame(container)
 	)
 	shiftLock:SetRelativeWidth(1.0)
 	controlGroup:AddChild(shiftLock)
+
+	local hintToggle = addon.functions.createCheckboxAce(
+		L["Show options tooltip hint"],
+		addon.DataPanel.ShouldShowOptionsHint and addon.DataPanel.ShouldShowOptionsHint(),
+		function(_, _, val)
+			if addon.DataPanel.SetShowOptionsHint then addon.DataPanel.SetShowOptionsHint(val and true or false) end
+			for name in pairs(DataHub.streams) do
+				DataHub:RequestUpdate(name)
+			end
+		end
+	)
+	hintToggle:SetRelativeWidth(1.0)
+	controlGroup:AddChild(hintToggle)
+
+	addon.db.dataPanelsOptions.menuModifier = addon.db.dataPanelsOptions.menuModifier or "NONE"
+	local modifierList = {
+		NONE = L["Context menu modifier: None"] or (NONE or "None"),
+		SHIFT = SHIFT_KEY_TEXT or "Shift",
+		CTRL = CTRL_KEY_TEXT or "Ctrl",
+		ALT = ALT_KEY_TEXT or "Alt",
+	}
+	local modifierOrder = { "NONE", "SHIFT", "CTRL", "ALT" }
+	local modifierDropdown = addon.functions.createDropdownAce(
+		L["Context menu modifier"] or "Context menu modifier",
+		modifierList,
+		modifierOrder,
+		function(widget, _, key)
+			if addon.DataPanel.SetMenuModifier then addon.DataPanel.SetMenuModifier(key) end
+			if widget and widget.SetValue then widget:SetValue(key) end
+		end
+	)
+	if modifierDropdown.SetValue then modifierDropdown:SetValue(addon.DataPanel.GetMenuModifier and addon.DataPanel.GetMenuModifier() or "NONE") end
+	modifierDropdown:SetRelativeWidth(1.0)
+	controlGroup:AddChild(modifierDropdown)
 
 	local newName = addon.functions.createEditboxAce(L["Panel Name"] or "Panel Name")
 	newName:SetRelativeWidth(0.4)

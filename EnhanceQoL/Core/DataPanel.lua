@@ -11,6 +11,65 @@ local function requireShiftToMove()
     return opts and opts.requireShiftToMove == true
 end
 
+local function shouldShowOptionsHint()
+    local opts = addon.db and addon.db.dataPanelsOptions
+    return not (opts and opts.hideRightClickHint)
+end
+
+function DataPanel.ShouldShowOptionsHint()
+    return shouldShowOptionsHint()
+end
+
+function DataPanel.GetOptionsHintText()
+    if shouldShowOptionsHint() then
+        return L["Right-Click for options"]
+    end
+end
+
+function DataPanel.SetShowOptionsHint(val)
+    addon.db = addon.db or {}
+    addon.db.dataPanelsOptions = addon.db.dataPanelsOptions or {}
+    if val then
+        addon.db.dataPanelsOptions.hideRightClickHint = nil
+    else
+        addon.db.dataPanelsOptions.hideRightClickHint = true
+    end
+end
+
+local function getMenuModifierSetting()
+    local opts = addon.db and addon.db.dataPanelsOptions
+    return (opts and opts.menuModifier) or "NONE"
+end
+
+local function isModifierDown(mod)
+    if mod == "SHIFT" then
+        return IsShiftKeyDown()
+    elseif mod == "CTRL" then
+        return IsControlKeyDown()
+    elseif mod == "ALT" then
+        return IsAltKeyDown()
+    end
+    return true
+end
+
+function DataPanel.GetMenuModifier()
+    return getMenuModifierSetting()
+end
+
+function DataPanel.SetMenuModifier(mod)
+    addon.db = addon.db or {}
+    addon.db.dataPanelsOptions = addon.db.dataPanelsOptions or {}
+    if not mod or not (mod == "NONE" or mod == "SHIFT" or mod == "CTRL" or mod == "ALT") then mod = "NONE" end
+    addon.db.dataPanelsOptions.menuModifier = mod
+end
+
+function DataPanel.IsMenuModifierActive(btn)
+    if btn and btn ~= "RightButton" then return true end
+    local mod = getMenuModifierSetting()
+    if mod == "NONE" then return true end
+    return isModifierDown(mod)
+end
+
 local function ensureSettings(id, name)
     id = tostring(id)
     addon.db = addon.db or {}
@@ -61,6 +120,8 @@ end
 function DataPanel.Create(id, name, existingOnly)
 	addon.db = addon.db or {}
 	addon.db.dataPanels = addon.db.dataPanels or {}
+	addon.db.dataPanelsOptions = addon.db.dataPanelsOptions or {}
+	addon.db.dataPanelsOptions.menuModifier = addon.db.dataPanelsOptions.menuModifier or "NONE"
 	if not addon.db.nextPanelId then
 		addon.db.nextPanelId = 1
 		for k in pairs(addon.db.dataPanels) do
@@ -102,15 +163,8 @@ function DataPanel.Create(id, name, existingOnly)
 		local panelObj = panels[id]
 		if panelObj then panelObj.isDragging = nil end
 	end)
-	frame:SetScript("OnMouseDown", function(f, btn)
-		if btn == "RightButton" then f:StartSizing("BOTTOMRIGHT") end
-	end)
-	frame:SetScript("OnMouseUp", function(f, btn)
-		if btn == "RightButton" then
-			f:StopMovingOrSizing()
-			savePosition(f, id)
-		end
-	end)
+	frame:SetScript("OnMouseDown", nil)
+	frame:SetScript("OnMouseUp", nil)
 
 	local panel = { frame = frame, id = id, name = info.name, streams = {}, order = {}, info = info }
 
@@ -151,40 +205,54 @@ function DataPanel.Create(id, name, existingOnly)
     end
 
     function panel:Refresh()
+        local visible = {}
+        for _, name in ipairs(self.order) do
+            local data = self.streams[name]
+            if data then
+                if data.hidden then
+                    data.button:Hide()
+                else
+                    visible[#visible + 1] = name
+                end
+            end
+        end
+
         local changed = false
-        if not self.lastOrder or #self.lastOrder ~= #self.order then
+        if not self.lastOrder or #self.lastOrder ~= #visible then
             changed = true
         else
-            for i, name in ipairs(self.order) do
-				if self.lastOrder[i] ~= name or (self.lastWidths and self.lastWidths[name] ~= self.streams[name].lastWidth) then
-					changed = true
-					break
-				end
-			end
-		end
-		if not changed then return end
+            for i, name in ipairs(visible) do
+                local data = self.streams[name]
+                if self.lastOrder[i] ~= name or (self.lastWidths and self.lastWidths[name] ~= (data.lastWidth or 0)) then
+                    changed = true
+                    break
+                end
+            end
+        end
+        if not changed then return end
 
-		local prev
-		for _, name in ipairs(self.order) do
-			local data = self.streams[name]
-			local btn = data.button
-			btn:ClearAllPoints()
-			btn:SetWidth(data.lastWidth)
-			if prev then
-				btn:SetPoint("LEFT", prev, "RIGHT", 5, 0)
-			else
-				btn:SetPoint("LEFT", self.frame, "LEFT", 5, 0)
-			end
-			prev = btn
-		end
+        local prev
+        for _, name in ipairs(visible) do
+            local data = self.streams[name]
+            local btn = data.button
+            btn:Show()
+            btn:ClearAllPoints()
+            btn:SetWidth(data.lastWidth or 0)
+            if prev then
+                btn:SetPoint("LEFT", prev, "RIGHT", 5, 0)
+            else
+                btn:SetPoint("LEFT", self.frame, "LEFT", 5, 0)
+            end
+            prev = btn
+        end
 
-		self.lastOrder = {}
-		self.lastWidths = {}
-		for i, name in ipairs(self.order) do
-			self.lastOrder[i] = name
-			self.lastWidths[name] = self.streams[name].lastWidth
-		end
-	end
+        self.lastOrder = {}
+        self.lastWidths = {}
+        for i, name in ipairs(visible) do
+            self.lastOrder[i] = name
+            self.lastWidths[name] = self.streams[name].lastWidth or 0
+        end
+    end
 
 	function panel:AddStream(name)
 		if self.streams[name] then return end
@@ -196,7 +264,7 @@ function DataPanel.Create(id, name, existingOnly)
         local data = { button = button, text = text, lastWidth = text:GetStringWidth(), lastText = "" }
         button.slot = data
         -- allow dragging even when hovering stream buttons
-        button:RegisterForDrag("LeftButton")
+		button:RegisterForDrag("LeftButton")
         button:SetScript("OnDragStart", function(b)
             if requireShiftToMove() and not IsShiftKeyDown() then return end
             local p = panels[id]
@@ -232,6 +300,7 @@ function DataPanel.Create(id, name, existingOnly)
 		end)
 		button:RegisterForClicks("AnyUp")
 		button:SetScript("OnClick", function(b, btn, ...)
+			if btn == "RightButton" and not DataPanel.IsMenuModifierActive(btn) then return end
 			local p = panels[id]
 			if p and p.isDragging then return end -- suppress clicks after a drag
 			local s = b.slot
@@ -246,6 +315,32 @@ function DataPanel.Create(id, name, existingOnly)
 			payload = payload or {}
 			local font = (addon.variables and addon.variables.defaultFont) or select(1, data.text:GetFont())
 			local size = payload.fontSize or data.fontSize or 14
+
+			if payload.hidden then
+				data.button:Hide()
+				if not data.hidden then
+					data.hidden = true
+					data.lastWidth = 0
+					data.lastText = ""
+					if data.parts then
+						for _, child in ipairs(data.parts) do child:Hide() end
+					end
+					data.text:SetText("")
+					self:Refresh()
+				end
+				data.tooltip = nil
+				data.perCurrency = nil
+				data.showDescription = nil
+				data.hover = nil
+				data.OnMouseEnter = nil
+				data.OnMouseLeave = nil
+				if payload.OnClick ~= nil then data.OnClick = payload.OnClick end
+				return
+			elseif data.hidden then
+				data.hidden = nil
+				data.button:Show()
+				self:Refresh()
+			end
 
 			if payload.parts then
 				data.text:SetText("")
@@ -278,15 +373,15 @@ function DataPanel.Create(id, name, existingOnly)
 					child.currencyID = part.id
 					-- enable dragging from part segments too
 					child:RegisterForDrag("LeftButton")
-                child:SetScript("OnDragStart", function()
-                    if requireShiftToMove() and not IsShiftKeyDown() then return end
-                    local p = panels[id]
-                    if p and p.frame then
-                        p.isDragging = true
-                        GameTooltip:Hide()
-                        p.frame:StartMoving()
-                    end
-                end)
+					child:SetScript("OnDragStart", function()
+						if requireShiftToMove() and not IsShiftKeyDown() then return end
+						local p = panels[id]
+						if p and p.frame then
+							p.isDragging = true
+							GameTooltip:Hide()
+							p.frame:StartMoving()
+						end
+					end)
 					child:SetScript("OnDragStop", function()
 						local p = panels[id]
 						if p and p.frame then
@@ -314,8 +409,11 @@ function DataPanel.Create(id, name, existingOnly)
 									end
 								end
 							end
-							GameTooltip:AddLine(" ")
-							GameTooltip:AddLine(L["Right-Click for options"])
+							local hint = DataPanel.GetOptionsHintText and DataPanel.GetOptionsHintText()
+							if hint then
+								GameTooltip:AddLine(" ")
+								GameTooltip:AddLine(hint)
+							end
 						elseif data.tooltip then
 							GameTooltip:SetText(data.tooltip)
 						end
@@ -323,6 +421,7 @@ function DataPanel.Create(id, name, existingOnly)
 					end)
 					child:SetScript("OnLeave", function() GameTooltip:Hide() end)
 					child:SetScript("OnClick", function(_, btn, ...)
+						if btn == "RightButton" and not DataPanel.IsMenuModifierActive(btn) then return end
 						local p = panels[id]
 						if p and p.isDragging then return end
 						local fn = data.OnClick

@@ -17,6 +17,10 @@ local brAnchor
 local defaultButtonSize = 60
 local defaultFontSize = 16
 
+local EditMode = addon.EditMode
+local BR_EDITMODE_ID = "mythicPlusBRTracker"
+local brEditModeRegistered = false
+
 local function removeBRFrame()
 	if brButton then
 		brButton:Hide()
@@ -36,22 +40,55 @@ end
 
 local function isRaidDifficulty(d) return d == 14 or d == 15 or d == 16 or d == 17 end
 
-local function refreshBRAnchorPosition()
-	if not brAnchor then return end
-	brAnchor:ClearAllPoints()
-	brAnchor:SetPoint(
-		addon.db["mythicPlusBRTrackerPoint"],
-		UIParent,
-		addon.db["mythicPlusBRTrackerPoint"],
-		addon.db["mythicPlusBRTrackerX"],
-		addon.db["mythicPlusBRTrackerY"]
-	)
+local function buildBRLayoutSnapshot(layoutName)
+	local layout = EditMode and EditMode:GetLayoutData(BR_EDITMODE_ID, layoutName)
+	if layout then
+		if not layout.relativePoint then layout.relativePoint = layout.point end
+		return layout
+	end
+
+	return {
+		point = addon.db["mythicPlusBRTrackerPoint"] or "CENTER",
+		relativePoint = addon.db["mythicPlusBRTrackerPoint"] or "CENTER",
+		x = addon.db["mythicPlusBRTrackerX"] or 0,
+		y = addon.db["mythicPlusBRTrackerY"] or 0,
+		size = addon.db["mythicPlusBRButtonSize"] or defaultButtonSize,
+	}
 end
 
-local function updateBRAnchorSize()
-	if not brAnchor then return end
-	local size = addon.db["mythicPlusBRButtonSize"]
-	brAnchor:SetSize(size, size)
+local function applyBRLayoutData(data)
+	local config = data or buildBRLayoutSnapshot()
+
+	local point = config.point or "CENTER"
+	local relativePoint = config.relativePoint or point
+	local x = config.x or 0
+	local y = config.y or 0
+	local size = config.size or defaultButtonSize
+
+	if addon.db then
+		addon.db["mythicPlusBRTrackerPoint"] = point
+		addon.db["mythicPlusBRTrackerX"] = x
+		addon.db["mythicPlusBRTrackerY"] = y
+		addon.db["mythicPlusBRButtonSize"] = size
+	end
+
+	if brAnchor then
+		brAnchor:SetSize(size, size)
+		brAnchor:ClearAllPoints()
+		brAnchor:SetPoint(point, UIParent, relativePoint, x, y)
+	end
+
+	if brButton then
+		brButton:SetSize(size, size)
+		brButton:ClearAllPoints()
+		brButton:SetPoint(point, UIParent, relativePoint, x, y)
+
+		local scaleFactor = size / defaultButtonSize
+		local newFontSize = math.floor(defaultFontSize * scaleFactor + 0.5)
+
+		if brButton.cooldownFrame then brButton.cooldownFrame:SetScale(scaleFactor) end
+		if brButton.charges then brButton.charges:SetFont(addon.variables.defaultFont, newFontSize, "OUTLINE") end
+	end
 end
 
 local function ensureBRAnchor()
@@ -60,7 +97,6 @@ local function ensureBRAnchor()
 		brAnchor:SetClampedToScreen(true)
 		brAnchor:SetMovable(true)
 		brAnchor:EnableMouse(true)
-		brAnchor:RegisterForDrag("LeftButton")
 
 		local bg = brAnchor:CreateTexture(nil, "BACKGROUND")
 		bg:SetAllPoints()
@@ -77,33 +113,54 @@ local function ensureBRAnchor()
 		brAnchor.label = brAnchor:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 		brAnchor.label:SetPoint("CENTER")
 		brAnchor.label:SetText(L["mythicPlusBRTrackerAnchor"])
-
-		brAnchor:SetScript("OnDragStart", brAnchor.StartMoving)
-		brAnchor:SetScript("OnDragStop", function(self)
-			self:StopMovingOrSizing()
-			local point, _, _, xOfs, yOfs = self:GetPoint()
-			addon.db["mythicPlusBRTrackerPoint"] = point
-			addon.db["mythicPlusBRTrackerX"] = xOfs
-			addon.db["mythicPlusBRTrackerY"] = yOfs
-			refreshBRAnchorPosition()
-			if brButton then
-				brButton:ClearAllPoints()
-				brButton:SetPoint(point, UIParent, point, xOfs, yOfs)
-			end
-		end)
 	end
-	updateBRAnchorSize()
-	refreshBRAnchorPosition()
-	return brAnchor
-end
 
-local function updateBRAnchorVisibility()
-	if addon.db["mythicPlusBRTrackerEnabled"] and addon.db["mythicPlusBRTrackerShowAnchor"] then
-		local anchor = ensureBRAnchor()
-		anchor:Show()
+	if EditMode and not brEditModeRegistered then
+		local settingType = EditMode.lib and EditMode.lib.SettingType
+		local settings
+		if settingType then
+			settings = {
+				{
+					field = "size",
+					name = L["mythicPlusBRButtonSizeHeadline"],
+					kind = settingType.Slider,
+					minValue = 20,
+					maxValue = 100,
+					valueStep = 1,
+					default = addon.db["mythicPlusBRButtonSize"] or defaultButtonSize,
+				},
+			}
+		end
+
+		EditMode:RegisterFrame(BR_EDITMODE_ID, {
+			frame = brAnchor,
+			title = L["mythicPlusBRTrackerAnchor"],
+			layoutDefaults = {
+				point = addon.db["mythicPlusBRTrackerPoint"] or "CENTER",
+				relativePoint = addon.db["mythicPlusBRTrackerPoint"] or "CENTER",
+				x = addon.db["mythicPlusBRTrackerX"] or 0,
+				y = addon.db["mythicPlusBRTrackerY"] or 0,
+				size = addon.db["mythicPlusBRButtonSize"] or defaultButtonSize,
+			},
+			legacyKeys = {
+				point = "mythicPlusBRTrackerPoint",
+				relativePoint = "mythicPlusBRTrackerPoint",
+				x = "mythicPlusBRTrackerX",
+				y = "mythicPlusBRTrackerY",
+				size = "mythicPlusBRButtonSize",
+			},
+			isEnabled = function()
+				return addon.db["mythicPlusBRTrackerEnabled"]
+			end,
+			onApply = function(_, layoutName, data) applyBRLayoutData(data) end,
+			settings = settings,
+		})
+		brEditModeRegistered = true
 	else
-		if brAnchor then brAnchor:Hide() end
+		applyBRLayoutData()
 	end
+
+	return brAnchor
 end
 
 local function shouldShowBRTracker()
@@ -117,29 +174,23 @@ end
 
 local function createBRFrame()
 	removeBRFrame()
-	if not addon.db["mythicPlusBRTrackerEnabled"] then return end
-	updateBRAnchorSize()
-	refreshBRAnchorPosition()
+	if not addon.db["mythicPlusBRTrackerEnabled"] then
+		if brAnchor then brAnchor:Hide() end
+		if EditMode then EditMode:RefreshFrame(BR_EDITMODE_ID) end
+		return
+	end
+	local layout = buildBRLayoutSnapshot()
+	ensureBRAnchor()
 	if IsInGroup() and shouldShowBRTracker() then
+		local point = layout.point or "CENTER"
+		local relativePoint = layout.relativePoint or point
+		local xOfs = layout.x or 0
+		local yOfs = layout.y or 0
+		local size = layout.size or defaultButtonSize
+
 		brButton = CreateFrame("Button", nil, UIParent)
-		brButton:SetSize(addon.db["mythicPlusBRButtonSize"], addon.db["mythicPlusBRButtonSize"])
-		brButton:SetPoint(addon.db["mythicPlusBRTrackerPoint"], UIParent, addon.db["mythicPlusBRTrackerPoint"], addon.db["mythicPlusBRTrackerX"], addon.db["mythicPlusBRTrackerY"])
-
-		if addon.db["mythicPlusBRTrackerLocked"] == false then
-			brButton:SetMovable(true)
-			brButton:EnableMouse(true)
-			brButton:RegisterForDrag("LeftButton")
-
-			brButton:SetScript("OnDragStart", brButton.StartMoving)
-			brButton:SetScript("OnDragStop", function(self)
-				self:StopMovingOrSizing()
-				local point, _, _, xOfs, yOfs = self:GetPoint()
-				addon.db["mythicPlusBRTrackerPoint"] = point
-				addon.db["mythicPlusBRTrackerX"] = xOfs
-				addon.db["mythicPlusBRTrackerY"] = yOfs
-				refreshBRAnchorPosition()
-			end)
-		end
+		brButton:SetSize(size, size)
+		brButton:SetPoint(point, UIParent, relativePoint, xOfs, yOfs)
 
 		local bg = brButton:CreateTexture(nil, "BACKGROUND")
 		bg:SetAllPoints(brButton)
@@ -150,7 +201,7 @@ local function createBRFrame()
 		icon:SetTexture(136080)
 		brButton.icon = icon
 
-		local scaleFactor = addon.db["mythicPlusBRButtonSize"] / defaultButtonSize
+		local scaleFactor = size / defaultButtonSize
 		local newFontSize = math.floor(defaultFontSize * scaleFactor + 0.5)
 
 		brButton.cooldownFrame = CreateFrame("Cooldown", nil, brButton, "CooldownFrameTemplate")
@@ -165,7 +216,11 @@ local function createBRFrame()
 		brButton.charges:SetPoint("BOTTOMRIGHT", brButton, "BOTTOMRIGHT", -3, 3)
 		brButton.charges:SetFont(addon.variables.defaultFont, newFontSize, "OUTLINE")
 	end
+	applyBRLayoutData(layout)
+	if EditMode then EditMode:RefreshFrame(BR_EDITMODE_ID) end
 end
+
+ensureBRAnchor()
 
 local function setBRInfo(info)
 	if brButton and brButton.cooldownFrame and info then
@@ -1214,58 +1269,18 @@ local function addMythicPlusRootFrame(container)
 
 	local function buildBR()
 		local g, known = ensureGroup("brtracker", L["BRTracker"])
-		local cb = addon.functions.createCheckboxAce(L["mythicPlusBRTrackerEnabled"], addon.db["mythicPlusBRTrackerEnabled"], function(_, _, v)
-			addon.db["mythicPlusBRTrackerEnabled"] = v
-			createBRFrame()
-			updateBRAnchorVisibility()
-			buildBR()
-		end)
+		local cb = addon.functions.createCheckboxAce(
+			L["mythicPlusBRTrackerEnabled"],
+			addon.db["mythicPlusBRTrackerEnabled"],
+			function(_, _, v)
+				addon.db["mythicPlusBRTrackerEnabled"] = v
+				createBRFrame()
+				if EditMode then EditMode:RefreshFrame(BR_EDITMODE_ID) end
+				buildBR()
+			end,
+			L["mythicPlusBRTrackerEditModeHint"]
+		)
 		g:AddChild(cb)
-
-		if addon.db["mythicPlusBRTrackerEnabled"] then
-			local data = {
-				{
-					text = L["mythicPlusBRTrackerLocked"],
-					var = "mythicPlusBRTrackerLocked",
-					func = function(_, _, v2)
-						addon.db["mythicPlusBRTrackerLocked"] = v2
-						createBRFrame()
-					end,
-				},
-				{
-					text = L["mythicPlusBRTrackerShowAnchor"],
-					var = "mythicPlusBRTrackerShowAnchor",
-					func = function(_, _, v2)
-						addon.db["mythicPlusBRTrackerShowAnchor"] = v2
-						updateBRAnchorVisibility()
-					end,
-				},
-			}
-			table.sort(data, function(a, b) return a.text < b.text end)
-			for _, cbData in ipairs(data) do
-				local u = cbData.func or function(_, _, v3)
-					addon.db[cbData.var] = v3
-					addon.MythicPlus.functions.toggleFrame()
-				end
-				local el = addon.functions.createCheckboxAce(cbData.text, addon.db[cbData.var], u)
-				g:AddChild(el)
-			end
-
-			local s = addon.functions.createSliderAce(
-				L["mythicPlusBRButtonSizeHeadline"] .. ": " .. addon.db["mythicPlusBRButtonSize"],
-				addon.db["mythicPlusBRButtonSize"],
-				20,
-				100,
-				1,
-				function(self, _, v4)
-					addon.db["mythicPlusBRButtonSize"] = v4
-					createBRFrame()
-					updateBRAnchorSize()
-					self:SetLabel(L["mythicPlusBRButtonSizeHeadline"] .. ": " .. v4)
-				end
-			)
-			g:AddChild(s)
-		end
 
 		if known then
 			g:ResumeLayout()
@@ -1370,4 +1385,3 @@ function addon.MythicPlus.functions.treeCallback(container, group)
 end
 
 if addon.db["mythicPlusEnableDungeonFilter"] then addon.MythicPlus.functions.addDungeonFilter() end
-updateBRAnchorVisibility()
