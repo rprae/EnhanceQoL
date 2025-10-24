@@ -107,9 +107,12 @@ local function calculateDurability(stream)
 	if addon.functions and addon.functions.IsTimerunner and addon.functions.IsTimerunner() then
 		wipe(lines)
 		stream.snapshot.fontSize = db and db.fontSize or 13
-		stream.snapshot.text = ""
+		stream.snapshot.text = nil
+		stream.snapshot.tooltip = nil
+		stream.snapshot.hidden = true
 		return
 	end
+	stream.snapshot.hidden = nil
 	local maxDur, currentDura, critDura = 0, 0, 0
 	wipe(lines)
 

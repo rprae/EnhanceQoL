@@ -176,40 +176,54 @@ function DataPanel.Create(id, name, existingOnly)
     end
 
     function panel:Refresh()
+        local visible = {}
+        for _, name in ipairs(self.order) do
+            local data = self.streams[name]
+            if data then
+                if data.hidden then
+                    data.button:Hide()
+                else
+                    visible[#visible + 1] = name
+                end
+            end
+        end
+
         local changed = false
-        if not self.lastOrder or #self.lastOrder ~= #self.order then
+        if not self.lastOrder or #self.lastOrder ~= #visible then
             changed = true
         else
-            for i, name in ipairs(self.order) do
-				if self.lastOrder[i] ~= name or (self.lastWidths and self.lastWidths[name] ~= self.streams[name].lastWidth) then
-					changed = true
-					break
-				end
-			end
-		end
-		if not changed then return end
+            for i, name in ipairs(visible) do
+                local data = self.streams[name]
+                if self.lastOrder[i] ~= name or (self.lastWidths and self.lastWidths[name] ~= (data.lastWidth or 0)) then
+                    changed = true
+                    break
+                end
+            end
+        end
+        if not changed then return end
 
-		local prev
-		for _, name in ipairs(self.order) do
-			local data = self.streams[name]
-			local btn = data.button
-			btn:ClearAllPoints()
-			btn:SetWidth(data.lastWidth)
-			if prev then
-				btn:SetPoint("LEFT", prev, "RIGHT", 5, 0)
-			else
-				btn:SetPoint("LEFT", self.frame, "LEFT", 5, 0)
-			end
-			prev = btn
-		end
+        local prev
+        for _, name in ipairs(visible) do
+            local data = self.streams[name]
+            local btn = data.button
+            btn:Show()
+            btn:ClearAllPoints()
+            btn:SetWidth(data.lastWidth or 0)
+            if prev then
+                btn:SetPoint("LEFT", prev, "RIGHT", 5, 0)
+            else
+                btn:SetPoint("LEFT", self.frame, "LEFT", 5, 0)
+            end
+            prev = btn
+        end
 
-		self.lastOrder = {}
-		self.lastWidths = {}
-		for i, name in ipairs(self.order) do
-			self.lastOrder[i] = name
-			self.lastWidths[name] = self.streams[name].lastWidth
-		end
-	end
+        self.lastOrder = {}
+        self.lastWidths = {}
+        for i, name in ipairs(visible) do
+            self.lastOrder[i] = name
+            self.lastWidths[name] = self.streams[name].lastWidth or 0
+        end
+    end
 
 	function panel:AddStream(name)
 		if self.streams[name] then return end
@@ -271,6 +285,31 @@ function DataPanel.Create(id, name, existingOnly)
 			payload = payload or {}
 			local font = (addon.variables and addon.variables.defaultFont) or select(1, data.text:GetFont())
 			local size = payload.fontSize or data.fontSize or 14
+
+			if payload.hidden then
+				data.button:Hide()
+				if not data.hidden then
+					data.hidden = true
+					data.lastWidth = 0
+					data.lastText = ""
+					if data.parts then
+						for _, child in ipairs(data.parts) do child:Hide() end
+					end
+					data.text:SetText("")
+					self:Refresh()
+				end
+				data.tooltip = nil
+				data.perCurrency = nil
+				data.showDescription = nil
+				data.hover = nil
+				data.OnMouseEnter = nil
+				data.OnMouseLeave = nil
+				if payload.OnClick ~= nil then data.OnClick = payload.OnClick end
+				return
+			elseif data.hidden then
+				data.hidden = nil
+				data.button:Show()
+			end
 
 			if payload.parts then
 				data.text:SetText("")
