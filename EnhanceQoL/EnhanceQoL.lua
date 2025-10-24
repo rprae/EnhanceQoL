@@ -4555,6 +4555,15 @@ local function buildDatapanelFrame(container)
 	end)
 	removeButton:SetRelativeWidth(0.3)
 	controlGroup:AddChild(removeButton)
+
+	local editModeHint = addon.functions.createLabelAce(
+		"|cffffd700" .. (L["DataPanelEditModeHint"] or "Configure DataPanels in Edit Mode.") .. "|r",
+		nil,
+		nil,
+		12
+	)
+	editModeHint:SetFullWidth(true)
+	wrapper:AddChild(editModeHint)
 	scroll:DoLayout()
 end
 
