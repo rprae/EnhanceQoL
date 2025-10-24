@@ -12,6 +12,10 @@ L["Right-Click for options"] = "Right-click for options"
 
 -- DataPanel
 L["Lock DataPanel position (hold Shift to move)"] = "Lock DataPanel position (hold Shift to move)"
+L["DataPanelWidth"] = "Panel width"
+L["DataPanelHeight"] = "Panel height"
+L["DataPanelHideBorder"] = "Hide border"
+L["DataPanelStreams"] = "Streams"
 L["Show options tooltip hint"] = "Show \"Right-click for options\" tooltip hint"
 L["Context menu modifier"] = "Context menu modifier"
 L["Context menu modifier: None"] = "No modifier (allow plain right-click)"
