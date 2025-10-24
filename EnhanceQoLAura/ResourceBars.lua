@@ -13,29 +13,10 @@ addon.Aura.ResourceBars = ResourceBars
 ResourceBars.ui = ResourceBars.ui or {}
 
 -- forward declarations to satisfy luacheck for early function
-local LSM
+local LSM = LibStub("LibSharedMedia-3.0")
 local BLIZZARD_TEX
 
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_Aura")
-local function getPowerBarColor(type)
-	local colorTable = PowerBarColor
-	if colorTable then
-		local entry = colorTable[string.upper(type)]
-		if entry and entry.r then return entry.r, entry.g, entry.b end
-	end
-	return 1, 1, 1
-end
-
-function ResourceBars.RefreshTextureDropdown()
-	local dd = ResourceBars.ui and ResourceBars.ui.textureDropdown
-	if not dd then return end
-	local list, order = getStatusbarDropdownLists(true)
-	dd:SetList(list, order)
-	local cfg = dd._rb_cfgRef
-	local cur = (cfg and cfg.barTexture) or "DEFAULT"
-	if not list[cur] then cur = "DEFAULT" end
-	dd:SetValue(cur)
-end
 
 local AceGUI = addon.AceGUI
 local UnitPower, UnitPowerMax, UnitHealth, UnitHealthMax, UnitGetTotalAbsorbs, GetTime = UnitPower, UnitPowerMax, UnitHealth, UnitHealthMax, UnitGetTotalAbsorbs, GetTime
@@ -82,6 +63,26 @@ local REANCHOR_REFRESH = { reanchorOnly = true }
 local tryActivateSmooth
 local requestActiveRefresh
 local getStatusbarDropdownLists
+
+local function getPowerBarColor(type)
+	local colorTable = PowerBarColor
+	if colorTable then
+		local entry = colorTable[string.upper(type)]
+		if entry and entry.r then return entry.r, entry.g, entry.b end
+	end
+	return 1, 1, 1
+end
+
+function ResourceBars.RefreshTextureDropdown()
+	local dd = ResourceBars.ui and ResourceBars.ui.textureDropdown
+	if not dd then return end
+	local list, order = getStatusbarDropdownLists(true)
+	dd:SetList(list, order)
+	local cfg = dd._rb_cfgRef
+	local cur = (cfg and cfg.barTexture) or "DEFAULT"
+	if not list[cur] then cur = "DEFAULT" end
+	dd:SetValue(cur)
+end
 
 local function stopSmoothUpdater(bar)
 	if not bar then return end
@@ -198,13 +199,9 @@ local function rebuildTextureCache()
 	local map = {
 		["DEFAULT"] = DEFAULT,
 		[BLIZZARD_TEX] = "Blizzard: UI-StatusBar",
-		["Interface\\Buttons\\WHITE8x8"] = "Flat (white, tintable)",
 		["Interface\\Tooltips\\UI-Tooltip-Background"] = "Dark Flat (Tooltip bg)",
-		["Interface\\RaidFrame\\Raid-Bar-Hp-Fill"] = "Raid HP Fill",
-		["Interface\\RaidFrame\\Raid-Bar-Resource-Fill"] = "Raid Resource Fill",
 		["Interface\\TargetingFrame\\UI-StatusBar"] = "Blizzard Unit Frame",
 		["Interface\\UnitPowerBarAlt\\Generic1Texture"] = "Alternate Power",
-		["Interface\\PetBattles\\PetBattle-HealthBar"] = "Pet Battle",
 	}
 	for name, path in pairs(LSM and LSM:HashTable("statusbar") or {}) do
 		if type(path) == "string" and path ~= "" then map[path] = tostring(name) end
