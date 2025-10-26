@@ -15,6 +15,7 @@
 ### 🐛 Fixed
 
 - Legion Remix Tracker now listens for `ACHIEVEMENT_EARNED`, so freshly completed achievements update without reloading the UI.
+- Removing a data panel now unregisters it from Edit Mode, preventing leftover ghosts in the layout picker.
 
 ---
 

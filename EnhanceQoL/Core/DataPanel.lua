@@ -800,6 +800,12 @@ function DataPanel.Delete(id)
 	end
 
 	if panel then
+		if EditMode and panel.editModeId then
+			local ok, err = pcall(function() EditMode:UnregisterFrame(panel.editModeId) end)
+			if not ok then geterrorhandler()(err) end
+			panel.editModeRegistered = nil
+			panel.editModeId = nil
+		end
 		-- Unsubscribe and detach all streams safely
 		for i = #panel.order, 1, -1 do
 			local ok = pcall(function() panel:RemoveStream(panel.order[i]) end)

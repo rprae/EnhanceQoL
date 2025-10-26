@@ -456,3 +456,40 @@ function EditMode:RegisterFrame(id, opts)
 
 	return frame
 end
+
+function EditMode:UnregisterFrame(id)
+	if not id then return end
+	id = tostring(id)
+	local entry = self.frames and self.frames[id]
+	if not entry then return end
+
+	if self.pendingLayout then self.pendingLayout[entry] = nil end
+	if self.pendingVisibility then self.pendingVisibility[entry] = nil end
+
+	if self:IsAvailable() and entry.frame and self.lib then
+		local frame = entry.frame
+		local lib = self.lib
+		local selection = lib.frameSelections and lib.frameSelections[frame]
+		if selection then
+			selection:Hide()
+			selection:SetParent(nil)
+			lib.frameSelections[frame] = nil
+		end
+		if lib.frameCallbacks then lib.frameCallbacks[frame] = nil end
+		if lib.frameDefaults then lib.frameDefaults[frame] = nil end
+		if lib.frameSettings then lib.frameSettings[frame] = nil end
+		if lib.frameButtons then lib.frameButtons[frame] = nil end
+	end
+
+	local layouts = addon.db and addon.db.editModeLayouts
+	if layouts then
+		for layoutName, layout in pairs(layouts) do
+			if type(layout) == "table" then
+				layout[id] = nil
+				if not next(layout) then layouts[layoutName] = nil end
+			end
+		end
+	end
+
+	self.frames[id] = nil
+end
