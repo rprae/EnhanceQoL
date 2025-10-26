@@ -22,6 +22,7 @@ addon.functions.InitDBValue("TooltipMythicScoreModifier", "SHIFT")
 addon.functions.InitDBValue("TooltipMythicScoreParts", { score = true, best = true, dungeons = true })
 addon.functions.InitDBValue("TooltipShowClassColor", false)
 addon.functions.InitDBValue("TooltipShowNPCID", false)
+addon.functions.InitDBValue("TooltipShowNPCWowheadLink", false)
 -- Unit inspect extras
 addon.functions.InitDBValue("TooltipUnitShowSpec", false)
 addon.functions.InitDBValue("TooltipUnitShowItemLevel", false)
