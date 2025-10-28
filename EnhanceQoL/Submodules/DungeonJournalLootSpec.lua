@@ -11,6 +11,33 @@ end
 addon.DungeonJournalLootSpec = addon.DungeonJournalLootSpec or {}
 local Module = addon.DungeonJournalLootSpec
 
+local pairs = pairs
+local ipairs = ipairs
+local next = next
+local type = type
+local wipe = wipe
+local table_sort = table.sort
+
+local CreateFrame = CreateFrame
+local CreateTexturePool = CreateTexturePool
+local hooksecurefunc = hooksecurefunc
+local UnitClass = UnitClass
+local C_Timer_After = C_Timer and C_Timer.After
+
+local GetNumClasses = GetNumClasses
+local GetNumSpecializationsForClassID = GetNumSpecializationsForClassID
+local GetSpecializationInfoForClassID = GetSpecializationInfoForClassID
+local GetClassInfo = C_CreatureInfo and C_CreatureInfo.GetClassInfo
+
+local EJ_SelectInstance = EJ_SelectInstance
+local EJ_SetLootFilter = EJ_SetLootFilter
+local EJ_GetNumLoot = EJ_GetNumLoot
+local EJ_SelectEncounter = EJ_SelectEncounter
+local EJ_GetDifficulty = EJ_GetDifficulty
+local EJ_GetLootFilter = EJ_GetLootFilter
+
+local GetLootInfoByIndex = C_EncounterJournal and C_EncounterJournal.GetLootInfoByIndex
+
 Module.frame = Module.frame or CreateFrame("Frame")
 Module.enabled = Module.enabled or false
 Module.scanInProgress = Module.scanInProgress or false
@@ -65,7 +92,7 @@ local function BuildClassData()
 	numSpecs = 0
 
 	for i = 1, GetNumClasses() do
-		local classInfo = C_CreatureInfo.GetClassInfo(i)
+		local classInfo = GetClassInfo and GetClassInfo(i)
 		if classInfo and classInfo.classID then
 			classInfo.numSpecs = GetNumSpecializationsForClassID(classInfo.classID) or 0
 			classInfo.specs = {}
@@ -247,7 +274,7 @@ local function GetSpecsForItem(button, config, playerClassID, specs)
 
 	if config.compressSpecs and specs[2] then specs = CompressSpecs(specs) end
 	if config.compressRoles and specs[2] then specs = CompressRoles(specs) end
-	if specs[2] then table.sort(specs, SortByClassAndSpec) end
+	if specs[2] then table_sort(specs, SortByClassAndSpec) end
 
 	return specs
 end
@@ -279,7 +306,7 @@ local function UpdateItems()
 				currentClassID, currentSpecID = classID, specID
 			end
 			for index = 1, EJ_GetNumLoot() or 0 do
-				local itemInfo = C_EncounterJournal.GetLootInfoByIndex(index)
+				local itemInfo = GetLootInfoByIndex and GetLootInfoByIndex(index)
 				if itemInfo and itemInfo.itemID then
 					local itemCache = cache.items[itemInfo.itemID]
 					if not itemCache then
@@ -558,7 +585,7 @@ function Module:UpdateLoot(forceAll)
 	local updateAll = self.updateAll
 	self.updateAll = false
 
-	local _, _, playerClassID = UnitClass("player")
+	local playerClassID = addon.variables.unitClassID
 	local config = GetConfig()
 
 	local anchorKey = ANCHOR[config.anchor] or ANCHOR[1]
@@ -664,10 +691,15 @@ function Module:RequestLootUpdate(button, forceAll)
 	if self.updateScheduled then return end
 	self.updateScheduled = true
 
-	C_Timer.After(0, function()
+	if C_Timer_After then
+		C_Timer_After(0, function()
+			Module.updateScheduled = false
+			Module:UpdateLoot()
+		end)
+	else
 		Module.updateScheduled = false
 		Module:UpdateLoot()
-	end)
+	end
 end
 
 function Module:OnEncounterJournalLootUpdate()
@@ -714,15 +746,13 @@ function Module:OnEvent(event, arg1)
 
 	if event == "ADDON_LOADED" and arg1 == "Blizzard_EncounterJournal" then
 		self:TryLoad()
-	elseif event == "PLAYER_ENTERING_WORLD" then
+	elseif event == "PLAYER_LOGIN" then
 		BuildClassData()
 		wipe(cache.items)
 		self.updateAll = true
 		self:RequestLootUpdate(nil, true)
 	elseif event == "PLAYER_SPECIALIZATION_CHANGED" then
 		if arg1 == nil or arg1 == "player" then
-			BuildClassData()
-			wipe(cache.items)
 			self.updateAll = true
 			self:RequestLootUpdate(nil, true)
 		end
@@ -753,13 +783,13 @@ function Module:SetEnabled(value)
 		cache.classID = nil
 		cache.specID = nil
 		self.frame:RegisterEvent("ADDON_LOADED")
-		self.frame:RegisterEvent("PLAYER_ENTERING_WORLD")
+		self.frame:RegisterEvent("PLAYER_LOGIN")
 		self.frame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
 		self:TryLoad()
 	else
 		self.updateScheduled = false
 		self.frame:UnregisterEvent("ADDON_LOADED")
-		self.frame:UnregisterEvent("PLAYER_ENTERING_WORLD")
+		self.frame:UnregisterEvent("PLAYER_LOGIN")
 		self.frame:UnregisterEvent("PLAYER_SPECIALIZATION_CHANGED")
 		if self.scrollBox then
 			local buttons = self.scrollBox:GetFrames()

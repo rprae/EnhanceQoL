@@ -2025,12 +2025,24 @@ local function addMinimapFrame(container)
 				["1"] = L["dungeonJournalLootSpecAnchorTop"],
 				["2"] = L["dungeonJournalLootSpecAnchorBottom"],
 			}
+
+			local function createColumn()
+				local column = addon.functions.createContainer("InlineGroup", "List")
+				column:SetTitle("")
+				if column.SetRelativeWidth then column:SetRelativeWidth(0.5) end
+				column:SetFullWidth(false)
+				return column
+			end
+
+			local columnAnchor = createColumn()
+			g:AddChild(columnAnchor)
+
 			local anchorDropdown = addon.functions.createDropdownAce(L["dungeonJournalLootSpecAnchor"], anchorOptions, { "1", "2" }, function(_, _, key)
 				addon.db["dungeonJournalLootSpecAnchor"] = tonumber(key) or 1
 				if addon.DungeonJournalLootSpec then addon.DungeonJournalLootSpec:Refresh() end
 			end)
 			anchorDropdown:SetValue(tostring(addon.db["dungeonJournalLootSpecAnchor"] or 1))
-			g:AddChild(anchorDropdown)
+			if anchorDropdown.SetFullWidth then anchorDropdown:SetFullWidth(true) end
 
 			local sliderOffsetX = addon.functions.createSliderAce(
 				L["dungeonJournalLootSpecOffsetX"] .. ": " .. addon.db["dungeonJournalLootSpecOffsetX"],
@@ -2044,7 +2056,12 @@ local function addMinimapFrame(container)
 					if addon.DungeonJournalLootSpec then addon.DungeonJournalLootSpec:Refresh() end
 				end
 			)
-			g:AddChild(sliderOffsetX)
+			if sliderOffsetX.SetFullWidth then sliderOffsetX:SetFullWidth(true) end
+			columnAnchor:AddChild(anchorDropdown)
+			columnAnchor:AddChild(sliderOffsetX)
+
+			local columnSpacing = createColumn()
+			g:AddChild(columnSpacing)
 
 			local sliderOffsetY = addon.functions.createSliderAce(
 				L["dungeonJournalLootSpecOffsetY"] .. ": " .. addon.db["dungeonJournalLootSpecOffsetY"],
@@ -2058,7 +2075,7 @@ local function addMinimapFrame(container)
 					if addon.DungeonJournalLootSpec then addon.DungeonJournalLootSpec:Refresh() end
 				end
 			)
-			g:AddChild(sliderOffsetY)
+			if sliderOffsetY.SetFullWidth then sliderOffsetY:SetFullWidth(true) end
 
 			local sliderSpacing = addon.functions.createSliderAce(
 				L["dungeonJournalLootSpecSpacing"] .. ": " .. addon.db["dungeonJournalLootSpecSpacing"],
@@ -2072,7 +2089,12 @@ local function addMinimapFrame(container)
 					if addon.DungeonJournalLootSpec then addon.DungeonJournalLootSpec:Refresh() end
 				end
 			)
-			g:AddChild(sliderSpacing)
+			if sliderSpacing.SetFullWidth then sliderSpacing:SetFullWidth(true) end
+			columnSpacing:AddChild(sliderOffsetY)
+			columnSpacing:AddChild(sliderSpacing)
+
+			local columnIcons = createColumn()
+			g:AddChild(columnIcons)
 
 			local sliderScale = addon.functions.createSliderAce(
 				L["dungeonJournalLootSpecScale"] .. ": " .. string.format("%.2f", addon.db["dungeonJournalLootSpecScale"]),
@@ -2086,7 +2108,7 @@ local function addMinimapFrame(container)
 					if addon.DungeonJournalLootSpec then addon.DungeonJournalLootSpec:Refresh() end
 				end
 			)
-			g:AddChild(sliderScale)
+			if sliderScale.SetFullWidth then sliderScale:SetFullWidth(true) end
 
 			local sliderZoom = addon.functions.createSliderAce(
 				L["dungeonJournalLootSpecIconPadding"] .. ": " .. string.format("%.2f", addon.db["dungeonJournalLootSpecIconPadding"]),
@@ -2100,7 +2122,9 @@ local function addMinimapFrame(container)
 					if addon.DungeonJournalLootSpec then addon.DungeonJournalLootSpec:Refresh() end
 				end
 			)
-			g:AddChild(sliderZoom)
+			if sliderZoom.SetFullWidth then sliderZoom:SetFullWidth(true) end
+			columnIcons:AddChild(sliderScale)
+			columnIcons:AddChild(sliderZoom)
 
 			local cbCompressSpecs = addon.functions.createCheckboxAce(
 				L["dungeonJournalLootSpecCompressSpecs"],
@@ -2111,6 +2135,7 @@ local function addMinimapFrame(container)
 				end,
 				L["dungeonJournalLootSpecCompressSpecsDesc"]
 			)
+			if cbCompressSpecs.SetFullWidth then cbCompressSpecs:SetFullWidth(true) end
 			g:AddChild(cbCompressSpecs)
 
 			local cbCompressRoles = addon.functions.createCheckboxAce(
@@ -2122,6 +2147,7 @@ local function addMinimapFrame(container)
 				end,
 				L["dungeonJournalLootSpecCompressRolesDesc"]
 			)
+			if cbCompressRoles.SetFullWidth then cbCompressRoles:SetFullWidth(true) end
 			g:AddChild(cbCompressRoles)
 
 			local cbShowAll = addon.functions.createCheckboxAce(
@@ -2133,6 +2159,7 @@ local function addMinimapFrame(container)
 				end,
 				L["dungeonJournalLootSpecShowAllDesc"]
 			)
+			if cbShowAll.SetFullWidth then cbShowAll:SetFullWidth(true) end
 			g:AddChild(cbShowAll)
 		end
 
