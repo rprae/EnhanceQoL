@@ -184,6 +184,7 @@ tryActivateSmooth = function(bar)
 		stopSmoothUpdater(bar)
 		return
 	end
+	if addon.variables.isMidnight then return end
 	ensureSmoothUpdater(bar)
 	ensureSmoothVisibilityHooks(bar)
 	bar._smoothSpeed = bar._smoothSpeed or SMOOTH_SPEED
@@ -2274,21 +2275,26 @@ function updateHealthBar(evt)
 	if healthBar and healthBar:IsShown() then
 		local previousMax = healthBar._lastMax or 0
 		local newMax = UnitHealthMax("player") or previousMax or 1
+
 		if previousMax ~= newMax then
 			healthBar._lastMax = newMax
 			healthBar:SetMinMaxValues(0, newMax)
-			local currentValue = healthBar:GetValue() or 0
-			if currentValue > newMax then healthBar:SetValue(newMax) end
-			if healthBar._smoothTarget and healthBar._smoothTarget > newMax then
-				healthBar._smoothTarget = newMax
-				if healthBar._smoothEnabled then tryActivateSmooth(healthBar) end
+			if not addon.variables.isMidnight then
+				local currentValue = healthBar:GetValue() or 0
+				if currentValue > newMax then healthBar:SetValue(newMax) end
+				if healthBar._smoothTarget and healthBar._smoothTarget > newMax then
+					healthBar._smoothTarget = newMax
+					if healthBar._smoothEnabled then tryActivateSmooth(healthBar) end
+				end
+			else
+				healthBar:SetValue(newMax)
 			end
 		end
 		local maxHealth = healthBar._lastMax or newMax or 1
 		local curHealth = UnitHealth("player")
 		local settings = getBarSettings("HEALTH") or {}
 		local smooth = settings.smoothFill == true
-		if smooth then
+		if not addon.variables.isMidnight and smooth then
 			healthBar._smoothTarget = curHealth
 			healthBar._smoothDeadzone = settings.smoothDeadzone or healthBar._smoothDeadzone or DEFAULT_SMOOTH_DEADZONE
 			healthBar._smoothSpeed = SMOOTH_SPEED
@@ -2302,7 +2308,11 @@ function updateHealthBar(evt)
 			healthBar._smoothTarget = nil
 			healthBar._smoothDeadzone = settings.smoothDeadzone or healthBar._smoothDeadzone or DEFAULT_SMOOTH_DEADZONE
 			healthBar._smoothSpeed = SMOOTH_SPEED
-			if healthBar._lastVal ~= curHealth then healthBar:SetValue(curHealth) end
+			if not addon.variables.isMidnight and healthBar._lastVal ~= curHealth then
+				healthBar:SetValue(curHealth)
+			else
+				healthBar:SetValue(curHealth)
+			end
 			healthBar._smoothInitialized = nil
 			healthBar._smoothEnabled = false
 			stopSmoothUpdater(healthBar)
@@ -2334,13 +2344,15 @@ function updateHealthBar(evt)
 				if style == "PERCENT" then
 					text = percentStr
 				elseif style == "CURRENT" then
-					text = tostring(curHealth)
+					text = AbbreviateLargeNumbers(curHealth)
 				else -- CURMAX
-					text = curHealth .. " / " .. maxHealth
+					text = AbbreviateLargeNumbers(curHealth) .. " / " .. (AbbreviateLargeNumbers(maxHealth))
 				end
-				if healthBar._lastText ~= text then
+				if not addon.variables.isMidnight and healthBar._lastText ~= text then
 					healthBar.text:SetText(text)
 					healthBar._lastText = text
+				else
+					healthBar.text:SetText(text)
 				end
 				if not healthBar._textShown then
 					healthBar.text:Show()
@@ -2386,20 +2398,29 @@ function updateHealthBar(evt)
 		local absorbBar = healthBar.absorbBar
 		if absorbBar then
 			if not absorbBar:IsShown() or maxHealth <= 0 then
-				if absorbBar._lastVal and absorbBar._lastVal ~= 0 then
+				if addon.variables.isMidnight then
 					absorbBar:SetValue(0)
-					absorbBar._lastVal = 0
+				else
+					if absorbBar._lastVal and absorbBar._lastVal ~= 0 then
+						absorbBar:SetValue(0)
+						absorbBar._lastVal = 0
+					end
 				end
 			else
 				local abs = UnitGetTotalAbsorbs("player") or 0
-				if abs > maxHealth then abs = maxHealth end
-				if absorbBar._lastMax ~= maxHealth then
-					absorbBar:SetMinMaxValues(0, maxHealth)
-					absorbBar._lastMax = maxHealth
-				end
-				if absorbBar._lastVal ~= abs then
+				if addon.variables.isMidnight then
 					absorbBar:SetValue(abs)
-					absorbBar._lastVal = abs
+					absorbBar:SetMinMaxValues(0, maxHealth)
+				else
+					if abs > maxHealth then abs = maxHealth end
+					if absorbBar._lastMax ~= maxHealth then
+						absorbBar:SetMinMaxValues(0, maxHealth)
+						absorbBar._lastMax = maxHealth
+					end
+					if absorbBar._lastVal ~= abs then
+						absorbBar:SetValue(abs)
+						absorbBar._lastVal = abs
+					end
 				end
 			end
 		end
@@ -2938,7 +2959,7 @@ function updatePowerBar(type, runeSlot)
 
 	local style = bar._style or ((type == "MANA") and "PERCENT" or "CURMAX")
 	local smooth = cfg.smoothFill == true
-	if smooth then
+	if not addon.variables.isMidnight and smooth then
 		bar._smoothTarget = curPower
 		bar._smoothDeadzone = cfg.smoothDeadzone or bar._smoothDeadzone or DEFAULT_SMOOTH_DEADZONE
 		bar._smoothSpeed = SMOOTH_SPEED
