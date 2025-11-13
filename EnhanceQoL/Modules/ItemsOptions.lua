@@ -293,7 +293,8 @@ local function addVendorMainFrame2(container)
 	buildConvenience()
 	buildMerchant()
 	buildMailbox()
-	buildMoney()
+	-- TODO bug in midnight beta - need to remove as we can't handle tooltip
+	if not addon.variables.isMidnight then buildMoney() end
 	wrapper:ResumeLayout()
 	doLayout()
 end
