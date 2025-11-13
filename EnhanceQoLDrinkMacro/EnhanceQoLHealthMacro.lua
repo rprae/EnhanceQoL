@@ -40,6 +40,37 @@ addon.functions.InitDBValue("healthPreferFirstPrefs", nil)
 -- New priority-based ordering (overrides legacy prefs if set)
 addon.functions.InitDBValue("healthPriorityOrder", nil)
 
+local function IsMidnightBuild()
+	return addon and addon.variables and addon.variables.isMidnight
+end
+
+local function IsSecretValue(value)
+	if not value then return false end
+	if issecretvalue then
+		local ok, result = pcall(issecretvalue, value)
+		if ok and result then return true end
+	end
+	if issecrettable and type(value) == "table" then
+		local ok, result = pcall(issecrettable, value)
+		if ok and result then return true end
+	end
+	return false
+end
+
+local function IsMidnightCombatLocked()
+	return IsMidnightBuild() and UnitAffectingCombat and UnitAffectingCombat("player")
+end
+
+local function GetSpellCooldownSafe(spellId)
+	local cd = C_Spell.GetSpellCooldown(spellId)
+	if not cd then return 0, 0, false end
+	if IsMidnightBuild() and IsSecretValue(cd) then return nil, nil, true end
+	local start = cd.startTime
+	local duration = cd.duration
+	if IsMidnightBuild() and (IsSecretValue(start) or IsSecretValue(duration)) then return nil, nil, true end
+	return start or 0, duration or 0, false
+end
+
 local function createMacroIfMissing()
 	if not addon.db.healthMacroEnabled then return end
 	-- Avoid protected calls during combat lockdown
@@ -115,9 +146,10 @@ local function cooldownRemaining(entry)
 		if cached then
 			start, duration = cached.start, cached.duration
 		else
-			local cd = C_Spell.GetSpellCooldown(spellId)
-			start = cd and cd.startTime or 0
-			duration = cd and cd.duration or 0
+			local safeStart, safeDuration, blocked = GetSpellCooldownSafe(spellId)
+			if blocked then return math.huge end
+			start = safeStart
+			duration = safeDuration
 			spellCooldownCache[spellId] = { start = start, duration = duration }
 		end
 		if start == 0 or duration == 0 then return 0 end
@@ -321,11 +353,14 @@ local function resetCooldownWatch()
 	cooldownWatch.nextPollAt = 0
 	cooldownWatch.running = false
 	cooldownWatch.rebuilding = false
+	cooldownWatch.secretBlocked = nil
 	wipe(cooldownWatch.entries)
 	wipe(cooldownWatch.state)
 end
 
 local function cooldownCheck(force, suppressRebuild)
+	if IsMidnightCombatLocked() and cooldownWatch.secretBlocked then return end
+	if cooldownWatch.secretBlocked and not IsMidnightCombatLocked() then cooldownWatch.secretBlocked = nil end
 	if cooldownWatch.running then return end
 	if not addon.db or addon.db.healthReorderByCooldown ~= true then
 		resetCooldownWatch()
@@ -365,9 +400,15 @@ local function cooldownCheck(force, suppressRebuild)
 				endsAt = start + duration
 			end
 		elseif entry.kind == "spell" then
-			local cd = C_Spell.GetSpellCooldown(entry.id)
-			local start = cd and cd.startTime or 0
-			local duration = cd and cd.duration or 0
+			local start, duration, blocked = GetSpellCooldownSafe(entry.id)
+			if blocked then
+				if IsMidnightCombatLocked() then
+					cooldownWatch.secretBlocked = true
+					cooldownWatch.running = false
+					return
+				end
+				start, duration = 0, 0
+			end
 			if start ~= 0 and duration ~= 0 then
 				ready = false
 				endsAt = start + duration
@@ -432,6 +473,7 @@ local function updateCooldownWatch(entries)
 end
 
 local function handleCooldownEvent()
+	if IsMidnightCombatLocked() and cooldownWatch.secretBlocked then return end
 	if not addon.db or addon.db.healthReorderByCooldown ~= true then return end
 	if not addon.db.healthMacroEnabled then return end
 	if #cooldownWatch.entries == 0 then return end
@@ -680,6 +722,7 @@ frame:SetScript("OnEvent", function(_, event, arg1)
 		BucketSchedule("allowed")
 		BucketSchedule("macro")
 	elseif event == "PLAYER_REGEN_ENABLED" then
+		cooldownWatch.secretBlocked = nil
 		if addon.db.healthUseCustomSpells then BucketSchedule("talent") end
 		BucketSchedule("allowed")
 		BucketSchedule("macro")
