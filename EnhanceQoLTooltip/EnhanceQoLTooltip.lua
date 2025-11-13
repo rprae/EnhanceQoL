@@ -237,6 +237,8 @@ local function fmtNum(n)
 end
 
 local function checkCurrency(tooltip, id)
+	-- TODO bug in midnight beta
+	if addon.variables.isMidnight then return end
 	if tooltip:IsForbidden() or tooltip:IsProtected() then return end
 	if not id then return end
 
@@ -299,7 +301,8 @@ end
 
 local function checkSpell(tooltip, id, name, isSpell)
 	local first = true
-	if addon.db["TooltipShowSpellID"] then
+	-- TODO bug in midnight beta with tooltip adding
+	if addon.db["TooltipShowSpellID"] and not addon.variables.isMidnight then
 		if id then
 			if first then
 				tooltip:AddLine(" ")
@@ -309,7 +312,8 @@ local function checkSpell(tooltip, id, name, isSpell)
 		end
 	end
 
-	if addon.db["TooltipShowSpellIcon"] and isSpell then
+	-- TODO bug in midnight beta with tooltip adding
+	if addon.db["TooltipShowSpellIcon"] and not addon.variables.isMidnight and isSpell then
 		local spellInfo = C_Spell.GetSpellInfo(id)
 		if spellInfo and spellInfo.iconID then
 			if first then
@@ -612,7 +616,8 @@ end
 
 local function checkItem(tooltip, id, name, guid)
 	local first = true
-	if addon.db["TooltipShowItemID"] then
+	-- TODO Bug in midnight beta with tooltip handling
+	if addon.db["TooltipShowItemID"] and not addon.variables.isMidnight then
 		if id then
 			if first then
 				tooltip:AddLine(" ")
@@ -621,7 +626,8 @@ local function checkItem(tooltip, id, name, guid)
 			tooltip:AddDoubleLine(name, id)
 		end
 	end
-	if addon.db["TooltipShowTempEnchant"] and guid then
+	-- TODO Bug in midnight beta with tooltip handling
+	if addon.db["TooltipShowTempEnchant"] and not addon.variables.isMidnight and guid then
 		local mhHas, mhExp, _, mhID, ohHas, ohExp, _, ohID, rhHas, rhExp = GetWeaponEnchantInfo()
 		if mhHas and guid == Item:CreateFromEquipmentSlot(16):GetItemGUID() then
 			if mhID then
@@ -641,7 +647,8 @@ local function checkItem(tooltip, id, name, guid)
 			end
 		end
 	end
-	if addon.db["TooltipShowItemCount"] then
+	-- TODO Bug in midnight beta with tooltip handling
+	if addon.db["TooltipShowItemCount"] and not addon.variables.isMidnight then
 		if id then
 			local bagCount = C_Item.GetItemCount(id)
 			local bankCount = C_Item.GetItemCount(id, true) - bagCount
@@ -685,7 +692,8 @@ end
 
 local function checkAura(tooltip, id, name)
 	local first = true
-	if addon.db["TooltipShowSpellID"] then
+	-- TODO midnight beta bug - skipping
+	if addon.db["TooltipShowSpellID"] and not addon.variables.isMidnight then
 		if id then
 			if first then
 				tooltip:AddLine(" ")
@@ -695,7 +703,8 @@ local function checkAura(tooltip, id, name)
 		end
 	end
 
-	if addon.db["TooltipShowSpellIcon"] then
+	-- TODO midnight beta bug - skipping
+	if addon.db["TooltipShowSpellIcon"] and not addon.variables.isMidnight then
 		local spellInfo = C_Spell.GetSpellInfo(id)
 		if spellInfo and spellInfo.iconID then
 			if first then
@@ -875,15 +884,17 @@ local function addTooltipFrame2(container, which)
 		local items = {
 			{ text = L["TooltipItemHideInCombat"], var = "TooltipItemHideInCombat" },
 			{ text = L["TooltipItemHideInDungeon"], var = "TooltipItemHideInDungeon" },
-			{ text = L["TooltipShowItemID"], var = "TooltipShowItemID" },
-			{ text = L["TooltipShowTempEnchant"], var = "TooltipShowTempEnchant", desc = L["TooltipShowTempEnchantDesc"] },
-			{ text = L["TooltipShowItemCount"], var = "TooltipShowItemCount" },
-			{ text = L["TooltipShowSeperateItemCount"], var = "TooltipShowSeperateItemCount" },
+			{ text = L["TooltipShowItemID"], var = "TooltipShowItemID", noMidnight = true },
+			{ text = L["TooltipShowTempEnchant"], var = "TooltipShowTempEnchant", desc = L["TooltipShowTempEnchantDesc"], noMidnight = true },
+			{ text = L["TooltipShowItemCount"], var = "TooltipShowItemCount", noMidnight = true },
+			{ text = L["TooltipShowSeperateItemCount"], var = "TooltipShowSeperateItemCount", noMidnight = true },
 		}
 		table.sort(items, function(a, b) return a.text < b.text end)
 		for _, it in ipairs(items) do
-			local cb = addon.functions.createCheckboxAce(it.text, addon.db[it.var], function(_, _, v) addon.db[it.var] = v end, it.desc)
-			g:AddChild(cb)
+			if (addon.variables.isMidnight and not it.noMidnight) or not addon.variables.isMidnight then
+				local cb = addon.functions.createCheckboxAce(it.text, addon.db[it.var], function(_, _, v) addon.db[it.var] = v end, it.desc)
+				g:AddChild(cb)
+			end
 		end
 		if known then
 			g:ResumeLayout()
@@ -903,13 +914,15 @@ local function addTooltipFrame2(container, which)
 		local items = {
 			{ text = L["TooltipSpellHideInCombat"], var = "TooltipSpellHideInCombat" },
 			{ text = L["TooltipSpellHideInDungeon"], var = "TooltipSpellHideInDungeon" },
-			{ text = L["TooltipShowSpellID"], var = "TooltipShowSpellID" },
-			{ text = L["TooltipShowSpellIcon"], var = "TooltipShowSpellIcon" },
+			{ text = L["TooltipShowSpellID"], var = "TooltipShowSpellID", noMidnight = true },
+			{ text = L["TooltipShowSpellIcon"], var = "TooltipShowSpellIcon", noMidnight = true },
 		}
 		table.sort(items, function(a, b) return a.text < b.text end)
 		for _, it in ipairs(items) do
-			local cb = addon.functions.createCheckboxAce(it.text, addon.db[it.var], function(_, _, v) addon.db[it.var] = v end)
-			g:AddChild(cb)
+			if (addon.variables.isMidnight and not it.noMidnight) or not addon.variables.isMidnight then
+				local cb = addon.functions.createCheckboxAce(it.text, addon.db[it.var], function(_, _, v) addon.db[it.var] = v end)
+				g:AddChild(cb)
+			end
 		end
 		if known then
 			g:ResumeLayout()
@@ -918,6 +931,8 @@ local function addTooltipFrame2(container, which)
 	end
 
 	local function buildQuests()
+		-- TODO bugfix midnight beta
+		if addon.variables.isMidnight then return end
 		local g, known = ensureGroup("quests", QUESTLOG_BUTTON)
 		local data = {
 			{ text = L["TooltipShowQuestID"], var = "TooltipShowQuestID" },
@@ -1167,6 +1182,8 @@ local function addTooltipFrame2(container, which)
 	end
 
 	local function buildCurrency()
+		-- TODO bugfix midnight beta
+		if addon.variables.isMidnight then return end
 		local g, known = ensureGroup("currency", CURRENCY)
 		local data = {
 			{ text = L["TooltipShowCurrencyAccountWide"], var = "TooltipShowCurrencyAccountWide" },
@@ -1211,7 +1228,9 @@ if Menu and Menu.ModifyMenu then
 	local function AddTargetWowheadEntry(owner, root)
 		if not addon.db["TooltipShowNPCWowheadLink"] then return end
 		if not UnitExists("target") or UnitPlayerControlled("target") then return end
-		local npcID = GetNPCIDFromGUID(UnitGUID("target"))
+		local guid = UnitGUID("target")
+		if issecretvalue and issecretvalue(guid) then return end
+		local npcID = GetNPCIDFromGUID()
 		if not npcID then return end
 
 		root:CreateDivider()
