@@ -507,39 +507,50 @@ local function ApplyAlphaToRegion(target, alpha, useFade)
 		return
 	end
 
-	local current = target:GetAlpha()
-	if issecretvalue and issecretvalue(current) or current == nil then
+	if issecretvalue and issecretvalue(alpha) then
 		StopFrameFade(target)
 		target:SetAlpha(alpha)
 		return
 	end
 
-	if math.abs(current - alpha) < FRAME_VISIBILITY_FADE_THRESHOLD then
+	local current = target:GetAlpha()
+	if issecretvalue and issecretvalue(current) then
+		StopFrameFade(target)
+		target:SetAlpha(alpha)
+		return
+	end
+
+	local delta = current - alpha
+	if issecretvalue and issecretvalue(delta) then
+		StopFrameFade(target)
+		target:SetAlpha(alpha)
+		return
+	end
+
+	if math.abs(delta) < FRAME_VISIBILITY_FADE_THRESHOLD then
 		StopFrameFade(target)
 		target:SetAlpha(alpha)
 		return
 	end
 
 	local group = target.EQOL_FadeGroup
-		if not group or not group.fade then
-			if not target.CreateAnimationGroup then
-				target:SetAlpha(alpha)
-				return
-			end
-			group = target:CreateAnimationGroup()
-			if not group then
-				target:SetAlpha(alpha)
-				return
-			end
-			local anim = group:CreateAnimation("Alpha")
-			if anim and anim.SetSmoothing then anim:SetSmoothing("IN_OUT") end
+	if not group or not group.fade then
+		if not target.CreateAnimationGroup then
+			target:SetAlpha(alpha)
+			return
+		end
+		group = target:CreateAnimationGroup()
+		if not group then
+			target:SetAlpha(alpha)
+			return
+		end
+		local anim = group:CreateAnimation("Alpha")
+		if anim and anim.SetSmoothing then anim:SetSmoothing("IN_OUT") end
 		group.fade = anim
 		group:SetScript("OnFinished", function(self)
 			local desired = self.targetAlpha
 			local owner = self:GetParent()
-			if owner and owner.SetAlpha and desired ~= nil then
-				owner:SetAlpha(desired)
-			end
+			if owner and owner.SetAlpha and desired ~= nil then owner:SetAlpha(desired) end
 			self.targetAlpha = nil
 		end)
 		target.EQOL_FadeGroup = group
@@ -621,8 +632,9 @@ local function UpdateFrameVisibilityContext()
 		local isMidnight = addon and addon.variables and addon.variables.isMidnight
 		if isMidnight then
 			local alpha = GetMidnightPlayerHealthAlpha()
+			if type(alpha) ~= "number" then alpha = 0 end
 			frameVisibilityContext.playerHealthAlpha = alpha
-			frameVisibilityContext.playerHealthMissing = alpha ~= nil
+			frameVisibilityContext.playerHealthMissing = true
 		else
 			local maxHP = UnitHealthMax and UnitHealthMax("player") or 0
 			local currentHP = UnitHealth and UnitHealth("player") or 0
@@ -759,18 +771,18 @@ end
 
 local function EvaluateFrameVisibility(state)
 	local cfg = state.config
-	if not cfg or not next(cfg) then return nil end
+	if not cfg or not next(cfg) then return false, nil end
 
-	if cfg.ALWAYS_HIDDEN then return false end
+	if cfg.ALWAYS_HIDDEN then return false, "ALWAYS_HIDDEN" end
 	local context = frameVisibilityContext
 
-	if cfg.ALWAYS_IN_COMBAT and context.inCombat then return true end
-	if cfg.ALWAYS_OUT_OF_COMBAT and not context.inCombat then return true end
-	if cfg.PLAYER_HEALTH_NOT_FULL and state.supportsPlayerHealthRule and context.playerHealthMissing then return true end
-	if cfg.PLAYER_HAS_TARGET and state.supportsPlayerTargetRule and context.hasTarget then return true end
-	if cfg.MOUSEOVER and state.isMouseOver then return true end
+	if cfg.ALWAYS_IN_COMBAT and context.inCombat then return true, "ALWAYS_IN_COMBAT" end
+	if cfg.ALWAYS_OUT_OF_COMBAT and not context.inCombat then return true, "ALWAYS_OUT_OF_COMBAT" end
+	if cfg.PLAYER_HAS_TARGET and state.supportsPlayerTargetRule and context.hasTarget then return true, "PLAYER_HAS_TARGET" end
+	if cfg.MOUSEOVER and state.isMouseOver then return true, "MOUSEOVER" end
+	if cfg.PLAYER_HEALTH_NOT_FULL and state.supportsPlayerHealthRule and context.playerHealthMissing then return true, "PLAYER_HEALTH_NOT_FULL" end
 
-	return false
+	return false, nil
 end
 
 local function ApplyToFrameAndChildren(state, alpha, useFade)
@@ -832,11 +844,10 @@ ApplyFrameVisibilityState = function(state)
 
 	EnsureFrameVisibilityWatcher()
 	local context = frameVisibilityContext
-	local shouldShow = EvaluateFrameVisibility(state)
+	local shouldShow, activeRule = EvaluateFrameVisibility(state)
 	local targetAlpha = shouldShow and 1 or 0
-	local healthActive = context and state.supportsPlayerHealthRule and state.config and state.config.PLAYER_HEALTH_NOT_FULL and context.playerHealthMissing
 	local isMidnightPlayerFrame = addon and addon.variables and addon.variables.isMidnight and state.frame == _G.PlayerFrame
-	local applyMidnightAlpha = shouldShow and healthActive and isMidnightPlayerFrame
+	local applyMidnightAlpha = shouldShow and activeRule == "PLAYER_HEALTH_NOT_FULL" and isMidnightPlayerFrame
 
 	if applyMidnightAlpha then
 		local midnightAlpha = context.playerHealthAlpha
@@ -847,6 +858,7 @@ ApplyFrameVisibilityState = function(state)
 	if shouldShow then
 		if state.visible == true and not applyMidnightAlpha then
 			UpdateFrameVisibilityHealthRegistration()
+			if addon.variables.isMidnight then ApplyToFrameAndChildren(state, targetAlpha, not applyMidnightAlpha) end
 			return
 		end
 	else
