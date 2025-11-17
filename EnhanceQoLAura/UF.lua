@@ -617,6 +617,8 @@ function UF.Disable()
 		eventFrame:SetScript("OnEvent", nil)
 		eventFrame = nil
 	end
+	addon.variables.requireReload = true
+	if addon.functions and addon.functions.checkReloadFrame then addon.functions.checkReloadFrame() end
 end
 
 function UF.Refresh() applyConfig() end
@@ -653,6 +655,8 @@ local function addOptions(container, skipClear)
 			UF.Enable()
 		else
 			UF.Disable()
+			addon.variables.requireReload = true
+			if addon.functions and addon.functions.checkReloadFrame then addon.functions.checkReloadFrame() end
 		end
 	end)
 	enableCB:SetFullWidth(true)
