@@ -188,13 +188,17 @@ local function updateHealth(cfg)
 	state.health:SetMinMaxValues(0, maxv > 0 and maxv or 1)
 	state.health:SetValue(cur or 0)
 	local hc = cfg.health or {}
-	local color
+	local hr, hg, hb, ha
 	if hc.useClassColor then
 		local class = select(2, UnitClass(PLAYER_UNIT))
-		color = (CUSTOM_CLASS_COLORS and CUSTOM_CLASS_COLORS[class]) or (RAID_CLASS_COLORS and RAID_CLASS_COLORS[class])
+		local c = (CUSTOM_CLASS_COLORS and CUSTOM_CLASS_COLORS[class]) or (RAID_CLASS_COLORS and RAID_CLASS_COLORS[class])
+		if c then hr, hg, hb, ha = c.r or c[1], c.g or c[2], c.b or c[3], c.a or c[4] end
 	end
-	if not color then color = hc.color or { 0, 0.8, 0 } end
-	state.health:SetStatusBarColor(color[1] or 0, color[2] or 0.8, color[3] or 0, color[4] or 1)
+	if not hr then
+		local color = hc.color or { 0, 0.8, 0, 1 }
+		hr, hg, hb, ha = color[1] or 0, color[2] or 0.8, color[3] or 0, color[4] or 1
+	end
+	state.health:SetStatusBarColor(hr or 0, hg or 0.8, hb or 0, ha or 1)
 	if state.absorb then
 		local abs = UnitGetTotalAbsorbs and UnitGetTotalAbsorbs(PLAYER_UNIT) or 0
 		state.absorb:SetMinMaxValues(0, maxv > 0 and maxv or 1)
@@ -447,7 +451,7 @@ local function onEvent(self, event, unit)
 	elseif event == "PLAYER_ALIVE" then
 		updateHealth(ensureDB("player"))
 		updatePower(ensureDB("player"))
-	elseif event == "UNIT_HEALTH_FREQUENT" or event == "UNIT_MAXHEALTH" or event == "UNIT_ABSORB_AMOUNT_CHANGED" then
+	elseif event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH" or event == "UNIT_ABSORB_AMOUNT_CHANGED" then
 		if unit == PLAYER_UNIT then updateHealth(ensureDB("player")) end
 	elseif event == "UNIT_POWER_UPDATE" or event == "UNIT_MAXPOWER" or event == "UNIT_DISPLAYPOWER" then
 		if unit == PLAYER_UNIT then updatePower(ensureDB("player")) end
@@ -548,6 +552,7 @@ local function addOptions(container, skipClear)
 	local cbClassColor = addon.functions.createCheckboxAce(L["UFUseClassColor"] or "Use class color (health)", cfg.health.useClassColor == true, function(_, _, val)
 		cfg.health.useClassColor = val and true or false
 		UF.Refresh()
+		if UF.ui and UF.ui.healthColorPicker then UF.ui.healthColorPicker:SetDisabled(cfg.health.useClassColor == true) end
 	end)
 	cbClassColor:SetFullWidth(true)
 	parent:AddChild(cbClassColor)
@@ -555,7 +560,9 @@ local function addOptions(container, skipClear)
 	local colorRow = addon.functions.createContainer("SimpleGroup", "Flow")
 	colorRow:SetFullWidth(true)
 	parent:AddChild(colorRow)
-	addColorPicker(colorRow, L["UFHealthColor"] or "Health color", cfg.health.color or defaults.player.health.color, function() UF.Refresh() end)
+	UF.ui = UF.ui or {}
+	UF.ui.healthColorPicker = addColorPicker(colorRow, L["UFHealthColor"] or "Health color", cfg.health.color or defaults.player.health.color, function() UF.Refresh() end)
+	if UF.ui.healthColorPicker then UF.ui.healthColorPicker:SetDisabled(cfg.health.useClassColor == true) end
 	addColorPicker(colorRow, L["UFPowerColor"] or "Power color", cfg.power.color or defaults.player.power.color, function() UF.Refresh() end)
 
 	local function addTextControls(label, sectionKey, fsLeft, fsRight)
