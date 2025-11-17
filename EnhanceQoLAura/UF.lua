@@ -489,6 +489,15 @@ function UF.Refresh() applyConfig() end
 local function addOptions(container, skipClear)
 	local cfg = ensureDB("player")
 	if not skipClear and container and container.ReleaseChildren then container:ReleaseChildren() end
+
+	local parent = container
+	if not skipClear then
+		parent = addon.functions.createContainer("ScrollFrame", "Flow")
+		parent:SetFullWidth(true)
+		parent:SetFullHeight(true)
+		container:AddChild(parent)
+	end
+
 	local function addColorPicker(parent, label, color, callback)
 		local cp = AceGUI:Create("ColorPicker")
 		cp:SetLabel(label)
@@ -512,11 +521,11 @@ local function addOptions(container, skipClear)
 		end
 	end)
 	enableCB:SetFullWidth(true)
-	container:AddChild(enableCB)
+	parent:AddChild(enableCB)
 
 	local sizeRow = addon.functions.createContainer("SimpleGroup", "Flow")
 	sizeRow:SetFullWidth(true)
-	container:AddChild(sizeRow)
+	parent:AddChild(sizeRow)
 	local sw = addon.functions.createSliderAce(L["UFWidth"] or "Frame width", cfg.width or defaults.player.width, MIN_WIDTH, 800, 1, function(_, _, val)
 		cfg.width = max(MIN_WIDTH, val or MIN_WIDTH)
 		UF.Refresh()
@@ -541,11 +550,11 @@ local function addOptions(container, skipClear)
 		UF.Refresh()
 	end)
 	cbClassColor:SetFullWidth(true)
-	container:AddChild(cbClassColor)
+	parent:AddChild(cbClassColor)
 
 	local colorRow = addon.functions.createContainer("SimpleGroup", "Flow")
 	colorRow:SetFullWidth(true)
-	container:AddChild(colorRow)
+	parent:AddChild(colorRow)
 	addColorPicker(colorRow, L["UFHealthColor"] or "Health color", cfg.health.color or defaults.player.health.color, function() UF.Refresh() end)
 	addColorPicker(colorRow, L["UFPowerColor"] or "Power color", cfg.power.color or defaults.player.power.color, function() UF.Refresh() end)
 
@@ -554,7 +563,7 @@ local function addOptions(container, skipClear)
 		local group = addon.functions.createContainer("InlineGroup", "Flow")
 		group:SetTitle(label)
 		group:SetFullWidth(true)
-		container:AddChild(group)
+		parent:AddChild(group)
 
 		local list = { PERCENT = L["PERCENT"] or "Percent", CURMAX = L["Current/Max"] or "Current/Max", CURRENT = L["Current"] or "Current", NONE = L["None"] or "None" }
 		local order = { "PERCENT", "CURMAX", "CURRENT", "NONE" }
@@ -659,7 +668,7 @@ local function addOptions(container, skipClear)
 	local borderGroup = addon.functions.createContainer("InlineGroup", "Flow")
 	borderGroup:SetTitle(L["UFBorder"] or "Border")
 	borderGroup:SetFullWidth(true)
-	container:AddChild(borderGroup)
+	parent:AddChild(borderGroup)
 	local cbBorder = addon.functions.createCheckboxAce(L["UFBorderEnable"] or "Show border", cfg.border.enabled ~= false, function(_, _, v)
 		cfg.border.enabled = v and true or false
 		UF.Refresh()
@@ -677,7 +686,7 @@ local function addOptions(container, skipClear)
 	local statusGroup = addon.functions.createContainer("InlineGroup", "Flow")
 	statusGroup:SetTitle(L["UFStatusLine"] or "Status line")
 	statusGroup:SetFullWidth(true)
-	container:AddChild(statusGroup)
+	parent:AddChild(statusGroup)
 
 	local cbStatus = addon.functions.createCheckboxAce(L["UFStatusEnable"] or "Show status line", cfg.status.enabled ~= false, function(_, _, v)
 		cfg.status.enabled = v and true or false
@@ -751,9 +760,43 @@ local function addOptions(container, skipClear)
 	statusOffsets:AddChild(lvlY)
 end
 
-if addon.functions and addon.functions.RegisterOptionsPage then addon.functions.RegisterOptionsPage("ui\001unitframe\001playerplus", function(container) addOptions(container, false) end) end
+if addon.functions and addon.functions.RegisterOptionsPage then
+	addon.functions.RegisterOptionsPage("ufplus", function(container)
+		container:ReleaseChildren()
+		local lbl = addon.functions.createLabelAce(L["UFPlusRoot"] or "UF Plus")
+		lbl:SetFullWidth(true)
+		container:AddChild(lbl)
+	end)
+	addon.functions.RegisterOptionsPage("ufplus\001player", function(container)
+		addOptions(container, false)
+	end)
+	if addon.functions.addToTree then
+		addon.functions.addToTree(
+			nil,
+			{
+				value = "ufplus",
+				text = L["UFPlusRoot"] or "UF Plus",
+				children = {
+					{ value = "player", text = L["UFPlayerFrame"] or PLAYER },
+				},
+			},
+			true
+		)
+	end
+end
 
-function UF.AddOptionsInline(parent) addOptions(parent, true) end
+function UF.treeCallback(container, group)
+	if not container then return end
+	container:ReleaseChildren()
+	print(group)
+	if group == "ufplus" then
+		local lbl = addon.functions.createLabelAce(L["UFPlusRoot"] or "UF Plus")
+		lbl:SetFullWidth(true)
+		container:AddChild(lbl)
+	elseif group == "ufplus\001player" then
+		addOptions(container, false)
+	end
+end
 
 -- Auto-enable on load when configured
 if not addon.Aura.UFInitialized then
