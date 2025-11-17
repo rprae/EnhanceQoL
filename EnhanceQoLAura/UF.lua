@@ -412,6 +412,8 @@ local function ensureFrames()
 	state.frame:SetAttribute("unit", "player")
 	state.frame:SetAttribute("type1", "target")
 	state.frame:SetAttribute("type2", "togglemenu")
+	state.frame:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+
 	state.frame.menu = function(self) ToggleDropDownMenu(1, nil, PlayerFrameDropDown, self, 0, 0) end
 	state.frame:SetClampedToScreen(true)
 	state.status = _G[STATUS_NAME] or CreateFrame("Frame", STATUS_NAME, state.frame)
