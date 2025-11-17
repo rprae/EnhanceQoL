@@ -83,6 +83,7 @@ local defaults = {
 			useClassColor = true,
 			color = { 0.0, 0.8, 0.0, 1 },
 			absorbColor = { 0.85, 0.95, 1.0, 0.7 },
+			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 } },
 			textLeft = "PERCENT",
 			textRight = "CURMAX",
 			fontSize = 14,
@@ -94,6 +95,7 @@ local defaults = {
 		},
 		power = {
 			color = { 0.1, 0.45, 1, 1 },
+			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 } },
 			textLeft = "PERCENT",
 			textRight = "CURMAX",
 			fontSize = 14,
@@ -169,6 +171,23 @@ local function setBackdrop(frame, borderCfg)
 	else
 		frame:SetBackdrop(nil)
 	end
+end
+
+local function applyBarBackdrop(bar, cfg)
+	if not bar then return end
+	cfg = cfg or {}
+	local bd = cfg.backdrop or {}
+	if bd.enabled == false then
+		bar:SetBackdrop(nil)
+		return
+	end
+	local col = bd.color or { 0, 0, 0, 0.6 }
+	bar:SetBackdrop({
+		bgFile = "Interface\\Buttons\\WHITE8x8",
+		edgeFile = nil,
+		tile = false,
+	})
+	bar:SetBackdropColor(col[1] or 0, col[2] or 0, col[3] or 0, col[4] or 0.6)
 end
 
 local UnitHealthPercent = UnitHealthPercent
@@ -454,9 +473,11 @@ local function applyBars(cfg)
 	local pcfg = cfg.power or {}
 	state.health:SetStatusBarTexture(resolveTexture(hc.texture))
 	configureSpecialTexture(state.health, "HEALTH", hc.texture, hc)
+	applyBarBackdrop(state.health, hc)
 	state.power:SetStatusBarTexture(resolveTexture(pcfg.texture))
 	local _, powerToken = UnitPowerType(PLAYER_UNIT)
 	configureSpecialTexture(state.power, powerToken, pcfg.texture, pcfg)
+	applyBarBackdrop(state.power, pcfg)
 	state.absorb:SetStatusBarTexture(LSM and LSM:Fetch("statusbar", "Blizzard") or BLIZZARD_TEX)
 	state.absorb:SetAllPoints(state.health)
 	state.absorb:SetFrameLevel(state.health:GetFrameLevel() + 1)
@@ -830,6 +851,19 @@ local function addOptions(container, skipClear)
 		end)
 		rightY:SetRelativeWidth(0.25)
 		offsets1:AddChild(rightY)
+
+		local bdRow = addon.functions.createContainer("SimpleGroup", "Flow")
+		bdRow:SetFullWidth(true)
+		group:AddChild(bdRow)
+		local cbBd = addon.functions.createCheckboxAce(L["UFBarBackdrop"] or "Show bar backdrop", (sec.backdrop and sec.backdrop.enabled) ~= false, function(_, _, v)
+			sec.backdrop = sec.backdrop or {}
+			sec.backdrop.enabled = v and true or false
+			UF.Refresh()
+		end)
+		cbBd:SetRelativeWidth(0.5)
+		bdRow:AddChild(cbBd)
+		local bdColor = addColorPicker(bdRow, L["UFBarBackdropColor"] or "Backdrop color", (sec.backdrop and sec.backdrop.color) or { 0, 0, 0, 0.6 }, function() UF.Refresh() end)
+		bdColor:SetRelativeWidth(0.5)
 
 		textureDropdown(group, sec)
 	end
