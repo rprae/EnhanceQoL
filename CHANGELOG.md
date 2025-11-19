@@ -1,5 +1,15 @@
 # Changelog
 
+## [6.2.0] – 2025-11-22
+
+### ✨ Added
+
+### 🔄 Changed
+
+- _Show leader icon on raid style party frames_ now also shows leader and assist in raids
+
+---
+
 ## [6.1.0] – 2025-11-20
 
 ### ✨ Added

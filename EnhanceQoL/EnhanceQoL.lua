@@ -320,33 +320,85 @@ function EQOL.PersistSignUpNote()
 	end
 end
 
+local function removeAssistIcon()
+	if addon.variables.assistFrame then
+		for i, v in pairs(addon.variables.assistFrame) do
+			v:SetParent(nil)
+			v:Hide()
+			v = nil
+		end
+	end
+	addon.variables.assistFrame = {}
+end
 local function removeLeaderIcon()
 	if addon.variables.leaderFrame then
 		addon.variables.leaderFrame:SetParent(nil)
 		addon.variables.leaderFrame:Hide()
 		addon.variables.leaderFrame = nil
 	end
+	removeAssistIcon()
 end
 addon.functions.removeLeaderIcon = removeLeaderIcon
 
 local function setLeaderIcon()
 	local leaderFound = false
-	for i = 1, 5 do
-		if _G["CompactPartyFrameMember" .. i] and _G["CompactPartyFrameMember" .. i]:IsShown() and _G["CompactPartyFrameMember" .. i].unit then
-			if UnitIsGroupLeader(_G["CompactPartyFrameMember" .. i].unit) then
-				if not addon.variables.leaderFrame then
-					addon.variables.leaderFrame = CreateFrame("Frame", nil, CompactPartyFrame)
-					addon.variables.leaderFrame.leaderIcon = addon.variables.leaderFrame:CreateTexture(nil, "OVERLAY")
-					addon.variables.leaderFrame.leaderIcon:SetTexture("Interface\\GroupFrame\\UI-Group-LeaderIcon")
-					addon.variables.leaderFrame.leaderIcon:SetSize(16, 16)
+	if UnitInParty("player") and not UnitInRaid("player") then
+		for i = 1, 5 do
+			if _G["CompactPartyFrameMember" .. i] and _G["CompactPartyFrameMember" .. i]:IsShown() and _G["CompactPartyFrameMember" .. i].unit then
+				if UnitIsGroupLeader(_G["CompactPartyFrameMember" .. i].unit) then
+					if not addon.variables.leaderFrame then
+						addon.variables.leaderFrame = CreateFrame("Frame", nil, CompactPartyFrame)
+						addon.variables.leaderFrame.leaderIcon = addon.variables.leaderFrame:CreateTexture(nil, "OVERLAY")
+						addon.variables.leaderFrame.leaderIcon:SetTexture("Interface\\GroupFrame\\UI-Group-LeaderIcon")
+						addon.variables.leaderFrame.leaderIcon:SetSize(16, 16)
+					end
+					addon.variables.leaderFrame.leaderIcon:ClearAllPoints()
+					addon.variables.leaderFrame.leaderIcon:SetPoint("TOPRIGHT", _G["CompactPartyFrameMember" .. i], "TOPRIGHT", 5, 6)
+					leaderFound = true
+					break
 				end
-				addon.variables.leaderFrame.leaderIcon:ClearAllPoints()
-				addon.variables.leaderFrame.leaderIcon:SetPoint("TOPRIGHT", _G["CompactPartyFrameMember" .. i], "TOPRIGHT", 5, 6)
-				leaderFound = true
-				break
+			end
+		end
+	elseif UnitInRaid("player") then
+		removeAssistIcon()
+		for i = 1, 8 do
+			for j = 1, 5 do
+				if _G["CompactRaidGroup" .. i .. "Member" .. j] and _G["CompactRaidGroup" .. i .. "Member" .. j]:IsShown() and _G["CompactRaidGroup" .. i .. "Member" .. j].unit then
+					local tmpUnit = _G["CompactRaidGroup" .. i .. "Member" .. j].unit
+					if UnitIsGroupLeader(tmpUnit) then
+						if not addon.variables.leaderFrame then
+							addon.variables.leaderFrame = CreateFrame("Frame", nil, _G["CompactRaidFrameContainer"])
+							addon.variables.leaderFrame:SetFrameStrata(_G["CompactRaidGroup" .. i .. "Member" .. j]:GetFrameStrata())
+							addon.variables.leaderFrame:SetFrameLevel(_G["CompactRaidGroup" .. i .. "Member" .. j]:GetFrameLevel() + 1)
+							addon.variables.leaderFrame.leaderIcon = addon.variables.leaderFrame:CreateTexture(nil, "OVERLAY")
+							addon.variables.leaderFrame.leaderIcon:SetTexture("Interface\\GroupFrame\\UI-Group-LeaderIcon")
+							addon.variables.leaderFrame.leaderIcon:SetSize(16, 16)
+						end
+						addon.variables.leaderFrame.leaderIcon:ClearAllPoints()
+						addon.variables.leaderFrame.leaderIcon:SetPoint("TOPRIGHT", _G["CompactRaidGroup" .. i .. "Member" .. j], "TOPRIGHT", 5, 6)
+						leaderFound = true
+						break
+					elseif UnitIsRaidOfficer(tmpUnit) then
+						local af
+						if not addon.variables.assistFrame or not addon.variables.assistFrame[tmpUnit] then
+							addon.variables.assistFrame = addon.variables.assistFrame or {}
+							af = CreateFrame("Frame", nil, _G["CompactRaidFrameContainer"])
+							af:SetFrameStrata(_G["CompactRaidGroup" .. i .. "Member" .. j]:GetFrameStrata())
+							af:SetFrameLevel(_G["CompactRaidGroup" .. i .. "Member" .. j]:GetFrameLevel() + 1)
+							addon.variables.assistFrame[i .. "_" .. j] = af
+							af.leaderIcon = af:CreateTexture(nil, "OVERLAY")
+							af.leaderIcon:SetTexture(132061)
+							af.leaderIcon:SetSize(16, 16)
+						end
+						af = addon.variables.assistFrame[i .. "_" .. j]
+						af.leaderIcon:ClearAllPoints()
+						af.leaderIcon:SetPoint("TOPRIGHT", _G["CompactRaidGroup" .. i .. "Member" .. j], "TOPRIGHT", 5, 6)
+					end
+				end
 			end
 		end
 	end
+
 	if not leaderFound then removeLeaderIcon() end
 end
 addon.functions.setLeaderIcon = setLeaderIcon
@@ -3985,9 +4037,7 @@ local function initParty()
 		hooksecurefunc("CompactUnitFrame_SetUnit", function(s, type)
 			if addon.db["showLeaderIconRaidFrame"] then
 				if type then
-					if _G["CompactPartyFrame"]:IsShown() and strmatch(type, "party%d") then
-						if UnitInParty("player") and not UnitInRaid("player") then setLeaderIcon() end
-					end
+					if (_G["CompactPartyFrame"]:IsShown() and strmatch(type, "party%d")) or (_G["CompactRaidFrameContainer"]:IsShown() and strmatch(type, "raid%d+")) then setLeaderIcon() end
 				end
 			end
 		end)
