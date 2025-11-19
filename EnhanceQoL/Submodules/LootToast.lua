@@ -178,7 +178,8 @@ function LootToast:OnEvent(_, event, ...)
 		end)
 	elseif event == "CHAT_MSG_LOOT" then
 		if ItemUpgradeFrame and ItemUpgradeFrame:IsShown() then return end
-		local msg, _, _, _, _, _, _, _, _, _, _, guid = ...
+		local msg, pname, _, _, _, _, _, _, _, _, _, guid = ...
+		if issecretvalue and issecretvalue(guid) then return end
 		if guid ~= myGUID then return end
 		local itemLink = msg:match(ITEM_LINK_PATTERN)
 		if not itemLink then return end

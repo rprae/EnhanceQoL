@@ -24,6 +24,12 @@ local bleedList = {
 
 local selectedCategory = addon.db["buffTrackerSelectedCategory"] or 1
 
+local function checkRestrictedContent()
+	if IS_MIDNIGHT_BUILD and (InCombatLockdown() or IsEncounterInProgress() or C_ChallengeMode.IsChallengeModeActive()) then return true end
+
+	return false
+end
+
 -- ---------------------------------------------------------------------------
 -- Item buff helpers
 -- ---------------------------------------------------------------------------
@@ -897,7 +903,7 @@ function updateBuff(catId, id, changedId, firstScan)
 	local cat = getCategory(catId)
 	local buff = cat and cat.buffs and cat.buffs[id]
 	local tType = buff and buff.trackType or (cat and cat.trackType) or "BUFF"
-	if IS_MIDNIGHT_BUILD and InCombatLockdown() and buff and buff._hasMissing and tType ~= "ITEM" and tType ~= "ENCHANT" then
+	if checkRestrictedContent() and buff and buff._hasMissing and tType ~= "ITEM" and tType ~= "ENCHANT" then
 		pendingMissingScan = true
 		return
 	end
@@ -1064,7 +1070,7 @@ function updateBuff(catId, id, changedId, firstScan)
 
 	local aura
 	local triggeredId = id
-	if not IS_MIDNIGHT_BUILD or not InCombatLockdown() then
+	if not IS_MIDNIGHT_BUILD or (not checkRestrictedContent()) then
 		if changedId and (changedId == id or (buff and buff.altHash and buff.altHash[changedId])) then
 			aura = C_UnitAuras.GetPlayerAuraBySpellID(changedId)
 			triggeredId = changedId

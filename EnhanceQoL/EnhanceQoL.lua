@@ -3689,7 +3689,10 @@ local function updateFlyoutButtonInfo(button)
 		-- TODO 12.0: EquipmentManager_UnpackLocation will change once Void Storage is removed
 		local itemLink, _, _, bags, _, slot, bag
 		if type(button.location) == "number" then
-			_, _, bags, _, slot, bag = EquipmentManager_UnpackLocation(location)
+			local locationData = EquipmentManager_GetLocationData(location)
+			bags = locationData.isBags or false
+			slot = locationData.slot
+			bag = locationData.bag
 
 			if bags then
 				itemLink = C_Container.GetContainerItemLink(bag, slot)

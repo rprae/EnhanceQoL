@@ -100,7 +100,9 @@ local function ApplyCooldownToButton(b)
 		end
 	end
 
-	if enabled and duration and duration > 0 then
+	if issecretvalue and issecretvalue(enabled) then
+		b.cooldownFrame:SetCooldown(startTime or 0, duration or 0, modRate or 1)
+	elseif enabled and duration and duration > 0 then
 		b.cooldownFrame:SetCooldown(startTime or 0, duration or 0, modRate or 1)
 	else
 		if b.cooldownFrame.Clear then
