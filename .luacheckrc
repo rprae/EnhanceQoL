@@ -10861,6 +10861,7 @@ globals = {
 	"EXPANSION_NAME0",
 	"PVEFrameTab1",
 	"TargetFrameDropDown",
+	"PlayerFrameDropDown",
 	"EquipmentManager_GetLocationData",
 	"EXPANSION_NAME1",
 	"EXPANSION_NAME2",
