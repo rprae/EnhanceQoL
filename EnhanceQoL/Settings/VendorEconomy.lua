@@ -140,13 +140,28 @@ data = {
 		children = {
 			{
 				listFunc = function()
-					local tList = {}
-					tList[""] = ""
-					for key, rec in pairs(addon.db["mailboxContacts"]) do
+					local contacts = addon.db["mailboxContacts"] or {}
+					local entries, order = {}, { "" }
+					local tList = { [""] = "" }
+
+					for key, rec in pairs(contacts) do
 						local class = rec and rec.class
 						local col = (CUSTOM_CLASS_COLORS or RAID_CLASS_COLORS)[class or ""] or { r = 1, g = 1, b = 1 }
-						tList[key] = string.format("|cff%02x%02x%02x%s|r", col.r * 255, col.g * 255, col.b * 255, key)
+						local label = string.format("|cff%02x%02x%02x%s|r", (col.r or 1) * 255, (col.g or 1) * 255, (col.b or 1) * 255, key)
+						local rawSort = (rec and rec.name) or key or ""
+						entries[#entries + 1] = { key = key, label = label, sortKey = rawSort:lower() }
 					end
+
+					table.sort(entries, function(a, b)
+						if a.sortKey == b.sortKey then return a.key < b.key end
+						return a.sortKey < b.sortKey
+					end)
+
+					for _, entry in ipairs(entries) do
+						tList[entry.key] = entry.label
+						order[#order + 1] = entry.key
+					end
+					tList._order = order
 					return tList
 				end,
 				text = L["mailboxRemoveHeader"],
@@ -219,15 +234,29 @@ data = {
 			},
 			{
 				listFunc = function()
-					local tList = {}
-					tList[""] = ""
-					for guid, v in pairs(addon.db["moneyTracker"]) do
+					local tracker = addon.db["moneyTracker"] or {}
+					local entries, order = {}, { "" }
+					local tList = { [""] = "" }
+
+					for guid, v in pairs(tracker) do
 						if guid ~= UnitGUID("player") then
 							local col = (CUSTOM_CLASS_COLORS or RAID_CLASS_COLORS)[v.class] or { r = 1, g = 1, b = 1 }
 							local displayName = string.format("|cff%02x%02x%02x%s-%s|r", (col.r or 1) * 255, (col.g or 1) * 255, (col.b or 1) * 255, v.name or "?", v.realm or "?")
-							tList[guid] = displayName
+							local rawSort = string.format("%s-%s", v.name or "", v.realm or ""):lower()
+							entries[#entries + 1] = { key = guid, label = displayName, sortKey = rawSort }
 						end
 					end
+
+					table.sort(entries, function(a, b)
+						if a.sortKey == b.sortKey then return a.key < b.key end
+						return a.sortKey < b.sortKey
+					end)
+
+					for _, entry in ipairs(entries) do
+						tList[entry.key] = entry.label
+						order[#order + 1] = entry.key
+					end
+					tList._order = order
 					return tList
 				end,
 				text = L["moneyTrackerRemovePlayer"],
