@@ -6,4 +6,5 @@
 	<Script file='GearUpgrade.lua'/>
 	<Script file='UIInput.lua'/>
 	<Script file='VendorEconomy.lua'/>
+	<Script file='Loot.lua'/>
 </Ui>

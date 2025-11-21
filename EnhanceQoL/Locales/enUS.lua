@@ -195,6 +195,7 @@ L["confirmSocketReplaceDesc"] = "Skips the confirmation dialog when replacing so
 
 L["Quest"] = "Quest"
 L["Loot"] = "Loot"
+L["LootPopups"] = "Loot popups"
 
 L["hideBagsBar"] = "Hide Bagsbar"
 L["hideMicroMenu"] = "Hide Micro Menu"

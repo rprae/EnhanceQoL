@@ -1,0 +1,147 @@
+local addonName, addon = ...
+
+local L = LibStub("AceLocale-3.0"):GetLocale(addonName)
+
+local cLoot = addon.functions.SettingsCreateCategory(nil, L["Loot"], nil, "Loot")
+addon.SettingsLayout.vendorEconomyCalootCategorytegory = cLoot
+
+addon.functions.SettingsCreateHeadline(cLoot, L["LootPopups"])
+
+local data = {
+	{
+		var = "autoQuickLoot",
+		text = L["autoQuickLoot"],
+		desc = L["autoQuickLootDesc"],
+		func = function(value) addon.db["autoQuickLoot"] = value end,
+		children = {
+			{
+
+				var = "autoQuickLootWithShift",
+				text = L["autoQuickLootWithShift"],
+				func = function(v) addon.db["autoQuickLootWithShift"] = v end,
+				parentCheck = function()
+					return addon.SettingsLayout.elements["autoQuickLoot"]
+						and addon.SettingsLayout.elements["autoQuickLoot"].setting
+						and addon.SettingsLayout.elements["autoQuickLoot"].setting:GetValue() == true
+				end,
+				parent = true,
+				default = false,
+				type = Settings.VarType.Boolean,
+				sType = "checkbox",
+			},
+		},
+	},
+	{
+		var = "autoHideBossBanner",
+		text = L["autoHideBossBanner"],
+		desc = L["autoHideBossBannerDesc"],
+		func = function(value) addon.db["autoHideBossBanner"] = value end,
+	},
+	{
+		var = "hideAzeriteToast",
+		text = L["hideAzeriteToast"],
+		desc = L["hideAzeriteToastDesc"],
+		func = function(value)
+			addon.db["hideAzeriteToast"] = value
+			if value then
+				if AzeriteLevelUpToast then
+					AzeriteLevelUpToast:UnregisterAllEvents()
+					AzeriteLevelUpToast:Hide()
+				end
+			else
+				addon.variables.requireReload = true
+				addon.functions.checkReloadFrame()
+			end
+		end,
+	},
+}
+
+table.sort(data, function(a, b) return a.text < b.text end)
+addon.functions.SettingsCreateCheckboxes(cLoot, data)
+
+addon.functions.SettingsCreateHeadline(cLoot, L["groupLootRollFrames"])
+
+local data = {
+	{
+		var = "enableGroupLootAnchor",
+		text = L["enableGroupLootAnchorOption"],
+		desc = L["enableGroupLootAnchorDesc"],
+		func = function(value)
+			addon.db.enableGroupLootAnchor = value and true or false
+			if addon.LootToast and addon.LootToast.OnGroupRollAnchorOptionChanged then addon.LootToast:OnGroupRollAnchorOptionChanged(addon.db.enableGroupLootAnchor) end
+			addon.functions.initLootToast()
+		end,
+		children = {
+			{
+				var = "groupLootScale",
+				text = L["groupLootScale"],
+				func = function(v) addon.db["groupLootScale"] = v end,
+				parentCheck = function()
+					return addon.SettingsLayout.elements["enableGroupLootAnchor"]
+						and addon.SettingsLayout.elements["enableGroupLootAnchor"].setting
+						and addon.SettingsLayout.elements["enableGroupLootAnchor"].setting:GetValue() == true
+				end,
+				get = function() return addon.db and addon.db.groupLootLayout and addon.db.groupLootLayout.scale or 1 end,
+				set = function(value)
+					value = math.max(0.5, math.min(3.0, value or 1))
+					value = math.floor(value * 100 + 0.5) / 100
+					addon.db.groupLootLayout.scale = value
+					addon.LootToast:ApplyGroupLootLayout()
+				end,
+				min = 0.5,
+				max = 3,
+				step = 0.05,
+				parent = true,
+				default = 1,
+				sType = "slider",
+			},
+		},
+	},
+}
+
+table.sort(data, function(a, b) return a.text < b.text end)
+addon.functions.SettingsCreateCheckboxes(cLoot, data)
+
+addon.functions.SettingsCreateHeadline(cLoot, L["lootToastSectionTitle"])
+
+local data = {
+	{
+		var = "enableLootToastAnchor",
+		text = L["moveLootToast"],
+		desc = L["moveLootToastDesc"],
+		func = function(value)
+			addon.db.enableGroupLootAnchor = value and true or false
+			if addon.LootToast and addon.LootToast.OnGroupRollAnchorOptionChanged then addon.LootToast:OnGroupRollAnchorOptionChanged(addon.db.enableGroupLootAnchor) end
+			addon.functions.initLootToast()
+		end,
+		children = {
+			{
+				text = "|cffffd700" .. L["lootToastAnchorEditModeHint"] .. "|r",
+				sType = "hint",
+			},
+		},
+	},
+}
+
+table.sort(data, function(a, b) return a.text < b.text end)
+addon.functions.SettingsCreateCheckboxes(cLoot, data)
+----- REGION END
+
+function addon.functions.initLootFrame() end
+
+local eventHandlers = {}
+
+local function registerEvents(frame)
+	for event in pairs(eventHandlers) do
+		frame:RegisterEvent(event)
+	end
+end
+
+local function eventHandler(self, event, ...)
+	if eventHandlers[event] then eventHandlers[event](...) end
+end
+
+local frameLoad = CreateFrame("Frame")
+
+registerEvents(frameLoad)
+frameLoad:SetScript("OnEvent", eventHandler)
