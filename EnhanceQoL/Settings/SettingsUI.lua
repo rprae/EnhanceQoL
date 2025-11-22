@@ -48,17 +48,26 @@ function addon.functions.SettingsCreateCheckbox(cat, cbData)
 	addon.SettingsLayout.elements[cbData.var] = { setting = setting, element = element }
 	if cbData.parent then element:SetParentInitializer(cbData.element, cbData.parentCheck) end
 
+	if cbData.notify then addon.functions.SettingsCreateNotify(setting, cbData.notify) end
 	if cbData.children then
 		for _, v in pairs(cbData.children) do
-			v.element = element
+			v.element = v.element or element
 			if v.sType == "dropdown" then
 				addon.functions.SettingsCreateDropdown(cat, v)
 			elseif v.sType == "checkbox" then
 				addon.functions.SettingsCreateCheckbox(cat, v)
+			elseif v.sType == "slider" then
+				addon.functions.SettingsCreateSlider(cat, v)
+			elseif v.sType == "hint" then
+				addon.functions.SettingsCreateText(cat, v.text)
 			end
 		end
 	end
 	return addon.SettingsLayout.elements[cbData.var]
+end
+
+function addon.functions.SettingsCreateNotify(element, data)
+	element:SetValueChangedCallback(function(setting, value) Settings.NotifyUpdate("EQOL_" .. data) end)
 end
 
 function addon.functions.SettingsCreateCheckboxes(cat, data)
@@ -67,6 +76,28 @@ function addon.functions.SettingsCreateCheckboxes(cat, data)
 		rData[cbData.var] = addon.functions.SettingsCreateCheckbox(cat, cbData)
 	end
 	return rData
+end
+
+function addon.functions.SettingsCreateSlider(cat, cbData)
+	local setting = Settings.RegisterProxySetting(
+		cat,
+		"EQOL_" .. cbData.var,
+		Settings.VarType.Number,
+		cbData.text,
+		cbData.default,
+		cbData.get or function() return addon.db[cbData.var] or cbData.default end,
+		cbData.set
+	)
+	local options = Settings.CreateSliderOptions(cbData.min, cbData.max, cbData.step)
+	options:SetLabelFormatter(MinimalSliderWithSteppersMixin.Label.Right, function(value)
+		local s = string.format("%.2f", value)
+		s = s:gsub("(%..-)0+$", "%1")
+		s = s:gsub("%.$", "")
+		return s
+	end)
+	local element = Settings.CreateSlider(cat, setting, options, cbData.desc)
+	if cbData.parent then element:SetParentInitializer(cbData.element, cbData.parentCheck) end
+	addon.SettingsLayout.elements[cbData.var] = { setting = setting, element = element }
 end
 
 function addon.functions.SettingsCreateHeadline(cat, text)
@@ -111,6 +142,7 @@ function addon.functions.SettingsCreateDropdown(cat, cbData, searchtags)
 
 	local dropdown = Settings.CreateDropdown(cat, setting, options, cbData.desc)
 	if cbData.parent then dropdown:SetParentInitializer(cbData.element, cbData.parentCheck) end
+	if cbData.notify then addon.functions.SettingsCreateNotify(setting, cbData.notify) end
 end
 
 function addon.functions.SettingsCreateButton(layout, text, func, tooltip, searchtags)

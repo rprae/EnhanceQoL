@@ -183,7 +183,10 @@ addon.functions.SettingsCreateCheckboxes(cGearUpgrade, data)
 
 ----- REGION END
 
-function addon.functions.initGearUpgrade() end
+function addon.functions.initGearUpgrade()
+	addon.functions.InitDBValue("charDisplayOptions", {})
+	addon.functions.InitDBValue("inspectDisplayOptions", {})
+end
 
 local eventHandlers = {}
 

@@ -4272,7 +4272,7 @@ local function setAllHooks()
 	initLoot()
 	initQuest()
 	addon.functions.initDungeonFrame()
-
+	addon.functions.initGearUpgrade()
 	initParty()
 	initActionBars()
 	initUI()

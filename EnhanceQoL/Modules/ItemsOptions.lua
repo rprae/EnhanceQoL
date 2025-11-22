@@ -28,121 +28,121 @@ local function addLootFrame(container, d)
 	local wrapper = addon.functions.createContainer("SimpleGroup", "Flow")
 	scroll:AddChild(wrapper)
 
-	local groupCore = addon.functions.createContainer("InlineGroup", "List")
-	wrapper:AddChild(groupCore)
+	-- local groupCore = addon.functions.createContainer("InlineGroup", "List")
+	-- wrapper:AddChild(groupCore)
 
-	local data = {
-		{
-			parent = "",
-			var = "autoQuickLoot",
-			desc = L["autoQuickLootDesc"],
-			type = "CheckBox",
-			callback = function(self, _, value)
-				addon.db["autoQuickLoot"] = value
-				container:ReleaseChildren()
-				addLootFrame(container)
-			end,
-		},
-		{
-			parent = "",
-			var = "autoHideBossBanner",
-			text = L["autoHideBossBanner"],
-			desc = L["autoHideBossBannerDesc"],
-			type = "CheckBox",
-			callback = function(self, _, value) addon.db["autoHideBossBanner"] = value end,
-		},
-		{
-			parent = "",
-			var = "hideAzeriteToast",
-			text = L["hideAzeriteToast"],
-			desc = L["hideAzeriteToastDesc"],
-			type = "CheckBox",
-			callback = function(self, _, value)
-				addon.db["hideAzeriteToast"] = value
-				if value then
-					if AzeriteLevelUpToast then
-						AzeriteLevelUpToast:UnregisterAllEvents()
-						AzeriteLevelUpToast:Hide()
-					end
-				else
-					addon.variables.requireReload = true
-					addon.functions.checkReloadFrame()
-				end
-			end,
-		},
-	}
+	-- local data = {
+	-- 	{
+	-- 		parent = "",
+	-- 		var = "autoQuickLoot",
+	-- 		desc = L["autoQuickLootDesc"],
+	-- 		type = "CheckBox",
+	-- 		callback = function(self, _, value)
+	-- 			addon.db["autoQuickLoot"] = value
+	-- 			container:ReleaseChildren()
+	-- 			addLootFrame(container)
+	-- 		end,
+	-- 	},
+	-- 	{
+	-- 		parent = "",
+	-- 		var = "autoHideBossBanner",
+	-- 		text = L["autoHideBossBanner"],
+	-- 		desc = L["autoHideBossBannerDesc"],
+	-- 		type = "CheckBox",
+	-- 		callback = function(self, _, value) addon.db["autoHideBossBanner"] = value end,
+	-- 	},
+	-- 	{
+	-- 		parent = "",
+	-- 		var = "hideAzeriteToast",
+	-- 		text = L["hideAzeriteToast"],
+	-- 		desc = L["hideAzeriteToastDesc"],
+	-- 		type = "CheckBox",
+	-- 		callback = function(self, _, value)
+	-- 			addon.db["hideAzeriteToast"] = value
+	-- 			if value then
+	-- 				if AzeriteLevelUpToast then
+	-- 					AzeriteLevelUpToast:UnregisterAllEvents()
+	-- 					AzeriteLevelUpToast:Hide()
+	-- 				end
+	-- 			else
+	-- 				addon.variables.requireReload = true
+	-- 				addon.functions.checkReloadFrame()
+	-- 			end
+	-- 		end,
+	-- 	},
+	-- }
 
-	table.sort(data, function(a, b)
-		local textA = a.text or L[a.var]
-		local textB = b.text or L[b.var]
-		return textA < textB
-	end)
+	-- table.sort(data, function(a, b)
+	-- 	local textA = a.text or L[a.var]
+	-- 	local textB = b.text or L[b.var]
+	-- 	return textA < textB
+	-- end)
 
-	for _, checkboxData in ipairs(data) do
-		local desc
-		if checkboxData.desc then desc = checkboxData.desc end
-		local text
-		if checkboxData.text then
-			text = checkboxData.text
-		else
-			text = L[checkboxData.var]
-		end
-		local uFunc = function(self, _, value) addon.db[checkboxData.var] = value end
-		if checkboxData.callback then uFunc = checkboxData.callback end
-		local cb = addon.functions.createCheckboxAce(text, addon.db[checkboxData.var], uFunc, desc)
-		groupCore:AddChild(cb)
-	end
+	-- for _, checkboxData in ipairs(data) do
+	-- 	local desc
+	-- 	if checkboxData.desc then desc = checkboxData.desc end
+	-- 	local text
+	-- 	if checkboxData.text then
+	-- 		text = checkboxData.text
+	-- 	else
+	-- 		text = L[checkboxData.var]
+	-- 	end
+	-- 	local uFunc = function(self, _, value) addon.db[checkboxData.var] = value end
+	-- 	if checkboxData.callback then uFunc = checkboxData.callback end
+	-- 	local cb = addon.functions.createCheckboxAce(text, addon.db[checkboxData.var], uFunc, desc)
+	-- 	groupCore:AddChild(cb)
+	-- end
 
-	if addon.db["autoQuickLoot"] then
-		local cbShift = addon.functions.createCheckboxAce(L["autoQuickLootWithShift"], addon.db["autoQuickLootWithShift"], function(self, _, value) addon.db["autoQuickLootWithShift"] = value end)
-		groupCore:AddChild(cbShift)
-	end
+	-- if addon.db["autoQuickLoot"] then
+	-- 	local cbShift = addon.functions.createCheckboxAce(L["autoQuickLootWithShift"], addon.db["autoQuickLootWithShift"], function(self, _, value) addon.db["autoQuickLootWithShift"] = value end)
+	-- 	groupCore:AddChild(cbShift)
+	-- end
 
-	local groupRollGroup = addon.functions.createContainer("InlineGroup", "List")
-	groupRollGroup:SetTitle(L["groupLootRollFrames"] or L["groupLootAnchorLabel"] or "Group loot roll frames")
-	wrapper:AddChild(groupRollGroup)
+	-- local groupRollGroup = addon.functions.createContainer("InlineGroup", "List")
+	-- groupRollGroup:SetTitle(L["groupLootRollFrames"] or L["groupLootAnchorLabel"] or "Group loot roll frames")
+	-- wrapper:AddChild(groupRollGroup)
 
-	local groupRollToggle = addon.functions.createCheckboxAce(
-		L["enableGroupLootAnchorOption"] or L["groupLootAnchorLabel"] or "Move group loot roll frames",
-		addon.db.enableGroupLootAnchor,
-		function(_, _, value)
-			addon.db.enableGroupLootAnchor = value and true or false
-			if addon.LootToast and addon.LootToast.OnGroupRollAnchorOptionChanged then addon.LootToast:OnGroupRollAnchorOptionChanged(addon.db.enableGroupLootAnchor) end
-			refreshLootToast()
-			container:ReleaseChildren()
-			addLootFrame(container)
-		end,
-		L["enableGroupLootAnchorDesc"]
-	)
-	groupRollGroup:AddChild(groupRollToggle)
+	-- local groupRollToggle = addon.functions.createCheckboxAce(
+	-- 	L["enableGroupLootAnchorOption"] or L["groupLootAnchorLabel"] or "Move group loot roll frames",
+	-- 	addon.db.enableGroupLootAnchor,
+	-- 	function(_, _, value)
+	-- 		addon.db.enableGroupLootAnchor = value and true or false
+	-- 		if addon.LootToast and addon.LootToast.OnGroupRollAnchorOptionChanged then addon.LootToast:OnGroupRollAnchorOptionChanged(addon.db.enableGroupLootAnchor) end
+	-- 		refreshLootToast()
+	-- 		container:ReleaseChildren()
+	-- 		addLootFrame(container)
+	-- 	end,
+	-- 	L["enableGroupLootAnchorDesc"]
+	-- )
+	-- groupRollGroup:AddChild(groupRollToggle)
 
-	if addon.db.enableGroupLootAnchor then
-		local layout = addon.db.groupLootLayout or {}
-		local currentScale = layout.scale or 1
-		local sliderLabel = string.format("%s: %.2f", L["groupLootScale"] or "Loot roll frame scale", currentScale)
-		local sliderScale = addon.functions.createSliderAce(sliderLabel, currentScale, 0.5, 3.0, 0.05, function(self, _, val)
-			val = math.max(0.5, math.min(3.0, val or 1))
-			val = math.floor(val * 100 + 0.5) / 100
-			layout.scale = val
-			addon.db.groupLootLayout = layout
-			self:SetLabel(string.format("%s: %.2f", L["groupLootScale"] or "Loot roll frame scale", val))
-			if addon.LootToast and addon.LootToast.ApplyGroupLootLayout then addon.LootToast:ApplyGroupLootLayout() end
-		end)
-		groupRollGroup:AddChild(sliderScale)
-	end
+	-- if addon.db.enableGroupLootAnchor then
+	-- 	local layout = addon.db.groupLootLayout or {}
+	-- 	local currentScale = layout.scale or 1
+	-- 	local sliderLabel = string.format("%s: %.2f", L["groupLootScale"] or "Loot roll frame scale", currentScale)
+	-- 	local sliderScale = addon.functions.createSliderAce(sliderLabel, currentScale, 0.5, 3.0, 0.05, function(self, _, val)
+	-- 		val = math.max(0.5, math.min(3.0, val or 1))
+	-- 		val = math.floor(val * 100 + 0.5) / 100
+	-- 		layout.scale = val
+	-- 		addon.db.groupLootLayout = layout
+	-- 		self:SetLabel(string.format("%s: %.2f", L["groupLootScale"] or "Loot roll frame scale", val))
+	-- 		if addon.LootToast and addon.LootToast.ApplyGroupLootLayout then addon.LootToast:ApplyGroupLootLayout() end
+	-- 	end)
+	-- 	groupRollGroup:AddChild(sliderScale)
+	-- end
 
 	local lootToastGroup = addon.functions.createContainer("InlineGroup", "List")
 	lootToastGroup:SetTitle(L["lootToastSectionTitle"])
 	wrapper:AddChild(lootToastGroup)
 
-	local anchorToggle = addon.functions.createCheckboxAce(L["moveLootToast"], addon.db.enableLootToastAnchor, function(self, _, value)
-		addon.db.enableLootToastAnchor = value
-		if addon.LootToast and addon.LootToast.OnAnchorOptionChanged then addon.LootToast:OnAnchorOptionChanged(value) end
-		refreshLootToast()
-		container:ReleaseChildren()
-		addLootFrame(container)
-	end, L["moveLootToastDesc"])
-	lootToastGroup:AddChild(anchorToggle)
+	-- local anchorToggle = addon.functions.createCheckboxAce(L["moveLootToast"], addon.db.enableLootToastAnchor, function(self, _, value)
+	-- 	addon.db.enableLootToastAnchor = value
+	-- 	if addon.LootToast and addon.LootToast.OnAnchorOptionChanged then addon.LootToast:OnAnchorOptionChanged(value) end
+	-- 	refreshLootToast()
+	-- 	container:ReleaseChildren()
+	-- 	addLootFrame(container)
+	-- end, L["moveLootToastDesc"])
+	-- lootToastGroup:AddChild(anchorToggle)
 
 	local editModeAvailable = addon.EditMode and addon.EditMode.IsAvailable and addon.EditMode:IsAvailable()
 	if editModeAvailable then
@@ -357,142 +357,7 @@ local function addLootFrame(container, d)
 		tabGroup:SelectTab(tabs[1].value)
 	end
 
-	local lootSpecGroup = addon.functions.createContainer("InlineGroup", "List")
-	lootSpecGroup:SetTitle(L["dungeonJournalLootSpecIcons"])
-	lootSpecGroup:SetFullWidth(true)
-	wrapper:AddChild(lootSpecGroup)
-
-	local function rebuildDungeonJournalLootSpec()
-		lootSpecGroup:ReleaseChildren()
-
-		local toggle = addon.functions.createCheckboxAce(L["dungeonJournalLootSpecIcons"], addon.db["dungeonJournalLootSpecIcons"], function(_, _, value)
-			addon.db["dungeonJournalLootSpecIcons"] = value
-			if addon.DungeonJournalLootSpec and addon.DungeonJournalLootSpec.SetEnabled then addon.DungeonJournalLootSpec:SetEnabled(value) end
-			rebuildDungeonJournalLootSpec()
-		end, L["dungeonJournalLootSpecIconsDesc"])
-		if toggle.SetFullWidth then toggle:SetFullWidth(true) end
-		lootSpecGroup:AddChild(toggle)
-
-		if not addon.db["dungeonJournalLootSpecIcons"] then
-			if scroll.DoLayout then scroll:DoLayout() end
-			return
-		end
-
-		local anchorOptions = {
-			["1"] = L["dungeonJournalLootSpecAnchorTop"],
-			["2"] = L["dungeonJournalLootSpecAnchorBottom"],
-		}
-
-		local anchorRow = addon.functions.createContainer("InlineGroup", "Flow")
-		anchorRow:SetFullWidth(true)
-
-		local anchorDropdown = addon.functions.createDropdownAce(L["dungeonJournalLootSpecAnchor"], anchorOptions, { "1", "2" }, function(_, _, key)
-			addon.db["dungeonJournalLootSpecAnchor"] = tonumber(key) or 1
-			if addon.DungeonJournalLootSpec then addon.DungeonJournalLootSpec:Refresh() end
-		end)
-		anchorDropdown:SetValue(tostring(addon.db["dungeonJournalLootSpecAnchor"] or 1))
-		if anchorDropdown.SetRelativeWidth then anchorDropdown:SetRelativeWidth(0.5) end
-		anchorRow:AddChild(anchorDropdown)
-
-		local sliderOffsetX = addon.functions.createSliderAce(
-			L["dungeonJournalLootSpecOffsetX"] .. ": " .. addon.db["dungeonJournalLootSpecOffsetX"],
-			addon.db["dungeonJournalLootSpecOffsetX"],
-			-200,
-			200,
-			1,
-			function(self, _, val)
-				addon.db["dungeonJournalLootSpecOffsetX"] = val
-				self:SetLabel(L["dungeonJournalLootSpecOffsetX"] .. ": " .. tostring(val))
-				if addon.DungeonJournalLootSpec then addon.DungeonJournalLootSpec:Refresh() end
-			end
-		)
-		if sliderOffsetX.SetRelativeWidth then sliderOffsetX:SetRelativeWidth(0.5) end
-		anchorRow:AddChild(sliderOffsetX)
-		lootSpecGroup:AddChild(anchorRow)
-
-		local offsetRow = addon.functions.createContainer("InlineGroup", "Flow")
-		offsetRow:SetFullWidth(true)
-
-		local sliderOffsetY = addon.functions.createSliderAce(
-			L["dungeonJournalLootSpecOffsetY"] .. ": " .. addon.db["dungeonJournalLootSpecOffsetY"],
-			addon.db["dungeonJournalLootSpecOffsetY"],
-			-200,
-			200,
-			1,
-			function(self, _, val)
-				addon.db["dungeonJournalLootSpecOffsetY"] = val
-				self:SetLabel(L["dungeonJournalLootSpecOffsetY"] .. ": " .. tostring(val))
-				if addon.DungeonJournalLootSpec then addon.DungeonJournalLootSpec:Refresh() end
-			end
-		)
-		if sliderOffsetY.SetRelativeWidth then sliderOffsetY:SetRelativeWidth(0.5) end
-		offsetRow:AddChild(sliderOffsetY)
-
-		local sliderSpacing = addon.functions.createSliderAce(
-			L["dungeonJournalLootSpecSpacing"] .. ": " .. addon.db["dungeonJournalLootSpecSpacing"],
-			addon.db["dungeonJournalLootSpecSpacing"],
-			0,
-			40,
-			1,
-			function(self, _, val)
-				addon.db["dungeonJournalLootSpecSpacing"] = val
-				self:SetLabel(L["dungeonJournalLootSpecSpacing"] .. ": " .. tostring(val))
-				if addon.DungeonJournalLootSpec then addon.DungeonJournalLootSpec:Refresh() end
-			end
-		)
-		if sliderSpacing.SetRelativeWidth then sliderSpacing:SetRelativeWidth(0.5) end
-		offsetRow:AddChild(sliderSpacing)
-		lootSpecGroup:AddChild(offsetRow)
-
-		local scaleRow = addon.functions.createContainer("InlineGroup", "Flow")
-		scaleRow:SetFullWidth(true)
-
-		local sliderScale = addon.functions.createSliderAce(
-			L["dungeonJournalLootSpecScale"] .. ": " .. string.format("%.2f", addon.db["dungeonJournalLootSpecScale"]),
-			addon.db["dungeonJournalLootSpecScale"],
-			0.5,
-			2,
-			0.05,
-			function(self, _, val)
-				addon.db["dungeonJournalLootSpecScale"] = val
-				self:SetLabel(L["dungeonJournalLootSpecScale"] .. ": " .. string.format("%.2f", val))
-				if addon.DungeonJournalLootSpec then addon.DungeonJournalLootSpec:Refresh() end
-			end
-		)
-		if sliderScale.SetRelativeWidth then sliderScale:SetRelativeWidth(0.5) end
-		scaleRow:AddChild(sliderScale)
-
-		local sliderZoom = addon.functions.createSliderAce(
-			L["dungeonJournalLootSpecIconPadding"] .. ": " .. string.format("%.2f", addon.db["dungeonJournalLootSpecIconPadding"]),
-			addon.db["dungeonJournalLootSpecIconPadding"],
-			0,
-			0.2,
-			0.01,
-			function(self, _, val)
-				addon.db["dungeonJournalLootSpecIconPadding"] = val
-				self:SetLabel(L["dungeonJournalLootSpecIconPadding"] .. ": " .. string.format("%.2f", val))
-				if addon.DungeonJournalLootSpec then addon.DungeonJournalLootSpec:Refresh() end
-			end
-		)
-		if sliderZoom.SetRelativeWidth then sliderZoom:SetRelativeWidth(0.5) end
-		scaleRow:AddChild(sliderZoom)
-		lootSpecGroup:AddChild(scaleRow)
-
-		local showAll = addon.functions.createCheckboxAce(L["dungeonJournalLootSpecShowAll"], addon.db["dungeonJournalLootSpecShowAll"], function(_, _, value)
-			addon.db["dungeonJournalLootSpecShowAll"] = value
-			if addon.DungeonJournalLootSpec then addon.DungeonJournalLootSpec:Refresh() end
-		end, L["dungeonJournalLootSpecShowAllDesc"])
-		if showAll.SetFullWidth then showAll:SetFullWidth(true) end
-		lootSpecGroup:AddChild(showAll)
-
-		if scroll.DoLayout then scroll:DoLayout() end
-	end
-
-	rebuildDungeonJournalLootSpec()
-
 	scroll:DoLayout()
 end
 
-if addon.functions and addon.functions.RegisterOptionsPage then
-	addon.functions.RegisterOptionsPage("items\001loot", addLootFrame)
-end
+if addon.functions and addon.functions.RegisterOptionsPage then addon.functions.RegisterOptionsPage("items\001loot", addLootFrame) end
