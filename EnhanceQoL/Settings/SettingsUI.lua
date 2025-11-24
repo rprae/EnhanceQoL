@@ -173,8 +173,6 @@ function addon.functions.SettingsCreateMultiDropdown(cat, cbData)
 		table.sort(keys)
 		return table.concat(keys, ",")
 	end, function(_, _, value)
-		-- optionaler Setter, wenn Settings was zurückschreibt
-		-- (z.B. wenn du per API was änderst)
 	end)
 
 	local initializer = Settings.CreateElementInitializer("EQOL_MultiDropdownTemplate", {
@@ -182,6 +180,7 @@ function addon.functions.SettingsCreateMultiDropdown(cat, cbData)
 		label = cbData.text,
 		options = cbData.options,
 		db = addon.db,
+		callback = cbData.callback
 	})
 	initializer:SetSetting(setting)
 	if cbData.parent then initializer:SetParentInitializer(cbData.element, cbData.parentCheck) end

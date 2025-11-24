@@ -12,7 +12,14 @@ local data = {
 		var = "enableWayCommand",
 		text = L["enableWayCommand"],
 		desc = L["enableWayCommandDesc"],
-		func = function(key) addon.db["enableWayCommand"] = key end,
+		func = function(key)
+			addon.db["enableWayCommand"] = key
+			if key then
+				addon.functions.registerWayCommand()
+			else
+				addon.variables.requireReload = true
+			end
+		end,
 		default = false,
 	},
 	{
@@ -79,6 +86,9 @@ addon.functions.SettingsCreateMultiDropdown(cMapNav, {
 		{ value = "Mail", text = L["minimapHideElements_Mail"] },
 		{ value = "AddonCompartment", text = L["minimapHideElements_AddonCompartment"] },
 	},
+	callback = function()
+		if addon.functions.ApplyMinimapElementVisibility then addon.functions.ApplyMinimapElementVisibility() end
+	end,
 })
 
 addon.functions.SettingsCreateHeadline(cMapNav, SPECIALIZATION)
@@ -88,7 +98,14 @@ data = {
 		var = "enableLootspecQuickswitch",
 		text = L["enableLootspecQuickswitch"],
 		desc = L["enableLootspecQuickswitchDesc"],
-		func = function(key) addon.db["enableLootspecQuickswitch"] = key end,
+		func = function(key)
+			addon.db["enableLootspecQuickswitch"] = key
+			if key then
+				addon.functions.createLootspecFrame()
+			else
+				addon.functions.removeLootspecframe()
+			end
+		end,
 		default = false,
 	},
 }

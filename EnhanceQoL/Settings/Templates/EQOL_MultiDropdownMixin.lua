@@ -28,6 +28,7 @@ function EQOL_MultiDropdownMixin:Init(initializer)
 	self.options = data.options or {}
 	self.db = addon.db
 	self.subvar = data.subvar
+	self.callback = data.callback
 
 	for _, option in ipairs(self.options) do
 		option.value = option.value or option.text
@@ -219,7 +220,10 @@ function EQOL_MultiDropdownMixin:SetupDropdownMenu(button, setting, optionsFunc,
 			if opt.value ~= nil then
 				local label = opt.label or opt.text or tostring(opt.value)
 
-				rootDescription:CreateCheckbox(label, function() return self:IsSelected(opt.value) end, function() self:ToggleOption(opt.value) end, opt)
+				rootDescription:CreateCheckbox(label, function() return self:IsSelected(opt.value) end, function()
+					self:ToggleOption(opt.value)
+					if self.callback then self.callback() end
+				end, opt)
 			end
 		end
 	end)
