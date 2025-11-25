@@ -9,6 +9,9 @@ L["Persist LFG signup note"] = "Persist LFG signup note"
 L["Hide Minimap Button"] = "Hide Minimap Button"
 L["Left-Click to show options"] = "Left-Click to show options"
 L["Right-Click for options"] = "Right-click for options"
+L["Cycle World Marker"] = "Cycle World Marker"
+L["Clear World Marker"] = "Clear all World Marker"
+L["WorldMarkerCycle"] = "One-Button to cycle through World Markers. World Markers can only be placed in party/raid"
 
 -- DataPanel
 L["DataPanelWidth"] = "Panel width"
