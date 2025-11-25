@@ -3287,8 +3287,6 @@ local function CreateUI()
 		-- UI & Input
 		elseif group == "ui\001mouse" then
 			addon.Mouse.functions.treeCallback(container, "mouse")
-		elseif group == "ui\001tooltip" then
-			addon.Tooltip.functions.treeCallback(container, group:sub(4)) -- pass "tooltip..."
 		-- UF Plus
 		elseif string.match(group, "^ufplus") then
 			if addon.Aura and addon.Aura.UF and addon.Aura.UF.treeCallback then addon.Aura.UF.treeCallback(container, group) end

@@ -21,9 +21,10 @@ Starting to change stuff to blizzard options, for now only a small part is there
     - Map & Navigation
       - Quest
   - UI & Input
-    - Mouse
     - Chat Frame
     - Data Panel
+    - Mouse
+    - Tooltip
 
 ### ✨ Added
 

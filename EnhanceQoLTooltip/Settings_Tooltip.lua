@@ -286,6 +286,16 @@ addon.functions.SettingsCreateCheckboxes(cTooltip, data)
 
 addon.functions.SettingsCreateHeadline(cTooltip, PLAYER)
 
+local function TooltipPlayerHasMythicDetails()
+	if addon.variables.isMidnight then return false end
+	return addon.db["TooltipShowMythicScore"] and true or false
+end
+
+local function TooltipPlayerHasInspectDetails()
+	if addon.variables.isMidnight then return false end
+	return (addon.db["TooltipUnitShowSpec"] or addon.db["TooltipUnitShowItemLevel"]) and true or false
+end
+
 local function BuildTooltipPlayerDetailOptions()
 	if addon.variables.isMidnight then
 		addon.db["TooltipShowMythicScore"] = false
@@ -333,6 +343,29 @@ local function SetTooltipPlayerDetailSelected(key, shouldSelect)
 	if (key == "spec" or key == "ilvl") and addon.functions.UpdateInspectEventRegistration then addon.functions.UpdateInspectEventRegistration() end
 end
 
+local function BuildMythicScorePartsOptions()
+	return {
+		{ value = "score", text = DUNGEON_SCORE },
+		{ value = "best", text = L["BestMythic+run"] },
+		{ value = "dungeons", text = L["SeasonDungeons"] or "Season dungeons" },
+	}
+end
+
+local function IsMythicScorePartSelected(key)
+	local parts = addon.db["TooltipMythicScoreParts"] or {}
+	return parts[key] and true or false
+end
+
+local function SetMythicScorePartSelected(key, shouldSelect)
+	if not key then return end
+	addon.db["TooltipMythicScoreParts"] = addon.db["TooltipMythicScoreParts"] or { score = true, best = true, dungeons = true }
+	if shouldSelect then
+		addon.db["TooltipMythicScoreParts"][key] = true
+	else
+		addon.db["TooltipMythicScoreParts"][key] = nil
+	end
+end
+
 addon.functions.SettingsCreateMultiDropdown(cTooltip, {
 	var = "TooltipPlayerDetailsLabel",
 	text = L["TooltipPlayerDetailsLabel"],
@@ -342,8 +375,146 @@ addon.functions.SettingsCreateMultiDropdown(cTooltip, {
 	setSelectedFunc = SetTooltipPlayerDetailSelected,
 })
 
--- addon.functions.SettingsCreateHeadline(cMouse, L["mouseTrail"])
--- addon.functions.SettingsCreateText(cMouse, "|cff99e599" .. L["Trailinfo"] .. "|r")
+local playerDetailsElement = addon.SettingsLayout.elements["TooltipPlayerDetailsLabel"]
+local playerDetailsInitializer = playerDetailsElement and playerDetailsElement.initializer
+
+addon.functions.SettingsCreateCheckbox(cTooltip, {
+	var = "TooltipMythicScoreRequireModifier",
+	text = L["TooltipMythicScoreRequireModifier"]:format(DUNGEON_SCORE),
+	func = function(value) addon.db["TooltipMythicScoreRequireModifier"] = value and true or false end,
+	default = false,
+	parent = true,
+	element = playerDetailsInitializer,
+	parentCheck = TooltipPlayerHasMythicDetails,
+	notify = "TooltipPlayerDetailsLabel",
+})
+
+addon.functions.SettingsCreateCheckbox(cTooltip, {
+	var = "TooltipUnitInspectRequireModifier",
+	text = L["TooltipUnitInspectRequireModifier"],
+	func = function(value)
+		addon.db["TooltipUnitInspectRequireModifier"] = value and true or false
+		if addon.functions.UpdateInspectEventRegistration then addon.functions.UpdateInspectEventRegistration() end
+	end,
+	default = false,
+	parent = true,
+	element = playerDetailsInitializer,
+	parentCheck = TooltipPlayerHasInspectDetails,
+	notify = "TooltipPlayerDetailsLabel",
+})
+
+local modifierList = {
+	SHIFT = SHIFT_KEY_TEXT,
+	ALT = ALT_KEY_TEXT,
+	CTRL = CTRL_KEY_TEXT,
+}
+modifierList._order = { "SHIFT", "ALT", "CTRL" }
+
+addon.functions.SettingsCreateDropdown(cTooltip, {
+	var = "TooltipMythicScoreModifier",
+	text = MODIFIERS_COLON,
+	list = modifierList,
+	get = function() return addon.db["TooltipMythicScoreModifier"] or "SHIFT" end,
+	set = function(value) addon.db["TooltipMythicScoreModifier"] = value end,
+	default = "SHIFT",
+	parent = true,
+	element = playerDetailsInitializer,
+	parentCheck = function()
+		return (
+			addon.SettingsLayout.elements["TooltipUnitInspectRequireModifier"]
+				and addon.SettingsLayout.elements["TooltipUnitInspectRequireModifier"].setting
+				and addon.SettingsLayout.elements["TooltipUnitInspectRequireModifier"].setting:GetValue() == true
+				and (addon.db["TooltipUnitShowSpec"] or addon.db["TooltipUnitShowItemLevel"])
+			or addon.SettingsLayout.elements["TooltipMythicScoreRequireModifier"]
+				and addon.SettingsLayout.elements["TooltipMythicScoreRequireModifier"].setting
+				and addon.SettingsLayout.elements["TooltipMythicScoreRequireModifier"].setting:GetValue() == true
+				and addon.db["TooltipShowMythicScore"]
+		)
+	end,
+})
+
+addon.functions.SettingsCreateMultiDropdown(cTooltip, {
+	var = "TooltipMythicScoreParts",
+	text = L["MythicScorePartsLabel"] or "Mythic+ details to show",
+	options = BuildMythicScorePartsOptions(),
+	optionfunc = BuildMythicScorePartsOptions,
+	isSelectedFunc = IsMythicScorePartSelected,
+	setSelectedFunc = SetMythicScorePartSelected,
+	parent = true,
+	element = playerDetailsInitializer,
+	parentCheck = TooltipPlayerHasMythicDetails,
+})
+
+addon.functions.SettingsCreateHeadline(cTooltip, GENERAL)
+
+data = {
+	list = { [1] = DEFAULT, [2] = L["CursorCenter"], [3] = L["CursorLeft"], [4] = L["CursorRight"] },
+	text = L["TooltipAnchorType"],
+	get = function() return addon.db.TooltipAnchorType or 1 end,
+	set = function(key) addon.db.TooltipAnchorType = key end,
+	default = 1,
+	var = "TooltipAnchorType",
+	type = Settings.VarType.Number,
+}
+addon.functions.SettingsCreateDropdown(cTooltip, data)
+
+data = {
+	var = "TooltipAnchorOffsetX",
+	text = L["TooltipAnchorOffsetX"],
+	get = function() return addon.db and addon.db.TooltipAnchorOffsetX or 0 end,
+	set = function(v) addon.db["TooltipAnchorOffsetX"] = v end,
+	parentCheck = function()
+		return addon.SettingsLayout.elements["TooltipAnchorType"]
+			and addon.SettingsLayout.elements["TooltipAnchorType"].setting
+			and addon.SettingsLayout.elements["TooltipAnchorType"].setting:GetValue() > 2
+	end,
+	min = -300,
+	max = 300,
+	step = 1,
+	parent = true,
+	element = addon.SettingsLayout.elements["TooltipAnchorType"].element,
+	default = 0,
+}
+addon.functions.SettingsCreateSlider(cTooltip, data)
+
+data = {
+	var = "TooltipAnchorOffsetY",
+	text = L["TooltipAnchorOffsetY"],
+	get = function() return addon.db and addon.db.TooltipAnchorOffsetY or 0 end,
+	set = function(v) addon.db["TooltipAnchorOffsetY"] = v end,
+	parentCheck = function()
+		return addon.SettingsLayout.elements["TooltipAnchorType"]
+			and addon.SettingsLayout.elements["TooltipAnchorType"].setting
+			and addon.SettingsLayout.elements["TooltipAnchorType"].setting:GetValue() > 2
+	end,
+	min = -300,
+	max = 300,
+	step = 1,
+	parent = true,
+	element = addon.SettingsLayout.elements["TooltipAnchorType"].element,
+	default = 0,
+}
+addon.functions.SettingsCreateSlider(cTooltip, data)
+
+addon.functions.SettingsCreateHeadline(cTooltip, CURRENCY)
+data = {
+	{
+		var = "TooltipShowCurrencyAccountWide",
+		text = L["TooltipShowCurrencyAccountWide"],
+		func = function(v) addon.db["TooltipShowCurrencyAccountWide"] = v end,
+		default = false,
+		type = Settings.VarType.Boolean,
+	},
+	{
+		var = "TooltipShowCurrencyID",
+		text = L["TooltipShowCurrencyID"],
+		func = function(v) addon.db["TooltipShowCurrencyID"] = v end,
+		default = false,
+		type = Settings.VarType.Boolean,
+	},
+}
+table.sort(data, function(a, b) return a.text < b.text end)
+addon.functions.SettingsCreateCheckboxes(cTooltip, data)
 
 ----- REGION END
 
