@@ -3677,6 +3677,7 @@ local eventHandlers = {
 	["ADDON_LOADED"] = function(arg1)
 		if arg1 == addonName then
 			local legacy = {}
+			EnhanceQoLDB = EnhanceQoLDB or {}
 			if EnhanceQoLDB and not EnhanceQoLDB.profiles then
 				for k, v in pairs(EnhanceQoLDB) do
 					legacy[k] = v
