@@ -28,6 +28,7 @@ Starting to change stuff to blizzard options, for now only a small part is there
     - Mouse
     - System
     - Tooltip
+    - Unit Frames
 
 ### ✨ Added
 

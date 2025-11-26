@@ -141,6 +141,7 @@ data = {
 		func = function(v)
 			addon.db["unitFrameScaleEnabled"] = v
 			addon.functions.updatePartyFrameScale()
+			if not v then CompactPartyFrame:SetScale(1) end
 		end,
 		children = {
 			{
@@ -181,6 +182,29 @@ if not addon.variables.isMidnight then
 end
 table.sort(data, function(a, b) return a.text < b.text end)
 addon.functions.SettingsCreateCheckboxes(cUnitFrame, data)
+
+addon.functions.SettingsCreateHeadline(cUnitFrame, L["CastBars2"])
+
+addon.functions.SettingsCreateMultiDropdown(cUnitFrame, {
+	var = "hiddenCastBars",
+	text = L["castBarsToHide2"],
+	options = {
+		{ value = "PlayerCastingBarFrame", text = PLAYER },
+		{ value = "TargetFrameSpellBar", text = TARGET },
+		{ value = "FocusFrameSpellBar", text = FOCUS },
+	},
+	isSelectedFunc = function(key)
+		if not key then return false end
+		if addon.db.hiddenCastBars and addon.db.hiddenCastBars[key] then return true end
+
+		return false
+	end,
+	setSelectedFunc = function(key, shouldSelect)
+		addon.db.hiddenCastBars = addon.db.hiddenCastBars or {}
+		addon.db.hiddenCastBars[key] = shouldSelect and true or false
+		addon.functions.ApplyCastBarVisibility()
+	end,
+})
 
 ----- REGION END
 

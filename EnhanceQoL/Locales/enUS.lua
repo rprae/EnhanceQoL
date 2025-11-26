@@ -494,8 +494,8 @@ L["gameMenuScale"] = "Game Menu scale"
 L["gameMenuScaleEnabled"] = "Enable Game Menu scaling"
 
 -- Unit Frames: Cast bars
-L["CastBars"] = "Cast Bars"
-L["castBarsToHide"] = "Cast bars to hide"
+L["CastBars2"] = "Castbars"
+L["castBarsToHide2"] = "Castbars to hide"
 L["castBar_player"] = "Player"
 L["castBar_target"] = "Target"
 L["castBar_focus"] = "Focus"

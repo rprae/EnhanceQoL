@@ -3143,7 +3143,6 @@ local function CreateUI()
 		text = L["UIInput"],
 		children = {
 			{ value = "actionbar", text = L["VisibilityHubName"] or ACTIONBARS_LABEL },
-			{ value = "unitframe", text = UNITFRAME_LABEL },
 		},
 	})
 
