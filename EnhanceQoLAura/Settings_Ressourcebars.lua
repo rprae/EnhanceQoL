@@ -77,6 +77,11 @@ local function setBarEnabled(specIndex, barType, enabled)
 	end
 	if ResourceBars.QueueRefresh then ResourceBars.QueueRefresh(specIndex) end
 	if ResourceBars.MaybeRefreshActive then ResourceBars.MaybeRefreshActive(specIndex) end
+	if EditMode and EditMode.RefreshFrame then
+		local id = "resourceBar_" .. tostring(barType)
+		local layout = EditMode.GetActiveLayoutName and EditMode:GetActiveLayoutName()
+		EditMode:RefreshFrame(id, layout)
+	end
 	if EditMode and EditMode:IsInEditMode() then
 		if ResourceBars.Refresh then ResourceBars.Refresh() end
 		if ResourceBars.ReanchorAll then ResourceBars.ReanchorAll() end
@@ -735,20 +740,20 @@ local function registerEditModeBars()
 						local r, g, b, a = toColorComponents(col, { 1, 1, 1, 1 })
 						return { r = r, g = g, b = b, a = a }
 					end,
-					colorSet = function(_, value)
-						local c = curSpecCfg()
-						if not c then return end
-						c.barColor = toColorArray(value, { 1, 1, 1, 1 })
-						queueRefresh()
-					end,
-					isEnabled = function()
-						local c = curSpecCfg()
-						return c and c.useClassColor == false
-					end,
-					hasOpacity = true,
-				}
+						colorSet = function(_, value)
+							local c = curSpecCfg()
+							if not c then return end
+							c.barColor = toColorArray(value, { 1, 1, 1, 1 })
+							queueRefresh()
+						end,
+						isEnabled = function()
+							local c = curSpecCfg()
+							return not (c and c.useClassColor == true)
+						end,
+						hasOpacity = true,
+					}
 
-				settingsList[#settingsList + 1] = {
+					settingsList[#settingsList + 1] = {
 					name = L["Use class color"] or "Use class color",
 					kind = settingType.Checkbox,
 					field = "useClassColor",
@@ -763,13 +768,13 @@ local function registerEditModeBars()
 						if c.useClassColor and c.useBarColor then c.useBarColor = false end
 						queueRefresh()
 						addon.EditModeLib.internal:RefreshSettings()
-					end,
-					isEnabled = function()
-						local c = curSpecCfg()
-						return c and c.useBarColor == false
-					end,
-					default = false,
-				}
+						end,
+						isEnabled = function()
+							local c = curSpecCfg()
+							return not (c and c.useBarColor == true)
+						end,
+						default = false,
+					}
 
 				settingsList[#settingsList + 1] = {
 					name = L["Use max color"] or "Use max color",
@@ -1085,8 +1090,12 @@ local function registerEditModeBars()
 				if ResourceBars.ReanchorAll then ResourceBars.ReanchorAll() end
 				if ResourceBars.Refresh then ResourceBars.Refresh() end
 			end,
+			isEnabled = function()
+				local c = curSpecCfg()
+				return c and c.enabled == true
+			end,
 			settings = settingsList,
-			showOutsideEditMode = true,
+			showOutsideEditMode = false,
 		})
 		if addon.EditModeLib and addon.EditModeLib.SetFrameResetVisible then addon.EditModeLib:SetFrameResetVisible(frame, false) end
 		registered = registered + 1
