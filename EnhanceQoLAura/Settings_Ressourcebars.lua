@@ -101,6 +101,15 @@ local function registerEditModeBars()
 				if ResourceBars.ReanchorAll then ResourceBars.ReanchorAll() end
 			end
 		end
+		local function applyBarSize()
+			local c = curSpecCfg()
+			if not c then return end
+			if barType == "HEALTH" then
+				ResourceBars.SetHealthBarSize(c.width or widthDefault, c.height or heightDefault)
+			else
+				ResourceBars.SetPowerBarSize(c.width or widthDefault, c.height or heightDefault, barType)
+			end
+		end
 		local settingType = EditMode.lib and EditMode.lib.SettingType
 		local settingsList
 		if settingType then
@@ -122,6 +131,7 @@ local function registerEditModeBars()
 						if not c then return end
 						c.width = value
 						if EditMode and EditMode.SetValue then EditMode:SetValue(frameId, "width", value, nil, true) end
+						applyBarSize()
 						queueRefresh()
 					end,
 				},
@@ -142,6 +152,7 @@ local function registerEditModeBars()
 						if not c then return end
 						c.height = value
 						if EditMode and EditMode.SetValue then EditMode:SetValue(frameId, "height", value, nil, true) end
+						applyBarSize()
 						queueRefresh()
 					end,
 				},
