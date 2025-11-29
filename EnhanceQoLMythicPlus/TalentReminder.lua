@@ -542,14 +542,12 @@ local eventHandlers = {
 		addon.MythicPlus.functions.getAllLoadouts()
 		checkLoadout()
 		addon.MythicPlus.functions.checkRemovedLoadout()
-		addon.MythicPlus.functions.refreshTalentFrameIfOpen()
 		updateActiveTalentText()
 	end,
 	["TRAIT_CONFIG_DELETED"] = function(arg1)
 		addon.MythicPlus.functions.getAllLoadouts()
 		checkLoadout()
 		addon.MythicPlus.functions.checkRemovedLoadout()
-		addon.MythicPlus.functions.refreshTalentFrameIfOpen()
 		updateActiveTalentText()
 	end,
 	["TRAIT_CONFIG_UPDATED"] = function()
@@ -557,7 +555,6 @@ local eventHandlers = {
 			addon.MythicPlus.functions.getAllLoadouts()
 			checkLoadout()
 			addon.MythicPlus.functions.checkRemovedLoadout()
-			addon.MythicPlus.functions.refreshTalentFrameIfOpen()
 			updateActiveTalentText()
 		end)
 	end,

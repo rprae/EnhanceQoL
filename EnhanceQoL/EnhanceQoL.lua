@@ -3140,9 +3140,7 @@ local function CreateUI()
 		-- Forward Combat subtree for modules (Mythic+, Aura, Drink, CombatMeter)
 		elseif string.sub(group, 1, string.len("combat\001")) == "combat\001" then
 			-- Normalize and dispatch for known combat modules
-			if string.find(group, "mythicplus", 1, true) then
-				addon.MythicPlus.functions.treeCallback(container, group)
-			elseif
+			if
 				group:find("combat\001resourcebar", 1, true)
 				or group:find("combat\001bufftracker", 1, true)
 				or group:find("combat\001casttracker", 1, true)
@@ -3156,9 +3154,6 @@ local function CreateUI()
 			elseif string.find(group, "\001combatmeter", 1, true) or string.sub(group, 1, 11) == "combatmeter" or group:find("combat\001combatmeter", 1, true) then
 				local pos = group:find("combatmeter", 1, true)
 				addon.CombatMeter.functions.treeCallback(container, group:sub(pos))
-			else
-				-- Fallback to Mythic+ for other combat children
-				addon.MythicPlus.functions.treeCallback(container, group)
 			end
 		-- UF Plus
 		elseif string.match(group, "^ufplus") then
@@ -3168,8 +3163,6 @@ local function CreateUI()
 			if addon.Events and addon.Events.LegionRemix and addon.Events.LegionRemix.functions and addon.Events.LegionRemix.functions.treeCallback then
 				addon.Events.LegionRemix.functions.treeCallback(container, group)
 			end
-		elseif string.find(group, "mythicplus", 1, true) then
-			addon.MythicPlus.functions.treeCallback(container, group)
 		elseif string.match(group, "^aura") then
 			addon.Aura.functions.treeCallback(container, group)
 		elseif string.match(group, "^combatmeter") then

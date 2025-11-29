@@ -511,13 +511,7 @@ local function eventHandler(self, event, arg1, arg2, arg3, arg4)
 	end
 end
 
-	-- Setze den Event-Handler
-	frameLoad:SetScript("OnEvent", eventHandler)
-	-- Deprecated AceGUI talent UI removed; keep no-op refresh for callers
-	function addon.MythicPlus.functions.refreshTalentFrameIfOpen() end
+-- Setze den Event-Handler
+frameLoad:SetScript("OnEvent", eventHandler)
 
-	function addon.MythicPlus.functions.treeCallback(container)
-		if container and container.ReleaseChildren then container:ReleaseChildren() end
-	end
-
-	if addon.db["mythicPlusEnableDungeonFilter"] then addon.MythicPlus.functions.addDungeonFilter() end
+if addon.db["mythicPlusEnableDungeonFilter"] then addon.MythicPlus.functions.addDungeonFilter() end

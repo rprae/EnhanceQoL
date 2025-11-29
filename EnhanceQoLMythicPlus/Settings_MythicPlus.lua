@@ -388,7 +388,6 @@ if cMythic then
 			func = function(v)
 				addon.db["talentReminderEnabled"] = v
 				addon.MythicPlus.functions.checkLoadout()
-				addon.MythicPlus.functions.refreshTalentFrameIfOpen()
 				addon.MythicPlus.functions.updateActiveTalentText()
 			end,
 		})
@@ -454,7 +453,6 @@ if cMythic then
 			func = function(v)
 				addon.db["talentReminderShowActiveBuild"] = v
 				addon.MythicPlus.functions.updateActiveTalentText()
-				addon.MythicPlus.functions.refreshTalentFrameIfOpen()
 			end,
 			parent = true,
 			element = talentEnable.element,
@@ -471,7 +469,6 @@ if cMythic then
 				func = function()
 					addon.MythicPlus.functions.getAllLoadouts()
 					addon.MythicPlus.functions.checkRemovedLoadout()
-					addon.MythicPlus.functions.refreshTalentFrameIfOpen()
 				end,
 				parent = true,
 				element = talentEnable.element,
@@ -505,7 +502,6 @@ if cMythic then
 							else
 								specSettings[mapData.id] = value
 							end
-							addon.MythicPlus.functions.refreshTalentFrameIfOpen()
 							C_Timer.After(1, function() addon.MythicPlus.functions.checkLoadout() end)
 						end,
 						parent = true,
