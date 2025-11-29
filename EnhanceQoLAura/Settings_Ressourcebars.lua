@@ -119,48 +119,46 @@ local function registerEditModeBars()
 end
 
 local function buildSpecToggles(specIndex, specName, available)
-	local items = {}
-
 	local specCfg = ensureSpecCfg(specIndex)
-	if not specCfg then return items end
+	if not specCfg then return nil end
 
-	items[#items + 1] = { sType = "hint", text = specName, parent = true, parentCheck = function() return addon.db["enableResourceFrame"] == true end }
-
-	local hCfg = specCfg.HEALTH or {}
-	items[#items + 1] = {
-		var = ("rb_health_%s"):format(specIndex),
-		text = HEALTH,
-		get = function() return hCfg.enabled == true end,
-		func = function(val)
-			hCfg.enabled = val and true or false
-			setBarEnabled(specIndex, "HEALTH", val)
-		end,
-		parent = true,
-		parentCheck = function() return addon.db["enableResourceFrame"] == true end,
-		sType = "checkbox",
-	}
-
+	local options = {}
 	for _, pType in ipairs(ResourceBars.classPowerTypes or {}) do
 		if available[pType] then
 			specCfg[pType] = specCfg[pType] or {}
 			local cfg = specCfg[pType]
 			local label = _G["POWER_TYPE_" .. pType] or _G[pType] or pType
-			items[#items + 1] = {
-				var = ("rb_%s_%s"):format(pType, specIndex),
+			options[#options + 1] = {
+				value = pType,
 				text = label,
-				get = function() return cfg.enabled == true end,
-				func = function(val)
-					cfg.enabled = val and true or false
-					setBarEnabled(specIndex, pType, val)
-				end,
-				parent = true,
-				parentCheck = function() return addon.db["enableResourceFrame"] == true end,
-				sType = "checkbox",
+				enabled = cfg.enabled == true,
 			}
 		end
 	end
 
-	return items
+	-- Add health entry first
+	local hCfg = specCfg.HEALTH or {}
+	table.insert(options, 1, { value = "HEALTH", text = HEALTH, enabled = hCfg.enabled == true })
+
+	if #options == 0 then return nil end
+
+	return {
+		sType = "multidropdown",
+		var = "rb_" .. specName .. "_" .. specIndex,
+		text = specName,
+		options = options,
+		isSelectedFunc = function(key)
+			local cfg = specCfg[key]
+			return cfg and cfg.enabled == true
+		end,
+		setSelectedFunc = function(key, shouldSelect)
+			specCfg[key] = specCfg[key] or {}
+			specCfg[key].enabled = shouldSelect and true or false
+			setBarEnabled(specIndex, key, shouldSelect)
+		end,
+		parent = true,
+		parentCheck = function() return addon.db["enableResourceFrame"] == true end,
+	}
 end
 
 local function buildSettings()
@@ -229,10 +227,8 @@ local function buildSettings()
 			local specID, specName = GetSpecializationInfoForClassID(class, specIndex)
 			local available = ResourceBars.powertypeClasses[addon.variables.unitClass][specIndex] or {}
 			if specID and specName then
-				local entries = buildSpecToggles(specIndex, specName, available)
-				for _, e in ipairs(entries or {}) do
-					table.insert(data[1].children, e)
-				end
+				local entry = buildSpecToggles(specIndex, specName, available)
+				if entry then table.insert(data[1].children, entry) end
 			end
 		end
 	end
