@@ -337,7 +337,7 @@ local function buildUnitSettings(unit)
 				local useCustom = val and true or false
 				setValue(unit, { "health", "useClassColor" }, useCustom and false or true)
 				if useCustom and not getValue(unit, { "health", "color" }) then setValue(unit, { "health", "color" }, healthDef.color or { 0.0, 0.8, 0.0, 1 }) end
-				refresh()
+				refreshSelf()
 				refreshSettingsUI()
 			end)
 		end,
@@ -346,7 +346,7 @@ local function buildUnitSettings(unit)
 			debounced(unit .. "_healthColor", function()
 				setColor(unit, { "health", "color" }, color.r, color.g, color.b, color.a)
 				setValue(unit, { "health", "useClassColor" }, false)
-				refresh()
+				refreshSelf()
 			end)
 		end,
 		colorDefault = {
@@ -516,7 +516,7 @@ local function buildUnitSettings(unit)
 			debounced(unit .. "_powerCustomColorToggle", function()
 				setValue(unit, { "power", "useCustomColor" }, val and true or false)
 				if val and not getValue(unit, { "power", "color" }) then setValue(unit, { "power", "color" }, powerDef.color or { 0.1, 0.45, 1, 1 }) end
-				refresh()
+				refreshSelf()
 				refreshSettingsUI()
 			end)
 		end,
@@ -525,7 +525,7 @@ local function buildUnitSettings(unit)
 			debounced(unit .. "_powerCustomColor", function()
 				setColor(unit, { "power", "color" }, color.r, color.g, color.b, color.a)
 				setValue(unit, { "power", "useCustomColor" }, true)
-				refresh()
+				refreshSelf()
 			end)
 		end,
 		colorDefault = {
@@ -538,25 +538,25 @@ local function buildUnitSettings(unit)
 
 	list[#list + 1] = radioDropdown(L["TextLeft"] or "Left text", textOptions, function() return getValue(unit, { "power", "textLeft" }, powerDef.textLeft or "PERCENT") end, function(val)
 		setValue(unit, { "power", "textLeft" }, val)
-		refresh()
+		refreshSelf()
 	end, powerDef.textLeft or "PERCENT", "power")
 
 	list[#list + 1] = radioDropdown(L["TextRight"] or "Right text", textOptions, function() return getValue(unit, { "power", "textRight" }, powerDef.textRight or "CURMAX") end, function(val)
 		setValue(unit, { "power", "textRight" }, val)
-		refresh()
+		refreshSelf()
 	end, powerDef.textRight or "CURMAX", "power")
 
 	list[#list + 1] = slider(L["FontSize"] or "Font size", 8, 30, 1, function() return getValue(unit, { "power", "fontSize" }, powerDef.fontSize or 14) end, function(val)
 		debounced(unit .. "_powerFontSize", function()
 			setValue(unit, { "power", "fontSize" }, val or powerDef.fontSize or 14)
-			refresh()
+			refreshSelf()
 		end)
 	end, powerDef.fontSize or 14, "power", true)
 
 	if #fontOpts > 0 then
 		list[#list + 1] = radioDropdown(L["Font"] or "Font", fontOpts, function() return getValue(unit, { "power", "font" }, powerDef.font or defaultFontPath()) end, function(val)
 			setValue(unit, { "power", "font" }, val)
-			refresh()
+			refreshSelf()
 		end, powerDef.font or defaultFontPath(), "power")
 	end
 
@@ -734,15 +734,17 @@ local function buildUnitSettings(unit)
 	})
 
 	list[#list + 1] = slider(L["FontSize"] or "Font size", 8, 30, 1, function() return getValue(unit, { "status", "fontSize" }, statusDef.fontSize or 14) end, function(val)
-		setValue(unit, { "status", "fontSize" }, val or statusDef.fontSize or 14)
-		refresh()
+		debounced(unit .. "_statusFontSize", function()
+			setValue(unit, { "status", "fontSize" }, val or statusDef.fontSize or 14)
+			refreshSelf()
+		end)
 	end, statusDef.fontSize or 14, "status", true)
 
 	local fontOpts = fontOptions()
 	if #fontOpts > 0 then
 		list[#list + 1] = radioDropdown(L["Font"] or "Font", fontOpts, function() return getValue(unit, { "status", "font" }, statusDef.font or defaultFontPath()) end, function(val)
 			setValue(unit, { "status", "font" }, val)
-			refresh()
+			refreshSelf()
 		end, statusDef.font or defaultFontPath(), "status")
 	end
 
@@ -752,7 +754,7 @@ local function buildUnitSettings(unit)
 		function() return getValue(unit, { "status", "fontOutline" }, statusDef.fontOutline or "OUTLINE") end,
 		function(val)
 			setValue(unit, { "status", "fontOutline" }, val)
-			refresh()
+			refreshSelf()
 		end,
 		statusDef.fontOutline or "OUTLINE",
 		"status"

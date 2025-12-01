@@ -701,6 +701,7 @@ local function updatePower(cfg, unit)
 		cr, cg, cb, ca = getPowerColor(powerToken)
 	end
 	bar:SetStatusBarColor(cr or 0.1, cg or 0.45, cb or 1, ca or 1)
+	if bar.SetStatusBarDesaturated then bar:SetStatusBarDesaturated(pcfg.useCustomColor ~= true) end
 	if st.powerTextLeft then
 		if (issecretvalue and not issecretvalue(maxv)) or (not addon.variables.isMidnight and maxv == 0) then
 			st.powerTextLeft:SetText("")
@@ -1458,9 +1459,9 @@ local function addOptions(container, skipClear, unit)
 	colorRow:SetFullWidth(true)
 	parent:AddChild(colorRow)
 	UF.ui = UF.ui or {}
-	UF.ui.healthColorPicker = addColorPicker(colorRow, L["UFHealthColor"] or "Health color", cfg.health.color or def.health.color, function() refresh() end)
+	UF.ui.healthColorPicker = addColorPicker(colorRow, L["UFHealthColor"], cfg.health.color or def.health.color, function() refresh() end)
 	if UF.ui.healthColorPicker then UF.ui.healthColorPicker:SetDisabled(cfg.health.useClassColor == true) end
-	local cbPowerCustom = addon.functions.createCheckboxAce(L["UFPowerColor"] or "Custom power color", cfg.power.useCustomColor == true, function(_, _, val)
+	local cbPowerCustom = addon.functions.createCheckboxAce(L["UFPowerColor"], cfg.power.useCustomColor == true, function(_, _, val)
 		cfg.power.useCustomColor = val and true or false
 		if UF.ui and UF.ui.powerColorPicker then UF.ui.powerColorPicker:SetDisabled(cfg.power.useCustomColor ~= true) end
 		if val and not cfg.power.color then cfg.power.color = { getPowerColor(getMainPower()) } end
@@ -1469,7 +1470,7 @@ local function addOptions(container, skipClear, unit)
 	cbPowerCustom:SetRelativeWidth(0.5)
 	colorRow:AddChild(cbPowerCustom)
 
-	UF.ui.powerColorPicker = addColorPicker(colorRow, L["UFPowerColor"] or "Power color", cfg.power.color or { getPowerColor(getMainPower()) }, function() refresh() end)
+	UF.ui.powerColorPicker = addColorPicker(colorRow, L["UFPowerColor"], cfg.power.color or { getPowerColor(getMainPower()) }, function() refresh() end)
 	UF.ui.powerColorPicker:SetRelativeWidth(0.5)
 	if UF.ui.powerColorPicker then UF.ui.powerColorPicker:SetDisabled(cfg.power.useCustomColor ~= true) end
 
