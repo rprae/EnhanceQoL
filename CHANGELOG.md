@@ -1,6 +1,6 @@
 # Changelog
 
-## [6.2.0] – 2025-11-22
+## [6.2.0] – 2025-12-03
 
 ### Important note
 
@@ -44,6 +44,7 @@ Starting to change stuff to blizzard options, for now only a small part is there
   - Set a keybind to cycle through all world markers
   - Set another keybind to clear all world markers
 - Hide Action Button borders
+- Action Bars: Option to hide the Assisted Combat Rotation overlay/glow on buttons
 
 ### 🔄 Changed
 
