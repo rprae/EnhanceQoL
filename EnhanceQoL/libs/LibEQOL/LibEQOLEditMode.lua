@@ -2173,10 +2173,17 @@ local function resetSelectionIndicators()
 	end
 end
 
+local function hideOverlapMenu()
+	if Internal.overlapMenu then
+		Internal.overlapMenu:Hide()
+	end
+end
+
 local function beginSelectionDrag(self)
 	if isInCombat() then
 		return
 	end
+	hideOverlapMenu()
 	if not isDragAllowed(self.parent) then
 		return
 	end
@@ -2274,12 +2281,6 @@ local function ensureOverlapMenu()
 	return menu
 end
 
-local function hideOverlapMenu()
-	if Internal.overlapMenu then
-		Internal.overlapMenu:Hide()
-	end
-end
-
 local function selectSelection(selection)
 	if isInCombat() or not selection then
 		return
@@ -2358,6 +2359,7 @@ local function handleSelectionMouseDown(self)
 	local cx, cy = getCursorPositionUI()
 	local hits = collectOverlappingSelections(cx, cy)
 	if #hits > 1 then
+		selectSelection(self)
 		showOverlapMenu(hits, cx, cy, self)
 		return
 	end

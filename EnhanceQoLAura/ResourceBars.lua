@@ -3127,14 +3127,16 @@ function ResourceBars.SetPowerBarSize(w, h, pType)
 
 	if specCfg then
 		for bType, cfg in pairs(specCfg) do
-			local anchor = cfg.anchor
-			if anchor and changed[anchor.relativeFrame] then
-				local frame = bType == "HEALTH" and healthBar or powerbar[bType]
-				if frame then
-					local rel = _G[anchor.relativeFrame] or UIParent
-					-- Ensure we don't accumulate multiple points to stale relatives
-					frame:ClearAllPoints()
-					frame:SetPoint(anchor.point or "CENTER", rel, anchor.relativePoint or anchor.point or "CENTER", anchor.x or 0, anchor.y or 0)
+			if type(cfg) == "table" then
+				local anchor = cfg.anchor
+				if anchor and changed[anchor.relativeFrame] then
+					local frame = bType == "HEALTH" and healthBar or powerbar[bType]
+					if frame then
+						local rel = _G[anchor.relativeFrame] or UIParent
+						-- Ensure we don't accumulate multiple points to stale relatives
+						frame:ClearAllPoints()
+						frame:SetPoint(anchor.point or "CENTER", rel, anchor.relativePoint or anchor.point or "CENTER", anchor.x or 0, anchor.y or 0)
+					end
 				end
 			end
 		end
@@ -3151,13 +3153,15 @@ function ResourceBars.ReanchorDependentsOf(frameName)
 	if not specCfg then return end
 
 	for bType, cfg in pairs(specCfg) do
-		local anch = cfg and cfg.anchor
-		if anch and anch.relativeFrame == frameName then
-			local frame = (bType == "HEALTH") and healthBar or powerbar[bType]
-			if frame then
-				local rel = _G[anch.relativeFrame] or UIParent
-				frame:ClearAllPoints()
-				frame:SetPoint(anch.point or "TOPLEFT", rel, anch.relativePoint or anch.point or "TOPLEFT", anch.x or 0, anch.y or 0)
+		if type(cfg) == "table" then
+			local anch = cfg.anchor
+			if anch and anch.relativeFrame == frameName then
+				local frame = (bType == "HEALTH") and healthBar or powerbar[bType]
+				if frame then
+					local rel = _G[anch.relativeFrame] or UIParent
+					frame:ClearAllPoints()
+					frame:SetPoint(anch.point or "TOPLEFT", rel, anch.relativePoint or anch.point or "TOPLEFT", anch.x or 0, anch.y or 0)
+				end
 			end
 		end
 	end

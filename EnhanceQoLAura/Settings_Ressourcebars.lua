@@ -16,6 +16,84 @@ if not ResourceBars then return end
 local MIN_RESOURCE_BAR_WIDTH = (ResourceBars and ResourceBars.MIN_RESOURCE_BAR_WIDTH) or 50
 
 local specSettingVars = {}
+local function maybeAutoEnableBars(specIndex, specCfg)
+	if not addon.db.resourceBarsAutoEnableAll then return end
+	if not specCfg or specCfg._autoEnabled then return end
+
+	-- Skip if user already touched enable state
+	for _, cfg in pairs(specCfg) do
+		if type(cfg) == "table" and cfg.enabled ~= nil then return end
+	end
+
+	local class = addon.variables.unitClass
+	if not class or not specIndex then return end
+	local specInfo = ResourceBars
+		and ResourceBars.powertypeClasses
+		and ResourceBars.powertypeClasses[class]
+		and ResourceBars.powertypeClasses[class][specIndex]
+	if not specInfo then return end
+
+	local bars = { "HEALTH" }
+	local mainType = specInfo.MAIN
+	if mainType then bars[#bars + 1] = mainType end
+	for _, pType in ipairs(ResourceBars.classPowerTypes or {}) do
+		if specInfo[pType] and pType ~= mainType then bars[#bars + 1] = pType end
+	end
+
+	local function frameNameFor(typeId)
+		if typeId == "HEALTH" then return "EQOLHealthBar" end
+		return "EQOL" .. tostring(typeId) .. "Bar"
+	end
+
+	local prevFrame = frameNameFor("HEALTH")
+	local mainFrame = frameNameFor(mainType or "HEALTH")
+	for _, pType in ipairs(bars) do
+		specCfg[pType] = specCfg[pType] or {}
+		if ResourceBars.ApplyGlobalProfile then ResourceBars.ApplyGlobalProfile(pType, specIndex) end
+		specCfg[pType].enabled = true
+		if pType == mainType and pType ~= "HEALTH" then
+			local a = specCfg[pType].anchor or {}
+			if not a.relativeFrame or a.relativeFrame == "" then
+				a.point = "TOP"
+				a.relativePoint = "BOTTOM"
+				a.relativeFrame = frameNameFor("HEALTH")
+				a.x = 0
+				a.y = -2
+				a.autoSpacing = nil
+				a.matchRelativeWidth = true
+			end
+			specCfg[pType].anchor = a
+			prevFrame = frameNameFor(pType)
+		elseif pType ~= "HEALTH" then
+			local a = specCfg[pType].anchor or {}
+			if not a.relativeFrame or a.relativeFrame == "" then
+				a.point = "TOP"
+				a.relativePoint = "BOTTOM"
+				-- Druids: Cat combo points should hang off Energy; others off MAIN. Non-Druids chain.
+				local targetFrame
+				if addon.variables.unitClass == "DRUID" then
+					if pType == "COMBO_POINTS" then
+						targetFrame = frameNameFor("ENERGY")
+					end
+					if not targetFrame or targetFrame == "" then targetFrame = mainFrame end
+				else
+					targetFrame = prevFrame
+				end
+				a.relativeFrame = targetFrame
+				a.x = 0
+				a.y = -2
+				a.autoSpacing = nil
+				a.matchRelativeWidth = true
+			end
+			specCfg[pType].anchor = a
+			if addon.variables.unitClass ~= "DRUID" then prevFrame = frameNameFor(pType) end
+		else
+			prevFrame = frameNameFor(pType)
+		end
+	end
+
+	specCfg._autoEnabled = true
+end
 
 local function toColorComponents(c, fallback)
 	c = c or fallback or {}
@@ -56,7 +134,9 @@ local function ensureSpecCfg(specIndex)
 	addon.db.personalResourceBarSettings = addon.db.personalResourceBarSettings or {}
 	addon.db.personalResourceBarSettings[class] = addon.db.personalResourceBarSettings[class] or {}
 	addon.db.personalResourceBarSettings[class][specIndex] = addon.db.personalResourceBarSettings[class][specIndex] or {}
-	return addon.db.personalResourceBarSettings[class][specIndex]
+	local specCfg = addon.db.personalResourceBarSettings[class][specIndex]
+	maybeAutoEnableBars(specIndex, specCfg)
+	return specCfg
 end
 
 local function refreshSettingsUI()
@@ -1102,7 +1182,11 @@ local function registerEditModeBars()
 					if ResourceBars.SaveGlobalProfile then
 						local ok = ResourceBars.SaveGlobalProfile(barType, addon.variables.unitSpec)
 						if ok then
-							notify((L["SavedGlobalProfile"] or "Saved global profile for %s"):format(titleLabel))
+							if specInfo and specInfo.MAIN == barType then
+								notify(L["SavedGlobalMainProfile"] or "Saved global main profile")
+							else
+								notify((L["SavedGlobalProfile"] or "Saved global profile for %s"):format(titleLabel))
+							end
 						else
 							notify(L["GlobalProfileSaveFailed"] or "Could not save global profile.")
 						end
@@ -1655,6 +1739,16 @@ local function buildSettings()
 						addon.db["resourceBarsHideVehicle"] = val and true or false
 						if ResourceBars.ApplyVisibilityPreference then ResourceBars.ApplyVisibilityPreference("settings") end
 					end,
+					parent = true,
+					parentCheck = function() return addon.db["enableResourceFrame"] == true end,
+					sType = "checkbox",
+				},
+				{
+					var = "resourceBarsAutoEnableAll",
+					text = L["AutoEnableAllBars"] or "Auto-enable bars for new characters",
+					get = function() return addon.db["resourceBarsAutoEnableAll"] end,
+					func = function(val) addon.db["resourceBarsAutoEnableAll"] = val and true or false end,
+					default = false,
 					parent = true,
 					parentCheck = function() return addon.db["enableResourceFrame"] == true end,
 					sType = "checkbox",
