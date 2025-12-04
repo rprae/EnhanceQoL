@@ -409,6 +409,7 @@ globals = {
 	"AcceptGuild",
 	"AcceptLevelGrant",
 	"C_HousingCatalog",
+	"HousingModelPreviewFrame",
 	"AcceptProposal",
 	"AcceptQuest",
 	"AcceptResurrect",
