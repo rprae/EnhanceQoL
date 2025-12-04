@@ -1112,6 +1112,7 @@ local function setCastInfoFromUnit(unit)
 		end
 		return
 	end
+
 	if issecretvalue and ((startTimeMS and issecretvalue(startTimeMS)) or (endTimeMS and issecretvalue(endTimeMS))) then
 		stopCast(unit)
 		return
