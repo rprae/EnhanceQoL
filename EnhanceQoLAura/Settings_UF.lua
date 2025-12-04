@@ -266,6 +266,7 @@ local function buildUnitSettings(unit)
 	local list = {}
 	local function refreshSelf() refresh(unit) end
 	local refresh = refreshSelf
+	local isPlayer = unit == "player"
 
 	list[#list + 1] = { name = L["Frame"] or "Frame", kind = settingType.Collapsible, id = "frame", defaultCollapsed = false }
 
@@ -949,6 +950,41 @@ local function buildUnitSettings(unit)
 		refresh()
 	end, statusDef.enabled ~= false, "status")
 
+	if isPlayer then
+		local ciDef = statusDef.combatIndicator or {}
+		list[#list + 1] = checkbox(L["UFCombatIndicator"] or "Show combat indicator", function()
+			return getValue(unit, { "status", "combatIndicator", "enabled" }, ciDef.enabled ~= false)
+		end, function(val)
+			setValue(unit, { "status", "combatIndicator", "enabled" }, val and true or false)
+			refresh()
+		end, ciDef.enabled ~= false, "status")
+
+		list[#list + 1] = slider(L["UFCombatIndicatorSize"] or "Combat indicator size", 10, 64, 1, function()
+			return getValue(unit, { "status", "combatIndicator", "size" }, ciDef.size or 18)
+		end, function(val)
+			setValue(unit, { "status", "combatIndicator", "size" }, val or ciDef.size or 18)
+			refresh()
+		end, ciDef.size or 18, "status", true)
+
+		list[#list + 1] = slider(L["UFCombatIndicatorOffsetX"] or "Combat indicator X offset", -300, 300, 1, function()
+			return getValue(unit, { "status", "combatIndicator", "offset", "x" }, (ciDef.offset and ciDef.offset.x) or -8)
+		end, function(val)
+			local off = getValue(unit, { "status", "combatIndicator", "offset" }, { x = -8, y = 0 }) or {}
+			off.x = val or -8
+			setValue(unit, { "status", "combatIndicator", "offset" }, off)
+			refresh()
+		end, (ciDef.offset and ciDef.offset.x) or -8, "status", true)
+
+		list[#list + 1] = slider(L["UFCombatIndicatorOffsetY"] or "Combat indicator Y offset", -300, 300, 1, function()
+			return getValue(unit, { "status", "combatIndicator", "offset", "y" }, (ciDef.offset and ciDef.offset.y) or 0)
+		end, function(val)
+			local off = getValue(unit, { "status", "combatIndicator", "offset" }, { x = -8, y = 0 }) or {}
+			off.y = val or 0
+			setValue(unit, { "status", "combatIndicator", "offset" }, off)
+			refresh()
+		end, (ciDef.offset and ciDef.offset.y) or 0, "status", true)
+	end
+
 	list[#list + 1] = checkbox(L["UFShowLevel"] or "Show level", function() return getValue(unit, { "status", "levelEnabled" }, statusDef.levelEnabled ~= false) end, function(val)
 		setValue(unit, { "status", "levelEnabled" }, val and true or false)
 		refresh()
@@ -1245,6 +1281,7 @@ if addon.functions and addon.functions.SettingsCreateCategory then
 				else
 					UF.Refresh()
 				end
+				if UF.StopEventsIfInactive then UF.StopEventsIfInactive() end
 			end,
 		})
 		return def.enabled or false

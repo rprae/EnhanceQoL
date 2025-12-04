@@ -173,6 +173,13 @@ local defaults = {
 			nameOffset = { x = 0, y = 0 },
 			levelOffset = { x = 0, y = 0 },
 			levelEnabled = true,
+			combatIndicator = {
+				enabled = false,
+				size = 18,
+				offset = { x = -8, y = 0 },
+				texture = "Interface\\CharacterFrame\\UI-StateIcon",
+				texCoords = { 0.5, 1, 0, 0.5 }, -- combat icon region
+			},
 		},
 	},
 	target = {
@@ -224,6 +231,7 @@ local blizzardTargetHooked = false
 local castOnUpdateHandlers = {}
 local originalFrameRules = {}
 local totTicker
+local editModeHooked
 
 local function defaultsFor(unit) return defaults[unit] or defaults.player or {} end
 
@@ -1180,6 +1188,28 @@ local function updateStatus(cfg, unit)
 	end
 end
 
+local function updateCombatIndicator(cfg)
+	local st = states[PLAYER_UNIT]
+	if not st or not st.combatIcon or not st.status then return end
+	local scfg = (cfg and cfg.status) or (defaultsFor(PLAYER_UNIT) and defaultsFor(PLAYER_UNIT).status) or {}
+	local ccfg = scfg.combatIndicator or {}
+	if ccfg.enabled == false then
+		st.combatIcon:Hide()
+		return
+	end
+	st.combatIcon:SetTexture(ccfg.texture or "Interface\\CharacterFrame\\UI-StateIcon")
+	local coords = ccfg.texCoords or { 0.5, 1, 0, 0.5 }
+	if coords and #coords >= 4 then st.combatIcon:SetTexCoord(coords[1], coords[2], coords[3], coords[4]) end
+	st.combatIcon:SetSize(ccfg.size or 18, ccfg.size or 18)
+	st.combatIcon:ClearAllPoints()
+	st.combatIcon:SetPoint("TOP", st.status, "TOP", (ccfg.offset and ccfg.offset.x) or -8, (ccfg.offset and ccfg.offset.y) or 0)
+	if (UnitAffectingCombat and UnitAffectingCombat(PLAYER_UNIT)) or addon.EditModeLib:IsInEditMode() then
+		st.combatIcon:Show()
+	else
+		st.combatIcon:Hide()
+	end
+end
+
 local function layoutFrame(cfg, unit)
 	local st = states[unit]
 	if not st or not st.frame then return end
@@ -1328,6 +1358,7 @@ local function ensureFrames(unit)
 	st.powerTextRight = st.powerTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	st.nameText = st.statusTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	st.levelText = st.statusTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	if unit == PLAYER_UNIT then st.combatIcon = st.combatIcon or st.status:CreateTexture(nil, "OVERLAY") end
 
 	if unit == "target" then
 		st.auraContainer = CreateFrame("Frame", nil, st.frame)
@@ -1485,6 +1516,7 @@ local function applyConfig(unit)
 	updateNameAndLevel(cfg, unit)
 	updateHealth(cfg, unit)
 	updatePower(cfg, unit)
+	if unit == PLAYER_UNIT then updateCombatIndicator(cfg) end
 	-- if unit == "target" then hideBlizzardTargetFrame() end
 	if st and st.frame then
 		if st.barGroup then st.barGroup:Show() end
@@ -1532,9 +1564,18 @@ local generalEvents = {
 	"PLAYER_ALIVE",
 	"PLAYER_TARGET_CHANGED",
 	"PLAYER_LOGIN",
+	"PLAYER_REGEN_DISABLED",
+	"PLAYER_REGEN_ENABLED",
 }
 
 local eventFrame
+
+local function anyUFEnabled()
+	local p = ensureDB("player").enabled
+	local t = ensureDB("target").enabled
+	local tt = ensureDB(TARGET_TARGET_UNIT).enabled
+	return p or t or tt
+end
 
 local allowedEventUnit = {
 	["target"] = true,
@@ -1614,6 +1655,7 @@ local function onEvent(self, event, unit, arg1)
 		applyConfig("player")
 		applyConfig("target")
 		updateTargetTargetFrame(totCfg, true)
+		updateCombatIndicator(playerCfg)
 	elseif event == "PLAYER_DEAD" then
 		if states.player and states.player.health then states.player.health:SetValue(0) end
 		updateHealth(playerCfg, "player")
@@ -1621,6 +1663,9 @@ local function onEvent(self, event, unit, arg1)
 		refreshMainPower(PLAYER_UNIT)
 		updateHealth(playerCfg, "player")
 		updatePower(playerCfg, "player")
+		updateCombatIndicator(playerCfg)
+	elseif event == "PLAYER_REGEN_DISABLED" or event == "PLAYER_REGEN_ENABLED" then
+		updateCombatIndicator(playerCfg)
 	elseif event == "PLAYER_TARGET_CHANGED" then
 		local unitToken = TARGET_UNIT
 		local st = states[unitToken]
@@ -1753,6 +1798,12 @@ local function onEvent(self, event, unit, arg1)
 end
 
 local function ensureEventHandling()
+	if not anyUFEnabled() then
+		if eventFrame and eventFrame.UnregisterAllEvents then eventFrame:UnregisterAllEvents() end
+		if eventFrame then eventFrame:SetScript("OnEvent", nil) end
+		eventFrame = nil
+		return
+	 end
 	if eventFrame then return end
 	eventFrame = CreateFrame("Frame")
 	for _, evt in ipairs(unitEvents) do
@@ -1762,6 +1813,11 @@ local function ensureEventHandling()
 		eventFrame:RegisterEvent(evt)
 	end
 	eventFrame:SetScript("OnEvent", onEvent)
+	if not editModeHooked and EditModeManagerFrame then
+		editModeHooked = true
+		EditModeManagerFrame:HookScript("OnShow", function() updateCombatIndicator(states[PLAYER_UNIT] and states[PLAYER_UNIT].cfg or ensureDB(PLAYER_UNIT)) end)
+		EditModeManagerFrame:HookScript("OnHide", function() updateCombatIndicator(states[PLAYER_UNIT] and states[PLAYER_UNIT].cfg or ensureDB(PLAYER_UNIT)) end)
+	end
 end
 
 function UF.Enable()
@@ -1784,10 +1840,12 @@ function UF.Disable()
 	addon.variables.requireReload = true
 	if addon.functions and addon.functions.checkReloadFrame then addon.functions.checkReloadFrame() end
 	if _G.PlayerFrame and not InCombatLockdown() then _G.PlayerFrame:Show() end
+	ensureEventHandling()
 end
 
 function UF.Refresh()
 	ensureEventHandling()
+	if not anyUFEnabled() then return end
 	applyConfig("player")
 	applyConfig("target")
 	local targetCfg = ensureDB("target")
@@ -1801,6 +1859,7 @@ end
 
 function UF.RefreshUnit(unit)
 	ensureEventHandling()
+	if not anyUFEnabled() then return end
 	if unit == TARGET_TARGET_UNIT then
 		local totCfg = ensureDB(TARGET_TARGET_UNIT)
 		updateTargetTargetFrame(totCfg, true)
@@ -1842,4 +1901,5 @@ UF.GetDefaults = function(unit) return defaults[unit] or defaults.player end
 UF.EnsureDB = ensureDB
 UF.GetConfig = ensureDB
 UF.EnsureFrames = ensureFrames
+UF.StopEventsIfInactive = function() ensureEventHandling() end
 return UF
