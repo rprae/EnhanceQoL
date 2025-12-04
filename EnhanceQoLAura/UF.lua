@@ -1554,6 +1554,12 @@ local function ensureToTTicker()
 		local cfg = st and st.cfg
 		if not cfg or not cfg.enabled then return end
 		if not UnitExists(TARGET_TARGET_UNIT) or not st.frame or not st.frame:IsShown() then return end
+		local _, powerToken = UnitPowerType(TARGET_TARGET_UNIT)
+		if st.power and powerToken and powerToken ~= st._lastPowerToken then
+			if st.power.SetStatusBarDesaturated then st.power:SetStatusBarDesaturated((cfg.power or {}).useCustomColor == true) end
+			configureSpecialTexture(st.power, powerToken, (cfg.power or {}).texture, cfg.power)
+			st._lastPowerToken = powerToken
+		end
 		updateHealth(cfg, TARGET_TARGET_UNIT)
 		updatePower(cfg, TARGET_TARGET_UNIT)
 	end)
@@ -1582,7 +1588,11 @@ local function updateTargetTargetFrame(cfg, forceApply)
 			local _, powerToken = getMainPower(TARGET_TARGET_UNIT)
 			updateNameAndLevel(cfg, TARGET_TARGET_UNIT)
 			updateHealth(cfg, TARGET_TARGET_UNIT)
-			if st.power then configureSpecialTexture(st.power, powerToken, (cfg.power or {}).texture, cfg.power) end
+			if st.power then
+				if st.power.SetStatusBarDesaturated then st.power:SetStatusBarDesaturated((cfg.power or {}).useCustomColor == true) end
+				configureSpecialTexture(st.power, powerToken, (cfg.power or {}).texture, cfg.power)
+				st._lastPowerToken = powerToken
+			end
 			updatePower(cfg, TARGET_TARGET_UNIT)
 		end
 	else

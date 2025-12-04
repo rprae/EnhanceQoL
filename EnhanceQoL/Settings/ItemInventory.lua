@@ -1847,6 +1847,12 @@ data = {
 		desc = L["confirmSocketReplaceDesc"],
 		func = function(value) addon.db["confirmSocketReplace"] = value end,
 	},
+	{
+		var = "confirmHighCostItem",
+		text = L["confirmHighCostItem"],
+		desc = L["confirmHighCostItemDesc"],
+		func = function(value) addon.db["confirmHighCostItem"] = value end,
+	},
 }
 
 table.sort(data, function(a, b)

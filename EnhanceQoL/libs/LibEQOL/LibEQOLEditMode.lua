@@ -810,7 +810,8 @@ local function buildMultiDropdown()
 		self.hideSummary = data.hideSummary or data.noSummary or data.summary == false
 
 		self.Label:SetText(data.name)
-		self.Dropdown:SetDefaultText(CUSTOM)
+		-- Hide the "Custom" placeholder when no selection is made
+		self.Dropdown:SetDefaultText("")
 
 		if data.useOldStyle and self.OldDropdown then
 			self.Control:Hide()
@@ -2495,6 +2496,9 @@ local function handleSelectionMouseDown(self)
 	hideOverlapMenu()
 	local cx, cy = getCursorPositionUI()
 	local hits = collectOverlappingSelections(cx, cy)
+	if #hits <= 1 and self.isSelected then
+		return
+	end
 	if #hits > 1 then
 		selectSelection(self)
 		showOverlapMenu(hits, cx, cy, self)

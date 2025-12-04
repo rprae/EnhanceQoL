@@ -11,6 +11,9 @@ addon.variables.NewVersionTableEQOL = {
 	["EQOL_modifyXPRepBarScale"] = true,
 	["EQOL_autoCancelDruidFlightForm"] = true,
 
+	["EQOL_Tooltip"] = true,
+	["EQOL_TooltipHousingAutoPreview"] = true,
+
 	["EQOL_ActionBar"] = true,
 	["EQOL_actionBarHideBorders"] = true,
 	["EQOL_actionBarHideAssistedRotation"] = true,
