@@ -7,12 +7,7 @@
 Changing minimap Button behaviour
 
 - Leftclick now opens the new option menu
-- Rightclick has an option to open the old Legacy Settings until everything is transfered
-
-### Options Update
-
-Changed everything which will be part of midnight to the Blizzard Option menu
-
+- Rightclick has an option to open the old Legacy Settings until midnight comes out (Legacy will likely be gone in midnight)
 ### ✨ Added
 
 - Shortening per _Currency_ in _Currency Stream_ added
@@ -22,13 +17,20 @@ Changed everything which will be part of midnight to the Blizzard Option menu
   - Set a keybind to cycle through all world markers
   - Set another keybind to clear all world markers
 - Hide Action Button borders
+- Square minimap: new layout re-anchor option (on by default) to reposition minimap, zoom buttons, addon compartment, and difficulty indicator for the square shape
 - Action Bars: Option to hide the Assisted Combat Rotation overlay/glow on buttons
 - Automatically open the preview for player housing items
 - _Cypher of Relocation_ and two Warlords teleports that were missing
+- 4 Borders, 4 Statusbar textures to sharedmedia
+- Unit Frames (Player/Target/ToT/Pet/Focus/Boss)
+  - Custom frames with Edit Mode controls for size, strata/level, borders, health/power bars (colors, fonts, textures, text formats), cast bars, and status line options
+  - Target auras get anchor/offset controls and an optional separate debuff anchor; boss frames have container anchor, growth, and spacing
+  - New “Settings” group adds a copy dropdown + confirmation popup to duplicate another frame’s settings while keeping your current position/enable state
 
 ### 🔄 Changed
 
 - _Show leader icon on raid style party frames_ now also shows leader and assist in raids
+Changed everything which will be part of midnight to the Blizzard Option menu
 
 ### ❌ Removed
 
