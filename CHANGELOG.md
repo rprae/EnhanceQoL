@@ -22,6 +22,7 @@ Changing minimap Button behaviour
 - Automatically open the preview for player housing items
 - _Cypher of Relocation_ and two Warlords teleports that were missing
 - 4 Borders, 4 Statusbar textures to sharedmedia
+- Minimap Button Sink: configurable flyout direction (auto or specific edge/corner) with screen-safe fallback
 - Unit Frames (Player/Target/ToT/Pet/Focus/Boss)
   - Custom frames with Edit Mode controls for size, strata/level, borders, health/power bars (colors, fonts, textures, text formats), cast bars, and status line options
   - Target auras get anchor/offset controls and an optional separate debuff anchor; boss frames have container anchor, growth, and spacing

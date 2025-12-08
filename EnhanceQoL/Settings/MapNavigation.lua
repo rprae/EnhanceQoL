@@ -197,6 +197,61 @@ data = {
 				notify = "enableMinimapButtonBin",
 			},
 			{
+				var = "buttonSinkAnchorPreference",
+				text = L["minimapButtonBinAnchor"],
+				desc = L["minimapButtonBinAnchorDesc"],
+				list = {
+					AUTO = L["minimapButtonBinAnchor_Auto"],
+					TOP = L["minimapButtonBinAnchor_Top"],
+					TOPLEFT = L["minimapButtonBinAnchor_TopLeft"],
+					TOPRIGHT = L["minimapButtonBinAnchor_TopRight"],
+					LEFT = L["minimapButtonBinAnchor_Left"],
+					RIGHT = L["minimapButtonBinAnchor_Right"],
+					BOTTOMLEFT = L["minimapButtonBinAnchor_BottomLeft"],
+					BOTTOMRIGHT = L["minimapButtonBinAnchor_BottomRight"],
+					BOTTOM = L["minimapButtonBinAnchor_Bottom"],
+				},
+				order = {
+					"AUTO",
+					"TOPLEFT",
+					"TOP",
+					"TOPRIGHT",
+					"LEFT",
+					"RIGHT",
+					"BOTTOMLEFT",
+					"BOTTOM",
+					"BOTTOMRIGHT",
+				},
+				default = "AUTO",
+				get = function() return addon.db and addon.db.buttonSinkAnchorPreference or "AUTO" end,
+				set = function(value)
+					local valid = {
+						AUTO = true,
+						TOP = true,
+						TOPLEFT = true,
+						TOPRIGHT = true,
+						LEFT = true,
+						RIGHT = true,
+						BOTTOMLEFT = true,
+						BOTTOMRIGHT = true,
+						BOTTOM = true,
+					}
+					if not valid[value] then value = "AUTO" end
+					addon.db["buttonSinkAnchorPreference"] = value
+				end,
+				parent = true,
+				parentCheck = function()
+					return addon.SettingsLayout.elements["enableMinimapButtonBin"]
+						and addon.SettingsLayout.elements["enableMinimapButtonBin"].setting
+						and addon.SettingsLayout.elements["enableMinimapButtonBin"].setting:GetValue() == true
+						and addon.SettingsLayout.elements["useMinimapButtonBinIcon"]
+						and addon.SettingsLayout.elements["useMinimapButtonBinIcon"].setting
+						and addon.SettingsLayout.elements["useMinimapButtonBinIcon"].setting:GetValue() == true
+				end,
+				notify = "enableMinimapButtonBin",
+				sType = "dropdown",
+			},
+			{
 				var = "useMinimapButtonBinMouseover",
 				text = L["useMinimapButtonBinMouseover"],
 				func = function(key)
@@ -309,6 +364,13 @@ local function isMinimapButtonBinEnabled()
 	return addon.SettingsLayout.elements["enableMinimapButtonBin"]
 		and addon.SettingsLayout.elements["enableMinimapButtonBin"].setting
 		and addon.SettingsLayout.elements["enableMinimapButtonBin"].setting:GetValue() == true
+end
+
+local function isButtonSinkIconModeEnabled()
+	return isMinimapButtonBinEnabled()
+		and addon.SettingsLayout.elements["useMinimapButtonBinIcon"]
+		and addon.SettingsLayout.elements["useMinimapButtonBinIcon"].setting
+		and addon.SettingsLayout.elements["useMinimapButtonBinIcon"].setting:GetValue() == true
 end
 
 local function getIgnoreState(value)
@@ -644,9 +706,7 @@ addon.functions.SettingsCreateCheckboxes(cMapNav, data)
 ----- REGION END
 
 local function applySquareMinimapLayout(self, underneath)
-	if not addon.db or not addon.db.enableSquareMinimap or not addon.db.enableSquareMinimapLayout then
-		return
-	end
+	if not addon.db or not addon.db.enableSquareMinimap or not addon.db.enableSquareMinimapLayout then return end
 	if not Minimap or not MinimapCluster or not Minimap.ZoomIn or not Minimap.ZoomOut then return end
 
 	local addonCompartment = _G.AddonCompartmentFrame
@@ -697,9 +757,7 @@ function addon.functions.applySquareMinimapLayout(forceUnderneath)
 	end
 end
 
-function addon.functions.initMapNav()
-	addon.functions.applySquareMinimapLayout()
-end
+function addon.functions.initMapNav() addon.functions.applySquareMinimapLayout() end
 
 local eventHandlers = {}
 
