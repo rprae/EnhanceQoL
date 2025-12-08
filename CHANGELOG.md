@@ -40,6 +40,7 @@ Changed everything which will be part of midnight to the Blizzard Option menu
 ### 🐛 Fixed
 
 - _Enhance Ignore List_ Strata was to high
+- Range coloring on action bars now clears correctly when your bar switches (mounts/stance/override)
 
 ---
 
