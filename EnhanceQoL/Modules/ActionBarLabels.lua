@@ -415,12 +415,52 @@ hooksecurefunc("ActionButton_UpdateRangeIndicator", function(self, checksRange, 
 	end
 end)
 
+-- Refresh range overlays when the bar changes (mount/vehicle/override/stance swaps)
+do
+	local refreshPending = false
+	local function RequestRangeRefresh()
+		if refreshPending then return end
+		if not addon.db or not addon.db.actionBarFullRangeColoring then return end
+		refreshPending = true
+		C_Timer.After(0, function()
+			refreshPending = false
+			if Labels.RefreshAllRangeOverlays then Labels.RefreshAllRangeOverlays() end
+		end)
+	end
+
+	local events = {
+		"UPDATE_OVERRIDE_ACTIONBAR",
+		"UPDATE_VEHICLE_ACTIONBAR",
+		"UPDATE_BONUS_ACTIONBAR",
+		"UPDATE_SHAPESHIFT_FORM",
+		"PLAYER_MOUNT_DISPLAY_CHANGED",
+	}
+	local rangeFrame
+	local function EnsureRangeFrame()
+		if rangeFrame then return rangeFrame end
+		rangeFrame = CreateFrame("Frame")
+		rangeFrame:SetScript("OnEvent", RequestRangeRefresh)
+		return rangeFrame
+	end
+
+	function Labels.UpdateRangeOverlayEvents()
+		local frame = EnsureRangeFrame()
+		frame:UnregisterAllEvents()
+		if addon.db and addon.db.actionBarFullRangeColoring then
+			for _, evt in ipairs(events) do
+				frame:RegisterEvent(evt)
+			end
+		end
+	end
+end
+
 local function OnPlayerLogin(self, event)
 	if event ~= "PLAYER_LOGIN" then return end
 	if Labels.RefreshAllMacroNameVisibility then Labels.RefreshAllMacroNameVisibility() end
 	if Labels.RefreshAllHotkeyStyles then Labels.RefreshAllHotkeyStyles() end
 	if Labels.RefreshAllRangeOverlays then Labels.RefreshAllRangeOverlays() end
 	if Labels.RefreshActionButtonBorders then Labels.RefreshActionButtonBorders() end
+	if Labels.UpdateRangeOverlayEvents then Labels.UpdateRangeOverlayEvents() end
 	if self then
 		self:UnregisterEvent("PLAYER_LOGIN")
 		self:SetScript("OnEvent", nil)

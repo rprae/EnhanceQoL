@@ -405,6 +405,7 @@ local function createLabelControls(category)
 		desc = L["fullButtonRangeColoringDesc"],
 		func = function(value)
 			addon.db["actionBarFullRangeColoring"] = value
+			if ActionBarLabels and ActionBarLabels.UpdateRangeOverlayEvents then ActionBarLabels.UpdateRangeOverlayEvents() end
 			if ActionBarLabels and ActionBarLabels.RefreshAllRangeOverlays then ActionBarLabels.RefreshAllRangeOverlays() end
 		end,
 	})

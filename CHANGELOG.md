@@ -23,6 +23,7 @@ Changing minimap Button behaviour
 - _Cypher of Relocation_ and two Warlords teleports that were missing
 - 4 Borders, 4 Statusbar textures to sharedmedia
 - Cooldown Manager: per-viewer "Show when" multi-select (in combat, while mounted/not mounted, on mouseover) for Essential/Utility/Buff Bar/Buff Icon cooldown viewers, with edit-mode-friendly fading
+- Minimap Button Sink: configurable flyout direction (auto or specific edge/corner) with screen-safe fallback
 - Unit Frames (Player/Target/ToT/Pet/Focus/Boss)
   - Custom frames with Edit Mode controls for size, strata/level, borders, health/power bars (colors, fonts, textures, text formats), cast bars, and status line options
   - Target auras get anchor/offset controls and an optional separate debuff anchor; boss frames have container anchor, growth, and spacing
@@ -40,6 +41,7 @@ Changed everything which will be part of midnight to the Blizzard Option menu
 ### 🐛 Fixed
 
 - _Enhance Ignore List_ Strata was to high
+- Range coloring on action bars now clears correctly when your bar switches (mounts/stance/override)
 
 ---
 

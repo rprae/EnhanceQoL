@@ -1374,7 +1374,6 @@ end
 addon.functions.EnsureCooldownViewerEditCallbacks = EnsureCooldownViewerEditCallbacks
 
 local hookedButtons = {}
-local EnsureCooldownViewerWatcher -- forward declaration
 
 -- Keep action bars visible while interacting with SpellFlyout
 local EQOL_LastMouseoverBar
@@ -2537,6 +2536,7 @@ local function initUI()
 	MigrateLegacyVisibilityFlags()
 	addon.functions.InitDBValue("enableMinimapButtonBin", false)
 	addon.functions.InitDBValue("buttonsink", {})
+	addon.functions.InitDBValue("buttonSinkAnchorPreference", "AUTO")
 	addon.functions.InitDBValue("minimapButtonBinColumns", DEFAULT_BUTTON_SINK_COLUMNS)
 	addon.functions.InitDBValue("minimapButtonBinHideBackground", false)
 	addon.functions.InitDBValue("minimapButtonBinHideBorder", false)
@@ -2798,6 +2798,16 @@ local function initUI()
 
 	local ICON_SIZE = 32
 	local PADDING = 4
+	local BUTTON_SINK_ANCHORS = {
+		TOPLEFT = { bag = "BOTTOMRIGHT", button = "TOPLEFT" },
+		TOPRIGHT = { bag = "BOTTOMLEFT", button = "TOPRIGHT" },
+		BOTTOMLEFT = { bag = "TOPRIGHT", button = "BOTTOMLEFT" },
+		BOTTOMRIGHT = { bag = "TOPLEFT", button = "BOTTOMRIGHT" },
+		TOP = { bag = "BOTTOM", button = "TOP" },
+		BOTTOM = { bag = "TOP", button = "BOTTOM" },
+		LEFT = { bag = "RIGHT", button = "LEFT" },
+		RIGHT = { bag = "LEFT", button = "RIGHT" },
+	}
 	addon.variables.bagButtons = {}
 	addon.variables.bagButtonState = {}
 	addon.variables.bagButtonPoint = {}
@@ -2825,12 +2835,12 @@ local function initUI()
 	local function positionBagFrame(bagFrame, anchorButton)
 		bagFrame:ClearAllPoints()
 
-		-- Zuerst berechnen wir die absoluten Bildschirmkoordinaten des Buttons.
-		-- Das geht am einfachsten über 'GetLeft()', 'GetRight()', 'GetTop()', 'GetBottom()'.
 		local bLeft = anchorButton:GetLeft() or 0
 		local bRight = anchorButton:GetRight() or 0
 		local bTop = anchorButton:GetTop() or 0
 		local bBottom = anchorButton:GetBottom() or 0
+		local bCenterX = (bLeft + bRight) / 2
+		local bCenterY = (bTop + bBottom) / 2
 
 		local screenWidth = GetScreenWidth()
 		local screenHeight = GetScreenHeight()
@@ -2838,31 +2848,75 @@ local function initUI()
 		local bagWidth = bagFrame:GetWidth()
 		local bagHeight = bagFrame:GetHeight()
 
-		-- Standard-Anker: Wir wollen z.B. "BOTTOMRIGHT" der Bag an "TOPLEFT" des Buttons
-		-- Also Bag rechts vom Button (und Bag unten am Button) – das können wir anpassen
-		local pointOnBag = "BOTTOMRIGHT"
-		local pointOnButton = "TOPLEFT"
-
-		-- Prüfen, ob wir vertikal oben rausrennen
-		-- Falls bTop + bagHeight zu hoch ist, docken wir uns an der "BOTTOMLEFT" des Buttons an
-		-- und die Bag an "TOPRIGHT"
-		if (bTop + bagHeight) > screenHeight then
-			pointOnBag = "TOPRIGHT"
-			pointOnButton = "BOTTOMLEFT"
+		local preferredAnchor = "AUTO"
+		if bagFrame == addon.variables.buttonSink and addon.db and type(addon.db.buttonSinkAnchorPreference) == "string" then
+			preferredAnchor = string.upper(addon.db.buttonSinkAnchorPreference)
 		end
 
-		-- Prüfen, ob wir horizontal links rausrennen (z. B. der Button ist links am Bildschirm
-		-- und bagWidth würde drüber hinausragen)
-		if (bLeft - bagWidth) < 0 then
-			-- Dann wollen wir lieber rechts daneben andocken
-			-- Also "BOTTOMLEFT" an "TOPRIGHT"
-			if pointOnBag == "BOTTOMRIGHT" then
-				pointOnBag = "BOTTOMLEFT"
-				pointOnButton = "TOPRIGHT"
-			else
-				-- oder "TOPLEFT" an "BOTTOMRIGHT"
-				pointOnBag = "TOPLEFT"
-				pointOnButton = "BOTTOMRIGHT"
+		local function getButtonPointCoords(point)
+			if point == "TOPLEFT" then return bLeft, bTop end
+			if point == "TOPRIGHT" then return bRight, bTop end
+			if point == "BOTTOMLEFT" then return bLeft, bBottom end
+			if point == "BOTTOMRIGHT" then return bRight, bBottom end
+			if point == "TOP" then return bCenterX, bTop end
+			if point == "BOTTOM" then return bCenterX, bBottom end
+			if point == "LEFT" then return bLeft, bCenterY end
+			if point == "RIGHT" then return bRight, bCenterY end
+		end
+
+		local function calculateBounds(bagPoint, btnPoint)
+			local anchorX, anchorY = getButtonPointCoords(btnPoint)
+			if not anchorX then return end
+			if bagPoint == "TOPLEFT" then return anchorX, anchorX + bagWidth, anchorY, anchorY - bagHeight end
+			if bagPoint == "TOPRIGHT" then return anchorX - bagWidth, anchorX, anchorY, anchorY - bagHeight end
+			if bagPoint == "BOTTOMLEFT" then return anchorX, anchorX + bagWidth, anchorY + bagHeight, anchorY end
+			if bagPoint == "BOTTOMRIGHT" then return anchorX - bagWidth, anchorX, anchorY + bagHeight, anchorY end
+			if bagPoint == "TOP" then
+				return anchorX - bagWidth / 2, anchorX + bagWidth / 2, anchorY, anchorY - bagHeight
+			end
+			if bagPoint == "BOTTOM" then
+				return anchorX - bagWidth / 2, anchorX + bagWidth / 2, anchorY + bagHeight, anchorY
+			end
+			if bagPoint == "LEFT" then
+				return anchorX, anchorX + bagWidth, anchorY + bagHeight / 2, anchorY - bagHeight / 2
+			end
+			if bagPoint == "RIGHT" then
+				return anchorX - bagWidth, anchorX, anchorY + bagHeight / 2, anchorY - bagHeight / 2
+			end
+		end
+
+		local function fitsOnScreen(left, right, top, bottom)
+			if not left then return false end
+			return left >= 0 and right <= screenWidth and top <= screenHeight and bottom >= 0
+		end
+
+		local pointOnBag, pointOnButton
+		local anchorConfig = BUTTON_SINK_ANCHORS[preferredAnchor]
+		if anchorConfig then
+			local left, right, top, bottom = calculateBounds(anchorConfig.bag, anchorConfig.button)
+			if fitsOnScreen(left, right, top, bottom) then
+				pointOnBag = anchorConfig.bag
+				pointOnButton = anchorConfig.button
+			end
+		end
+
+		if not pointOnBag or not pointOnButton then
+			pointOnBag = "BOTTOMRIGHT"
+			pointOnButton = "TOPLEFT"
+
+			if (bTop + bagHeight) > screenHeight then
+				pointOnBag = "TOPRIGHT"
+				pointOnButton = "BOTTOMLEFT"
+			end
+
+			if (bLeft - bagWidth) < 0 then
+				if pointOnBag == "BOTTOMRIGHT" then
+					pointOnBag = "BOTTOMLEFT"
+					pointOnButton = "TOPRIGHT"
+				else
+					pointOnBag = "TOPLEFT"
+					pointOnButton = "BOTTOMRIGHT"
+				end
 			end
 		end
 
