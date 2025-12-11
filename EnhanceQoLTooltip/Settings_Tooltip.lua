@@ -153,34 +153,6 @@ data = {
 		},
 	},
 	{
-		var = "TooltipShowItemIcon",
-		text = L["TooltipShowItemIcon"],
-		func = function(v) addon.db["TooltipShowItemIcon"] = v end,
-		default = false,
-		type = Settings.VarType.Boolean,
-		children = {
-
-			{
-				var = "TooltipItemIconSize",
-				text = L["TooltipItemIconSize"],
-				get = function() return addon.db and addon.db["TooltipItemIconSize"] or 16 end,
-				set = function(v) addon.db["TooltipItemIconSize"] = v end,
-				min = 10,
-				max = 30,
-				step = 1,
-				default = 20,
-				sType = "slider",
-				parent = true,
-				parentCheck = function()
-					return addon.SettingsLayout.elements["TooltipShowItemIcon"]
-						and addon.SettingsLayout.elements["TooltipShowItemIcon"].setting
-						and addon.SettingsLayout.elements["TooltipShowItemIcon"].setting:GetValue() == true
-				end,
-				element = addon.SettingsLayout.elements["TooltipShowItemIcon"] and addon.SettingsLayout.elements["TooltipShowItemIcon"].element,
-			},
-		},
-	},
-	{
 		var = "TooltipShowTempEnchant",
 		text = L["TooltipShowTempEnchant"],
 		desc = L["TooltipShowTempEnchantDesc"],
@@ -453,62 +425,6 @@ data = {
 				colorizeLabel = true,
 				sType = "colorpicker",
 				parentSection = sectionUnit,
-			},
-		},
-	},
-	{
-		var = "TooltipHideFaction",
-		text = L["TooltipHideFaction"],
-		func = function(v) addon.db["TooltipHideFaction"] = v end,
-		default = false,
-		type = Settings.VarType.Boolean,
-	},
-	{
-		var = "TooltipHidePVP",
-		text = L["TooltipHidePVP"],
-		func = function(v) addon.db["TooltipHidePVP"] = v end,
-		default = false,
-		type = Settings.VarType.Boolean,
-	},
-	{
-		var = "TooltipShowGuildRank",
-		text = L["TooltipShowGuildRank"],
-		func = function(v) addon.db["TooltipShowGuildRank"] = v end,
-		default = false,
-		type = Settings.VarType.Boolean,
-		children = {
-			{
-				var = "TooltipGuildRankColor",
-				text = L["TooltipGuildRankColor"],
-				parent = true,
-				parentCheck = function()
-					return addon.SettingsLayout.elements["TooltipShowGuildRank"]
-						and addon.SettingsLayout.elements["TooltipShowGuildRank"].setting
-						and addon.SettingsLayout.elements["TooltipShowGuildRank"].setting:GetValue() == true
-				end,
-				colorizeLabel = true,
-				sType = "colorpicker",
-			},
-		},
-	},
-	{
-		var = "TooltipColorGuildName",
-		text = L["TooltipColorGuildName"],
-		func = function(v) addon.db["TooltipColorGuildName"] = v end,
-		default = false,
-		type = Settings.VarType.Boolean,
-		children = {
-			{
-				var = "TooltipGuildNameColor",
-				text = L["TooltipGuildNameColor"],
-				parent = true,
-				parentCheck = function()
-					return addon.SettingsLayout.elements["TooltipColorGuildName"]
-						and addon.SettingsLayout.elements["TooltipColorGuildName"].setting
-						and addon.SettingsLayout.elements["TooltipColorGuildName"].setting:GetValue() == true
-				end,
-				colorizeLabel = true,
-				sType = "colorpicker",
 			},
 		},
 	},
