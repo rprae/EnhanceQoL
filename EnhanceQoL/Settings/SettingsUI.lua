@@ -147,9 +147,7 @@ end
 -- Scroll Dropdown
 ---------------------------------------------------------
 function addon.functions.SettingsCreateScrollDropdown(cat, cbData)
-	if not SettingsLib.CreateScrollDropdown then
-		return addon.functions.SettingsCreateDropdown(cat, cbData)
-	end
+	if not SettingsLib.CreateScrollDropdown then return addon.functions.SettingsCreateDropdown(cat, cbData) end
 
 	local key = cbData.var or cbData.key
 	local initializer, setting = SettingsLib:CreateScrollDropdown(cat, {
@@ -332,19 +330,19 @@ function addon.functions.SettingsCreateColorPicker(cat, cbData)
 		getColor = function(key)
 			local db = addon.db[cbData.var]
 			if cbData.subvar and db then db = db[cbData.subvar] end
-			local col = db or { r = 0, g = 0, b = 0 }
-			return col.r or 0, col.g or 0, col.b or 0
+			local col = db or { r = 0, g = 0, b = 0, a = 1 }
+			return col.r or 0, col.g or 0, col.b or 0, col.a or 1
 		end,
-		setColor = function(key, r, g, b)
+		setColor = function(key, r, g, b, a)
 			addon.db[cbData.var] = addon.db[cbData.var] or {}
 			if cbData.subvar then
-				addon.db[cbData.var][cbData.subvar] = { r = r, g = g, b = b }
+				addon.db[cbData.var][cbData.subvar] = { r = r, g = g, b = b, a = a }
 			else
-				addon.db[cbData.var] = { r = r, g = g, b = b }
+				addon.db[cbData.var] = { r = r, g = g, b = b, a = a }
 			end
-			if cbData.callback then cbData.callback(r, g, b, 1) end
+			if cbData.callback then cbData.callback(r, g, b, a) end
 		end,
-		getDefaultColor = function() return 1, 1, 1 end,
+		getDefaultColor = function() return 1, 1, 1, 1 end,
 		parent = cbData.element,
 		parentCheck = cbData.parentCheck,
 		searchtags = cbData.searchtags,
@@ -352,6 +350,7 @@ function addon.functions.SettingsCreateColorPicker(cat, cbData)
 		parentSection = cbData.parentSection,
 		prefix = prefix,
 		colorizeLabel = cbData.colorizeLabel,
+		hasOpacity = cbData.hasOpacity,
 	})
 
 	addon.SettingsLayout = addon.SettingsLayout or {}

@@ -109,9 +109,7 @@ end
 
 local function clearDropdownSelection(var)
 	local entry = addon.SettingsLayout.elements and addon.SettingsLayout.elements[var]
-	if entry and entry.setting then
-		entry.setting:SetValue("")
-	end
+	if entry and entry.setting then entry.setting:SetValue("") end
 end
 
 local function showAddPopup(dialogKey, prompt, listKey)
@@ -157,9 +155,7 @@ local function showRemovePopup(dialogKey, prompt, listKey, label, id)
 			preferredIndex = 3,
 		}
 	StaticPopupDialogs[dialogKey].text = prompt
-	StaticPopupDialogs[dialogKey].OnAccept = function(_, data)
-		removeItemFromList(listKey, data)
-	end
+	StaticPopupDialogs[dialogKey].OnAccept = function(_, data) removeItemFromList(listKey, data) end
 
 	StaticPopup_Show(dialogKey, label, nil, id)
 end
@@ -507,7 +503,7 @@ addon.functions.SettingsCreateCheckboxes(cVendor, {
 			refreshSellMarks()
 			refreshDestroyButton()
 		end,
-		
+
 		default = false,
 		children = destroyChildren,
 	},

@@ -36,6 +36,7 @@ exclude_files = {
 	".git/**",
 	"EnhanceQoL/libs/LibEQOL/**",
 	"News/**",
+	"scripts/**",
 }
 ignore = {
 	"11./SLASH_.*", -- Setting an undefined (Slash handler) global variable

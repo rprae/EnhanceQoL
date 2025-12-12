@@ -2657,34 +2657,34 @@ local function initUI()
 
 		local f = addon.general.squareMinimapBorderFrame
 		local size = (addon.db and addon.db.squareMinimapBorderSize) or 1
-		local col = (addon.db and addon.db.squareMinimapBorderColor) or { r = 0, g = 0, b = 0 }
+		local col = (addon.db and addon.db.squareMinimapBorderColor) or { r = 0, g = 0, b = 0, a = 1 }
 
-		local r, g, b = col.r or 0, col.g or 0, col.b or 0
+		local r, g, b, a = col.r or 0, col.g or 0, col.b or 0, col.a or 1
 
 		-- Top
 		f.tTop:ClearAllPoints()
 		f.tTop:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
 		f.tTop:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, 0)
 		f.tTop:SetHeight(size)
-		f.tTop:SetColorTexture(r, g, b, 1)
+		f.tTop:SetColorTexture(r, g, b, a)
 		-- Bottom
 		f.tBottom:ClearAllPoints()
 		f.tBottom:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 0, 0)
 		f.tBottom:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
 		f.tBottom:SetHeight(size)
-		f.tBottom:SetColorTexture(r, g, b, 1)
+		f.tBottom:SetColorTexture(r, g, b, a)
 		-- Left
 		f.tLeft:ClearAllPoints()
 		f.tLeft:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
 		f.tLeft:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 0, 0)
 		f.tLeft:SetWidth(size)
-		f.tLeft:SetColorTexture(r, g, b, 1)
+		f.tLeft:SetColorTexture(r, g, b, a)
 		-- Right
 		f.tRight:ClearAllPoints()
 		f.tRight:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, 0)
 		f.tRight:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
 		f.tRight:SetWidth(size)
-		f.tRight:SetColorTexture(r, g, b, 1)
+		f.tRight:SetColorTexture(r, g, b, a)
 
 		if enableBorder and isSquare then
 			f:Show()

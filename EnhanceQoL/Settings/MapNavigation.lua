@@ -107,6 +107,7 @@ local data = {
 						and addon.SettingsLayout.elements["enableSquareMinimap"].setting:GetValue() == true
 				end,
 				parent = true,
+				hasOpacity = true,
 				default = false,
 				sType = "colorpicker",
 				notify = "enableSquareMinimap",
@@ -585,6 +586,7 @@ data = {
 			{
 				var = "instanceDifficultyColors",
 				subvar = "LFR",
+				hasOpacity = true,
 				text = _G["PLAYER_DIFFICULTY3"],
 				parentCheck = function()
 					return addon.SettingsLayout.elements["instanceDifficultyUseColors"]
@@ -604,6 +606,7 @@ data = {
 			{
 				var = "instanceDifficultyColors",
 				subvar = "NM",
+				hasOpacity = true,
 				text = _G["PLAYER_DIFFICULTY1"],
 				parentCheck = function()
 					return addon.SettingsLayout.elements["instanceDifficultyUseColors"]
@@ -623,6 +626,7 @@ data = {
 			{
 				var = "instanceDifficultyColors",
 				subvar = "HC",
+				hasOpacity = true,
 				text = _G["PLAYER_DIFFICULTY2"],
 				parentCheck = function()
 					return addon.SettingsLayout.elements["instanceDifficultyUseColors"]
@@ -642,6 +646,7 @@ data = {
 			{
 				var = "instanceDifficultyColors",
 				subvar = "M",
+				hasOpacity = true,
 				text = _G["PLAYER_DIFFICULTY6"],
 				parentCheck = function()
 					return addon.SettingsLayout.elements["instanceDifficultyUseColors"]
@@ -661,6 +666,7 @@ data = {
 			{
 				var = "instanceDifficultyColors",
 				subvar = "MPLUS",
+				hasOpacity = true,
 				text = _G["PLAYER_DIFFICULTY_MYTHIC_PLUS"],
 				parentCheck = function()
 					return addon.SettingsLayout.elements["instanceDifficultyUseColors"]
@@ -680,6 +686,7 @@ data = {
 			{
 				var = "instanceDifficultyColors",
 				subvar = "TW",
+				hasOpacity = true,
 				text = _G["PLAYER_DIFFICULTY_TIMEWALKER"],
 				parentCheck = function()
 					return addon.SettingsLayout.elements["instanceDifficultyUseColors"]
