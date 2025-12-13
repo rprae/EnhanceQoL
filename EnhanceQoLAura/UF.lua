@@ -63,13 +63,6 @@ local RegisterStateDriver = _G.RegisterStateDriver
 local UnregisterStateDriver = _G.UnregisterStateDriver
 local RAID_CLASS_COLORS = RAID_CLASS_COLORS
 local CUSTOM_CLASS_COLORS = CUSTOM_CLASS_COLORS
-local AuraUtil = AuraUtil
-local C_UnitAuras = C_UnitAuras
-local CopyTable = CopyTable
-local UIParent = UIParent
-local CreateFrame = CreateFrame
-local GetTime = GetTime
-local IsShiftKeyDown = IsShiftKeyDown
 local After = C_Timer and C_Timer.After
 local NewTicker = C_Timer and C_Timer.NewTicker
 local floor = math.floor
@@ -554,20 +547,13 @@ local function removeTargetAuraFromOrder(auraInstanceID)
 	return idx
 end
 
-local function isPermanentAura(aura)
+local function isPermanentAura(aura, unitToken)
 	if not aura then return false end
 	local duration = aura.duration
 	local expiration = aura.expirationTime
+	unitToken = unitToken or "target"
 
-	if C_UnitAuras.DoesAuraHaveExpirationTime then
-		return C_UnitAuras.DoesAuraHaveExpirationTime(aura)
-		-- local checkNr = C_StringUtil.TruncateWhenZero(duration)
-		-- if issecretvalue and issecretvalue(checkNr) then
-		-- 	return false
-		-- else
-		-- 	return true
-		-- end
-	end
+	if C_UnitAuras.DoesAuraHaveExpirationTime then return C_UnitAuras.DoesAuraHaveExpirationTime(unitToken, aura.auraInstanceID) end
 	if issecretvalue and issecretvalue(duration) then return false end
 	if duration and duration > 0 then return false end
 	if expiration and expiration > 0 then return false end
@@ -585,12 +571,15 @@ local function ensureAuraButton(container, icons, index, ac)
 		btn.icon:SetAllPoints(btn)
 		btn.cd = CreateFrame("Cooldown", nil, btn, "CooldownFrameTemplate")
 		btn.cd:SetAllPoints(btn)
-		local overlay = CreateFrame("Frame", nil, btn.cd)
-		overlay:SetAllPoints(btn.cd)
-		overlay:SetFrameLevel(btn.cd:GetFrameLevel() + 5)
+		-- Keep the count on a sibling overlay so it is not hidden by the cooldown frame
+		btn.overlay = CreateFrame("Frame", nil, btn)
+		btn.overlay:SetAllPoints(btn)
+		btn.overlay:SetFrameStrata(btn.cd:GetFrameStrata())
+		btn.overlay:SetFrameLevel(btn.cd:GetFrameLevel() + 5)
 
-		btn.count = overlay:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-		btn.count:SetPoint("BOTTOMRIGHT", overlay, "BOTTOMRIGHT", -2, 2)
+		btn.count = btn.overlay:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+		btn.count:SetPoint("BOTTOMRIGHT", btn.overlay, "BOTTOMRIGHT", -2, 2)
+		btn.count:SetDrawLayer("OVERLAY", 2)
 		btn.border = btn:CreateTexture(nil, "OVERLAY")
 		btn.border:SetAllPoints(btn)
 		btn.border:SetTexCoord(0.296875, 0.5703125, 0, 0.515625) -- debuff overlay segment
@@ -613,12 +602,17 @@ local function ensureAuraButton(container, icons, index, ac)
 		icons[index] = btn
 	else
 		btn:SetSize(ac.size, ac.size)
+		if btn.overlay and btn.cd then
+			btn.overlay:SetFrameStrata(btn.cd:GetFrameStrata())
+			btn.overlay:SetFrameLevel(btn.cd:GetFrameLevel() + 5)
+		end
 	end
 	return btn, icons
 end
 
-local function applyAuraToButton(btn, aura, ac, isDebuff)
+local function applyAuraToButton(btn, aura, ac, isDebuff, unitToken)
 	if not btn or not aura then return end
+	unitToken = unitToken or "target"
 	btn.spellId = aura.spellId
 	btn._showTooltip = ac.showTooltip ~= false
 	btn.icon:SetTexture(aura.icon or "")
@@ -631,8 +625,6 @@ local function applyAuraToButton(btn, aura, ac, isDebuff)
 	btn.cd:SetHideCountdownNumbers(ac.showCooldown == false)
 	if issecretvalue and issecretvalue(aura.applications) or aura.applications and aura.applications > 1 then
 		local appStacks = aura.applications
-		-- TODO test in midnight for the new functions
-		if C_UnitAuras.GetAuraApplicationDisplayCount then appStacks = C_UnitAuras.GetAuraApplicationDisplayCount(aura, 2) end
 		btn.count:SetText(appStacks)
 		btn.count:Show()
 	else
@@ -706,7 +698,7 @@ local function updateTargetAuraIcons(startIndex)
 			else
 				local btn
 				btn, st.auraButtons = ensureAuraButton(st.auraContainer, st.auraButtons, i, ac)
-				applyAuraToButton(btn, aura, ac, aura.isHarmful == true)
+				applyAuraToButton(btn, aura, ac, aura.isHarmful == true, "target")
 				anchorAuraButton(btn, st.auraContainer, i, ac, perRow, ac.anchor or "BOTTOM")
 				targetAuraIndexById[auraId] = i
 				i = i + 1
@@ -757,13 +749,13 @@ local function updateTargetAuraIcons(startIndex)
 					debuffCount = debuffCount + 1
 					local btn
 					btn, debuffButtons = ensureAuraButton(st.debuffContainer, debuffButtons, debuffCount, ac)
-					applyAuraToButton(btn, aura, ac, true)
+					applyAuraToButton(btn, aura, ac, true, "target")
 					anchorAuraButton(btn, st.debuffContainer, debuffCount, ac, perRowDebuff, debAnchor)
 				else
 					buffCount = buffCount + 1
 					local btn
 					btn, buffButtons = ensureAuraButton(st.auraContainer, buffButtons, buffCount, ac)
-					applyAuraToButton(btn, aura, ac, false)
+					applyAuraToButton(btn, aura, ac, false, "target")
 					anchorAuraButton(btn, st.auraContainer, buffCount, ac, perRow, ac.anchor or "BOTTOM")
 				end
 			end
@@ -796,7 +788,7 @@ local function fullScanTargetAuras()
 		local helpful = C_UnitAuras.GetUnitAuras("target", "HELPFUL|CANCELABLE")
 		for i = 1, #helpful do
 			local aura = helpful[i]
-			if aura and (not hidePermanent or not isPermanentAura(aura)) then
+			if aura and (not hidePermanent or not isPermanentAura(aura, "target")) then
 				cacheTargetAura(aura)
 				addTargetAuraToOrder(aura.auraInstanceID)
 			end
@@ -804,7 +796,7 @@ local function fullScanTargetAuras()
 		local harmful = C_UnitAuras.GetUnitAuras("target", "HARMFUL|PLAYER|INCLUDE_NAME_PLATE_ONLY")
 		for i = 1, #harmful do
 			local aura = harmful[i]
-			if aura and (not hidePermanent or not isPermanentAura(aura)) then
+			if aura and (not hidePermanent or not isPermanentAura(aura, "target")) then
 				cacheTargetAura(aura)
 				addTargetAuraToOrder(aura.auraInstanceID)
 			end
@@ -814,7 +806,7 @@ local function fullScanTargetAuras()
 		for i = 2, #helpful do
 			local slot = helpful[i]
 			local aura = C_UnitAuras.GetAuraDataBySlot("target", slot)
-			if aura and (not hidePermanent or not isPermanentAura(aura)) then
+			if aura and (not hidePermanent or not isPermanentAura(aura, "target")) then
 				cacheTargetAura(aura)
 				addTargetAuraToOrder(aura.auraInstanceID)
 			end
@@ -823,7 +815,7 @@ local function fullScanTargetAuras()
 		for i = 2, #harmful do
 			local slot = harmful[i]
 			local aura = C_UnitAuras.GetAuraDataBySlot("target", slot)
-			if aura and (not hidePermanent or not isPermanentAura(aura)) then
+			if aura and (not hidePermanent or not isPermanentAura(aura, "target")) then
 				cacheTargetAura(aura)
 				addTargetAuraToOrder(aura.auraInstanceID)
 			end
@@ -1470,6 +1462,19 @@ local function setCastInfoFromUnit(unit)
 	end
 	updateCastBar(unit)
 end
+
+local function getHealthPercent(unit, cur, maxv)
+	if addon.functions and addon.functions.GetHealthPercent then return addon.functions.GetHealthPercent(unit, cur, maxv, true) end
+	if maxv and maxv > 0 then return (cur or 0) / maxv * 100 end
+	return nil
+end
+
+local function getPowerPercent(unit, powerEnum, cur, maxv)
+	if addon.functions and addon.functions.GetPowerPercent then return addon.functions.GetPowerPercent(unit, powerEnum, cur, maxv, true) end
+	if maxv and maxv > 0 then return (cur or 0) / maxv * 100 end
+	return nil
+end
+
 local function updateHealth(cfg, unit)
 	cfg = cfg or (states[unit] and states[unit].cfg) or ensureDB(unit)
 	local st = states[unit]
@@ -1486,12 +1491,10 @@ local function updateHealth(cfg, unit)
 	st.health:SetValue(cur or 0)
 	local hc = cfg.health or {}
 	local percentVal
-	if addon.variables and addon.variables.isMidnight and UnitHealthPercent then
-		percentVal = UnitHealthPercent(unit, true, true)
-	else
-		if (not addon.variables or not addon.variables.isMidnight or not issecretvalue or (not issecretvalue(cur) and not issecretvalue(maxv))) and maxv and maxv > 0 then
-			percentVal = (cur or 0) / maxv * 100
-		end
+	if addon.variables and addon.variables.isMidnight then
+		percentVal = getHealthPercent(unit, cur, maxv)
+	elseif not issecretvalue or (not issecretvalue(cur) and not issecretvalue(maxv)) then
+		percentVal = getHealthPercent(unit, cur, maxv)
 	end
 	local hr, hg, hb, ha
 	if hc.useCustomColor and hc.color then
@@ -1564,12 +1567,10 @@ local function updatePower(cfg, unit)
 	end
 	bar:SetValue(cur or 0)
 	local percentVal
-	if addon.variables and addon.variables.isMidnight and UnitPowerPercent then
-		percentVal = UnitPowerPercent(unit, powerEnum, true, true)
-	else
-		if (not addon.variables or not addon.variables.isMidnight or not issecretvalue or (not issecretvalue(cur) and not issecretvalue(maxv))) and maxv and maxv > 0 then
-			percentVal = (cur or 0) / maxv * 100
-		end
+	if addon.variables and addon.variables.isMidnight then
+		percentVal = getPowerPercent(unit, powerEnum, cur, maxv)
+	elseif not issecretvalue or (not issecretvalue(cur) and not issecretvalue(maxv)) then
+		percentVal = getPowerPercent(unit, powerEnum, cur, maxv)
 	end
 	local cr, cg, cb, ca
 	if pcfg.useCustomColor and pcfg.color and pcfg.color[1] then
@@ -2580,7 +2581,7 @@ local function onEvent(self, event, unit, arg1)
 		local firstChanged
 		if eventInfo.addedAuras then
 			for _, aura in ipairs(eventInfo.addedAuras) do
-				if aura and hidePermanent and isPermanentAura(aura) then
+				if aura and hidePermanent and isPermanentAura(aura, unit) then
 					if targetAuras[aura.auraInstanceID] then
 						targetAuras[aura.auraInstanceID] = nil
 						local idx = removeTargetAuraFromOrder(aura.auraInstanceID)

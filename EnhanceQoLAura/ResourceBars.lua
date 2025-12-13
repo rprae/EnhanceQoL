@@ -144,6 +144,26 @@ local function SetColorCurvePointsPower(pType, maxColor, defColor)
 end
 SetColorCurvePoints()
 
+local function getHealthPercent(unit, curHealth, maxHealth)
+	if addon.functions and addon.functions.GetHealthPercent then
+		return addon.functions.GetHealthPercent(unit, curHealth, maxHealth, true)
+	end
+	curHealth = curHealth or UnitHealth(unit)
+	maxHealth = maxHealth or UnitHealthMax(unit)
+	return (curHealth or 0) / max(maxHealth or 1, 1) * 100
+end
+
+local function getPowerPercent(unit, powerEnum, curPower, maxPower)
+	if addon.functions and addon.functions.GetPowerPercent then
+		return addon.functions.GetPowerPercent(unit, powerEnum, curPower, maxPower, true)
+		-- Unmodified flag defaults to true for personal resource bars
+	end
+	curPower = curPower or UnitPower(unit, powerEnum)
+	maxPower = maxPower or UnitPowerMax(unit, powerEnum)
+	if maxPower and maxPower > 0 then return (curPower or 0) / maxPower * 100 end
+	return 0
+end
+
 local function getPlayerClassColor()
 	local class = addon and addon.variables and addon.variables.unitClass
 	if not class then return 0, 0.7, 0, 1 end
@@ -1576,12 +1596,11 @@ function updateHealthBar(evt)
 		end
 		healthBar._lastVal = curHealth
 
-		local percent, percentStr
+		local percent = getHealthPercent("player", curHealth, maxHealth)
+		local percentStr
 		if addon.variables.isMidnight then
-			percent = AbbreviateLargeNumbers(UnitHealthPercent("player", true, true) or 0)
-			percentStr = string.format("%s%%", percent)
+			percentStr = string.format("%s%%", AbbreviateLargeNumbers(percent))
 		else
-			percent = (curHealth / max(maxHealth, 1)) * 100
 			percentStr = tostring(floor(percent + 0.5))
 		end
 		if healthBar.text then
@@ -1669,7 +1688,7 @@ function updateHealthBar(evt)
 							SetColorCurvePoints()
 						end
 					end
-					local color = UnitHealthPercentColor("player", curve)
+					local color = UnitHealthPercent("player", true, curve)
 					healthBar:GetStatusBarTexture():SetVertexColor(color:GetRGB())
 				end
 			end
@@ -2402,12 +2421,11 @@ function updatePowerBar(type, runeSlot)
 		stopSmoothUpdater(bar)
 	end
 	bar._lastVal = curPower
-	local percent, percentStr
+	local percent = getPowerPercent("player", pType, curPower, maxPower)
+	local percentStr
 	if addon.variables.isMidnight then
-		percent = AbbreviateLargeNumbers(UnitPowerPercent("player", pType, true, true) or 0)
-		percentStr = string.format("%s%%", percent)
+		percentStr = string.format("%s%%", AbbreviateLargeNumbers(percent))
 	else
-		percent = (curPower / max(maxPower, 1)) * 100
 		percentStr = tostring(floor(percent + 0.5))
 	end
 	if bar.text then

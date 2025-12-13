@@ -18,6 +18,7 @@ HealthText.hooked = HealthText.hooked or {}
 HealthText._valueHooked = HealthText._valueHooked or false
 
 local function isStatusTextEnabled() return tonumber(GetCVar("statusText") or "0") == 1 end
+local getHealthPercent = addon.functions and addon.functions.GetHealthPercent
 
 local function abbr(n)
 	n = tonumber(n) or 0
@@ -45,14 +46,25 @@ local function formatPct(pct)
 	return s .. "%"
 end
 
+local function healthPercent(unit, cur, max)
+	if getHealthPercent then return getHealthPercent(unit, cur, max, true) end
+	cur = cur or 0
+	max = max or 0
+	if max > 0 then return (cur / max) * 100 end
+	return 0
+end
+
 local function fmt(mode, cur, max, unit)
 	if addon.variables.isMidnight then
+		if not unit then return "" end
+		cur = cur or 0
 		if mode == "PERCENT" then
-			return string.format("%s%%", AbbreviateLargeNumbers(UnitHealthPercent(unit, true, true) or 0))
+			return string.format("%s%%", AbbreviateLargeNumbers(healthPercent(unit, cur, max)))
 		elseif mode == "ABS" then
 			return AbbreviateLargeNumbers(cur)
 		elseif mode == "BOTH" then
-			return string.format("%s%% (%s)", AbbreviateLargeNumbers(UnitHealthPercent(unit, true, true) or 0), AbbreviateLargeNumbers(cur))
+			local pct = healthPercent(unit, cur, max)
+			return string.format("%s%% (%s)", AbbreviateLargeNumbers(pct), AbbreviateLargeNumbers(cur))
 		else
 			return ""
 		end
