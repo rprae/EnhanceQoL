@@ -179,7 +179,17 @@ ResourceBars.PowerLabels = {
 	["MAELSTROM_WEAPON"] = maelstromWeaponName,
 }
 local function getMaelstromWeaponStacks()
-	local aura = C_UnitAuras.GetPlayerAuraBySpellID(RB.MAELSTROM_WEAPON_SPELL_ID)
+	local aura
+	if addon.variables.isMidnight then
+		for i, v in pairs(C_UnitAuras.GetUnitAuras("player", "HELPFUL")) do
+			if not issecretvalue(v.spellId) and v.spellId == RB.MAELSTROM_WEAPON_SPELL_ID then
+				aura = v
+				break
+			end
+		end
+	else
+		aura = C_UnitAuras.GetPlayerAuraBySpellID(RB.MAELSTROM_WEAPON_SPELL_ID)
+	end
 	if aura then
 		return aura.applications
 	else
