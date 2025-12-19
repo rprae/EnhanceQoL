@@ -174,7 +174,10 @@ local function getPowerPercent(unit, powerEnum, curPower, maxPower)
 	return 0
 end
 
-local maelstromWeaponName = (C_Spell.GetSpellInfo(RB.MAELSTROM_WEAPON_SPELL_ID)) or "Maelstrom Weapon"
+local maelstromWeaponName = (C_Spell.GetSpellName(RB.MAELSTROM_WEAPON_SPELL_ID)) or "Maelstrom Weapon"
+ResourceBars.PowerLabels = {
+	["MAELSTROM_WEAPON"] = maelstromWeaponName,
+}
 local function getMaelstromWeaponStacks()
 	local aura = C_UnitAuras.GetPlayerAuraBySpellID(RB.MAELSTROM_WEAPON_SPELL_ID)
 	if aura then

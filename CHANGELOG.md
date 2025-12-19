@@ -13,6 +13,7 @@
 - Action Bars: out-of-range highlight now tints the action button icon directly (no separate overlay), using your chosen color/alpha.
 - Profiles: export/import the active profile (full overwrite) via copy/paste with reload after import.
 - Added Naaru's Enfold toy (ID 263489) support to teleport/hearthstone handling.
+- Maelstrom Weapon tracking added as Resourcebar for Enhancement Shaman
 
 ### 🔄 Changed
 
