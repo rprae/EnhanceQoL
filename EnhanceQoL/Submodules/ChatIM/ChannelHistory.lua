@@ -1199,13 +1199,48 @@ local function formatURLs(text)
 	return text
 end
 
-function getChatColor(key)
-	if not key then return nil end
-	local chatKey = CHAT_COLOR_KEYS[key] or key
+local colorCacheByEvent = {}
+local colorCacheByKey = {}
+
+local function resolveChatTypeInfo(chatKey)
+	if not chatKey then return nil end
 	local info = ChatTypeInfo and ChatTypeInfo[chatKey]
 	if (not info or not info.r) and chatKey == "CHANNEL" then info = ChatTypeInfo and ChatTypeInfo["CHANNEL1"] end
 	if info and info.r and info.g and info.b then return info end
-	return CHAT_COLOR_FALLBACK[key]
+	return nil
+end
+
+function getChatColor(key, event)
+	if not key and not event then return nil end
+
+	if event and type(event) == "string" then
+		local cached = colorCacheByEvent[event]
+		if cached ~= nil then return cached end
+
+		local chatKeyFromEvent = event:sub(10) -- "CHAT_MSG_" weg
+		local infoFromEvent = resolveChatTypeInfo(chatKeyFromEvent)
+		if infoFromEvent then
+			colorCacheByEvent[event] = infoFromEvent
+			return infoFromEvent
+		end
+		local fb = (CHAT_COLOR_FALLBACK and CHAT_COLOR_FALLBACK[chatKeyFromEvent]) or nil
+		colorCacheByEvent[event] = fb or false
+		if fb then return fb end
+	end
+
+	local mappedKey = (CHAT_COLOR_KEYS and (CHAT_COLOR_KEYS[key] or key)) or key
+	local cached = colorCacheByKey[mappedKey]
+	if cached ~= nil then return cached end
+
+	local info = resolveChatTypeInfo(mappedKey)
+	if info then
+		colorCacheByKey[mappedKey] = info
+		return info
+	end
+
+	local fb = (CHAT_COLOR_FALLBACK and (CHAT_COLOR_FALLBACK[mappedKey] or CHAT_COLOR_FALLBACK[key])) or nil
+	colorCacheByKey[mappedKey] = fb or false
+	return fb
 end
 
 local _formatParts = {}
@@ -1276,7 +1311,7 @@ function formatLine(self, line)
 	local timeText = date("%H:%M:%S", line.time or now())
 	timeText = string.format("|cffb0b0b0%s|r", timeText)
 
-	local chatColor = line.color or getChatColor(line.filterKey) or { r = 1, g = 0.82, b = 0 }
+	local chatColor = line.color or getChatColor(line.filterKey, line.event) or { r = 1, g = 0.82, b = 0 }
 	local chatColorCode = toColorCode(chatColor)
 
 	local nameColor = classColor or chatColor
