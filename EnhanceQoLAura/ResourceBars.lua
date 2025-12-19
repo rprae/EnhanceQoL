@@ -72,9 +72,9 @@ local ResourcebarVars = {
 	MAELSTROM_WEAPON_MAX_STACKS = 10,
 	MAELSTROM_WEAPON_SEGMENTS = 5,
 	MAELSTROM_WEAPON_SPELL_ID = 344179,
-	DEFAULT_MAELSTROM_WEAPON_FIVE_COLOR = { 0.2, 0.7, 1, 1 },
+	DEFAULT_MAELSTROM_WEAPON_FIVE_COLOR = { 0.10, 0.85, 0.55, 1 },
 	CUSTOM_POWER_COLORS = {
-		MAELSTROM_WEAPON = { 0.16, 0.72, 1.0 },
+		MAELSTROM_WEAPON = { 0.15, 0.45, 1.00 },
 	},
 }
 local RB = ResourcebarVars
@@ -87,6 +87,8 @@ local scheduleRelativeFrameWidthSync
 local ensureSpecCfg
 local classPowerTypes
 local powertypeClasses
+local mwAuraInstances = {}
+local hasMWAura = false
 local COSMETIC_BAR_KEYS = {
 	"barTexture",
 	"width",
@@ -178,11 +180,26 @@ local maelstromWeaponName = (C_Spell.GetSpellName(RB.MAELSTROM_WEAPON_SPELL_ID))
 ResourceBars.PowerLabels = {
 	["MAELSTROM_WEAPON"] = maelstromWeaponName,
 }
+local function isMaelstromWeaponAura(spellId)
+	if issecretvalue and issecretvalue(spellId) then return false end
+	return spellId == RB.MAELSTROM_WEAPON_SPELL_ID
+end
 local function getMaelstromWeaponStacks()
 	local aura
+	if hasMWAura then
+		aura = C_UnitAuras.GetAuraDataByAuraInstanceID("player", hasMWAura)
+		if aura then
+			return aura.applications
+		else
+			mwAuraInstances[hasMWAura] = nil
+			hasMWAura = false
+		end
+	end
 	if addon.variables.isMidnight then
 		for i, v in pairs(C_UnitAuras.GetUnitAuras("player", "HELPFUL")) do
-			if not issecretvalue(v.spellId) and v.spellId == RB.MAELSTROM_WEAPON_SPELL_ID then
+			if hasMWAura == false and not issecretvalue(v.spellId) and v.spellId == RB.MAELSTROM_WEAPON_SPELL_ID then
+				hasMWAura = v.auraInstanceID
+				mwAuraInstances[v.auraInstanceID] = true
 				aura = v
 				break
 			end
@@ -191,6 +208,8 @@ local function getMaelstromWeaponStacks()
 		aura = C_UnitAuras.GetPlayerAuraBySpellID(RB.MAELSTROM_WEAPON_SPELL_ID)
 	end
 	if aura then
+		hasMWAura = aura.auraInstanceID
+		mwAuraInstances[aura.auraInstanceID] = true
 		return aura.applications
 	else
 		return 0
@@ -3062,9 +3081,9 @@ local eventsToRegister = {
 	"UNIT_POWER_FREQUENT",
 	"UNIT_DISPLAYPOWER",
 	"UNIT_MAXPOWER",
-	"UNIT_AURA",
 	"UPDATE_SHAPESHIFT_FORM",
 }
+if addon.variables.unitClass == "SHAMAN" then table.insert(eventsToRegister, "UNIT_AURA") end
 
 local function setPowerbars(opts)
 	local _, powerToken = UnitPowerType("player")
@@ -3433,6 +3452,12 @@ if addon.db["enableResourceFrame"] then
 	end)
 end
 
+local function wipeTable(t)
+	for k in pairs(t) do
+		t[k] = nil
+	end
+end
+
 -- Coalesce spec/trait refreshes to avoid duplicate work or timing races
 local function scheduleSpecRefresh()
 	if frameAnchor and frameAnchor._specRefreshScheduled then return end
@@ -3463,6 +3488,11 @@ local function eventHandler(self, event, unit, arg1)
 	elseif event == "PLAYER_ENTERING_WORLD" then
 		updateHealthBar("UNIT_ABSORB_AMOUNT_CHANGED")
 		setPowerbars()
+		if addon.variables.unitClass == "SHAMAN" and After then
+			After(0, function()
+				if powerbar["MAELSTROM_WEAPON"] and powerbar["MAELSTROM_WEAPON"]:IsShown() then updatePowerBar("MAELSTROM_WEAPON") end
+			end)
+		end
 		if scheduleRelativeFrameWidthSync then scheduleRelativeFrameWidthSync() end
 	elseif event == "UPDATE_SHAPESHIFT_FORM" then
 		setPowerbars()
@@ -3477,7 +3507,41 @@ local function eventHandler(self, event, unit, arg1)
 			if addon and addon.Aura and addon.Aura.ResourceBars and addon.Aura.ResourceBars.UpdateRuneEventRegistration then addon.Aura.ResourceBars.UpdateRuneEventRegistration() end
 		end
 	elseif event == "UNIT_AURA" and unit == "player" then
-		if powerbar["MAELSTROM_WEAPON"] and powerbar["MAELSTROM_WEAPON"]:IsShown() then updatePowerBar("MAELSTROM_WEAPON") end
+		local info = arg1
+
+		-- FULL UPDATE: nach Zonenwechsel/Reload kommen Auren oft so rein.
+		if not info or info.isFullUpdate then
+			hasMWAura = false
+			wipeTable(mwAuraInstances)
+
+			if powerbar["MAELSTROM_WEAPON"] and powerbar["MAELSTROM_WEAPON"]:IsShown() then updatePowerBar("MAELSTROM_WEAPON") end
+			return
+		end
+
+		local changed
+		for _, aura in ipairs(info.addedAuras or {}) do
+			if aura and aura.spellId and aura.auraInstanceID and isMaelstromWeaponAura(aura.spellId) then
+				-- (optional: auch dann akzeptieren, wenn hasMWAura schon gesetzt ist)
+				mwAuraInstances[aura.auraInstanceID] = true
+				hasMWAura = aura.auraInstanceID
+				changed = true
+			end
+		end
+
+		for _, inst in ipairs(info.updatedAuraInstanceIDs or {}) do
+			if mwAuraInstances[inst] then changed = true end
+		end
+
+		for _, inst in ipairs(info.removedAuraInstanceIDs or {}) do
+			if mwAuraInstances[inst] then
+				mwAuraInstances[inst] = nil
+				hasMWAura = false
+				changed = true
+			end
+		end
+
+		if changed and powerbar["MAELSTROM_WEAPON"] and powerbar["MAELSTROM_WEAPON"]:IsShown() then updatePowerBar("MAELSTROM_WEAPON") end
+		return
 	elseif (event == "UNIT_MAXHEALTH" or event == "UNIT_HEALTH" or event == "UNIT_ABSORB_AMOUNT_CHANGED") and healthBar and healthBar:IsShown() then
 		if event == "UNIT_MAXHEALTH" then
 			local max = UnitHealthMax("player")
