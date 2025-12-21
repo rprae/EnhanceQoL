@@ -2356,8 +2356,11 @@ function updatePowerBar(type, runeSlot)
 	if not bar or not bar:IsShown() then return end
 	-- Special handling for DK RUNES: six sub-bars that fill as cooldown progresses
 	if type == "RUNES" then
-		local r, g, b = resolveRuneReadyColor(getBarSettings("RUNES"))
+		local cfg = getBarSettings("RUNES") or {}
+		local r, g, b = resolveRuneReadyColor(cfg)
 		local grey = 0.35
+		local colorChanged = (bar._runeReadyR ~= r) or (bar._runeReadyG ~= g) or (bar._runeReadyB ~= b)
+		bar._runeReadyR, bar._runeReadyG, bar._runeReadyB = r, g, b
 		bar._rune = bar._rune or {}
 		bar._runeOrder = bar._runeOrder or {}
 		bar._charging = bar._charging or {}
@@ -2440,7 +2443,6 @@ function updatePowerBar(type, runeSlot)
 			bar._runeOrder[i] = nil
 		end
 
-		local cfg = getBarSettings("RUNES") or {}
 		local anyActive = #charging > 0
 		local now = GetTime()
 		local soonest
@@ -2452,7 +2454,7 @@ function updatePowerBar(type, runeSlot)
 				local prog = info.ready and 1 or min(1, max(0, (now - info.start) / max(info.duration, 1)))
 				sb:SetValue(prog)
 				local wantReady = info.ready or prog >= 1
-				if sb._isReady ~= wantReady then
+				if sb._isReady ~= wantReady or (wantReady and colorChanged) then
 					sb._isReady = wantReady
 					if wantReady then
 						sb:SetStatusBarColor(r, g, b)
@@ -2507,6 +2509,11 @@ function updatePowerBar(type, runeSlot)
 						self._runeAccum = 0
 						local n = GetTime()
 						local cfgOnUpdate = self._runeConfig or {}
+						local rr = self._runeReadyR or r
+						local rg = self._runeReadyG or g
+						local rb = self._runeReadyB or b
+						local forceColor = (self._appliedRuneReadyR ~= rr) or (self._appliedRuneReadyG ~= rg) or (self._appliedRuneReadyB ~= rb)
+						self._appliedRuneReadyR, self._appliedRuneReadyG, self._appliedRuneReadyB = rr, rg, rb
 						local allReady = true
 						for pos = 1, 6 do
 							local ri = self._runeOrder and self._runeOrder[pos]
@@ -2539,10 +2546,10 @@ function updatePowerBar(type, runeSlot)
 								end
 								sb:SetValue(prog)
 								local wantReady = runeReady
-								if sb._isReady ~= wantReady then
+								if sb._isReady ~= wantReady or (wantReady and forceColor) then
 									sb._isReady = wantReady
 									if wantReady then
-										sb:SetStatusBarColor(r, g, b)
+										sb:SetStatusBarColor(rr, rg, rb)
 									else
 										sb:SetStatusBarColor(grey, grey, grey)
 									end
@@ -3039,9 +3046,7 @@ function layoutRunes(bar)
 			end
 		end
 		-- cooldown text per segment
-		if not sb.fs then
-			sb.fs = overlay:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-		end
+		if not sb.fs then sb.fs = overlay:CreateFontString(nil, "OVERLAY", "GameFontHighlight") end
 		if sb.fs:GetParent() ~= overlay then sb.fs:SetParent(overlay) end
 		sb.fs:SetDrawLayer("OVERLAY")
 		sb.fs:ClearAllPoints()
@@ -3798,8 +3803,9 @@ end
 function ResourceBars.ForceRuneRecolor()
 	local rb = powerbar and powerbar.RUNES
 	if not rb or not rb.runes then return end
-	local spec = addon.variables.unitSpec
-	rb._dkColor = DK_SPEC_COLOR[spec] or DK_SPEC_COLOR[1]
+	-- Stop any stale ticker so the next update uses fresh spec colors.
+	deactivateRuneTicker(rb)
+	rb._runeUpdater = nil
 	for i = 1, 6 do
 		local sb = rb.runes[i]
 		if sb then

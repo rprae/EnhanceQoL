@@ -4,12 +4,13 @@
 
 ### ✨ Added
 
-- Maelstrom Weapon tracking added as Resourcebar for Enhancement Shaman
-- Devourer Resource bar tracking added (but disabled until next beta release of WoW - Will be non-secret than)
-- Tooltips for Spell/Item/Aura-IDs enabled in Combat with better secret handling for midnight
-- UF Plus now let's you enable/disable and change Raid Icons size/offset
-- UF Plus now let's you show the blizzard class resources and manage it
-- UF Plus optional castbar for boss frames added
+- Enhancement Shaman: Maelstrom Weapon resource bar.
+- Devourer resource bar tracking added (disabled until the next WoW beta release; will be enabled then).
+- Combat tooltips now show spell/item/aura IDs with improved secret handling for Midnight.
+- UF Plus: toggle and adjust raid icon size/offset.
+- UF Plus: show Blizzard class resources and manage them.
+- UF Plus: optional cast bar for boss frames.
+- Mover: new module that lets you move frames and keeps their positions saved
 
 ### ❌ Removed
 
@@ -18,6 +19,7 @@
 ### 🐛 Fixed
 
 - Rune cooldown text now renders above the border to avoid clipping at small bar heights
+- Rune ready colors now refresh reliably after spec or color setting changes
 - Unit Frame status line settings now correctly gate name/level options and combat indicator sub-options
 
 ## [6.4.0] – 2025-12-17
