@@ -22,6 +22,7 @@
 
 Init.lua
 locales\[TextLocale].lua
+frames.lua
 
 EnhanceQoLLayoutTools.lua
 #EditModeExamples.lua

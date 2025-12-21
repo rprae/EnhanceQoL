@@ -10,18 +10,6 @@ end
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_LayoutTools")
 local db = addon.db["eqolLayoutTools"]
 
-local function registerDefaults()
-	addon.LayoutTools.functions.RegisterGroup("blizzard", L["Blizzard"] or "Blizzard", { expanded = true, order = 10 })
-	addon.LayoutTools.functions.RegisterFrame({
-		id = "SettingsPanel",
-		label = SETTINGS or "Settings",
-		group = "blizzard",
-		names = { "SettingsPanel" },
-		addon = "Blizzard_Settings",
-		defaultEnabled = true,
-	})
-end
-
 local function buildSettings()
 	local categoryLabel = L["Layout Tools"] or L["Move"] or "Layout Tools"
 	local cLayout = addon.functions.SettingsCreateCategory(nil, categoryLabel, nil, "LayoutTools")
@@ -32,38 +20,22 @@ local function buildSettings()
 		expanded = true,
 	})
 
-	addon.functions.SettingsCreateCheckbox(cLayout, {
-		var = "layoutToolsEnabled",
-		text = L["Global Move Enabled"] or "Enable moving",
-		default = true,
-		get = function() return db.enabled end,
-		set = function(value)
-			db.enabled = value
-			addon.LayoutTools.functions.ApplyAll()
-		end,
-		parentSection = sectionGeneral,
-	})
-
-	addon.functions.SettingsCreateCheckbox(cLayout, {
-		var = "layoutToolsRequireModifier",
-		text = L["Require Modifier For Move"] or "Require modifier to move",
-		default = true,
-		get = function() return db.requireModifier end,
-		set = function(value) db.requireModifier = value end,
-		parentSection = sectionGeneral,
-	})
-
-	addon.functions.SettingsCreateDropdown(cLayout, {
-		var = "layoutToolsModifier",
-		text = L["Move Modifier"] or (L["Scale Modifier"] or "Modifier"),
-		list = { SHIFT = "SHIFT", CTRL = "CTRL", ALT = "ALT" },
-		order = { "SHIFT", "CTRL", "ALT" },
-		default = "SHIFT",
-		get = function() return db.modifier or "SHIFT" end,
-		set = function(value) db.modifier = value end,
-		parentCheck = function() return db.requireModifier end,
-		parentSection = sectionGeneral,
-	})
+	local settings = addon.LayoutTools.variables.settings or {}
+	for _, def in ipairs(settings) do
+		local kind = def.type or "checkbox"
+		local data = {}
+		for key, value in pairs(def) do
+			if key ~= "type" then data[key] = value end
+		end
+		data.parentSection = data.parentSection or sectionGeneral
+		if kind == "checkbox" then
+			addon.functions.SettingsCreateCheckbox(cLayout, data)
+		elseif kind == "dropdown" then
+			addon.functions.SettingsCreateDropdown(cLayout, data)
+		elseif kind == "slider" then
+			addon.functions.SettingsCreateSlider(cLayout, data)
+		end
+	end
 
 	for _, group in ipairs(addon.LayoutTools.functions.GetGroups()) do
 		local section = addon.functions.SettingsCreateExpandableSection(cLayout, {
@@ -88,7 +60,6 @@ local function buildSettings()
 	end
 end
 
-registerDefaults()
 buildSettings()
 
 function addon.LayoutTools.functions.treeCallback(container, group)
