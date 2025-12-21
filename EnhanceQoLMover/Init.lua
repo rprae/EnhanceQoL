@@ -510,7 +510,7 @@ local eventHandlers = {
 		end
 		--@debug@
 		print(arg1)
-		--@end-debug@	
+		--@end-debug@
 		local list = registry.addonIndex and registry.addonIndex[arg1]
 		if list then
 			for _, entry in ipairs(list) do
