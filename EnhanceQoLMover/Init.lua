@@ -352,12 +352,90 @@ local function MoveKeepTwoPointSize(frame, x, y, point, relPoint)
 
 	frame:ClearAllPoints()
 
-	-- 1) TOPLEFT setzen
 	frame:SetPoint(point, UIParent, relPoint, x or 0, y or 0)
 
-	-- 2) BOTTOMRIGHT so setzen, dass die alte Groesse erhalten bleibt
-	-- (BOTTOMRIGHT relativ zu TOPLEFT, y ist negativ weil nach unten)
 	frame:SetPoint("BOTTOMRIGHT", UIParent, relPoint, (x or 0) + w, (y or 0) - h)
+end
+
+local function isCollectionsMoveEnabled()
+	if not db.enabled then return false end
+	local entry = addon.Mover.functions.GetEntryForFrameName("CollectionsJournal")
+	if not entry then return false end
+	return addon.Mover.functions.IsFrameEnabled(entry)
+end
+
+local function FixWardrobeSecondaryAppearanceLabel()
+	if not isCollectionsMoveEnabled() then return false end
+	local wardrobe = _G.WardrobeFrame
+	local transmog = wardrobe and wardrobe.WardrobeTransmogFrame or _G.WardrobeTransmogFrame
+	local checkbox = transmog and transmog.ToggleSecondaryAppearanceCheckbox
+	local label = checkbox and checkbox.Label
+	if not (checkbox and label and label.ClearAllPoints) then return false end
+
+	label:ClearAllPoints()
+	label:SetPoint("LEFT", checkbox, "RIGHT", 2, 1)
+	label:SetPoint("RIGHT", checkbox, "RIGHT", 160, 1)
+	return true
+end
+
+local function FixPlayerChoiceAnchor()
+	local frame = _G.PlayerChoiceFrame
+	if not frame then return false end
+	if frame._eqolFixHooks then return true end
+
+	frame._eqolFixHooks = true
+	frame:HookScript("OnHide", function(self)
+		if InCombatLockdown() and self:IsProtected() then return end
+
+		self._eqol_isApplying = true
+		self:ClearAllPoints()
+
+		self:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+
+		self._eqol_isApplying = nil
+		self._eqol_needsReapply = true
+	end)
+	return true
+end
+
+local function isHeroTalentsMoveEnabled()
+	if not db.enabled then return false end
+	local entry = addon.Mover.functions.GetEntryForFrameName("HeroTalentsSelectionDialog")
+	if not entry then return false end
+	return addon.Mover.functions.IsFrameEnabled(entry)
+end
+
+local function FixHeroTalentsAnchor()
+	if addon.Mover.variables.heroTalentsAnchorFix then return true end
+	if not (TalentFrameUtil and TalentFrameUtil.GetNormalizedSubTreeNodePosition) then return false end
+	if not (_G.HeroTalentsSelectionDialog and _G.PlayerSpellsFrame) then return false end
+
+	addon.Mover.variables.heroTalentsAnchorFix = true
+	local skipHook = false
+
+	hooksecurefunc(TalentFrameUtil, "GetNormalizedSubTreeNodePosition", function(talentFrame)
+		if skipHook then return end
+		if not isHeroTalentsMoveEnabled() then return end
+		local stack = debugstack(3)
+		if not stack then return end
+		if (stack:find("UpdateContainerVisibility") or stack:find("UpdateHeroTalentButtonPosition") or stack:find("PlaceHeroTalentButton")) and not stack:find("InstantiateTalentButton") then
+			skipHook = true
+			if talentFrame and talentFrame.EnumerateAllTalentButtons then
+				for talentButton in talentFrame:EnumerateAllTalentButtons() do
+					local nodeInfo = talentButton and talentButton.GetNodeInfo and talentButton:GetNodeInfo()
+					if nodeInfo and nodeInfo.subTreeID and talentButton.ClearAllPoints then talentButton:ClearAllPoints() end
+				end
+			end
+			if RunNextFrame then
+				RunNextFrame(function() skipHook = false end)
+			elseif C_Timer and C_Timer.After then
+				C_Timer.After(0, function() skipHook = false end)
+			else
+				skipHook = false
+			end
+		end
+	end)
+	return true
 end
 
 function addon.Mover.functions.applyFrameSettings(frame, entry)
@@ -624,6 +702,8 @@ end
 function addon.Mover.functions.RefreshEntry(entry)
 	addon.Mover.functions.TryHookEntry(entry)
 	addon.Mover.functions.UpdateHandleState(entry)
+	local resolved = resolveEntry(entry)
+	if resolved and resolved.id == "CollectionsJournal" then FixWardrobeSecondaryAppearanceLabel() end
 end
 
 function addon.Mover.functions.ApplyAll()
@@ -639,6 +719,12 @@ local eventHandlers = {
 				addon.Mover.functions.TryHookEntry(entry)
 			end
 		end
+		if arg1 == "Blizzard_Collections" then
+			-- Anchoring bug in Blizzards UI
+			FixWardrobeSecondaryAppearanceLabel()
+		end
+		if arg1 == "Blizzard_PlayerChoice" and _G.PlayerChoiceFrame then FixPlayerChoiceAnchor() end
+		if arg1 == "Blizzard_PlayerSpells" then FixHeroTalentsAnchor() end
 		--@debug@
 		print(arg1)
 		--@end-debug@
