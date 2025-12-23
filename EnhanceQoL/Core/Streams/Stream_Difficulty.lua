@@ -29,6 +29,55 @@ local function RestorePosition(frame)
 end
 
 local aceWindow
+local function showDifficultyMenu(owner)
+	if not MenuUtil or not MenuUtil.CreateContextMenu then return end
+	local ids = DifficultyUtil and DifficultyUtil.ID or {}
+	local dungeonDifficulties = {
+		{ id = ids.DungeonNormal or 1, text = PLAYER_DIFFICULTY1 },
+		{ id = ids.DungeonHeroic or 2, text = PLAYER_DIFFICULTY2 },
+		{ id = ids.DungeonMythic or 23, text = PLAYER_DIFFICULTY6 },
+	}
+	local raidDifficulties = {
+		{ id = ids.PrimaryRaidNormal or 14, text = PLAYER_DIFFICULTY1 },
+		{ id = ids.PrimaryRaidHeroic or 15, text = PLAYER_DIFFICULTY2 },
+		{ id = ids.PrimaryRaidMythic or 16, text = PLAYER_DIFFICULTY6 },
+	}
+
+	MenuUtil.CreateContextMenu(owner, function(_, rootDescription)
+		rootDescription:SetTag("MENU_EQOL_DIFFICULTY")
+
+		rootDescription:CreateTitle(DUNGEON_DIFFICULTY or "Dungeon Difficulty")
+		local function IsDungeonSelected(difficultyID) return GetDungeonDifficultyID() == difficultyID end
+		local function SetDungeonSelected(difficultyID)
+			SetDungeonDifficultyID(difficultyID)
+			return MenuResponse and MenuResponse.Close
+		end
+		for _, data in ipairs(dungeonDifficulties) do
+			local radio = rootDescription:CreateRadio(data.text, IsDungeonSelected, SetDungeonSelected, data.id)
+			if DifficultyUtil and DifficultyUtil.IsDungeonDifficultyEnabled then radio:SetEnabled(DifficultyUtil.IsDungeonDifficultyEnabled(data.id)) end
+		end
+
+		rootDescription:CreateDivider()
+		rootDescription:CreateTitle(RAID_DIFFICULTY or "Raid Difficulty")
+		local function IsRaidSelected(difficultyID)
+			if DifficultyUtil and DifficultyUtil.DoesCurrentRaidDifficultyMatch then return DifficultyUtil.DoesCurrentRaidDifficultyMatch(difficultyID) end
+			return GetRaidDifficultyID() == difficultyID
+		end
+		local function SetRaidSelected(difficultyID)
+			if SetRaidDifficulties then
+				SetRaidDifficulties(true, difficultyID)
+			else
+				SetRaidDifficultyID(difficultyID)
+			end
+			return MenuResponse and MenuResponse.Close
+		end
+		for _, data in ipairs(raidDifficulties) do
+			local radio = rootDescription:CreateRadio(data.text, IsRaidSelected, SetRaidSelected, data.id)
+			if DifficultyUtil and DifficultyUtil.IsRaidDifficultyEnabled then radio:SetEnabled(DifficultyUtil.IsRaidDifficultyEnabled(data.id)) end
+		end
+	end)
+end
+
 local function createAceWindow()
 	if aceWindow then
 		aceWindow:Show()
@@ -94,7 +143,13 @@ local function checkDifficulty(stream)
 	stream.snapshot.fontSize = size
 
 	stream.snapshot.text = I_DUNGEON .. " " .. dg .. " " .. I_RAID .. " " .. raid
-	stream.snapshot.tooltip = getOptionsHint()
+	local hint = getOptionsHint()
+	local clickHint = L["Difficulty menu click hint"] or "Left-click to change difficulty"
+	if hint then
+		stream.snapshot.tooltip = clickHint .. "\n" .. hint
+	else
+		stream.snapshot.tooltip = clickHint
+	end
 end
 
 local provider = {
@@ -106,8 +161,12 @@ local provider = {
 		PLAYER_DIFFICULTY_CHANGED = function(stream) addon.DataHub:RequestUpdate(stream) end,
 		PLAYER_LOGIN = function(stream) addon.DataHub:RequestUpdate(stream) end,
 	},
-	OnClick = function(_, btn)
-		if btn == "RightButton" then createAceWindow() end
+	OnClick = function(button, btn)
+		if btn == "RightButton" then
+			createAceWindow()
+		else
+			showDifficultyMenu(button)
+		end
 	end,
 }
 

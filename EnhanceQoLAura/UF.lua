@@ -1277,8 +1277,8 @@ end
 
 local function isPowerDesaturated(pToken)
 	if not pToken then return false end
-	local map = addon.db and addon.db.ufPowerDesaturated
-	return map and map[pToken] == true
+	local overrides = addon.db and addon.db.ufPowerColorOverrides
+	return overrides and overrides[pToken] ~= nil
 end
 
 local function shortValue(val)

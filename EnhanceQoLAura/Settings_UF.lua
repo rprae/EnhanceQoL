@@ -160,22 +160,6 @@ local function clearPowerOverride(token)
 	if not next(overrides) then addon.db.ufPowerColorOverrides = nil end
 end
 
-local function getPowerDesaturated(token)
-	local map = addon.db and addon.db.ufPowerDesaturated
-	return map and map[token] == true
-end
-
-local function setPowerDesaturated(token, value)
-	addon.db = addon.db or {}
-	addon.db.ufPowerDesaturated = addon.db.ufPowerDesaturated or {}
-	if value then
-		addon.db.ufPowerDesaturated[token] = true
-	else
-		addon.db.ufPowerDesaturated[token] = nil
-		if not next(addon.db.ufPowerDesaturated) then addon.db.ufPowerDesaturated = nil end
-	end
-end
-
 local function ensureConfig(unit)
 	if UF.GetConfig then return UF.GetConfig(unit) end
 	addon.db = addon.db or {}
@@ -1090,7 +1074,6 @@ local function buildUnitSettings(unit)
 	local mainPowerTokens = getMainPowerTokens()
 	if #mainPowerTokens > 0 then
 		list[#list + 1] = { name = L["UFMainPowerColors"] or "Main power colors", kind = settingType.Collapsible, id = "mainPowerColors", defaultCollapsed = true }
-		local desatLabel = L["Desaturated"] or "Desaturated"
 		for _, token in ipairs(mainPowerTokens) do
 			local label = getPowerLabel(token)
 			local dr, dg, db, da = getDefaultPowerColor(token)
@@ -1121,12 +1104,6 @@ local function buildUnitSettings(unit)
 				end,
 				colorDefault = { r = dr, g = dg, b = db, a = da },
 			})
-			list[#list + 1] = checkbox((("%s (%s)"):format(label, desatLabel)), function() return getPowerDesaturated(token) == true end, function(val)
-				debounced("uf_powercolor_desat_" .. token, function()
-					setPowerDesaturated(token, val)
-					if UF and UF.Refresh then UF.Refresh() end
-				end)
-			end, false, "mainPowerColors")
 		end
 	end
 
