@@ -1065,20 +1065,20 @@ local function EnsureFrameState(frame, cbData)
 	return state
 end
 
-local function ClearUnitFrameState(frame, cbData)
+local function ClearUnitFrameState(frame, cbData, opts)
 	if not frame then return end
-	ApplyUnitFrameStateDriver(frame, nil)
+	if not (opts and opts.noStateDriver) then ApplyUnitFrameStateDriver(frame, nil) end
 	RestoreUnitFrameVisibility(frame, cbData)
 	frameVisibilityStates[frame] = nil
 end
 
-local function ApplyVisibilityToUnitFrame(frameName, cbData, config)
+local function ApplyVisibilityToUnitFrame(frameName, cbData, config, opts)
 	if type(frameName) ~= "string" or frameName == "" then return false end
 	local frame = _G[frameName]
 	if not frame then return false end
 
 	if not config then
-		ClearUnitFrameState(frame, cbData)
+		ClearUnitFrameState(frame, cbData, opts)
 		return true
 	end
 
@@ -1091,7 +1091,7 @@ local function ApplyVisibilityToUnitFrame(frameName, cbData, config)
 
 	local driverExpression = BuildUnitFrameDriverExpression(config)
 	local needsHealth = config and config.PLAYER_HEALTH_NOT_FULL and state.supportsPlayerHealthRule
-	local useDriver = driverExpression and not config.MOUSEOVER and not needsHealth
+	local useDriver = driverExpression and not config.MOUSEOVER and not needsHealth and not (opts and opts.noStateDriver)
 
 	if useDriver then
 		state.driverActive = true
@@ -1101,7 +1101,7 @@ local function ApplyVisibilityToUnitFrame(frameName, cbData, config)
 	end
 
 	state.driverActive = false
-	ApplyUnitFrameStateDriver(frame, nil)
+	if not (opts and opts.noStateDriver) then ApplyUnitFrameStateDriver(frame, nil) end
 
 	if config.MOUSEOVER then
 		state.isMouseOver = MouseIsOver(frame)
@@ -1153,6 +1153,9 @@ UpdateUnitFrameMouseover = function(barName, cbData)
 	UpdateFrameVisibilityHealthRegistration()
 end
 addon.functions.UpdateUnitFrameMouseover = UpdateUnitFrameMouseover
+
+local function ApplyFrameVisibilityConfig(frameName, cbData, config, opts) return ApplyVisibilityToUnitFrame(frameName, cbData, config, opts) end
+addon.functions.ApplyFrameVisibilityConfig = ApplyFrameVisibilityConfig
 
 local function ApplyUnitFrameSettingByVar(varName)
 	if not varName then return end

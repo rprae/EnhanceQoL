@@ -705,9 +705,18 @@ local settings = {
 		dbKey = "positionPersistence",
 		text = L["Position Persistence"] or "Position persistence",
 		list = {
-			close = L["Position Persistence Close"] or "Until close of the frame",
-			lockout = L["Position Persistence Lockout"] or "Until lockout",
-			reset = L["Position Persistence Reset"] or "Until reset",
+			close = {
+				text = L["Position Persistence Close"] or "Until close of the frame",
+				tooltip = L["Position Persistence Close Tooltip"] or "Does not save the position and resets when the frame closes.",
+			},
+			lockout = {
+				text = L["Position Persistence Lockout"] or "Until logout",
+				tooltip = L["Position Persistence Lockout Tooltip"] or "Saves the position only until you log out.",
+			},
+			reset = {
+				text = L["Position Persistence Reset"] or "Until reset",
+				tooltip = L["Position Persistence Reset Tooltip"] or "Saves the position until you reset it.",
+			},
 		},
 		order = { "close", "lockout", "reset" },
 		default = "reset",

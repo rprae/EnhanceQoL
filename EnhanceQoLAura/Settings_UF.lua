@@ -12,6 +12,8 @@ local LSM = LibStub("LibSharedMedia-3.0")
 local EditMode = addon.EditMode
 local settingType = EditMode and EditMode.lib and EditMode.lib.SettingType
 local After = C_Timer and C_Timer.After
+local GetVisibilityRuleMetadata = addon.functions and addon.functions.GetVisibilityRuleMetadata
+local NormalizeUnitFrameVisibilityConfig = addon.functions and addon.functions.NormalizeUnitFrameVisibilityConfig
 
 local UF = addon.Aura and addon.Aura.UF
 if not (UF and settingType) then return end
@@ -194,6 +196,23 @@ local function availableCopySources(unit)
 	return opts
 end
 
+local function getVisibilityRuleOptions(unit)
+	if not GetVisibilityRuleMetadata then return {} end
+	local options = {}
+	local unitToken = unit
+	for key, data in pairs(GetVisibilityRuleMetadata() or {}) do
+		local allowed = data.appliesTo and data.appliesTo.frame
+		if allowed and data.unitRequirement and data.unitRequirement ~= unitToken then allowed = false end
+		if allowed and unitToken == "player" and key == "PLAYER_HEALTH_NOT_FULL" then allowed = false end
+		if allowed then options[#options + 1] = { value = key, label = data.label or key, order = data.order or 999 } end
+	end
+	table.sort(options, function(a, b)
+		if a.order == b.order then return tostring(a.label) < tostring(b.label) end
+		return a.order < b.order
+	end)
+	return options
+end
+
 local function showCopySettingsPopup(fromUnit, toUnit)
 	if not (fromUnit and toUnit and UF.CopySettings) then return end
 	StaticPopupDialogs[copyDialogKey] = StaticPopupDialogs[copyDialogKey]
@@ -299,6 +318,24 @@ local function checkboxDropdown(name, options, getter, setter, default, parentId
 	}
 end
 
+local function multiDropdown(name, options, isSelected, setSelected, default, parentId, isEnabled)
+	return {
+		name = name,
+		kind = settingType.Dropdown,
+		height = 200,
+		parentId = parentId,
+		default = default,
+		generator = function(_, root)
+			local opts = type(options) == "function" and options() or options
+			if type(opts) ~= "table" then return end
+			for _, opt in ipairs(opts) do
+				root:CreateCheckbox(opt.label, function() return isSelected(opt.value) end, function() setSelected(opt.value, not isSelected(opt.value)) end)
+			end
+		end,
+		isEnabled = isEnabled,
+	}
+end
+
 local function slider(name, minVal, maxVal, step, getter, setter, default, parentId, allowInput, formatter)
 	return {
 		name = name,
@@ -395,6 +432,34 @@ local function buildUnitSettings(unit)
 	local isPlayer = unit == "player"
 	local classHasResource = isPlayer and classResourceClasses[addon.variables and addon.variables.unitClass]
 	local copyOptions = availableCopySources(unit)
+	local visibilityOptions = getVisibilityRuleOptions(unit)
+	local function getVisibilityConfig()
+		local cfg = ensureConfig(unit)
+		local raw = cfg and cfg.visibility
+		if NormalizeUnitFrameVisibilityConfig then return NormalizeUnitFrameVisibilityConfig(nil, raw, { skipSave = true, ignoreOverride = true }) end
+		if type(raw) == "table" then return raw end
+		return nil
+	end
+	local function isVisibilityRuleSelected(key)
+		local config = getVisibilityConfig()
+		return config and config[key] == true
+	end
+	local function setVisibilityRule(key, shouldSelect)
+		local cfg = ensureConfig(unit)
+		local working = type(cfg.visibility) == "table" and cfg.visibility or {}
+		if key == "ALWAYS_HIDDEN" and shouldSelect then
+			working = { ALWAYS_HIDDEN = true }
+		elseif shouldSelect then
+			working[key] = true
+			working.ALWAYS_HIDDEN = nil
+		else
+			working[key] = nil
+		end
+		if not next(working) then working = nil end
+		cfg.visibility = working
+		if UF and UF.ApplyVisibilityRules then UF.ApplyVisibilityRules(unit) end
+		refreshSettingsUI()
+	end
 
 	list[#list + 1] = { name = SETTINGS or "Settings", kind = settingType.Collapsible, id = "utility", defaultCollapsed = true }
 
@@ -418,6 +483,8 @@ local function buildUnitSettings(unit)
 		setValue(unit, { "showTooltip" }, val and true or false)
 		refreshSelf()
 	end, def.showTooltip or false, "frame")
+
+	if #visibilityOptions > 0 then list[#list + 1] = multiDropdown(L["Show when"] or "Show when", visibilityOptions, isVisibilityRuleSelected, setVisibilityRule, nil, "frame") end
 
 	list[#list + 1] = slider(L["UFWidth"] or "Frame width", MIN_WIDTH, 800, 1, function() return getValue(unit, { "width" }, def.width or MIN_WIDTH) end, function(val)
 		setValue(unit, { "width" }, math.max(MIN_WIDTH, val or MIN_WIDTH))

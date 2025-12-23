@@ -90,6 +90,54 @@ local function serializeSelection(selection)
 	return table.concat(keys, ",")
 end
 
+local function addOptionToContainer(container, key, entry)
+	local value = key
+	local label = entry
+	local tooltip
+
+	if type(entry) == "table" then
+		if entry.value ~= nil then
+			value = entry.value
+		end
+		label = entry.label or entry.text or entry.name or entry.title or entry.value or key
+		tooltip = entry.tooltip or entry.desc or entry.description
+	end
+
+	if label == nil then
+		label = value
+	end
+	if label == nil then
+		label = ""
+	end
+	if type(label) ~= "string" and type(label) ~= "number" then
+		label = tostring(label)
+	end
+
+	local optionData = container:Add(value, label, tooltip)
+	if type(entry) == "table" then
+		if entry.text ~= nil then
+			optionData.text = entry.text
+		end
+		if entry.label ~= nil then
+			optionData.label = entry.label
+		end
+		if entry.disabled ~= nil then
+			optionData.disabled = entry.disabled
+		end
+		if entry.warning ~= nil then
+			optionData.warning = entry.warning
+		end
+		if entry.recommend ~= nil then
+			optionData.recommend = entry.recommend
+		end
+		if entry.onEnter ~= nil then
+			optionData.onEnter = entry.onEnter
+		end
+	end
+
+	return optionData
+end
+
 local function isSearchActive()
 	return SettingsPanel and SettingsPanel.SearchBox and SettingsPanel.SearchBox:HasText()
 end
@@ -589,7 +637,7 @@ function lib:CreateDropdown(cat, data)
 	)
 	local function optionsFunc()
 		local container = Settings.CreateControlTextContainer()
-			local list = data.values
+			local list = data.values or data.options
 			if data.optionfunc then
 				local ok, result = pcall(data.optionfunc)
 				if ok and type(result) == "table" then
@@ -603,14 +651,14 @@ function lib:CreateDropdown(cat, data)
 					seen = {}
 					for _, key in ipairs(orderedKeys) do
 						if key ~= "_order" and list[key] ~= nil then
-							container:Add(key, list[key])
+							addOptionToContainer(container, key, list[key])
 							seen[key] = true
 						end
 					end
 				end
 				for key, value in pairs(list) do
 					if key ~= "_order" and (not seen or not seen[key]) then
-						container:Add(key, value)
+						addOptionToContainer(container, key, value)
 					end
 				end
 			end
@@ -667,14 +715,14 @@ function lib:CreateScrollDropdown(cat, data)
 				seen = {}
 				for _, key in ipairs(orderedKeys) do
 					if key ~= "_order" and list[key] ~= nil then
-						container:Add(key, list[key])
+						addOptionToContainer(container, key, list[key])
 						seen[key] = true
 					end
 				end
 			end
 			for key, value in pairs(list) do
 				if key ~= "_order" and (not seen or not seen[key]) then
-					container:Add(key, value)
+					addOptionToContainer(container, key, value)
 				end
 			end
 		end
@@ -806,14 +854,14 @@ function lib:CreateCheckboxDropdown(cat, data)
 				seen = {}
 				for _, key in ipairs(orderedKeys) do
 					if key ~= "_order" and list[key] ~= nil then
-						container:Add(key, list[key])
+						addOptionToContainer(container, key, list[key])
 						seen[key] = true
 					end
 				end
 			end
 			for key, value in pairs(list) do
 				if key ~= "_order" and (not seen or not seen[key]) then
-					container:Add(key, value)
+					addOptionToContainer(container, key, value)
 				end
 			end
 		end

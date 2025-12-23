@@ -68,41 +68,61 @@ local function clamp(value, minV, maxV)
 end
 local SetFrameVisibilityOverride = addon.functions and addon.functions.SetFrameVisibilityOverride
 local HasFrameVisibilityOverride = addon.functions and addon.functions.HasFrameVisibilityOverride
+local NormalizeUnitFrameVisibilityConfig = addon.functions and addon.functions.NormalizeUnitFrameVisibilityConfig
+local ApplyFrameVisibilityConfig = addon.functions and addon.functions.ApplyFrameVisibilityConfig
 
 local shouldShowSampleCast
 local setSampleCast
 local applyFont
 
-local PLAYER_UNIT = "player"
-local TARGET_UNIT = "target"
-local TARGET_TARGET_UNIT = "targettarget"
-local FOCUS_UNIT = "focus"
-local FRAME_NAME = "EQOLUFPlayerFrame"
-local HEALTH_NAME = "EQOLUFPlayerHealth"
-local POWER_NAME = "EQOLUFPlayerPower"
-local STATUS_NAME = "EQOLUFPlayerStatus"
-local TARGET_FRAME_NAME = "EQOLUFTargetFrame"
-local TARGET_HEALTH_NAME = "EQOLUFTargetHealth"
-local TARGET_POWER_NAME = "EQOLUFTargetPower"
-local TARGET_STATUS_NAME = "EQOLUFTargetStatus"
-local TARGET_TARGET_FRAME_NAME = "EQOLUFToTFrame"
-local TARGET_TARGET_HEALTH_NAME = "EQOLUFToTHealth"
-local TARGET_TARGET_POWER_NAME = "EQOLUFToTPower"
-local TARGET_TARGET_STATUS_NAME = "EQOLUFToTStatus"
-local FOCUS_FRAME_NAME = "EQOLUFFocusFrame"
-local FOCUS_HEALTH_NAME = "EQOLUFFocusHealth"
-local FOCUS_POWER_NAME = "EQOLUFFocusPower"
-local FOCUS_STATUS_NAME = "EQOLUFFocusStatus"
-local PET_UNIT = "pet"
-local PET_FRAME_NAME = "EQOLUFPetFrame"
-local PET_HEALTH_NAME = "EQOLUFPetHealth"
-local PET_POWER_NAME = "EQOLUFPetPower"
-local PET_STATUS_NAME = "EQOLUFPetStatus"
-local BLIZZ_PLAYER_FRAME_NAME = "PlayerFrame"
-local BLIZZ_TARGET_FRAME_NAME = "TargetFrame"
-local BLIZZ_TARGET_TARGET_FRAME_NAME = "TargetFrameToT"
-local BLIZZ_FOCUS_FRAME_NAME = "FocusFrame"
-local BLIZZ_PET_FRAME_NAME = "PetFrame"
+local UNIT = {
+	PLAYER = "player",
+	TARGET = "target",
+	TARGET_TARGET = "targettarget",
+	FOCUS = "focus",
+	PET = "pet",
+}
+
+local UF_FRAME_NAMES = {
+	player = {
+		frame = "EQOLUFPlayerFrame",
+		health = "EQOLUFPlayerHealth",
+		power = "EQOLUFPlayerPower",
+		status = "EQOLUFPlayerStatus",
+	},
+	target = {
+		frame = "EQOLUFTargetFrame",
+		health = "EQOLUFTargetHealth",
+		power = "EQOLUFTargetPower",
+		status = "EQOLUFTargetStatus",
+	},
+	targettarget = {
+		frame = "EQOLUFToTFrame",
+		health = "EQOLUFToTHealth",
+		power = "EQOLUFToTPower",
+		status = "EQOLUFToTStatus",
+	},
+	focus = {
+		frame = "EQOLUFFocusFrame",
+		health = "EQOLUFFocusHealth",
+		power = "EQOLUFFocusPower",
+		status = "EQOLUFFocusStatus",
+	},
+	pet = {
+		frame = "EQOLUFPetFrame",
+		health = "EQOLUFPetHealth",
+		power = "EQOLUFPetPower",
+		status = "EQOLUFPetStatus",
+	},
+}
+
+local BLIZZ_FRAME_NAMES = {
+	player = "PlayerFrame",
+	target = "TargetFrame",
+	targettarget = "TargetFrameToT",
+	focus = "FocusFrame",
+	pet = "PetFrame",
+}
 local MIN_WIDTH = 50
 local classResourceFramesByClass = {
 	DEATHKNIGHT = { "RuneFrame" },
@@ -130,43 +150,43 @@ end
 
 local UNITS = {
 	player = {
-		unit = "player",
-		frameName = FRAME_NAME,
-		healthName = HEALTH_NAME,
-		powerName = POWER_NAME,
-		statusName = STATUS_NAME,
+		unit = UNIT.PLAYER,
+		frameName = UF_FRAME_NAMES.player.frame,
+		healthName = UF_FRAME_NAMES.player.health,
+		powerName = UF_FRAME_NAMES.player.power,
+		statusName = UF_FRAME_NAMES.player.status,
 		dropdown = function(self) ToggleDropDownMenu(1, nil, PlayerFrameDropDown, self, 0, 0) end,
 	},
 	target = {
-		unit = "target",
-		frameName = TARGET_FRAME_NAME,
-		healthName = TARGET_HEALTH_NAME,
-		powerName = TARGET_POWER_NAME,
-		statusName = TARGET_STATUS_NAME,
+		unit = UNIT.TARGET,
+		frameName = UF_FRAME_NAMES.target.frame,
+		healthName = UF_FRAME_NAMES.target.health,
+		powerName = UF_FRAME_NAMES.target.power,
+		statusName = UF_FRAME_NAMES.target.status,
 		dropdown = function(self) ToggleDropDownMenu(1, nil, TargetFrameDropDown, self, 0, 0) end,
 	},
 	targettarget = {
-		unit = "targettarget",
-		frameName = TARGET_TARGET_FRAME_NAME,
-		healthName = TARGET_TARGET_HEALTH_NAME,
-		powerName = TARGET_TARGET_POWER_NAME,
-		statusName = TARGET_TARGET_STATUS_NAME,
+		unit = UNIT.TARGET_TARGET,
+		frameName = UF_FRAME_NAMES.targettarget.frame,
+		healthName = UF_FRAME_NAMES.targettarget.health,
+		powerName = UF_FRAME_NAMES.targettarget.power,
+		statusName = UF_FRAME_NAMES.targettarget.status,
 		dropdown = function(self) ToggleDropDownMenu(1, nil, TargetFrameDropDown, self, 0, 0) end,
 	},
 	focus = {
-		unit = FOCUS_UNIT,
-		frameName = FOCUS_FRAME_NAME,
-		healthName = FOCUS_HEALTH_NAME,
-		powerName = FOCUS_POWER_NAME,
-		statusName = FOCUS_STATUS_NAME,
+		unit = UNIT.FOCUS,
+		frameName = UF_FRAME_NAMES.focus.frame,
+		healthName = UF_FRAME_NAMES.focus.health,
+		powerName = UF_FRAME_NAMES.focus.power,
+		statusName = UF_FRAME_NAMES.focus.status,
 		dropdown = function(self) ToggleDropDownMenu(1, nil, FocusFrameDropDown, self, 0, 0) end,
 	},
 	pet = {
-		unit = PET_UNIT,
-		frameName = PET_FRAME_NAME,
-		healthName = PET_HEALTH_NAME,
-		powerName = PET_POWER_NAME,
-		statusName = PET_STATUS_NAME,
+		unit = UNIT.PET,
+		frameName = UF_FRAME_NAMES.pet.frame,
+		healthName = UF_FRAME_NAMES.pet.health,
+		powerName = UF_FRAME_NAMES.pet.power,
+		statusName = UF_FRAME_NAMES.pet.status,
 		dropdown = function(self) ToggleDropDownMenu(1, nil, PetFrameDropDown, self, 0, 0) end,
 		disableAbsorb = true,
 	},
@@ -460,11 +480,11 @@ local function checkRaidTargetIcon(unitToken, st)
 	end
 end
 local function updateAllRaidTargetIcons()
-	checkRaidTargetIcon(PLAYER_UNIT, states[PLAYER_UNIT])
-	checkRaidTargetIcon(TARGET_UNIT, states[TARGET_UNIT])
-	checkRaidTargetIcon(TARGET_TARGET_UNIT, states[TARGET_TARGET_UNIT])
-	checkRaidTargetIcon(PET_UNIT, states[PET_UNIT])
-	checkRaidTargetIcon(FOCUS_UNIT, states[FOCUS_UNIT])
+	checkRaidTargetIcon(UNIT.PLAYER, states[UNIT.PLAYER])
+	checkRaidTargetIcon(UNIT.TARGET, states[UNIT.TARGET])
+	checkRaidTargetIcon(UNIT.TARGET_TARGET, states[UNIT.TARGET_TARGET])
+	checkRaidTargetIcon(UNIT.PET, states[UNIT.PET])
+	checkRaidTargetIcon(UNIT.FOCUS, states[UNIT.FOCUS])
 	for i = 1, maxBossFrames do
 		local u = "boss" .. i
 		if states[u] then checkRaidTargetIcon(u, states[u]) end
@@ -525,7 +545,7 @@ local function restoreClassResourceFrames()
 end
 
 local function onClassResourceShow()
-	if applyClassResourceLayout then applyClassResourceLayout(states[PLAYER_UNIT] and states[PLAYER_UNIT].cfg or ensureDB(PLAYER_UNIT)) end
+	if applyClassResourceLayout then applyClassResourceLayout(states[UNIT.PLAYER] and states[UNIT.PLAYER].cfg or ensureDB(UNIT.PLAYER)) end
 end
 
 local function hookClassResourceFrame(frame)
@@ -545,9 +565,9 @@ applyClassResourceLayout = function(cfg)
 		restoreClassResourceFrames()
 		return
 	end
-	local st = states[PLAYER_UNIT]
+	local st = states[UNIT.PLAYER]
 	if not st or not st.frame then return end
-	local def = defaultsFor(PLAYER_UNIT)
+	local def = defaultsFor(UNIT.PLAYER)
 	local rcfg = (cfg and cfg.classResource) or (def and def.classResource) or {}
 	if rcfg.enabled == false then
 		restoreClassResourceFrames()
@@ -1042,16 +1062,16 @@ local function fullScanTargetAuras()
 end
 
 local function refreshMainPower(unit)
-	unit = unit or PLAYER_UNIT
+	unit = unit or UNIT.PLAYER
 	local enumId, token = UnitPowerType(unit)
-	if unit == PLAYER_UNIT then
+	if unit == UNIT.PLAYER then
 		mainPowerEnum, mainPowerToken = enumId, token
 	end
 	return enumId, token
 end
 local function getMainPower(unit)
-	if unit and unit ~= PLAYER_UNIT then return UnitPowerType(unit) end
-	if not mainPowerEnum or not mainPowerToken then return refreshMainPower(PLAYER_UNIT) end
+	if unit and unit ~= UNIT.PLAYER then return UnitPowerType(unit) end
+	if not mainPowerEnum or not mainPowerToken then return refreshMainPower(UNIT.PLAYER) end
 	return mainPowerEnum, mainPowerToken
 end
 local function findTreeNode(path)
@@ -1088,13 +1108,13 @@ local function applyVisibilityDriver(unit, enabled)
 	local cond
 	if not enabled then
 		cond = "hide"
-	elseif unit == TARGET_UNIT then
+	elseif unit == UNIT.TARGET then
 		cond = "[@target,exists] show; hide"
-	elseif unit == TARGET_TARGET_UNIT then
+	elseif unit == UNIT.TARGET_TARGET then
 		cond = "[@targettarget,exists] show; hide"
-	elseif unit == FOCUS_UNIT then
+	elseif unit == UNIT.FOCUS then
 		cond = "[@focus,exists] show; hide"
-	elseif unit == PET_UNIT then
+	elseif unit == UNIT.PET then
 		cond = "[@pet,exists] show; hide"
 	elseif isBossUnit(unit) then
 		cond = ("[@%s,exists] show; hide"):format(unit)
@@ -1115,18 +1135,18 @@ local function applyFrameRuleOverride(frameName, enabled)
 	if not frameName then return end
 	local info = getFrameInfo(frameName)
 	if not info then
-		if frameName == TARGET_TARGET_FRAME_NAME then
-			info = { name = TARGET_TARGET_FRAME_NAME, var = "unitframeSettingTargetTargetFrame", unitToken = TARGET_TARGET_UNIT }
+		if frameName == UF_FRAME_NAMES.targettarget.frame then
+			info = { name = UF_FRAME_NAMES.targettarget.frame, var = "unitframeSettingTargetTargetFrame", unitToken = UNIT.TARGET_TARGET }
 		else
 			return
 		end
 	end
 	local function frameNameFor(unitToken)
-		if unitToken == PLAYER_UNIT then return BLIZZ_PLAYER_FRAME_NAME end
-		if unitToken == TARGET_UNIT then return BLIZZ_TARGET_FRAME_NAME end
-		if unitToken == TARGET_TARGET_UNIT then return BLIZZ_TARGET_TARGET_FRAME_NAME end
-		if unitToken == FOCUS_UNIT then return BLIZZ_FOCUS_FRAME_NAME end
-		if unitToken == PET_UNIT then return BLIZZ_PET_FRAME_NAME end
+		if unitToken == UNIT.PLAYER then return BLIZZ_FRAME_NAMES.player end
+		if unitToken == UNIT.TARGET then return BLIZZ_FRAME_NAMES.target end
+		if unitToken == UNIT.TARGET_TARGET then return BLIZZ_FRAME_NAMES.targettarget end
+		if unitToken == UNIT.FOCUS then return BLIZZ_FRAME_NAMES.focus end
+		if unitToken == UNIT.PET then return BLIZZ_FRAME_NAMES.pet end
 	end
 	local NormalizeUnitFrameVisibilityConfig = addon.functions and addon.functions.NormalizeUnitFrameVisibilityConfig
 	local UpdateUnitFrameMouseover = addon.functions and addon.functions.UpdateUnitFrameMouseover
@@ -1163,6 +1183,42 @@ local function applyFrameRuleOverride(frameName, enabled)
 	end
 	UpdateUnitFrameMouseover(info.name, info)
 	if enabled then hardHideBlizzFrame(info.name or frameNameFor(info.unitToken)) end
+end
+
+local function normalizeVisibilityConfig(config)
+	if NormalizeUnitFrameVisibilityConfig then return NormalizeUnitFrameVisibilityConfig(nil, config, { skipSave = true, ignoreOverride = true }) end
+	if type(config) == "table" then return config end
+	return nil
+end
+
+local function applyVisibilityRules(unit)
+	if not ApplyFrameVisibilityConfig then return end
+	local cfg = ensureDB(unit)
+	if unit == UNIT.PLAYER and cfg and type(cfg.visibility) == "table" and cfg.visibility.PLAYER_HEALTH_NOT_FULL then
+		cfg.visibility.PLAYER_HEALTH_NOT_FULL = nil
+		if not next(cfg.visibility) then cfg.visibility = nil end
+	end
+	local inEdit = addon.EditModeLib and addon.EditModeLib.IsInEditMode and addon.EditModeLib:IsInEditMode()
+	local useConfig = (not inEdit and cfg and cfg.enabled) and normalizeVisibilityConfig(cfg.visibility) or nil
+	local opts = { noStateDriver = true }
+	if unit == "boss" then
+		for i = 1, maxBossFrames do
+			local info = UNITS["boss" .. i]
+			if info and info.frameName then ApplyFrameVisibilityConfig(info.frameName, { unitToken = "boss" }, useConfig, opts) end
+		end
+		return
+	end
+	local info = UNITS[unit]
+	if info and info.frameName then ApplyFrameVisibilityConfig(info.frameName, { unitToken = info.unit }, useConfig, opts) end
+end
+
+local function applyVisibilityRulesAll()
+	applyVisibilityRules("player")
+	applyVisibilityRules("target")
+	applyVisibilityRules(UNIT.TARGET_TARGET)
+	applyVisibilityRules("focus")
+	applyVisibilityRules("pet")
+	applyVisibilityRules("boss")
 end
 
 local function addTreeNode(path, node, parentPath)
@@ -1921,7 +1977,7 @@ local function updateStatus(cfg, unit)
 	local ciCfg = scfg.combatIndicator or defStatus.combatIndicator or {}
 	local showName = scfg.enabled ~= false
 	local showLevel = scfg.levelEnabled ~= false
-	local showStatus = showName or showLevel or (unit == PLAYER_UNIT and ciCfg.enabled ~= false)
+	local showStatus = showName or showLevel or (unit == UNIT.PLAYER and ciCfg.enabled ~= false)
 	local statusHeight = showStatus and (cfg.statusHeight or def.statusHeight) or 0.001
 	st.status:SetHeight(statusHeight)
 	st.status:SetShown(showStatus)
@@ -1940,9 +1996,9 @@ local function updateStatus(cfg, unit)
 end
 
 local function updateCombatIndicator(cfg)
-	local st = states[PLAYER_UNIT]
+	local st = states[UNIT.PLAYER]
 	if not st or not st.combatIcon or not st.status then return end
-	local scfg = (cfg and cfg.status) or (defaultsFor(PLAYER_UNIT) and defaultsFor(PLAYER_UNIT).status) or {}
+	local scfg = (cfg and cfg.status) or (defaultsFor(UNIT.PLAYER) and defaultsFor(UNIT.PLAYER).status) or {}
 	local ccfg = scfg.combatIndicator or {}
 	if ccfg.enabled == false then
 		st.combatIcon:Hide()
@@ -1952,7 +2008,7 @@ local function updateCombatIndicator(cfg)
 	st.combatIcon:SetSize(ccfg.size or 18, ccfg.size or 18)
 	st.combatIcon:ClearAllPoints()
 	st.combatIcon:SetPoint("TOP", st.status, "TOP", (ccfg.offset and ccfg.offset.x) or -8, (ccfg.offset and ccfg.offset.y) or 0)
-	if (UnitAffectingCombat and UnitAffectingCombat(PLAYER_UNIT)) or addon.EditModeLib:IsInEditMode() then
+	if (UnitAffectingCombat and UnitAffectingCombat(UNIT.PLAYER)) or addon.EditModeLib:IsInEditMode() then
 		st.combatIcon:Show()
 	else
 		st.combatIcon:Hide()
@@ -1989,9 +2045,9 @@ local function ensureRestLoop(st)
 end
 
 local function applyRestLoopLayout(cfg)
-	local st = states[PLAYER_UNIT]
+	local st = states[UNIT.PLAYER]
 	if not st or not st.restLoop then return end
-	local def = defaultsFor(PLAYER_UNIT)
+	local def = defaultsFor(UNIT.PLAYER)
 	local rdef = def and def.resting or {}
 	local rcfg = (cfg and cfg.resting) or rdef
 	local size = max(10, rcfg.size or rdef.size or 20)
@@ -2006,9 +2062,9 @@ local function applyRestLoopLayout(cfg)
 end
 
 local function updateRestingIndicator(cfg)
-	local st = states[PLAYER_UNIT]
+	local st = states[UNIT.PLAYER]
 	if not st or not st.restLoop then return end
-	local def = defaultsFor(PLAYER_UNIT)
+	local def = defaultsFor(UNIT.PLAYER)
 	local rdef = def and def.resting or {}
 	local rcfg = (cfg and cfg.resting) or rdef
 	if not cfg or cfg.enabled == false or rcfg.enabled == false then
@@ -2017,7 +2073,7 @@ local function updateRestingIndicator(cfg)
 		return
 	end
 	applyRestLoopLayout(cfg)
-	local resting = (IsResting and IsResting()) or (UnitIsResting and UnitIsResting(PLAYER_UNIT))
+	local resting = (IsResting and IsResting()) or (UnitIsResting and UnitIsResting(UNIT.PLAYER))
 	if resting then
 		st.restLoop:Show()
 		if st.restLoopAnim and not st.restLoopAnim:IsPlaying() then st.restLoopAnim:Play() end
@@ -2036,7 +2092,7 @@ local function layoutFrame(cfg, unit)
 	local ciCfg = scfg.combatIndicator or defStatus.combatIndicator or {}
 	local showName = scfg.enabled ~= false
 	local showLevel = scfg.levelEnabled ~= false
-	local showStatus = showName or showLevel or (unit == PLAYER_UNIT and ciCfg.enabled ~= false)
+	local showStatus = showName or showLevel or (unit == UNIT.PLAYER and ciCfg.enabled ~= false)
 	local pcfg = cfg.power or {}
 	local powerEnabled = pcfg.enabled ~= false
 	local width = max(MIN_WIDTH, cfg.width or def.width)
@@ -2108,7 +2164,7 @@ local function layoutFrame(cfg, unit)
 
 	layoutTexts(st.health, st.healthTextLeft, st.healthTextRight, cfg.health, width)
 	layoutTexts(st.power, st.powerTextLeft, st.powerTextRight, cfg.power, width)
-	if st.castBar and unit == TARGET_UNIT then applyCastLayout(cfg, unit) end
+	if st.castBar and unit == UNIT.TARGET then applyCastLayout(cfg, unit) end
 
 	-- Apply border only around the bar region wrapper
 	if st.barGroup then setBackdrop(st.barGroup, cfg.border) end
@@ -2149,7 +2205,7 @@ local function layoutFrame(cfg, unit)
 			end
 		end
 	end
-	if unit == PLAYER_UNIT then applyClassResourceLayout(cfg) end
+	if unit == UNIT.PLAYER then applyClassResourceLayout(cfg) end
 	syncTextFrameLevels(st)
 end
 
@@ -2211,7 +2267,7 @@ local function ensureFrames(unit)
 		st.absorb = nil
 		if st.overAbsorbGlow then st.overAbsorbGlow:Hide() end
 	end
-	if (unit == TARGET_UNIT or unit == FOCUS_UNIT or isBossUnit(unit)) and not st.castBar then
+	if (unit == UNIT.TARGET or unit == UNIT.FOCUS or isBossUnit(unit)) and not st.castBar then
 		st.castBar = CreateFrame("StatusBar", info.healthName .. "Cast", st.frame, "BackdropTemplate")
 		st.castBar:SetStatusBarDesaturated(true)
 		st.castTextLayer = CreateFrame("Frame", nil, st.castBar)
@@ -2243,7 +2299,7 @@ local function ensureFrames(unit)
 	st.raidIcon:SetSize(18, 18)
 	st.raidIcon:SetPoint("TOP", st.frame, "TOP", 0, -2)
 	st.raidIcon:Hide()
-	if unit == PLAYER_UNIT then
+	if unit == UNIT.PLAYER then
 		st.combatIcon = st.statusTextLayer:CreateTexture("EQOLUFPlayerCombatIcon", "OVERLAY")
 		ensureRestLoop(st)
 	end
@@ -2276,7 +2332,7 @@ local function applyBars(cfg, unit)
 	if powerEnabled then
 		st.power:SetStatusBarTexture(resolveTexture(pcfg.texture))
 		if st.power.SetStatusBarDesaturated then st.power:SetStatusBarDesaturated(pcfg.useCustomColor == true) end
-		if unit == PLAYER_UNIT then refreshMainPower(unit) end
+		if unit == UNIT.PLAYER then refreshMainPower(unit) end
 		local _, powerToken = getMainPower(unit)
 		configureSpecialTexture(st.power, powerToken, pcfg.texture, pcfg)
 		applyBarBackdrop(st.power, pcfg)
@@ -2304,7 +2360,7 @@ local function applyBars(cfg, unit)
 	elseif st.overAbsorbGlow then
 		st.overAbsorbGlow:Hide()
 	end
-	if st.castBar and (unit == TARGET_UNIT or unit == FOCUS_UNIT or isBossUnit(unit)) then
+	if st.castBar and (unit == UNIT.TARGET or unit == UNIT.FOCUS or isBossUnit(unit)) then
 		local defc = (defaultsFor(unit) and defaultsFor(unit).cast) or {}
 		local ccfg = cfg.cast or defc
 		st.castBar:SetStatusBarTexture(resolveCastTexture((ccfg.texture or defc.texture or "DEFAULT")))
@@ -2385,25 +2441,26 @@ local function applyConfig(unit)
 			if st.status then st.status:Hide() end
 		end
 		applyVisibilityDriver(unit, false)
-		if unit == PLAYER_UNIT then applyFrameRuleOverride(BLIZZ_PLAYER_FRAME_NAME, false) end
-		if unit == TARGET_UNIT then applyFrameRuleOverride(BLIZZ_TARGET_FRAME_NAME, false) end
-		if unit == TARGET_TARGET_UNIT then applyFrameRuleOverride(BLIZZ_TARGET_TARGET_FRAME_NAME, false) end
-		if unit == FOCUS_UNIT then applyFrameRuleOverride(BLIZZ_FOCUS_FRAME_NAME, false) end
-		if unit == PET_UNIT then applyFrameRuleOverride(BLIZZ_PET_FRAME_NAME, false) end
-		if unit == PLAYER_UNIT then restoreClassResourceFrames() end
+		if unit == UNIT.PLAYER then applyFrameRuleOverride(BLIZZ_FRAME_NAMES.player, false) end
+		if unit == UNIT.TARGET then applyFrameRuleOverride(BLIZZ_FRAME_NAMES.target, false) end
+		if unit == UNIT.TARGET_TARGET then applyFrameRuleOverride(BLIZZ_FRAME_NAMES.targettarget, false) end
+		if unit == UNIT.FOCUS then applyFrameRuleOverride(BLIZZ_FRAME_NAMES.focus, false) end
+		if unit == UNIT.PET then applyFrameRuleOverride(BLIZZ_FRAME_NAMES.pet, false) end
+		if unit == UNIT.PLAYER then restoreClassResourceFrames() end
 		if unit == "target" then resetTargetAuras() end
-		if unit == PLAYER_UNIT then updateRestingIndicator(cfg) end
+		if unit == UNIT.PLAYER then updateRestingIndicator(cfg) end
+		if not isBossUnit(unit) then applyVisibilityRules(unit) end
 		return
 	end
 	ensureFrames(unit)
 	st = states[unit]
 	st.cfg = cfg
 	applyVisibilityDriver(unit, cfg.enabled)
-	if unit == PLAYER_UNIT then applyFrameRuleOverride(BLIZZ_PLAYER_FRAME_NAME, true) end
-	if unit == TARGET_UNIT then applyFrameRuleOverride(BLIZZ_TARGET_FRAME_NAME, true) end
-	if unit == TARGET_TARGET_UNIT then applyFrameRuleOverride(BLIZZ_TARGET_TARGET_FRAME_NAME, true) end
-	if unit == FOCUS_UNIT then applyFrameRuleOverride(BLIZZ_FOCUS_FRAME_NAME, true) end
-	if unit == PET_UNIT then applyFrameRuleOverride(BLIZZ_PET_FRAME_NAME, true) end
+	if unit == UNIT.PLAYER then applyFrameRuleOverride(BLIZZ_FRAME_NAMES.player, true) end
+	if unit == UNIT.TARGET then applyFrameRuleOverride(BLIZZ_FRAME_NAMES.target, true) end
+	if unit == UNIT.TARGET_TARGET then applyFrameRuleOverride(BLIZZ_FRAME_NAMES.targettarget, true) end
+	if unit == UNIT.FOCUS then applyFrameRuleOverride(BLIZZ_FRAME_NAMES.focus, true) end
+	if unit == UNIT.PET then applyFrameRuleOverride(BLIZZ_FRAME_NAMES.pet, true) end
 	applyBars(cfg, unit)
 	if not InCombatLockdown() then layoutFrame(cfg, unit) end
 	updateStatus(cfg, unit)
@@ -2411,7 +2468,7 @@ local function applyConfig(unit)
 	updateHealth(cfg, unit)
 	updatePower(cfg, unit)
 	checkRaidTargetIcon(unit, st)
-	if unit == PLAYER_UNIT then
+	if unit == UNIT.PLAYER then
 		updateCombatIndicator(cfg)
 		updateRestingIndicator(cfg)
 	end
@@ -2420,12 +2477,12 @@ local function applyConfig(unit)
 		if st.barGroup then st.barGroup:Show() end
 		if st.status then st.status:Show() end
 	end
-	if unit == TARGET_UNIT and st.castBar then
-		if cfg.cast and cfg.cast.enabled ~= false and UnitExists(TARGET_UNIT) then
+	if unit == UNIT.TARGET and st.castBar then
+		if cfg.cast and cfg.cast.enabled ~= false and UnitExists(UNIT.TARGET) then
 			if shouldShowSampleCast(unit) and (not st.castInfo or not UnitCastingInfo or not UnitCastingInfo(unit)) then setSampleCast(unit) end
 			st.castBar:Show()
 		else
-			stopCast(TARGET_UNIT)
+			stopCast(UNIT.TARGET)
 			st.castBar:Hide()
 		end
 	end
@@ -2437,7 +2494,8 @@ local function applyConfig(unit)
 			st.castBar:Hide()
 		end
 	end
-	if unit == TARGET_UNIT and states[unit] and states[unit].auraContainer then updateTargetAuraIcons(1) end
+	if unit == UNIT.TARGET and states[unit] and states[unit].auraContainer then updateTargetAuraIcons(1) end
+	if not isBossUnit(unit) then applyVisibilityRules(unit) end
 end
 
 local function layoutBossFrames(cfg)
@@ -2568,6 +2626,7 @@ local function updateBossFrames(force)
 	local cfg = ensureDB("boss")
 	if not cfg.enabled then
 		hideBossFrames(true)
+		applyVisibilityRules("boss")
 		return
 	end
 	if not bossContainer then ensureBossContainer() end
@@ -2641,6 +2700,7 @@ local function updateBossFrames(force)
 		bossShowPending = true
 		bossHidePending = nil
 	end
+	applyVisibilityRules("boss")
 end
 
 local unitEvents = {
@@ -2689,9 +2749,9 @@ local eventFrame
 local function anyUFEnabled()
 	local p = ensureDB("player").enabled
 	local t = ensureDB("target").enabled
-	local tt = ensureDB(TARGET_TARGET_UNIT).enabled
-	local pet = ensureDB(PET_UNIT).enabled
-	local focus = ensureDB(FOCUS_UNIT).enabled
+	local tt = ensureDB(UNIT.TARGET_TARGET).enabled
+	local pet = ensureDB(UNIT.PET).enabled
+	local focus = ensureDB(UNIT.FOCUS).enabled
 	local boss = ensureDB("boss").enabled
 	return p or t or tt or pet or focus or boss
 end
@@ -2746,14 +2806,14 @@ end
 local function ensureToTTicker()
 	if totTicker or not NewTicker then return end
 	totTicker = NewTicker(0.2, function()
-		local st = states[TARGET_TARGET_UNIT]
+		local st = states[UNIT.TARGET_TARGET]
 		local cfg = st and st.cfg
 		if not cfg or not cfg.enabled then return end
 		local pcfg = cfg.power or {}
 		local powerEnabled = pcfg.enabled ~= false
-		if not UnitExists(TARGET_TARGET_UNIT) or not st.frame or not st.frame:IsShown() then return end
+		if not UnitExists(UNIT.TARGET_TARGET) or not st.frame or not st.frame:IsShown() then return end
 		if powerEnabled then
-			local _, powerToken = UnitPowerType(TARGET_TARGET_UNIT)
+			local _, powerToken = UnitPowerType(UNIT.TARGET_TARGET)
 			if st.power and powerToken and powerToken ~= st._lastPowerToken then
 				if st.power.SetStatusBarDesaturated then st.power:SetStatusBarDesaturated((cfg.power or {}).useCustomColor == true) end
 				configureSpecialTexture(st.power, powerToken, (cfg.power or {}).texture, cfg.power)
@@ -2762,46 +2822,47 @@ local function ensureToTTicker()
 		else
 			if st.power then st.power:Hide() end
 		end
-		updateHealth(cfg, TARGET_TARGET_UNIT)
-		updatePower(cfg, TARGET_TARGET_UNIT)
+		updateHealth(cfg, UNIT.TARGET_TARGET)
+		updatePower(cfg, UNIT.TARGET_TARGET)
 	end)
 end
 
 local function updateTargetTargetFrame(cfg, forceApply)
-	cfg = cfg or ensureDB(TARGET_TARGET_UNIT)
-	local st = states[TARGET_TARGET_UNIT]
+	cfg = cfg or ensureDB(UNIT.TARGET_TARGET)
+	local st = states[UNIT.TARGET_TARGET]
 	if not cfg.enabled then
 		stopToTTicker()
 		if st then
 			if st.barGroup then st.barGroup:Hide() end
 			if st.status then st.status:Hide() end
 		end
+		applyVisibilityRules(UNIT.TARGET_TARGET)
 		return
 	end
 	if forceApply or not st or not st.frame then
-		applyConfig(TARGET_TARGET_UNIT)
-		st = states[TARGET_TARGET_UNIT]
+		applyConfig(UNIT.TARGET_TARGET)
+		st = states[UNIT.TARGET_TARGET]
 	end
 	if st then st.cfg = st.cfg or cfg end
 	local lHealth = UnitHealth("target")
-	if UnitExists("target") and UnitExists(TARGET_TARGET_UNIT) and (issecretvalue and issecretvalue(lHealth) or lHealth > 0) then
+	if UnitExists("target") and UnitExists(UNIT.TARGET_TARGET) and (issecretvalue and issecretvalue(lHealth) or lHealth > 0) then
 		if st then
 			if st.barGroup then st.barGroup:Show() end
 			if st.status then st.status:Show() end
 			local pcfg = cfg.power or {}
 			local powerEnabled = pcfg.enabled ~= false
-			updateNameAndLevel(cfg, TARGET_TARGET_UNIT)
-			updateHealth(cfg, TARGET_TARGET_UNIT)
+			updateNameAndLevel(cfg, UNIT.TARGET_TARGET)
+			updateHealth(cfg, UNIT.TARGET_TARGET)
 			if st.power and powerEnabled then
-				local _, powerToken = getMainPower(TARGET_TARGET_UNIT)
+				local _, powerToken = getMainPower(UNIT.TARGET_TARGET)
 				if st.power.SetStatusBarDesaturated then st.power:SetStatusBarDesaturated((cfg.power or {}).useCustomColor == true) end
 				configureSpecialTexture(st.power, powerToken, (cfg.power or {}).texture, cfg.power)
 				st._lastPowerToken = powerToken
 			elseif st.power then
 				st.power:Hide()
 			end
-			updatePower(cfg, TARGET_TARGET_UNIT)
-			checkRaidTargetIcon(TARGET_TARGET_UNIT, st)
+			updatePower(cfg, UNIT.TARGET_TARGET)
+			checkRaidTargetIcon(UNIT.TARGET_TARGET, st)
 		end
 	else
 		if st then
@@ -2809,72 +2870,75 @@ local function updateTargetTargetFrame(cfg, forceApply)
 			if st.status then st.status:Hide() end
 		end
 	end
-	checkRaidTargetIcon(TARGET_TARGET_UNIT, st)
+	checkRaidTargetIcon(UNIT.TARGET_TARGET, st)
 	ensureToTTicker()
+	applyVisibilityRules(UNIT.TARGET_TARGET)
 end
 
 local function updateFocusFrame(cfg, forceApply)
-	cfg = cfg or ensureDB(FOCUS_UNIT)
-	local st = states[FOCUS_UNIT]
+	cfg = cfg or ensureDB(UNIT.FOCUS)
+	local st = states[UNIT.FOCUS]
 	if not cfg.enabled then
-		if applyFrameRuleOverride then applyFrameRuleOverride(BLIZZ_FOCUS_FRAME_NAME, false) end
+		if applyFrameRuleOverride then applyFrameRuleOverride(BLIZZ_FRAME_NAMES.focus, false) end
 		if st then
 			if st.barGroup then st.barGroup:Hide() end
 			if st.status then st.status:Hide() end
 		end
+		applyVisibilityRules(UNIT.FOCUS)
 		return
 	end
-	if applyFrameRuleOverride then applyFrameRuleOverride(BLIZZ_FOCUS_FRAME_NAME, true) end
+	if applyFrameRuleOverride then applyFrameRuleOverride(BLIZZ_FRAME_NAMES.focus, true) end
 	if forceApply or not st or not st.frame then
-		applyConfig(FOCUS_UNIT)
-		st = states[FOCUS_UNIT]
+		applyConfig(UNIT.FOCUS)
+		st = states[UNIT.FOCUS]
 	end
 	if st then st.cfg = st.cfg or cfg end
-	if UnitExists(FOCUS_UNIT) then
+	if UnitExists(UNIT.FOCUS) then
 		if st then
 			if st.barGroup then st.barGroup:Show() end
 			if st.status then st.status:Show() end
 			local pcfg = cfg.power or {}
 			local powerEnabled = pcfg.enabled ~= false
-			updateNameAndLevel(cfg, FOCUS_UNIT)
-			updateHealth(cfg, FOCUS_UNIT)
+			updateNameAndLevel(cfg, UNIT.FOCUS)
+			updateHealth(cfg, UNIT.FOCUS)
 			if st.power and powerEnabled then
-				local _, powerToken = getMainPower(FOCUS_UNIT)
+				local _, powerToken = getMainPower(UNIT.FOCUS)
 				if st.power.SetStatusBarDesaturated then st.power:SetStatusBarDesaturated((cfg.power or {}).useCustomColor == true) end
 				configureSpecialTexture(st.power, powerToken, (cfg.power or {}).texture, cfg.power)
 				st._lastPowerToken = powerToken
 			elseif st.power then
 				st.power:Hide()
 			end
-			updatePower(cfg, FOCUS_UNIT)
-			if st.castBar then setCastInfoFromUnit(FOCUS_UNIT) end
-			checkRaidTargetIcon(FOCUS_UNIT, st)
+			updatePower(cfg, UNIT.FOCUS)
+			if st.castBar then setCastInfoFromUnit(UNIT.FOCUS) end
+			checkRaidTargetIcon(UNIT.FOCUS, st)
 		end
 	else
 		if st then
 			if st.barGroup then st.barGroup:Hide() end
 			if st.status then st.status:Hide() end
-			if st.castBar then stopCast(FOCUS_UNIT) end
+			if st.castBar then stopCast(UNIT.FOCUS) end
 		end
 	end
-	checkRaidTargetIcon(FOCUS_UNIT, st)
+	checkRaidTargetIcon(UNIT.FOCUS, st)
+	applyVisibilityRules(UNIT.FOCUS)
 end
 
 local function onEvent(self, event, unit, arg1)
 	if unitEventsMap[event] and unit and not (allowedEventUnit[unit] or isBossUnit(unit)) then return end
-	local playerCfg = (states[PLAYER_UNIT] and states[PLAYER_UNIT].cfg) or ensureDB("player")
-	local targetCfg = (states[TARGET_UNIT] and states[TARGET_UNIT].cfg) or ensureDB("target")
-	local totCfg = (states[TARGET_TARGET_UNIT] and states[TARGET_TARGET_UNIT].cfg) or ensureDB(TARGET_TARGET_UNIT)
-	local petCfg = (states[PET_UNIT] and states[PET_UNIT].cfg) or ensureDB(PET_UNIT)
-	local focusCfg = (states[FOCUS_UNIT] and states[FOCUS_UNIT].cfg) or ensureDB(FOCUS_UNIT)
+	local playerCfg = (states[UNIT.PLAYER] and states[UNIT.PLAYER].cfg) or ensureDB("player")
+	local targetCfg = (states[UNIT.TARGET] and states[UNIT.TARGET].cfg) or ensureDB("target")
+	local totCfg = (states[UNIT.TARGET_TARGET] and states[UNIT.TARGET_TARGET].cfg) or ensureDB(UNIT.TARGET_TARGET)
+	local petCfg = (states[UNIT.PET] and states[UNIT.PET].cfg) or ensureDB(UNIT.PET)
+	local focusCfg = (states[UNIT.FOCUS] and states[UNIT.FOCUS].cfg) or ensureDB(UNIT.FOCUS)
 	local bossCfg = ensureDB("boss")
 	if event == "PLAYER_ENTERING_WORLD" then
-		refreshMainPower(PLAYER_UNIT)
+		refreshMainPower(UNIT.PLAYER)
 		applyConfig("player")
 		applyConfig("target")
 		updateTargetTargetFrame(totCfg, true)
 		if focusCfg.enabled then updateFocusFrame(focusCfg, true) end
-		if petCfg.enabled then applyConfig(PET_UNIT) end
+		if petCfg.enabled then applyConfig(UNIT.PET) end
 		updateCombatIndicator(playerCfg)
 		updateRestingIndicator(playerCfg)
 		updateAllRaidTargetIcons()
@@ -2887,7 +2951,7 @@ local function onEvent(self, event, unit, arg1)
 		if states.player and states.player.health then states.player.health:SetValue(0) end
 		updateHealth(playerCfg, "player")
 	elseif event == "PLAYER_ALIVE" then
-		refreshMainPower(PLAYER_UNIT)
+		refreshMainPower(UNIT.PLAYER)
 		updateHealth(playerCfg, "player")
 		updatePower(playerCfg, "player")
 		updateCombatIndicator(playerCfg)
@@ -2901,7 +2965,7 @@ local function onEvent(self, event, unit, arg1)
 			bossLayoutDirty, bossHidePending, bossShowPending, bossInitPending = nil, nil, nil, nil
 		end
 	elseif event == "PLAYER_TARGET_CHANGED" then
-		local unitToken = TARGET_UNIT
+		local unitToken = UNIT.TARGET
 		local st = states[unitToken]
 		if not st or not st.frame then
 			resetTargetAuras()
@@ -3008,18 +3072,18 @@ local function onEvent(self, event, unit, arg1)
 		end
 		if firstChanged then updateTargetAuraIcons(firstChanged) end
 	elseif event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH" or event == "UNIT_ABSORB_AMOUNT_CHANGED" then
-		if unit == PLAYER_UNIT then updateHealth(playerCfg, "player") end
+		if unit == UNIT.PLAYER then updateHealth(playerCfg, "player") end
 		if unit == "target" then updateHealth(targetCfg, "target") end
-		if unit == PET_UNIT then updateHealth(petCfg, PET_UNIT) end
+		if unit == UNIT.PET then updateHealth(petCfg, UNIT.PET) end
 		if bossCfg.enabled and isBossUnit(unit) then updateHealth(bossCfg, unit) end
 	elseif event == "UNIT_MAXPOWER" then
-		if unit == PLAYER_UNIT then updatePower(playerCfg, "player") end
+		if unit == UNIT.PLAYER then updatePower(playerCfg, "player") end
 		if unit == "target" then updatePower(targetCfg, "target") end
-		if unit == PET_UNIT then updatePower(petCfg, PET_UNIT) end
-		if unit == FOCUS_UNIT then updatePower(focusCfg, FOCUS_UNIT) end
+		if unit == UNIT.PET then updatePower(petCfg, UNIT.PET) end
+		if unit == UNIT.FOCUS then updatePower(focusCfg, UNIT.FOCUS) end
 		if bossCfg.enabled and isBossUnit(unit) then updatePower(bossCfg, unit) end
 	elseif event == "UNIT_DISPLAYPOWER" then
-		if unit == PLAYER_UNIT then
+		if unit == UNIT.PLAYER then
 			refreshMainPower(unit)
 			local st = states[unit]
 			local pcfg = playerCfg.power or {}
@@ -3040,7 +3104,7 @@ local function onEvent(self, event, unit, arg1)
 				st.power:Hide()
 			end
 			updatePower(targetCfg, "target")
-		elseif unit == FOCUS_UNIT then
+		elseif unit == UNIT.FOCUS then
 			local st = states[unit]
 			local pcfg = focusCfg.power or {}
 			if st and st.power and pcfg.enabled ~= false then
@@ -3049,8 +3113,8 @@ local function onEvent(self, event, unit, arg1)
 			elseif st and st.power then
 				st.power:Hide()
 			end
-			updatePower(focusCfg, FOCUS_UNIT)
-		elseif unit == PET_UNIT then
+			updatePower(focusCfg, UNIT.FOCUS)
+		elseif unit == UNIT.PET then
 			local st = states[unit]
 			local pcfg = petCfg.power or {}
 			if st and st.power and pcfg.enabled ~= false then
@@ -3059,7 +3123,7 @@ local function onEvent(self, event, unit, arg1)
 			elseif st and st.power then
 				st.power:Hide()
 			end
-			updatePower(petCfg, PET_UNIT)
+			updatePower(petCfg, UNIT.PET)
 		elseif bossCfg.enabled and isBossUnit(unit) then
 			local st = states[unit]
 			local pcfg = bossCfg.power or {}
@@ -3072,36 +3136,36 @@ local function onEvent(self, event, unit, arg1)
 			updatePower(bossCfg, unit)
 		end
 	elseif event == "UNIT_POWER_UPDATE" and not FREQUENT[arg1] then
-		if unit == PLAYER_UNIT then updatePower(playerCfg, "player") end
+		if unit == UNIT.PLAYER then updatePower(playerCfg, "player") end
 		if unit == "target" then updatePower(targetCfg, "target") end
-		if unit == PET_UNIT then updatePower(petCfg, PET_UNIT) end
-		if unit == FOCUS_UNIT then updatePower(focusCfg, FOCUS_UNIT) end
+		if unit == UNIT.PET then updatePower(petCfg, UNIT.PET) end
+		if unit == UNIT.FOCUS then updatePower(focusCfg, UNIT.FOCUS) end
 		if bossCfg.enabled and isBossUnit(unit) then updatePower(bossCfg, unit) end
 	elseif event == "UNIT_POWER_FREQUENT" and FREQUENT[arg1] then
-		if unit == PLAYER_UNIT then updatePower(playerCfg, "player") end
+		if unit == UNIT.PLAYER then updatePower(playerCfg, "player") end
 		if unit == "target" then updatePower(targetCfg, "target") end
-		if unit == PET_UNIT then updatePower(petCfg, PET_UNIT) end
-		if unit == FOCUS_UNIT then updatePower(focusCfg, FOCUS_UNIT) end
+		if unit == UNIT.PET then updatePower(petCfg, UNIT.PET) end
+		if unit == UNIT.FOCUS then updatePower(focusCfg, UNIT.FOCUS) end
 		if bossCfg.enabled and isBossUnit(unit) then updatePower(bossCfg, unit) end
 	elseif event == "UNIT_NAME_UPDATE" or event == "PLAYER_LEVEL_UP" then
-		if unit == PLAYER_UNIT or event == "PLAYER_LEVEL_UP" then updateNameAndLevel(playerCfg, "player") end
+		if unit == UNIT.PLAYER or event == "PLAYER_LEVEL_UP" then updateNameAndLevel(playerCfg, "player") end
 		if unit == "target" then updateNameAndLevel(targetCfg, "target") end
-		if unit == FOCUS_UNIT then updateNameAndLevel(focusCfg, FOCUS_UNIT) end
-		if unit == PET_UNIT then updateNameAndLevel(petCfg, PET_UNIT) end
+		if unit == UNIT.FOCUS then updateNameAndLevel(focusCfg, UNIT.FOCUS) end
+		if unit == UNIT.PET then updateNameAndLevel(petCfg, UNIT.PET) end
 		if bossCfg.enabled and isBossUnit(unit) then updateNameAndLevel(bossCfg, unit) end
-	elseif event == "UNIT_TARGET" and unit == TARGET_UNIT then
+	elseif event == "UNIT_TARGET" and unit == UNIT.TARGET then
 		if totCfg.enabled then updateTargetTargetFrame(totCfg) end
 	elseif event == "UNIT_SPELLCAST_START" or event == "UNIT_SPELLCAST_CHANNEL_START" or event == "UNIT_SPELLCAST_CHANNEL_UPDATE" then
-		if unit == TARGET_UNIT then setCastInfoFromUnit(TARGET_UNIT) end
-		if unit == FOCUS_UNIT then setCastInfoFromUnit(FOCUS_UNIT) end
+		if unit == UNIT.TARGET then setCastInfoFromUnit(UNIT.TARGET) end
+		if unit == UNIT.FOCUS then setCastInfoFromUnit(UNIT.FOCUS) end
 		if isBossUnit(unit) then setCastInfoFromUnit(unit) end
 	elseif event == "UNIT_SPELLCAST_STOP" or event == "UNIT_SPELLCAST_CHANNEL_STOP" then
-		if unit == TARGET_UNIT then
-			stopCast(TARGET_UNIT)
+		if unit == UNIT.TARGET then
+			stopCast(UNIT.TARGET)
 			if shouldShowSampleCast(unit) then setSampleCast(unit) end
 		end
-		if unit == FOCUS_UNIT then
-			stopCast(FOCUS_UNIT)
+		if unit == UNIT.FOCUS then
+			stopCast(UNIT.FOCUS)
 			if shouldShowSampleCast(unit) then setSampleCast(unit) end
 		end
 		if isBossUnit(unit) then stopCast(unit) end
@@ -3113,15 +3177,15 @@ local function onEvent(self, event, unit, arg1)
 		hideBossFrames()
 	elseif event == "UNIT_PET" and unit == "player" then
 		if petCfg.enabled then
-			applyConfig(PET_UNIT)
-			updateNameAndLevel(petCfg, PET_UNIT)
-			updateHealth(petCfg, PET_UNIT)
-			updatePower(petCfg, PET_UNIT)
+			applyConfig(UNIT.PET)
+			updateNameAndLevel(petCfg, UNIT.PET)
+			updateHealth(petCfg, UNIT.PET)
+			updatePower(petCfg, UNIT.PET)
 		end
 	elseif event == "PLAYER_FOCUS_CHANGED" then
 		if focusCfg.enabled then
 			updateFocusFrame(focusCfg, true)
-			checkRaidTargetIcon(FOCUS_UNIT, states[FOCUS_UNIT])
+			checkRaidTargetIcon(UNIT.FOCUS, states[UNIT.FOCUS])
 		end
 	elseif event == "PLAYER_UPDATE_RESTING" then
 		updateRestingIndicator(playerCfg)
@@ -3151,17 +3215,19 @@ local function ensureEventHandling()
 		editModeHooked = true
 
 		addon.EditModeLib:RegisterCallback("enter", function()
-			updateCombatIndicator(states[PLAYER_UNIT] and states[PLAYER_UNIT].cfg or ensureDB(PLAYER_UNIT))
+			updateCombatIndicator(states[UNIT.PLAYER] and states[UNIT.PLAYER].cfg or ensureDB(UNIT.PLAYER))
 			ensureBossFramesReady(ensureDB("boss"))
 			updateBossFrames(true)
 			updateAllRaidTargetIcons()
+			applyVisibilityRulesAll()
 		end)
 
 		addon.EditModeLib:RegisterCallback("exit", function()
-			updateCombatIndicator(states[PLAYER_UNIT] and states[PLAYER_UNIT].cfg or ensureDB(PLAYER_UNIT))
+			updateCombatIndicator(states[UNIT.PLAYER] and states[UNIT.PLAYER].cfg or ensureDB(UNIT.PLAYER))
 			hideBossFrames(true)
 			if ensureDB("boss").enabled then updateBossFrames(true) end
 			updateAllRaidTargetIcons()
+			applyVisibilityRulesAll()
 		end)
 	end
 end
@@ -3172,10 +3238,10 @@ function UF.Enable()
 	ensureEventHandling()
 	applyConfig("player")
 	if ensureDB("target").enabled then applyConfig("target") end
-	local totCfg = ensureDB(TARGET_TARGET_UNIT)
+	local totCfg = ensureDB(UNIT.TARGET_TARGET)
 	if totCfg.enabled then updateTargetTargetFrame(totCfg, true) end
-	if ensureDB(FOCUS_UNIT).enabled then updateFocusFrame(ensureDB(FOCUS_UNIT), true) end
-	if ensureDB(PET_UNIT).enabled then applyConfig(PET_UNIT) end
+	if ensureDB(UNIT.FOCUS).enabled then updateFocusFrame(ensureDB(UNIT.FOCUS), true) end
+	if ensureDB(UNIT.PET).enabled then applyConfig(UNIT.PET) end
 	local bossCfg = ensureDB("boss")
 	if bossCfg.enabled then
 		ensureBossFramesReady(bossCfg)
@@ -3191,6 +3257,7 @@ function UF.Disable()
 	if states.player and states.player.frame then states.player.frame:Hide() end
 	restoreClassResourceFrames()
 	stopToTTicker()
+	applyVisibilityRules("player")
 	addon.variables.requireReload = true
 	if addon.functions and addon.functions.checkReloadFrame then addon.functions.checkReloadFrame() end
 	if _G.PlayerFrame and not InCombatLockdown() then
@@ -3206,67 +3273,73 @@ function UF.Refresh()
 	ensureEventHandling()
 	if not anyUFEnabled() then
 		hideBossFrames()
+		applyVisibilityRulesAll()
 		return
 	end
 	applyConfig("player")
 	applyConfig("target")
-	local focusCfg = ensureDB(FOCUS_UNIT)
+	local focusCfg = ensureDB(UNIT.FOCUS)
 	if focusCfg.enabled then
 		updateFocusFrame(focusCfg, true)
 	elseif applyFrameRuleOverride then
-		applyFrameRuleOverride(BLIZZ_FOCUS_FRAME_NAME, false)
+		applyFrameRuleOverride(BLIZZ_FRAME_NAMES.focus, false)
+		applyVisibilityRules(UNIT.FOCUS)
 	end
 	local targetCfg = ensureDB("target")
-	if targetCfg.enabled and UnitExists and UnitExists(TARGET_UNIT) and states[TARGET_UNIT] and states[TARGET_UNIT].frame then
-		states[TARGET_UNIT].barGroup:Show()
-		states[TARGET_UNIT].status:Show()
+	if targetCfg.enabled and UnitExists and UnitExists(UNIT.TARGET) and states[UNIT.TARGET] and states[UNIT.TARGET].frame then
+		states[UNIT.TARGET].barGroup:Show()
+		states[UNIT.TARGET].status:Show()
 	end
-	local totCfg = ensureDB(TARGET_TARGET_UNIT)
+	local totCfg = ensureDB(UNIT.TARGET_TARGET)
 	updateTargetTargetFrame(totCfg, true)
-	if ensureDB(PET_UNIT).enabled then
-		applyConfig(PET_UNIT)
+	if ensureDB(UNIT.PET).enabled then
+		applyConfig(UNIT.PET)
 	elseif applyFrameRuleOverride then
-		applyFrameRuleOverride(BLIZZ_PET_FRAME_NAME, false)
+		applyFrameRuleOverride(BLIZZ_FRAME_NAMES.pet, false)
+		applyVisibilityRules(UNIT.PET)
 	end
 	if bossCfg.enabled then
 		ensureBossFramesReady(bossCfg)
 		updateBossFrames(true)
 	else
 		hideBossFrames()
+		applyVisibilityRules("boss")
 	end
 end
 
 function UF.RefreshUnit(unit)
 	ensureEventHandling()
 	if not anyUFEnabled() then return end
-	if unit == TARGET_TARGET_UNIT then
-		local totCfg = ensureDB(TARGET_TARGET_UNIT)
+	if unit == UNIT.TARGET_TARGET then
+		local totCfg = ensureDB(UNIT.TARGET_TARGET)
 		updateTargetTargetFrame(totCfg, true)
 		ensureToTTicker()
-	elseif unit == TARGET_UNIT then
-		applyConfig(TARGET_UNIT)
+	elseif unit == UNIT.TARGET then
+		applyConfig(UNIT.TARGET)
 		local targetCfg = ensureDB("target")
-		if targetCfg.enabled and UnitExists and UnitExists(TARGET_UNIT) and states[TARGET_UNIT] and states[TARGET_UNIT].frame then
-			states[TARGET_UNIT].barGroup:Show()
-			states[TARGET_UNIT].status:Show()
+		if targetCfg.enabled and UnitExists and UnitExists(UNIT.TARGET) and states[UNIT.TARGET] and states[UNIT.TARGET].frame then
+			states[UNIT.TARGET].barGroup:Show()
+			states[UNIT.TARGET].status:Show()
 		end
-	elseif unit == FOCUS_UNIT then
-		local focusCfg = ensureDB(FOCUS_UNIT)
+	elseif unit == UNIT.FOCUS then
+		local focusCfg = ensureDB(UNIT.FOCUS)
 		if focusCfg.enabled then
 			updateFocusFrame(focusCfg, true)
 		elseif applyFrameRuleOverride then
-			applyFrameRuleOverride(BLIZZ_FOCUS_FRAME_NAME, false)
+			applyFrameRuleOverride(BLIZZ_FRAME_NAMES.focus, false)
+			applyVisibilityRules(UNIT.FOCUS)
 		end
-	elseif unit == PET_UNIT then
-		if ensureDB(PET_UNIT).enabled then
-			applyConfig(PET_UNIT)
+	elseif unit == UNIT.PET then
+		if ensureDB(UNIT.PET).enabled then
+			applyConfig(UNIT.PET)
 		elseif applyFrameRuleOverride then
-			applyFrameRuleOverride(BLIZZ_PET_FRAME_NAME, false)
+			applyFrameRuleOverride(BLIZZ_FRAME_NAMES.pet, false)
+			applyVisibilityRules(UNIT.PET)
 		end
 	elseif isBossUnit(unit) then
 		updateBossFrames(true)
 	else
-		applyConfig(PLAYER_UNIT)
+		applyConfig(UNIT.PLAYER)
 	end
 end
 
@@ -3281,25 +3354,25 @@ if not addon.Aura.UFInitialized then
 		applyConfig("target")
 		-- hideBlizzardTargetFrame()
 	end
-	local ttc = ensureDB(TARGET_TARGET_UNIT)
+	local ttc = ensureDB(UNIT.TARGET_TARGET)
 	if ttc.enabled then
 		ensureEventHandling()
 		updateTargetTargetFrame(ttc, true)
 		ensureToTTicker()
 	end
-	local pcfg = ensureDB(PET_UNIT)
+	local pcfg = ensureDB(UNIT.PET)
 	if pcfg.enabled then
 		ensureEventHandling()
-		applyConfig(PET_UNIT)
+		applyConfig(UNIT.PET)
 	elseif applyFrameRuleOverride then
-		applyFrameRuleOverride(BLIZZ_PET_FRAME_NAME, false)
+		applyFrameRuleOverride(BLIZZ_FRAME_NAMES.pet, false)
 	end
-	local fcfg = ensureDB(FOCUS_UNIT)
+	local fcfg = ensureDB(UNIT.FOCUS)
 	if fcfg.enabled then
 		ensureEventHandling()
 		updateFocusFrame(fcfg, true)
 	elseif applyFrameRuleOverride then
-		applyFrameRuleOverride(BLIZZ_FOCUS_FRAME_NAME, false)
+		applyFrameRuleOverride(BLIZZ_FRAME_NAMES.focus, false)
 	end
 	local bcfg = ensureDB("boss")
 	if bcfg.enabled then
@@ -3316,6 +3389,8 @@ UF.GetDefaults = function(unit) return defaultsFor(unit) end
 UF.EnsureDB = ensureDB
 UF.GetConfig = ensureDB
 UF.EnsureFrames = ensureFrames
+UF.ApplyVisibilityRules = applyVisibilityRules
+UF.ApplyVisibilityRulesAll = applyVisibilityRulesAll
 UF.StopEventsIfInactive = function() ensureEventHandling() end
 UF.UpdateBossFrames = updateBossFrames
 UF.HideBossFrames = hideBossFrames

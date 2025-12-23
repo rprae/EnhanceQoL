@@ -28,8 +28,11 @@ L["MoverResetHint"] = [[Tip: Hold the scale modifier and right-click a move hand
 Reset uses the scale modifier even when scaling is disabled.]]
 L["Position Persistence"] = "Position persistence"
 L["Position Persistence Close"] = "Until close of the frame"
-L["Position Persistence Lockout"] = "Until lockout"
+L["Position Persistence Lockout"] = "Until logout"
 L["Position Persistence Reset"] = "Until reset"
+L["Position Persistence Close Tooltip"] = "Does not save the position and resets when the frame closes."
+L["Position Persistence Lockout Tooltip"] = "Saves the position only until you log out."
+L["Position Persistence Reset Tooltip"] = "Saves the position until you reset it."
 
 -- Wheel scaling
 L["Wheel Scaling"] = "Wheel Scaling"

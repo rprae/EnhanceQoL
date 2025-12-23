@@ -6,11 +6,16 @@
 
 - Mover: position persistence mode (close / lockout / reset).
 - Mover: reset scale and position to defaults with scale modifier + right-click on a handle.
+- UF Plus: per-frame "Show when" visibility rules for custom unit frames in Edit Mode.
 
 ### 🔄 Changed
 
 - Moved the "Hide Minimap Button" setting to Map Navigation.
 - UF/Resource Bars: texture/font/outline dropdowns now stay open on click so you can browse SharedMedia options faster.
+
+### 🐛 Fixed
+
+- Resource Bars: anchor changes made via dropdowns/sliders now sync to Edit Mode layouts so positions persist after reload.
 
 ---
 
