@@ -1259,6 +1259,12 @@ local function ensureRootNode() addTreeNode("ufplus", { value = "ufplus", text =
 
 local function getPowerColor(pToken)
 	if not pToken then pToken = EnumPowerType.MANA end
+	local overrides = addon.db and addon.db.ufPowerColorOverrides
+	local override = overrides and overrides[pToken]
+	if override then
+		if override.r then return override.r, override.g, override.b, override.a or 1 end
+		if override[1] then return override[1], override[2], override[3], override[4] or 1 end
+	end
 	if PowerBarColor then
 		local c = PowerBarColor[pToken]
 		if c then
@@ -1267,6 +1273,12 @@ local function getPowerColor(pToken)
 		end
 	end
 	return 0.1, 0.45, 1, 1
+end
+
+local function isPowerDesaturated(pToken)
+	if not pToken then return false end
+	local map = addon.db and addon.db.ufPowerDesaturated
+	return map and map[pToken] == true
 end
 
 local function shortValue(val)
@@ -1891,13 +1903,9 @@ local function updatePower(cfg, unit)
 	elseif not issecretvalue or (not issecretvalue(cur) and not issecretvalue(maxv)) then
 		percentVal = getPowerPercent(unit, powerEnum, cur, maxv)
 	end
-	local cr, cg, cb, ca
-	if pcfg.useCustomColor and pcfg.color and pcfg.color[1] then
-		cr, cg, cb, ca = pcfg.color[1], pcfg.color[2], pcfg.color[3], pcfg.color[4] or 1
-	else
-		cr, cg, cb, ca = getPowerColor(powerToken)
-	end
+	local cr, cg, cb, ca = getPowerColor(powerToken)
 	bar:SetStatusBarColor(cr or 0.1, cg or 0.45, cb or 1, ca or 1)
+	if bar.SetStatusBarDesaturated then bar:SetStatusBarDesaturated(isPowerDesaturated(powerToken)) end
 	if st.powerTextLeft then
 		if (issecretvalue and not issecretvalue(maxv) and maxv == 0) or (not addon.variables.isMidnight and maxv == 0) then
 			st.powerTextLeft:SetText("")
@@ -2247,7 +2255,8 @@ local function ensureFrames(unit)
 	st.health = _G[info.healthName] or CreateFrame("StatusBar", info.healthName, st.barGroup, "BackdropTemplate")
 	if st.health.SetStatusBarDesaturated then st.health:SetStatusBarDesaturated(false) end
 	st.power = _G[info.powerName] or CreateFrame("StatusBar", info.powerName, st.barGroup, "BackdropTemplate")
-	if st.power.SetStatusBarDesaturated then st.power:SetStatusBarDesaturated(false) end
+	local _, powerToken = getMainPower(unit)
+	if st.power.SetStatusBarDesaturated then st.power:SetStatusBarDesaturated(isPowerDesaturated(powerToken)) end
 
 	local allowAbsorb = not (info and info.disableAbsorb)
 	if allowAbsorb then
@@ -2331,9 +2340,9 @@ local function applyBars(cfg, unit)
 	applyBarBackdrop(st.health, hc)
 	if powerEnabled then
 		st.power:SetStatusBarTexture(resolveTexture(pcfg.texture))
-		if st.power.SetStatusBarDesaturated then st.power:SetStatusBarDesaturated(pcfg.useCustomColor == true) end
 		if unit == UNIT.PLAYER then refreshMainPower(unit) end
 		local _, powerToken = getMainPower(unit)
+		if st.power.SetStatusBarDesaturated then st.power:SetStatusBarDesaturated(isPowerDesaturated(powerToken)) end
 		configureSpecialTexture(st.power, powerToken, pcfg.texture, pcfg)
 		applyBarBackdrop(st.power, pcfg)
 		st.power:Show()
@@ -2597,13 +2606,9 @@ local function applyBossEditSample(idx, cfg)
 			local pMax = UnitPowerMax("player", enumId or 0) or 0
 			st.power:SetMinMaxValues(0, pMax > 0 and pMax or 1)
 			st.power:SetValue(pCur)
-			local pr, pg, pb, pa
-			if pcfg.useCustomColor and pcfg.color then
-				pr, pg, pb, pa = pcfg.color[1], pcfg.color[2], pcfg.color[3], pcfg.color[4] or 1
-			else
-				pr, pg, pb, pa = getPowerColor(token)
-			end
+			local pr, pg, pb, pa = getPowerColor(token)
 			st.power:SetStatusBarColor(pr or 0.1, pg or 0.45, pb or 1, pa or 1)
+			if st.power.SetStatusBarDesaturated then st.power:SetStatusBarDesaturated(isPowerDesaturated(token)) end
 			if st.powerTextLeft then st.powerTextLeft:SetText(formatText(pcfg.textLeft or "PERCENT", pCur, pMax, pcfg.useShortNumbers ~= false)) end
 			if st.powerTextRight then st.powerTextRight:SetText(formatText(pcfg.textRight or "CURMAX", pCur, pMax, pcfg.useShortNumbers ~= false)) end
 			st.power:Show()
@@ -2815,7 +2820,7 @@ local function ensureToTTicker()
 		if powerEnabled then
 			local _, powerToken = UnitPowerType(UNIT.TARGET_TARGET)
 			if st.power and powerToken and powerToken ~= st._lastPowerToken then
-				if st.power.SetStatusBarDesaturated then st.power:SetStatusBarDesaturated((cfg.power or {}).useCustomColor == true) end
+				if st.power.SetStatusBarDesaturated then st.power:SetStatusBarDesaturated(isPowerDesaturated(powerToken)) end
 				configureSpecialTexture(st.power, powerToken, (cfg.power or {}).texture, cfg.power)
 				st._lastPowerToken = powerToken
 			end
@@ -2855,7 +2860,7 @@ local function updateTargetTargetFrame(cfg, forceApply)
 			updateHealth(cfg, UNIT.TARGET_TARGET)
 			if st.power and powerEnabled then
 				local _, powerToken = getMainPower(UNIT.TARGET_TARGET)
-				if st.power.SetStatusBarDesaturated then st.power:SetStatusBarDesaturated((cfg.power or {}).useCustomColor == true) end
+				if st.power.SetStatusBarDesaturated then st.power:SetStatusBarDesaturated(isPowerDesaturated(powerToken)) end
 				configureSpecialTexture(st.power, powerToken, (cfg.power or {}).texture, cfg.power)
 				st._lastPowerToken = powerToken
 			elseif st.power then
@@ -2903,7 +2908,7 @@ local function updateFocusFrame(cfg, forceApply)
 			updateHealth(cfg, UNIT.FOCUS)
 			if st.power and powerEnabled then
 				local _, powerToken = getMainPower(UNIT.FOCUS)
-				if st.power.SetStatusBarDesaturated then st.power:SetStatusBarDesaturated((cfg.power or {}).useCustomColor == true) end
+				if st.power.SetStatusBarDesaturated then st.power:SetStatusBarDesaturated(isPowerDesaturated(powerToken)) end
 				configureSpecialTexture(st.power, powerToken, (cfg.power or {}).texture, cfg.power)
 				st._lastPowerToken = powerToken
 			elseif st.power then

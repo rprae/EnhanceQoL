@@ -91,6 +91,91 @@ local function debounced(key, fn)
 	end)
 end
 
+local function getDefaultPowerColor(token)
+	if PowerBarColor and token then
+		local c = PowerBarColor[token]
+		if c then
+			if c.r then return c.r, c.g, c.b, c.a or 1 end
+			if c[1] then return c[1], c[2], c[3], c[4] or 1 end
+		end
+	end
+	return 0.1, 0.45, 1, 1
+end
+
+local function getPowerLabel(token)
+	if not token then return "" end
+	local label = _G[token]
+	if not label or label == "" then label = token:gsub("_", " ") end
+	return label
+end
+
+local mainPowerTokenCache
+local function getMainPowerTokens()
+	if mainPowerTokenCache then return mainPowerTokenCache end
+	local list = {}
+	local seen = {}
+	local excluded = {
+		HOLY_POWER = true,
+		MAELSTROM_WEAPON = true,
+		MAELSTROM = true,
+		SOUL_SHARDS = true,
+		CHI = true,
+		ESSENCE = true,
+		ARCANE_CHARGES = true,
+	}
+	local powertypeClasses = addon.Aura and addon.Aura.ResourceBars and addon.Aura.ResourceBars.powertypeClasses
+	if type(powertypeClasses) == "table" then
+		for _, specs in pairs(powertypeClasses) do
+			if type(specs) == "table" then
+				for _, info in pairs(specs) do
+					local main = info and info.MAIN
+					if type(main) == "string" and not seen[main] and not excluded[main] then
+						seen[main] = true
+						list[#list + 1] = main
+					end
+				end
+			end
+		end
+	end
+	table.sort(list, function(a, b) return tostring(getPowerLabel(a)) < tostring(getPowerLabel(b)) end)
+	mainPowerTokenCache = list
+	return list
+end
+
+local function getPowerOverride(token)
+	local overrides = addon.db and addon.db.ufPowerColorOverrides
+	return overrides and overrides[token]
+end
+
+local function setPowerOverride(token, r, g, b, a)
+	addon.db = addon.db or {}
+	addon.db.ufPowerColorOverrides = addon.db.ufPowerColorOverrides or {}
+	addon.db.ufPowerColorOverrides[token] = { r or 1, g or 1, b or 1, a or 1 }
+end
+
+local function clearPowerOverride(token)
+	local overrides = addon.db and addon.db.ufPowerColorOverrides
+	if not overrides then return end
+	overrides[token] = nil
+	if not next(overrides) then addon.db.ufPowerColorOverrides = nil end
+end
+
+local function getPowerDesaturated(token)
+	local map = addon.db and addon.db.ufPowerDesaturated
+	return map and map[token] == true
+end
+
+local function setPowerDesaturated(token, value)
+	addon.db = addon.db or {}
+	addon.db.ufPowerDesaturated = addon.db.ufPowerDesaturated or {}
+	if value then
+		addon.db.ufPowerDesaturated[token] = true
+	else
+		addon.db.ufPowerDesaturated[token] = nil
+		if not next(addon.db.ufPowerDesaturated) then addon.db.ufPowerDesaturated = nil end
+	end
+end
+
 local function ensureConfig(unit)
 	if UF.GetConfig then return UF.GetConfig(unit) end
 	addon.db = addon.db or {}
@@ -843,36 +928,6 @@ local function buildUnitSettings(unit)
 	powerHeightSetting.isEnabled = isPowerEnabled
 	list[#list + 1] = powerHeightSetting
 
-	list[#list + 1] = checkboxColor({
-		name = L["UFPowerColor"] or "Custom power color",
-		parentId = "power",
-		defaultChecked = powerDef.useCustomColor == true,
-		isChecked = function() return getValue(unit, { "power", "useCustomColor" }, powerDef.useCustomColor == true) == true end,
-		onChecked = function(val)
-			debounced(unit .. "_powerCustomColorToggle", function()
-				setValue(unit, { "power", "useCustomColor" }, val and true or false)
-				if val and not getValue(unit, { "power", "color" }) then setValue(unit, { "power", "color" }, powerDef.color or { 0.1, 0.45, 1, 1 }) end
-				refreshSelf()
-				refreshSettingsUI()
-			end)
-		end,
-		getColor = function() return toRGBA(getValue(unit, { "power", "color" }, powerDef.color or { 0.1, 0.45, 1, 1 }), powerDef.color or { 0.1, 0.45, 1, 1 }) end,
-		onColor = function(color)
-			debounced(unit .. "_powerCustomColor", function()
-				setColor(unit, { "power", "color" }, color.r, color.g, color.b, color.a)
-				setValue(unit, { "power", "useCustomColor" }, true)
-				refreshSelf()
-			end)
-		end,
-		colorDefault = {
-			r = (powerDef.color and powerDef.color[1]) or 0.1,
-			g = (powerDef.color and powerDef.color[2]) or 0.45,
-			b = (powerDef.color and powerDef.color[3]) or 1,
-			a = (powerDef.color and powerDef.color[4]) or 1,
-		},
-		isEnabled = isPowerEnabled,
-	})
-
 	local powerTextLeft = radioDropdown(L["TextLeft"] or "Left text", textOptions, function() return getValue(unit, { "power", "textLeft" }, powerDef.textLeft or "PERCENT") end, function(val)
 		setValue(unit, { "power", "textLeft" }, val)
 		refreshSelf()
@@ -1031,6 +1086,49 @@ local function buildUnitSettings(unit)
 		colorDefault = { r = 0, g = 0, b = 0, a = 0.6 },
 		isEnabled = isPowerEnabled,
 	})
+
+	local mainPowerTokens = getMainPowerTokens()
+	if #mainPowerTokens > 0 then
+		list[#list + 1] = { name = L["UFMainPowerColors"] or "Main power colors", kind = settingType.Collapsible, id = "mainPowerColors", defaultCollapsed = true }
+		local desatLabel = L["Desaturated"] or "Desaturated"
+		for _, token in ipairs(mainPowerTokens) do
+			local label = getPowerLabel(token)
+			local dr, dg, db, da = getDefaultPowerColor(token)
+			local defaultColor = { dr, dg, db, da }
+			list[#list + 1] = checkboxColor({
+				name = label,
+				parentId = "mainPowerColors",
+				defaultChecked = false,
+				isChecked = function() return getPowerOverride(token) ~= nil end,
+				onChecked = function(val)
+					debounced("uf_powercolor_toggle_" .. token, function()
+						if val then
+							setPowerOverride(token, dr, dg, db, da)
+						else
+							clearPowerOverride(token)
+						end
+						if UF and UF.Refresh then UF.Refresh() end
+						refreshSettingsUI()
+					end)
+				end,
+				getColor = function() return toRGBA(getPowerOverride(token) or defaultColor, defaultColor) end,
+				onColor = function(color)
+					debounced("uf_powercolor_pick_" .. token, function()
+						setPowerOverride(token, color.r, color.g, color.b, color.a)
+						if UF and UF.Refresh then UF.Refresh() end
+						refreshSettingsUI()
+					end)
+				end,
+				colorDefault = { r = dr, g = dg, b = db, a = da },
+			})
+			list[#list + 1] = checkbox((("%s (%s)"):format(label, desatLabel)), function() return getPowerDesaturated(token) == true end, function(val)
+				debounced("uf_powercolor_desat_" .. token, function()
+					setPowerDesaturated(token, val)
+					if UF and UF.Refresh then UF.Refresh() end
+				end)
+			end, false, "mainPowerColors")
+		end
+	end
 
 	if isPlayer and classHasResource then
 		local crDef = def.classResource or {}
