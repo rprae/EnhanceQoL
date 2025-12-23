@@ -2,6 +2,11 @@
 
 ## [6.6.0] – 2025-12-23
 
+### ✨ Added
+
+- Mover: position persistence mode (close / lockout / reset).
+- Mover: reset scale and position to defaults with scale modifier + right-click on a handle.
+
 ### 🔄 Changed
 
 - Moved the "Hide Minimap Button" setting to Map Navigation.

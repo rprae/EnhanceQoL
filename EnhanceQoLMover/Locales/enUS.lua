@@ -26,6 +26,10 @@ L["Move Modifier Desc"] = "Choose the modifier key required for dragging."
 L["Scale Modifier Desc"] = "Choose the modifier key used for scaling."
 L["MoverResetHint"] = [[Tip: Hold the scale modifier and right-click a move handle to reset scale and position to default.
 Reset uses the scale modifier even when scaling is disabled.]]
+L["Position Persistence"] = "Position persistence"
+L["Position Persistence Close"] = "Until close of the frame"
+L["Position Persistence Lockout"] = "Until lockout"
+L["Position Persistence Reset"] = "Until reset"
 
 -- Wheel scaling
 L["Wheel Scaling"] = "Wheel Scaling"

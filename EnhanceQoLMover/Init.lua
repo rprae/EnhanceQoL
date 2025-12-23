@@ -23,6 +23,7 @@ initDbValue("requireModifier", true)
 initDbValue("modifier", "SHIFT")
 initDbValue("scaleEnabled", false)
 initDbValue("scaleModifier", "CTRL")
+initDbValue("positionPersistence", "reset")
 initDbValue("frames", {})
 
 local function normalizeDbVarFromId(id)
@@ -329,6 +330,7 @@ end
 
 addon.Mover.variables.pendingApply = addon.Mover.variables.pendingApply or {}
 addon.Mover.variables.combatQueue = addon.Mover.variables.combatQueue or {}
+addon.Mover.variables.sessionPositions = addon.Mover.variables.sessionPositions or {}
 
 function addon.Mover.functions.deferApply(frame, entry)
 	if not frame then return end
@@ -355,6 +357,88 @@ local function MoveKeepTwoPointSize(frame, x, y, point, relPoint)
 	frame:SetPoint(point, UIParent, relPoint, x or 0, y or 0)
 
 	frame:SetPoint("BOTTOMRIGHT", UIParent, relPoint, (x or 0) + w, (y or 0) - h)
+end
+
+local function captureDefaultPoints(frame)
+	if not frame or frame._eqolDefaultPoints then return end
+	local numPoints = frame.GetNumPoints and frame:GetNumPoints() or 0
+	if not numPoints or numPoints <= 0 then return end
+	local points = {}
+	for i = 1, numPoints do
+		local point, relativeTo, relativePoint, xOfs, yOfs = frame:GetPoint(i)
+		if point then
+			local relativeName = relativeTo and relativeTo.GetName and relativeTo:GetName() or nil
+			points[#points + 1] = {
+				point = point,
+				relative = relativeTo,
+				relativeName = relativeName,
+				relativePoint = relativePoint,
+				x = xOfs,
+				y = yOfs,
+			}
+		end
+	end
+	if #points > 0 then frame._eqolDefaultPoints = points end
+end
+
+local function applyDefaultPoints(frame)
+	local points = frame and frame._eqolDefaultPoints
+	if not points or #points == 0 then return false end
+	frame:ClearAllPoints()
+	for _, data in ipairs(points) do
+		local relative = data.relative
+		if type(relative) == "string" then relative = _G[relative] end
+		if not relative and data.relativeName then relative = _G[data.relativeName] end
+		relative = relative or UIParent
+		local relativePoint = data.relativePoint or data.point
+		frame:SetPoint(data.point, relative, relativePoint, data.x or 0, data.y or 0)
+	end
+	return true
+end
+
+local function getPositionData(entry, frameDb)
+	local mode = db.positionPersistence or "reset"
+	if mode == "lockout" then
+		local store = addon.Mover.variables.sessionPositions
+		return store and store[entry.id] or nil
+	end
+	if mode == "reset" then return frameDb end
+	return nil
+end
+
+local function setPositionData(entry, frameDb, point, x, y)
+	local mode = db.positionPersistence or "reset"
+	if mode == "close" then return end
+	if mode == "lockout" then
+		local store = addon.Mover.variables.sessionPositions
+		store = store or {}
+		addon.Mover.variables.sessionPositions = store
+		store[entry.id] = store[entry.id] or {}
+		local data = store[entry.id]
+		data.point = point
+		data.x = x
+		data.y = y
+		return
+	end
+	if frameDb then
+		frameDb.point = point
+		frameDb.x = x
+		frameDb.y = y
+	end
+end
+
+local function clearPositionData(entry, frameDb)
+	local mode = db.positionPersistence or "reset"
+	if mode == "lockout" then
+		local store = addon.Mover.variables.sessionPositions
+		if store then store[entry.id] = nil end
+	elseif mode == "reset" then
+		if frameDb then
+			frameDb.point = nil
+			frameDb.x = nil
+			frameDb.y = nil
+		end
+	end
 end
 
 local function isCollectionsMoveEnabled()
@@ -394,6 +478,18 @@ local function FixPlayerChoiceAnchor()
 
 		self._eqol_isApplying = nil
 		self._eqol_needsReapply = true
+	end)
+
+	frame:HookScript("OnShow", function(self)
+		if not self._eqol_needsReapply then return end
+		self._eqol_needsReapply = nil
+
+		C_Timer.After(0, function()
+			if self and self:IsShown() then
+				local entry = addon.Mover.functions.GetEntryForFrameName("PlayerChoiceFrame")
+				if entry then addon.Mover.functions.applyFrameSettings(self, entry) end
+			end
+		end)
 	end)
 	return true
 end
@@ -444,7 +540,8 @@ function addon.Mover.functions.applyFrameSettings(frame, entry)
 	if not resolved then return end
 	if not isEntryActive(resolved) then return end
 	local frameDb = ensureFrameDb(resolved)
-	local hasPoint = frameDb and frameDb.point and frameDb.x ~= nil and frameDb.y ~= nil
+	local posData = getPositionData(resolved, frameDb)
+	local hasPoint = posData and posData.point and posData.x ~= nil and posData.y ~= nil
 	local targetScale = resolveScale(frame, frameDb)
 	if not hasPoint and not targetScale then return end
 	if InCombatLockdown() and frame:IsProtected() then
@@ -454,10 +551,10 @@ function addon.Mover.functions.applyFrameSettings(frame, entry)
 	frame._eqol_isApplying = true
 	if hasPoint then
 		if resolved.keepTwoPointSize then
-			MoveKeepTwoPointSize(frame, frameDb.x, frameDb.y, frameDb.point, frameDb.point)
+			MoveKeepTwoPointSize(frame, posData.x, posData.y, posData.point, posData.point)
 		else
 			frame:ClearAllPoints()
-			frame:SetPoint(frameDb.point, UIParent, frameDb.point, frameDb.x, frameDb.y)
+			frame:SetPoint(posData.point, UIParent, posData.point, posData.x, posData.y)
 		end
 	end
 	if targetScale and frame.SetScale then frame:SetScale(targetScale) end
@@ -471,9 +568,7 @@ function addon.Mover.functions.StoreFramePosition(frame, entry)
 	if not frameDb then return end
 	local point, _, _, xOfs, yOfs = frame:GetPoint()
 	if not point then return end
-	frameDb.point = point
-	frameDb.x = xOfs
-	frameDb.y = yOfs
+	setPositionData(resolved, frameDb, point, xOfs, yOfs)
 end
 
 function addon.Mover.functions.createHooks(frame, entry)
@@ -483,6 +578,8 @@ function addon.Mover.functions.createHooks(frame, entry)
 
 	local resolved = resolveEntry(entry) or addon.Mover.functions.GetEntryForFrameName(frame:GetName() or "")
 	if not resolved then return end
+
+	captureDefaultPoints(frame)
 
 	if InCombatLockdown() then
 		addon.Mover.variables.combatQueue[frame] = resolved
@@ -538,9 +635,15 @@ function addon.Mover.functions.createHooks(frame, entry)
 	local function onScaleReset(_, button)
 		if button ~= "RightButton" then return end
 		if not isEntryActive(resolved) then return end
-		if not db.scaleEnabled then return end
 		if not scaleModifierPressed() then return end
 		setStoredScale(1)
+		local frameDb = ensureFrameDb(resolved)
+		clearPositionData(resolved, frameDb)
+		if frame._eqolDefaultPoints then
+			frame._eqol_isApplying = true
+			applyDefaultPoints(frame)
+			frame._eqol_isApplying = nil
+		end
 	end
 
 	local function updateWheelState(handle)
@@ -622,7 +725,8 @@ function addon.Mover.functions.createHooks(frame, entry)
 		if not isEntryActive(resolved) then return end
 		if self._eqol_isDragging or self._eqol_isApplying then return end
 		local frameDb = ensureFrameDb(resolved)
-		local hasPoint = frameDb and frameDb.point and frameDb.x ~= nil and frameDb.y ~= nil
+		local posData = getPositionData(resolved, frameDb)
+		local hasPoint = posData and posData.point and posData.x ~= nil and posData.y ~= nil
 		local targetScale = resolveScale(self, frameDb)
 		if not hasPoint and not targetScale then return end
 		if InCombatLockdown() and self:IsProtected() then
@@ -632,17 +736,30 @@ function addon.Mover.functions.createHooks(frame, entry)
 		self._eqol_isApplying = true
 		if hasPoint then
 			if resolved.keepTwoPointSize then
-				MoveKeepTwoPointSize(self, frameDb.x, frameDb.y, frameDb.point, frameDb.point)
+				MoveKeepTwoPointSize(self, posData.x, posData.y, posData.point, posData.point)
 			else
 				self:ClearAllPoints()
-				self:SetPoint(frameDb.point, UIParent, frameDb.point, frameDb.x, frameDb.y)
+				self:SetPoint(posData.point, UIParent, posData.point, posData.x, posData.y)
 			end
 		end
 		if targetScale and self.SetScale then self:SetScale(targetScale) end
 		self._eqol_isApplying = nil
 	end)
 
-	frame:HookScript("OnShow", function(self) addon.Mover.functions.applyFrameSettings(self, resolved) end)
+	frame:HookScript("OnShow", function(self)
+		if not self._eqolDefaultPoints then captureDefaultPoints(self) end
+		addon.Mover.functions.applyFrameSettings(self, resolved)
+	end)
+	frame:HookScript("OnHide", function(self)
+		if db.positionPersistence ~= "close" then return end
+		if not isEntryActive(resolved) then return end
+		if self._eqol_isDragging or self._eqol_isApplying then return end
+		if InCombatLockdown() and self:IsProtected() then return end
+		if not self._eqolDefaultPoints then return end
+		self._eqol_isApplying = true
+		applyDefaultPoints(self)
+		self._eqol_isApplying = nil
+	end)
 
 	frame._eqolLayoutHooks = true
 	addon.Mover.variables.combatQueue[frame] = nil

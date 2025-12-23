@@ -700,6 +700,25 @@ local settings = {
 		parentCheck = function() return db.scaleEnabled end,
 	},
 	{
+		type = "dropdown",
+		var = "moverPositionPersistence",
+		dbKey = "positionPersistence",
+		text = L["Position Persistence"] or "Position persistence",
+		list = {
+			close = L["Position Persistence Close"] or "Until close of the frame",
+			lockout = L["Position Persistence Lockout"] or "Until lockout",
+			reset = L["Position Persistence Reset"] or "Until reset",
+		},
+		order = { "close", "lockout", "reset" },
+		default = "reset",
+		get = function() return db.positionPersistence or "reset" end,
+		set = function(value)
+			db.positionPersistence = value
+			addon.Mover.functions.ApplyAll()
+		end,
+		parentCheck = function() return db.enabled end,
+	},
+	{
 		type = "checkbox",
 		var = "moverRequireModifier",
 		dbKey = "requireModifier",
