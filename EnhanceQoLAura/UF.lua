@@ -793,7 +793,7 @@ local function isPermanentAura(aura, unitToken)
 		if issecretvalue(tmpDurRes) then return false end
 		return not tmpDurRes
 	end
-	if issecretvalue and issecretvalue(duration) then return false end
+	if issecretvalue and (issecretvalue(duration) or issecretvalue(expiration)) then return false end
 	if duration and duration > 0 then return false end
 	if expiration and expiration > 0 then return false end
 	return true
@@ -872,7 +872,7 @@ local function applyAuraToButton(btn, aura, ac, isDebuff, unitToken)
 	btn._showTooltip = ac.showTooltip ~= false
 	btn.icon:SetTexture(aura.icon or "")
 	btn.cd:Clear()
-	if issecretvalue and issecretvalue(aura.duration) then
+	if issecretvalue and (issecretvalue(aura.duration) or issecretvalue(aura.expirationTime)) then
 		btn.cd:SetCooldownFromExpirationTime(aura.expirationTime, aura.duration, aura.timeMod)
 	elseif aura.duration and aura.duration > 0 and aura.expirationTime then
 		btn.cd:SetCooldown(aura.expirationTime - aura.duration, aura.duration, aura.timeMod)
