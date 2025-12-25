@@ -88,6 +88,47 @@ function DataPanel.GetOptionsHintText()
 	if shouldShowOptionsHint() then return L["Right-Click for options"] end
 end
 
+local function partsOnEnter(b)
+	local s = b.slot
+	if not s then return end
+	GameTooltip:SetOwner(b, "ANCHOR_TOPLEFT")
+	if s.perCurrency and b.currencyID then
+		GameTooltip:SetCurrencyByID(b.currencyID)
+		if s.showDescription == false then
+			local info = C_CurrencyInfo.GetCurrencyInfo(b.currencyID)
+			if info and info.description and info.description ~= "" then
+				local name = GameTooltip:GetName()
+				for i = 2, GameTooltip:NumLines() do
+					local line = _G[name .. "TextLeft" .. i]
+					if line and line:GetText() == info.description then
+						line:SetText("")
+						break
+					end
+				end
+			end
+		end
+		local hint = DataPanel.GetOptionsHintText and DataPanel.GetOptionsHintText()
+		if hint then
+			GameTooltip:AddLine(" ")
+			GameTooltip:AddLine(hint)
+		end
+	elseif s.tooltip then
+		GameTooltip:SetText(s.tooltip)
+	end
+	GameTooltip:Show()
+end
+
+local function partsOnLeave() GameTooltip:Hide() end
+
+local function partsOnClick(b, btn, ...)
+	if btn == "RightButton" and not DataPanel.IsMenuModifierActive(btn) then return end
+	local s = b.slot
+	if not s then return end
+	local fn = s.OnClick
+	if type(fn) == "table" then fn = fn[btn] end
+	if fn then fn(b, btn, ...) end
+end
+
 local function registerEditModePanel(panel)
 	if not EditMode or not EditMode.RegisterFrame then return end
 	if panel.editModeRegistered then
@@ -175,9 +216,7 @@ local function registerEditModePanel(panel)
 	local buttons = {
 		{
 			text = DELETE_BUTTON_LABEL,
-			click = function()
-				DataPanel:PromptDelete(panel)
-			end,
+			click = function() DataPanel:PromptDelete(panel) end,
 		},
 	}
 
@@ -600,8 +639,13 @@ function DataPanel.Create(id, name, existingOnly)
 						child.text = child:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 						child.text:SetAllPoints()
 						child:RegisterForClicks("AnyUp")
+						child.slot = data
+						child:SetScript("OnEnter", partsOnEnter)
+						child:SetScript("OnLeave", partsOnLeave)
+						child:SetScript("OnClick", partsOnClick)
 						data.parts[i] = child
 					end
+					child.slot = data
 					child:Show()
 					child:SetHeight(button:GetHeight())
 					child.text:SetFont(font, size, "OUTLINE")
@@ -616,40 +660,6 @@ function DataPanel.Create(id, name, existingOnly)
 					end
 					prev = child
 					child.currencyID = part.id
-					child:SetScript("OnEnter", function(b)
-						GameTooltip:SetOwner(b, "ANCHOR_TOPLEFT")
-						if data.perCurrency and b.currencyID then
-							GameTooltip:SetCurrencyByID(b.currencyID)
-							if data.showDescription == false then
-								local info = C_CurrencyInfo.GetCurrencyInfo(b.currencyID)
-								if info and info.description and info.description ~= "" then
-									local name = GameTooltip:GetName()
-									for i = 2, GameTooltip:NumLines() do
-										local line = _G[name .. "TextLeft" .. i]
-										if line and line:GetText() == info.description then
-											line:SetText("")
-											break
-										end
-									end
-								end
-							end
-							local hint = DataPanel.GetOptionsHintText and DataPanel.GetOptionsHintText()
-							if hint then
-								GameTooltip:AddLine(" ")
-								GameTooltip:AddLine(hint)
-							end
-						elseif data.tooltip then
-							GameTooltip:SetText(data.tooltip)
-						end
-						GameTooltip:Show()
-					end)
-					child:SetScript("OnLeave", function() GameTooltip:Hide() end)
-					child:SetScript("OnClick", function(_, btn, ...)
-						if btn == "RightButton" and not DataPanel.IsMenuModifierActive(btn) then return end
-						local fn = data.OnClick
-						if type(fn) == "table" then fn = fn[btn] end
-						if fn then fn(_, btn, ...) end
-					end)
 					totalWidth = totalWidth + w + (i > 1 and 5 or 0)
 				end
 				if data.parts then

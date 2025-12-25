@@ -1,4 +1,4 @@
--- luacheck: globals EnhanceQoL GAMEMENU_OPTIONS
+-- luacheck: globals EnhanceQoL GAMEMENU_OPTIONS MenuResponse MenuUtil ClassTalentHelper PlayerSpellsMicroButton
 local addonName, addon = ...
 local L = addon.L
 
@@ -32,6 +32,66 @@ local function RestorePosition(frame)
 end
 
 local aceWindow
+
+local function GetConfigName(configID)
+	if configID then
+		if type(configID) == "number" then
+			local info = C_Traits.GetConfigInfo(configID)
+			if info then return info.name end
+		end
+	end
+	return UNKNOWN
+end
+
+local function switchToConfig(configID, index)
+	if InCombatLockdown and InCombatLockdown() then
+		if UIErrorsFrame and ERR_NOT_IN_COMBAT then UIErrorsFrame:AddMessage(ERR_NOT_IN_COMBAT) end
+		return
+	end
+	if ClassTalentHelper and ClassTalentHelper.SwitchToLoadoutByIndex and index then
+		ClassTalentHelper.SwitchToLoadoutByIndex(index)
+		return
+	end
+	if C_ClassTalents and C_ClassTalents.SetActiveConfigID then
+		C_ClassTalents.SetActiveConfigID(configID)
+		return
+	end
+	if PlayerSpellsMicroButton then PlayerSpellsMicroButton:Click() end
+end
+
+local function showLoadoutMenu(owner)
+	if not MenuUtil or not MenuUtil.CreateContextMenu then return end
+	local specId = PlayerUtil.GetCurrentSpecID()
+	if not specId then return end
+	local configs = C_ClassTalents.GetConfigIDsBySpecID(specId) or {}
+	local activeConfig = C_ClassTalents.GetLastSelectedSavedConfigID(specId)
+	local inCombat = InCombatLockdown and InCombatLockdown()
+
+	MenuUtil.CreateContextMenu(owner, function(_, rootDescription)
+		rootDescription:SetTag("MENU_EQOL_TALENT_LOADOUTS")
+		rootDescription:CreateTitle(TALENTS)
+
+		if #configs == 0 then
+			local row = rootDescription:CreateButton(L["No saved loadouts"] or "No saved loadouts")
+			row:SetEnabled(false)
+		else
+			for index, configID in ipairs(configs) do
+				local name = GetConfigName(configID)
+				local radio = rootDescription:CreateRadio(name, function() return configID == activeConfig end, function()
+					switchToConfig(configID, index)
+					return MenuResponse and MenuResponse.Close
+				end, configID)
+				if inCombat then radio:SetEnabled(false) end
+			end
+		end
+
+		rootDescription:CreateDivider()
+		rootDescription:CreateButton(L["Open Talents"] or "Open Talents", function()
+			if PlayerSpellsMicroButton then PlayerSpellsMicroButton:Click() end
+		end)
+	end)
+end
+
 local function createAceWindow()
 	if aceWindow then
 		aceWindow:Show()
@@ -84,16 +144,6 @@ local function createAceWindow()
 	frame.frame:Show()
 end
 
-local function GetConfigName(configID)
-	if configID then
-		if type(configID) == "number" then
-			local info = C_Traits.GetConfigInfo(configID)
-			if info then return info.name end
-		end
-	end
-	return UNKNOWN
-end
-
 local function GetCurrentTalents(stream)
 	ensureDB()
 	local specId = PlayerUtil.GetCurrentSpecID()
@@ -107,7 +157,13 @@ local function GetCurrentTalents(stream)
 	end
 	stream.snapshot.text = icon .. prefix .. name
 	stream.snapshot.fontSize = db.fontSize
-	stream.snapshot.tooltip = getOptionsHint()
+	local hint = getOptionsHint()
+	local clickHint = L["Talent loadout click hint"] or "Left-click to switch loadout"
+	if hint then
+		stream.snapshot.tooltip = clickHint .. "\n" .. hint
+	else
+		stream.snapshot.tooltip = clickHint
+	end
 end
 
 provider = {
@@ -124,10 +180,15 @@ provider = {
 		TRAIT_CONFIG_UPDATED = function(stream)
 			C_Timer.After(0.02, function() addon.DataHub:RequestUpdate(stream) end)
 		end,
+		PLAYER_SPECIALIZATION_CHANGED = function(stream) addon.DataHub:RequestUpdate(stream) end,
 		ZONE_CHANGED_NEW_AREA = function(stream) addon.DataHub:RequestUpdate(stream) end,
 	},
-	OnClick = function(_, btn)
-		if btn == "RightButton" then createAceWindow() end
+	OnClick = function(button, btn)
+		if btn == "RightButton" then
+			createAceWindow()
+		else
+			showLoadoutMenu(button)
+		end
 	end,
 }
 

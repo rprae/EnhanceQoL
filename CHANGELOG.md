@@ -11,6 +11,8 @@
 - UF Plus: portrait options for unit frames (size/side/offset).
 - UF Plus: border offset control for unit frame textures.
 - Data Panels: difficulty stream now opens a difficulty selection menu on click.
+- Data Panels: new Mythic+ Key stream with owned-key display.
+- Data Panels: new Loot Spec stream with quick menu for loot spec and active spec.
 - UF Plus now supports Click Casting Addons (like clique)
 
 ### 🔄 Changed
@@ -19,6 +21,8 @@
 - UF/Resource Bars: texture/font/outline dropdowns now stay open on click so you can browse SharedMedia options faster.
 - Mover: Merged Quest and Gossip Frame
 - UF Plus: castbar backdrop now uses the Blizzard default background when the default texture is selected.
+- Data Panels: Talent stream now offers a loadout switch menu.
+- Data Panels: Durability stream tooltip expanded with per-item details and repair info.
 
 ### 🐛 Fixed
 

@@ -66,6 +66,9 @@ end
 
 local floor = math.floor
 local GetInventoryItemDurability = GetInventoryItemDurability
+local GetInventoryItemLink = GetInventoryItemLink
+local GetInventoryItemID = GetInventoryItemID
+local GetItemInfo = GetItemInfo
 
 local itemSlots = {
 	[1] = INVTYPE_HEAD,
@@ -101,11 +104,41 @@ end
 -- Feste Reihenfolge für den Tooltip (anpassen, wenn du willst)
 local slotOrder = { 1, 2, 3, 15, 5, 9, 10, 6, 7, 8, 11, 12, 13, 14, 16, 17 } -- Head, Neck, Shoulder, Cloak, ...
 local lines = {}
+local summary = { totalPercent = 100, critCount = 0, items = 0, current = 0, max = 0 }
+
+local function formatPercentColored(percent) return ("|cff%s%d%%|r"):format(getPercentColor(percent), percent) end
+
+local function colorizeText(text, quality)
+	if not text then return UNKNOWN end
+	if ITEM_QUALITY_COLORS and quality and ITEM_QUALITY_COLORS[quality] then
+		local c = ITEM_QUALITY_COLORS[quality]
+		return ("|cff%02x%02x%02x%s|r"):format((c.r or 1) * 255, (c.g or 1) * 255, (c.b or 1) * 255, text)
+	end
+	return text
+end
+
+local function resolveItemInfo(line)
+	if not line then return end
+	if line.link then
+		local name, _, quality = GetItemInfo(line.link)
+		if name then line.name = name end
+		if quality ~= nil then line.quality = quality end
+	end
+	if line.quality == nil and line.itemID and C_Item and C_Item.GetItemQualityByID then
+		local quality = C_Item.GetItemQualityByID(line.itemID)
+		if quality ~= nil then line.quality = quality end
+	end
+end
 local function calculateDurability(stream)
 	ensureDB()
 	-- Hide stream entirely for Timerunners (gear is indestructible)
 	if addon.functions and addon.functions.IsTimerunner and addon.functions.IsTimerunner() then
 		wipe(lines)
+		summary.totalPercent = 100
+		summary.critCount = 0
+		summary.items = 0
+		summary.current = 0
+		summary.max = 0
 		stream.snapshot.fontSize = db and db.fontSize or 13
 		stream.snapshot.text = nil
 		stream.snapshot.tooltip = nil
@@ -115,6 +148,7 @@ local function calculateDurability(stream)
 	stream.snapshot.hidden = nil
 	local maxDur, currentDura, critDura = 0, 0, 0
 	wipe(lines)
+	local items = 0
 
 	for _, slot in ipairs(slotOrder) do
 		local name = itemSlots[slot]
@@ -124,7 +158,20 @@ local function calculateDurability(stream)
 			maxDur = maxDur + max
 			currentDura = currentDura + cur
 			if fDur < 50 then critDura = critDura + 1 end
-			lines[#lines + 1] = { slot = name, dur = string.format("|cff%s%d%%|r", getPercentColor(fDur), fDur) }
+			local link = GetInventoryItemLink("player", slot)
+			local itemID = GetInventoryItemID and GetInventoryItemID("player", slot) or nil
+			local itemName, _, quality = link and GetItemInfo(link)
+			lines[#lines + 1] = {
+				slot = name,
+				name = itemName or name,
+				quality = quality,
+				itemID = itemID,
+				link = link,
+				cur = cur,
+				max = max,
+				percent = fDur,
+			}
+			items = items + 1
 		end
 	end
 
@@ -140,6 +187,12 @@ local function calculateDurability(stream)
 
 	stream.snapshot.fontSize = db and db.fontSize or 13
 	stream.snapshot.text = ("|T136241:16|t |cff%s%.0f|r%% %s"):format(color, durValue, critDuraText)
+
+	summary.totalPercent = durValue
+	summary.critCount = critDura
+	summary.items = items
+	summary.current = currentDura
+	summary.max = maxDur
 end
 
 local provider = {
@@ -164,9 +217,34 @@ local provider = {
 		local tip = GameTooltip
 		tip:ClearLines()
 		tip:SetOwner(b, "ANCHOR_TOPLEFT")
+		tip:AddLine(DURABILITY)
+		tip:AddLine(" ")
+		tip:AddLine(L["Repair Info"] or "Repair Info")
+		local r, g, b = NORMAL_FONT_COLOR:GetRGB()
+		tip:AddDoubleLine(ITEMS or "Items", DURABILITY or "Durability", r, g, b)
 		for _, v in ipairs(lines) do
-			local r, g, b = NORMAL_FONT_COLOR:GetRGB()
-			tip:AddDoubleLine(v.slot, v.dur, r, g, b)
+			resolveItemInfo(v)
+			local leftText = v.name or v.slot
+			if v.cur and v.max then leftText = ("%s (%d/%d)"):format(leftText, v.cur, v.max) end
+			local left = colorizeText(leftText, v.quality)
+			tip:AddDoubleLine(left, formatPercentColored(v.percent or 0))
+		end
+		tip:AddLine(" ")
+		tip:AddDoubleLine(TOTAL or "Total", formatPercentColored(math.floor((summary.totalPercent or 0) + 0.5)))
+		if summary.critCount and summary.critCount > 0 then tip:AddDoubleLine(ITEMS .. " < 50%", tostring(summary.critCount)) end
+		if CanMerchantRepair and CanMerchantRepair() then
+			local repairCost = GetRepairAllCost and GetRepairAllCost() or 0
+			if repairCost and repairCost > 0 then
+				tip:AddLine(" ")
+				local costText = addon.functions and addon.functions.formatMoney and addon.functions.formatMoney(repairCost) or tostring(repairCost)
+				tip:AddDoubleLine(L["Repair Cost"] or "Repair Cost", costText)
+				if addon.db then
+					local autoRepair = addon.db["autoRepair"] and true or false
+					local guildRepair = addon.db["autoRepairGuildBank"] and true or false
+					tip:AddDoubleLine(L["Auto-Repair"] or "Auto-Repair", autoRepair and YES or NO)
+					if autoRepair then tip:AddDoubleLine(L["Guild Repair"] or "Guild Repair", guildRepair and YES or NO) end
+				end
+			end
 		end
 		local hint = getOptionsHint()
 		if hint then tip:AddLine(hint) end
