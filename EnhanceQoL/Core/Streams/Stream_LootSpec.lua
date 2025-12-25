@@ -1,4 +1,4 @@
--- luacheck: globals EnhanceQoL GAMEMENU_OPTIONS MenuResponse MenuUtil
+-- luacheck: globals EnhanceQoL GAMEMENU_OPTIONS MenuResponse MenuUtil LOOT_SPECIALIZATION
 local addonName, addon = ...
 local L = addon.L
 

@@ -1,4 +1,4 @@
--- luacheck: globals EnhanceQoL GAMEMENU_OPTIONS MenuResponse
+-- luacheck: globals EnhanceQoL GAMEMENU_OPTIONS MenuResponse ReadOwnKeystone
 local addonName, addon = ...
 local L = addon.L
 
@@ -166,7 +166,7 @@ registerOpenKeystoneCallbacks = function()
 	lib.RegisterCallback(provider, "KeystoneWipe", refresh)
 end
 
-local provider = {
+provider = {
 	id = "mythickey",
 	version = 1,
 	title = L["Mythic+ Key"] or "Mythic+ Key",

@@ -160,7 +160,8 @@ local function calculateDurability(stream)
 			if fDur < 50 then critDura = critDura + 1 end
 			local link = GetInventoryItemLink("player", slot)
 			local itemID = GetInventoryItemID and GetInventoryItemID("player", slot) or nil
-			local itemName, _, quality = link and GetItemInfo(link)
+			local itemName = link and GetItemInfo(link)
+			local quality = itemID and C_Item and C_Item.GetItemQualityByID and C_Item.GetItemQualityByID(itemID) or nil
 			lines[#lines + 1] = {
 				slot = name,
 				name = itemName or name,
@@ -220,8 +221,8 @@ local provider = {
 		tip:AddLine(DURABILITY)
 		tip:AddLine(" ")
 		tip:AddLine(L["Repair Info"] or "Repair Info")
-		local r, g, b = NORMAL_FONT_COLOR:GetRGB()
-		tip:AddDoubleLine(ITEMS or "Items", DURABILITY or "Durability", r, g, b)
+		local r, g, bColor = NORMAL_FONT_COLOR:GetRGB()
+		tip:AddDoubleLine(ITEMS or "Items", DURABILITY or "Durability", r, g, bColor)
 		for _, v in ipairs(lines) do
 			resolveItemInfo(v)
 			local leftText = v.name or v.slot
@@ -255,8 +256,8 @@ local provider = {
 		local right1 = _G[name .. "TextRight1"]
 		if left1 then
 			left1:SetFontObject(GameTooltipText)
-			local r, g, b = NORMAL_FONT_COLOR:GetRGB()
-			left1:SetTextColor(r, g, b)
+			local r, g, bColor = NORMAL_FONT_COLOR:GetRGB()
+			left1:SetTextColor(r, g, bColor)
 		end
 		if right1 then right1:SetFontObject(GameTooltipText) end
 	end,

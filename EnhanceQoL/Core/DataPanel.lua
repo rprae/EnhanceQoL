@@ -626,14 +626,24 @@ function DataPanel.Create(id, name, existingOnly)
 				self:Refresh()
 			end
 
+			local wasParts = data.usingParts
 			if payload.parts then
+				data.usingParts = true
 				data.text:SetText("")
 				data.text:Hide()
 				data.parts = data.parts or {}
-				local prev
+				local partsFontChanged = data.partsFont ~= font or data.partsFontSize ~= size
+				if partsFontChanged then
+					data.partsFont = font
+					data.partsFontSize = size
+				end
+				local buttonHeight = button:GetHeight()
+				local heightChanged = data.partsHeight ~= buttonHeight
+				if heightChanged then data.partsHeight = buttonHeight end
 				local totalWidth = 0
 				for i, part in ipairs(payload.parts) do
 					local child = data.parts[i]
+					local isNew = false
 					if not child then
 						child = CreateFrame("Button", nil, button)
 						child.text = child:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -643,24 +653,33 @@ function DataPanel.Create(id, name, existingOnly)
 						child:SetScript("OnEnter", partsOnEnter)
 						child:SetScript("OnLeave", partsOnLeave)
 						child:SetScript("OnClick", partsOnClick)
+						if i == 1 then
+							child:SetPoint("LEFT", button, "LEFT", 0, 0)
+						else
+							child:SetPoint("LEFT", data.parts[i - 1], "RIGHT", 5, 0)
+						end
 						data.parts[i] = child
+						isNew = true
 					end
 					child.slot = data
 					child:Show()
-					child:SetHeight(button:GetHeight())
-					child.text:SetFont(font, size, "OUTLINE")
-					child.text:SetText(part.text or "")
-					local w = child.text:GetStringWidth()
-					child:SetWidth(w)
-					child:ClearAllPoints()
-					if prev then
-						child:SetPoint("LEFT", prev, "RIGHT", 5, 0)
-					else
-						child:SetPoint("LEFT", button, "LEFT", 0, 0)
+					if isNew or heightChanged then child:SetHeight(buttonHeight) end
+					if isNew or partsFontChanged then
+						child.text:SetFont(font, size, "OUTLINE")
 					end
-					prev = child
+					local text = part.text or ""
+					local textChanged = text ~= child.lastText
+					if isNew or textChanged then
+						child.text:SetText(text)
+						child.lastText = text
+					end
+					if isNew or textChanged or partsFontChanged then
+						local w = child.text:GetStringWidth()
+						child.lastWidth = w
+						child:SetWidth(w)
+					end
 					child.currencyID = part.id
-					totalWidth = totalWidth + w + (i > 1 and 5 or 0)
+					totalWidth = totalWidth + (child.lastWidth or 0) + (i > 1 and 5 or 0)
 				end
 				if data.parts then
 					for i = #payload.parts + 1, #data.parts do
@@ -669,9 +688,13 @@ function DataPanel.Create(id, name, existingOnly)
 				end
 				if totalWidth ~= data.lastWidth then
 					data.lastWidth = totalWidth
-					self:Refresh()
+					data.button:SetWidth(totalWidth)
+					if self.lastWidths and self.lastWidths[name] then
+						self.lastWidths[name] = totalWidth
+					end
 				end
 			else
+				data.usingParts = nil
 				if data.parts then
 					for _, child in ipairs(data.parts) do
 						child:Hide()
@@ -679,27 +702,34 @@ function DataPanel.Create(id, name, existingOnly)
 				end
 				data.text:Show()
 				local text = payload.text or ""
+				local textChanged = false
 				if text ~= data.lastText then
 					data.text:SetText(text)
 					data.lastText = text
+					textChanged = true
+				end
+				local newSize = payload.fontSize or data.fontSize
+				local fontChanged = newSize and data.fontSize ~= newSize
+				if fontChanged then
+					data.text:SetFont(font, newSize, "OUTLINE")
+					data.fontSize = newSize
+				end
+				if textChanged or fontChanged or wasParts then
 					local width = data.text:GetStringWidth()
 					if width ~= data.lastWidth then
 						data.lastWidth = width
-						self:Refresh()
+						data.button:SetWidth(width)
+						if self.lastWidths and self.lastWidths[name] then
+							self.lastWidths[name] = width
+						end
 					end
 				end
 			end
-
-			local newSize = payload.fontSize or data.fontSize
-			if newSize and data.fontSize ~= newSize then
-				data.text:SetFont(font, newSize, "OUTLINE")
-				data.fontSize = newSize
-				if not payload.parts then
-					local width = data.text:GetStringWidth()
-					if width ~= data.lastWidth then
-						data.lastWidth = width
-						self:Refresh()
-					end
+			if payload.parts then
+				local newSize = payload.fontSize or data.fontSize
+				if newSize and data.fontSize ~= newSize then
+					data.text:SetFont(font, newSize, "OUTLINE")
+					data.fontSize = newSize
 				end
 			end
 			data.tooltip = payload.tooltip
