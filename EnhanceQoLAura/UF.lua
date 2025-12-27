@@ -2239,8 +2239,10 @@ local function updateStatus(cfg, unit)
 	st.status:SetShown(showStatus)
 	if st.nameText then
 		applyFont(st.nameText, scfg.font, scfg.fontSize or 14, scfg.fontOutline)
+		local nameAnchor = scfg.nameAnchor or "LEFT"
 		st.nameText:ClearAllPoints()
-		st.nameText:SetPoint(scfg.nameAnchor or "LEFT", st.status, scfg.nameAnchor or "LEFT", (scfg.nameOffset and scfg.nameOffset.x) or 0, (scfg.nameOffset and scfg.nameOffset.y) or 0)
+		st.nameText:SetPoint(nameAnchor, st.status, nameAnchor, (scfg.nameOffset and scfg.nameOffset.x) or 0, (scfg.nameOffset and scfg.nameOffset.y) or 0)
+		if st.nameText.SetJustifyH then st.nameText:SetJustifyH(nameAnchor) end
 		st.nameText:SetShown(showName)
 		applyNameCharLimit(st, scfg, defStatus)
 	end
