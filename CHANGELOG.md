@@ -23,6 +23,7 @@
 - Chat: toggle to bump the default chat window history to 2000 lines.
 - UF Plus now supports Click Casting Addons (like clique)
 - Chat: optional item level (and equip slot) appended to item links.
+- Black border for square minimap in housing
 
 ### 🔄 Changed
 
@@ -47,6 +48,7 @@
 - UF Plus non interrupt color wasn't working in midnight
 - UF Plus channeling animation for castbar was in the wrong direction
 - UF Plus font/outline bug fixed
+- UF Plus Click Casting Modifiers for Target/Menu wasn't working
 
 ---
 

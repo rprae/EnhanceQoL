@@ -2854,9 +2854,41 @@ local function initUI()
 		end
 	end
 
+	-- Fill square minimap corners when the housing static overlay is shown
+	function addon.functions.applySquareMinimapHousingBackdrop()
+		if not Minimap or not MinimapBackdrop or not MinimapBackdrop.StaticOverlayTexture or not addon.db.enableSquareMinimap then return end
+
+		if not addon.general.squareMinimapHousingBackdropFrame then
+			local f = CreateFrame("Frame", nil, Minimap)
+			f:SetAllPoints(Minimap)
+			f:SetFrameStrata("LOW")
+			f:SetFrameLevel(4)
+			f.texture = f:CreateTexture(nil, "BACKGROUND")
+			f.texture:SetAllPoints(f)
+			f.texture:SetColorTexture(0, 0, 0, 1)
+			f:Hide()
+			addon.general.squareMinimapHousingBackdropFrame = f
+		end
+
+		local show = addon.db and addon.db.enableSquareMinimap and MinimapBackdrop.StaticOverlayTexture:IsShown()
+		addon.general.squareMinimapHousingBackdropFrame:SetShown(show)
+		if show then
+			if _G.EQOLBORDER then _G.EQOLBORDER:SetFrameLevel(5) end
+		else
+			if _G.EQOLBORDER then _G.EQOLBORDER:SetFrameLevel(Minimap:GetFrameLevel() or 2) end
+		end
+
+		if not addon.variables.squareMinimapHousingBackdropHooked then
+			MinimapBackdrop.StaticOverlayTexture:HookScript("OnShow", addon.functions.applySquareMinimapHousingBackdrop)
+			MinimapBackdrop.StaticOverlayTexture:HookScript("OnHide", addon.functions.applySquareMinimapHousingBackdrop)
+			addon.variables.squareMinimapHousingBackdropHooked = true
+		end
+	end
+
 	-- Apply border at startup
 	C_Timer.After(0, function()
 		if addon.functions.applySquareMinimapBorder then addon.functions.applySquareMinimapBorder() end
+		if addon.functions.applySquareMinimapHousingBackdrop then addon.functions.applySquareMinimapHousingBackdrop() end
 	end)
 
 	function addon.functions.toggleMinimapButton(value)
