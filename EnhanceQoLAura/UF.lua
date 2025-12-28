@@ -2152,6 +2152,7 @@ end
 
 local function updateHealth(cfg, unit)
 	cfg = cfg or (states[unit] and states[unit].cfg) or ensureDB(unit)
+	if cfg and cfg.enabled == false then return end
 	local st = states[unit]
 	if not st or not st.health or not st.frame then return end
 	local info = UNITS[unit]
@@ -2223,6 +2224,7 @@ end
 
 local function updatePower(cfg, unit)
 	cfg = cfg or (states[unit] and states[unit].cfg) or ensureDB(unit)
+	if cfg and cfg.enabled == false then return end
 	local st = states[unit]
 	if not st then return end
 	local bar = st.power
