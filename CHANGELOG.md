@@ -34,6 +34,10 @@
   - New Loot Spec stream with quick menu for loot spec + active spec.
   - New Coordinates stream for persistent player coordinates.
 
+- **Action Bars**
+
+  - Option to show all action bars when hovering any mouseover bar.
+
 - **Chat / Social / History**
 
   - Social: Community chat privacy toggle (Always / Session) + quick eye reveal + overlay hint.
@@ -97,6 +101,11 @@
 - **Mover**
 
   - Fixed overlapping issues with some UI elements.
+
+- **Action Bars**
+
+  - Fade amount slider now applies instantly without animation (reduces lag).
+  - Mouseover performance: coalesced refreshes and reduced fade restarts.
 
 - **Tooltips / Misc**
   - Macro-ID on tooltip was wrong.

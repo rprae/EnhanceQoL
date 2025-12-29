@@ -116,6 +116,22 @@ local function createActionBarVisibility(category)
 		end
 	end
 
+	addon.functions.SettingsCreateCheckbox(category, {
+		var = "actionBarMouseoverShowAll",
+		text = L["actionBarMouseoverShowAll"] or "Show all action bars on mouseover",
+		desc = L["actionBarMouseoverShowAllDesc"] or "When any action bar is hovered, show every action bar that uses the Mouseover rule.",
+		func = function(value)
+			addon.db.actionBarMouseoverShowAll = value and true or false
+			for _, info in ipairs(addon.variables.actionBarNames or {}) do
+				if info.var and info.name then
+					local normalized = NormalizeActionBarVisibilityConfig(info.var)
+					UpdateActionBarMouseover(info.name, normalized, info.var)
+				end
+			end
+			RefreshAllActionBarVisibilityAlpha()
+		end,
+	})
+
 	local function getFadePercent()
 		local value = GetActionBarFadeStrength()
 		if value < 0 then value = 0 end
@@ -137,7 +153,7 @@ local function createActionBarVisibility(category)
 			if pct < 0 then pct = 0 end
 			if pct > 100 then pct = 100 end
 			addon.db.actionBarFadeStrength = pct / 100
-			RefreshAllActionBarVisibilityAlpha()
+			RefreshAllActionBarVisibilityAlpha(true)
 		end,
 	})
 end

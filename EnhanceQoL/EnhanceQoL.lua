@@ -678,6 +678,7 @@ local function ApplyAlphaToRegion(target, alpha, useFade)
 		return
 	end
 
+	if group.targetAlpha ~= nil and group.targetAlpha == alpha and group.IsPlaying and group:IsPlaying() then return end
 	if group:IsPlaying() then group:Stop() end
 	anim:SetFromAlpha(current)
 	anim:SetToAlpha(alpha)
@@ -1486,10 +1487,59 @@ local EQOL_LastMouseoverBar
 local EQOL_LastMouseoverVar
 
 local function EQOL_ShouldKeepVisibleByFlyout() return _G.SpellFlyout and _G.SpellFlyout:IsShown() and MouseIsOver(_G.SpellFlyout) end
+local ACTIONBAR_VISIBILITY_MOUSEOVER_ONLY = { MOUSEOVER = true }
+local function IsActionBarMouseoverGroupEnabled() return addon.db and addon.db.actionBarMouseoverShowAll == true end
+
+local function ShouldFadeActionBar(skipFade)
+	if skipFade then return false end
+	return not IsActionBarMouseoverGroupEnabled()
+end
+
+local function IsAnyActionBarHovered()
+	for _, info in ipairs(addon.variables.actionBarNames or {}) do
+		local bar = _G[info.name]
+		if bar and bar:IsShown() and MouseIsOver(bar) then return true end
+	end
+	return false
+end
+
+local function IsActionBarGroupHoverActive()
+	if EQOL_ShouldKeepVisibleByFlyout() then return true end
+	return IsAnyActionBarHovered()
+end
+
+local function UpdateActionBarGroupHoverState()
+	if not IsActionBarMouseoverGroupEnabled() then return end
+	addon.variables = addon.variables or {}
+	local vars = addon.variables
+	local active = IsActionBarGroupHoverActive()
+	if vars._eqolActionBarGroupHoverActive == active then return end
+	vars._eqolActionBarGroupHoverActive = active
+	if addon.functions and addon.functions.RefreshAllActionBarVisibilityAlpha then addon.functions.RefreshAllActionBarVisibilityAlpha() end
+end
+
+local function ShouldShowActionBarOnMouseover(bar)
+	if MouseIsOver(bar) or EQOL_ShouldKeepVisibleByFlyout() then return true end
+	if IsActionBarMouseoverGroupEnabled() then
+		local vars = addon.variables
+		local cached = vars and vars._eqolActionBarGroupHoverActive
+		if cached ~= nil then return cached end
+		if IsAnyActionBarHovered() then return true end
+	end
+	return false
+end
 
 local function GetActionBarVisibilityConfig(variable, incoming, persistLegacy)
 	local source = incoming
 	if source == nil and addon.db then source = addon.db[variable] end
+
+	if not persistLegacy and incoming == nil then
+		if type(source) == "table" then
+			if source.MOUSEOVER == true or source.ALWAYS_IN_COMBAT == true or source.ALWAYS_OUT_OF_COMBAT == true or source.SKYRIDING_ACTIVE == true then return source end
+			return nil
+		end
+		if source == true then return ACTIONBAR_VISIBILITY_MOUSEOVER_ONLY end
+	end
 
 	local config
 	if type(source) == "table" then
@@ -1557,7 +1607,7 @@ addon.functions.GetActionBarFadeStrength = GetActionBarFadeStrength
 
 local function GetActionBarFadedAlpha() return 1 - GetActionBarFadeStrength() end
 
-local function ApplyActionBarAlpha(bar, variable, config, combatOverride)
+local function ApplyActionBarAlpha(bar, variable, config, combatOverride, skipFade)
 	if not bar then return end
 	local cfg
 	if type(config) == "table" then
@@ -1568,40 +1618,46 @@ local function ApplyActionBarAlpha(bar, variable, config, combatOverride)
 		cfg = GetActionBarVisibilityConfig(variable)
 	end
 	if not cfg then return end
+	local useFade = ShouldFadeActionBar(skipFade)
 	if ActionBarShouldForceShowByConfig(cfg, combatOverride) then
-		ApplyAlphaToRegion(bar, 1, true)
+		ApplyAlphaToRegion(bar, 1, useFade)
 		return
 	end
 	if cfg.MOUSEOVER then
-		if MouseIsOver(bar) or EQOL_ShouldKeepVisibleByFlyout() then
-			ApplyAlphaToRegion(bar, 1, true)
+		if ShouldShowActionBarOnMouseover(bar) then
+			ApplyAlphaToRegion(bar, 1, useFade)
 		else
-			ApplyAlphaToRegion(bar, GetActionBarFadedAlpha(), true)
+			ApplyAlphaToRegion(bar, GetActionBarFadedAlpha(), useFade)
 		end
 	else
-		ApplyAlphaToRegion(bar, GetActionBarFadedAlpha(), true)
+		ApplyAlphaToRegion(bar, GetActionBarFadedAlpha(), useFade)
 	end
 end
 
 local function EQOL_HideBarIfNotHovered(bar, variable)
 	local cfg = GetActionBarVisibilityConfig(variable)
 	if not cfg then return end
+	if IsActionBarMouseoverGroupEnabled() then
+		UpdateActionBarGroupHoverState()
+		return
+	end
 	C_Timer.After(0, function()
 		local current = GetActionBarVisibilityConfig(variable)
 		if not current then return end
+		local useFade = ShouldFadeActionBar()
 		if ActionBarShouldForceShowByConfig(current) then
-			ApplyAlphaToRegion(bar, 1, true)
+			ApplyAlphaToRegion(bar, 1, useFade)
 			return
 		end
 		if not current.MOUSEOVER then
-			ApplyAlphaToRegion(bar, GetActionBarFadedAlpha(), true)
+			ApplyAlphaToRegion(bar, GetActionBarFadedAlpha(), useFade)
 			return
 		end
-		-- Only hide if neither the bar nor the spell flyout is under the mouse
-		if not MouseIsOver(bar) and not EQOL_ShouldKeepVisibleByFlyout() then
-			ApplyAlphaToRegion(bar, GetActionBarFadedAlpha(), true)
+		-- Only hide if neither the bar nor other hover targets are under the mouse
+		if not ShouldShowActionBarOnMouseover(bar) then
+			ApplyAlphaToRegion(bar, GetActionBarFadedAlpha(), useFade)
 		else
-			ApplyAlphaToRegion(bar, 1, true)
+			ApplyAlphaToRegion(bar, 1, useFade)
 		end
 	end)
 end
@@ -1610,14 +1666,26 @@ local function EQOL_HookSpellFlyout()
 	if not flyout or flyout.EQOL_MouseoverHooked then return end
 
 	flyout:HookScript("OnEnter", function()
+		if IsActionBarMouseoverGroupEnabled() then
+			UpdateActionBarGroupHoverState()
+			return
+		end
 		if EQOL_LastMouseoverBar and IsActionBarMouseoverEnabled(EQOL_LastMouseoverVar) then EQOL_LastMouseoverBar:SetAlpha(1) end
 	end)
 
 	flyout:HookScript("OnLeave", function()
+		if IsActionBarMouseoverGroupEnabled() then
+			UpdateActionBarGroupHoverState()
+			return
+		end
 		if EQOL_LastMouseoverBar and IsActionBarMouseoverEnabled(EQOL_LastMouseoverVar) then EQOL_HideBarIfNotHovered(EQOL_LastMouseoverBar, EQOL_LastMouseoverVar) end
 	end)
 
 	flyout:HookScript("OnHide", function()
+		if IsActionBarMouseoverGroupEnabled() then
+			UpdateActionBarGroupHoverState()
+			return
+		end
 		if EQOL_LastMouseoverBar and IsActionBarMouseoverEnabled(EQOL_LastMouseoverVar) then EQOL_HideBarIfNotHovered(EQOL_LastMouseoverBar, EQOL_LastMouseoverVar) end
 	end)
 
@@ -1662,7 +1730,11 @@ local function UpdateActionBarMouseover(barName, config, variable)
 		bar:SetScript("OnEnter", function()
 			local current = GetActionBarVisibilityConfig(variable)
 			if not current or not current.MOUSEOVER then return end
-			bar:SetAlpha(1)
+			if IsActionBarMouseoverGroupEnabled() then
+				UpdateActionBarGroupHoverState()
+			else
+				bar:SetAlpha(1)
+			end
 			EQOL_LastMouseoverBar = bar
 			EQOL_LastMouseoverVar = variable
 		end)
@@ -1676,7 +1748,11 @@ local function UpdateActionBarMouseover(barName, config, variable)
 		local current = GetActionBarVisibilityConfig(variable)
 		if not current then return end
 		if current.MOUSEOVER then
-			bar:SetAlpha(1)
+			if IsActionBarMouseoverGroupEnabled() then
+				UpdateActionBarGroupHoverState()
+			else
+				bar:SetAlpha(1)
+			end
 			EQOL_LastMouseoverBar = bar
 			EQOL_LastMouseoverVar = variable
 		elseif ActionBarShouldForceShowByConfig(current) then
@@ -1804,7 +1880,14 @@ local function ApplyExtraActionArtworkSetting()
 end
 addon.functions.ApplyExtraActionArtworkSetting = ApplyExtraActionArtworkSetting
 
-local function RefreshAllActionBarVisibilityAlpha(_, event)
+local function ApplyActionBarVisibilityAlpha(skipFade, event)
+	if addon.variables then
+		if IsActionBarMouseoverGroupEnabled() then
+			addon.variables._eqolActionBarGroupHoverActive = IsActionBarGroupHoverActive()
+		else
+			addon.variables._eqolActionBarGroupHoverActive = nil
+		end
+	end
 	local combatOverride
 	if event == "PLAYER_REGEN_DISABLED" then
 		combatOverride = true
@@ -1813,10 +1896,33 @@ local function RefreshAllActionBarVisibilityAlpha(_, event)
 	end
 	for _, info in ipairs(addon.variables.actionBarNames or {}) do
 		local bar = _G[info.name]
-		if bar then ApplyActionBarAlpha(bar, info.var, nil, combatOverride) end
+		if bar then ApplyActionBarAlpha(bar, info.var, nil, combatOverride, skipFade) end
 	end
 end
+local function RefreshAllActionBarVisibilityAlpha(skipFade, event)
+	if type(skipFade) == "string" and event == nil then
+		event = skipFade
+		skipFade = nil
+	end
+	addon.variables = addon.variables or {}
+	local vars = addon.variables
+	if skipFade then vars._eqolActionBarRefreshSkipFade = true end
+	if event then vars._eqolActionBarRefreshEvent = event end
+	if vars._eqolActionBarRefreshPending then return end
+	vars._eqolActionBarRefreshPending = true
+	C_Timer.After(0, function()
+		local state = addon.variables
+		if not state then return end
+		local pendingSkipFade = state._eqolActionBarRefreshSkipFade
+		local pendingEvent = state._eqolActionBarRefreshEvent
+		state._eqolActionBarRefreshSkipFade = nil
+		state._eqolActionBarRefreshEvent = nil
+		state._eqolActionBarRefreshPending = nil
+		ApplyActionBarVisibilityAlpha(pendingSkipFade, pendingEvent)
+	end)
+end
 addon.functions.RefreshAllActionBarVisibilityAlpha = RefreshAllActionBarVisibilityAlpha
+addon.functions.RequestActionBarRefresh = RefreshAllActionBarVisibilityAlpha
 
 local function EnsureSkyridingStateDriver()
 	addon.variables = addon.variables or {}
@@ -4123,12 +4229,6 @@ function loadMain()
 
 	-- Slash-Command hinzufügen
 	SLASH_ENHANCEQOL1 = "/eqol"
-	SLASH_ENHANCEQOL2 = "/eqol resetframe"
-	SLASH_ENHANCEQOL3 = "/eqol aag"
-	SLASH_ENHANCEQOL4 = "/eqol rag"
-	SLASH_ENHANCEQOL5 = "/eqol lag"
-	SLASH_ENHANCEQOL6 = "/eqol lcid"
-	SLASH_ENHANCEQOL6 = "/eqol rq"
 	SlashCmdList["ENHANCEQOL"] = function(msg)
 		if msg == "resetframe" then
 			-- Frame zurücksetzen
