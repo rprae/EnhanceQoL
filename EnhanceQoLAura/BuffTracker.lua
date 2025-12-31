@@ -661,7 +661,7 @@ local function rebuildAltMapping()
 				end
 
 				local info = C_Spell and C_Spell.GetSpellCharges and C_Spell.GetSpellCharges(baseId)
-				if info and info.maxCharges and info.maxCharges > 0 then
+				if info and info.maxCharges and (issecretvalue and not issecretvalue(info.maxCharges)) and info.maxCharges > 0 then
 					chargeSpells[baseId] = true
 					buff.hasCharges = true
 				else
@@ -1156,7 +1156,11 @@ function updateBuff(catId, id, changedId, firstScan)
 						local cdDur = spellInfo.duration
 						local cdEnable = spellInfo.isEnabled
 						local modRate = spellInfo.modRate
-						if cdEnable and cdDur and cdDur > 0 and cdStart > 0 and (cdStart + cdDur) > GetTime() then
+						if issecretvalue and issecretvalue(cdEnable) then
+							frame.cd:SetCooldownFromExpirationTime(spellInfo.endTime, cdDur, modRate)
+							frame.cd:SetAlphaFromBoolean(cdEnable, 0.5, 1)
+							frame.cd:SetScript("OnCooldownDone", CDResetScript)
+						elseif cdEnable and cdDur and cdDur > 0 and cdStart > 0 and (cdStart + cdDur) > GetTime() then
 							frame.cd:SetCooldown(cdStart, cdDur, modRate)
 							frame.icon:SetDesaturated(true)
 							frame.icon:SetAlpha(0.5)
@@ -1285,16 +1289,22 @@ function updateBuff(catId, id, changedId, firstScan)
 			if info and info.maxCharges then
 				frame.charges:SetText(info.currentCharges)
 				frame.charges:Show()
-				if not aura and buff.showCooldown and info.currentCharges < info.maxCharges then
-					frame.cd:SetCooldown(info.cooldownStartTime, info.cooldownDuration, info.chargeModRate)
-					frame.cd:SetReverse(false)
-					frame.cd:SetScript("OnCooldownDone", CDResetScript)
-					if info.currentCharges == 0 then
-						frame.icon:SetDesaturated(true)
-						frame.icon:SetAlpha(0.5)
-					else
-						frame.icon:SetDesaturated(false)
-						frame.icon:SetAlpha(1)
+				if not aura and buff.showCooldown then
+					if issecretvalue and issecretvalue(info.currentCharges) then
+						frame.cd:SetCooldown(info.cooldownStartTime, info.cooldownDuration, info.chargeModRate)
+						frame.cd:SetReverse(false)
+						frame.cd:SetScript("OnCooldownDone", CDResetScript)
+					elseif info.currentCharges < info.maxCharges then
+						frame.cd:SetCooldown(info.cooldownStartTime, info.cooldownDuration, info.chargeModRate)
+						frame.cd:SetReverse(false)
+						frame.cd:SetScript("OnCooldownDone", CDResetScript)
+						if info.currentCharges == 0 then
+							frame.icon:SetDesaturated(true)
+							frame.icon:SetAlpha(0.5)
+						else
+							frame.icon:SetDesaturated(false)
+							frame.icon:SetAlpha(1)
+						end
 					end
 				end
 			else
@@ -2475,6 +2485,7 @@ function addon.Aura.functions.buildBuffOptions(container, catId, buffId)
 				scanBuffs()
 			end)
 			txtEdit:SetRelativeWidth(0.6)
+			txtEdit:SetDisabled(false)
 			wrapper:AddChild(txtEdit)
 
 			if buff.trackType ~= "ENCHANT" then

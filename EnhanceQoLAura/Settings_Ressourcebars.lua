@@ -308,6 +308,18 @@ local function registerEditModeBars()
 			if not a.relativeFrame or a.relativeFrame == "" then a.relativeFrame = "UIParent" end
 			return a
 		end
+		local function syncEditModeLayoutFromAnchor()
+			if not (EditMode and EditMode.EnsureLayoutData and EditMode.GetActiveLayoutName) then return end
+			local a = ensureAnchorTable()
+			if not a or (a.relativeFrame or "UIParent") ~= "UIParent" then return end
+			local layout = EditMode:GetActiveLayoutName()
+			local data = EditMode:EnsureLayoutData(frameId, layout)
+			if not data then return end
+			data.point = a.point or "CENTER"
+			data.relativePoint = a.relativePoint or data.point
+			data.x = a.x or 0
+			data.y = a.y or 0
+		end
 		local function anchorUsesUIParent()
 			local a = ensureAnchorTable()
 			return not a or (a.relativeFrame or "UIParent") == "UIParent"
@@ -606,6 +618,7 @@ local function registerEditModeBars()
 								a.relativeFrame = target
 								applyAnchorDefaults(a, target)
 								if target ~= "UIParent" and a.matchRelativeWidth == true then enforceMinWidth() end
+								syncEditModeLayoutFromAnchor()
 								queueRefresh()
 								refreshSettingsUI()
 							end)
@@ -623,6 +636,7 @@ local function registerEditModeBars()
 						a.relativeFrame = target
 						applyAnchorDefaults(a, target)
 						if target ~= "UIParent" and a.matchRelativeWidth == true then enforceMinWidth() end
+						syncEditModeLayoutFromAnchor()
 						queueRefresh()
 						refreshSettingsUI()
 					end,
@@ -645,6 +659,7 @@ local function registerEditModeBars()
 								if not a then return end
 								a.point = p
 								if not a.relativePoint then a.relativePoint = p end
+								syncEditModeLayoutFromAnchor()
 								queueRefresh()
 							end)
 						end
@@ -658,6 +673,7 @@ local function registerEditModeBars()
 						if not a then return end
 						a.point = value
 						if not a.relativePoint then a.relativePoint = value end
+						syncEditModeLayoutFromAnchor()
 						queueRefresh()
 					end,
 					default = "CENTER",
@@ -678,6 +694,7 @@ local function registerEditModeBars()
 								local a = ensureAnchorTable()
 								if not a then return end
 								a.relativePoint = p
+								syncEditModeLayoutFromAnchor()
 								queueRefresh()
 							end)
 						end
@@ -690,6 +707,7 @@ local function registerEditModeBars()
 						local a = ensureAnchorTable()
 						if not a then return end
 						a.relativePoint = value
+						syncEditModeLayoutFromAnchor()
 						queueRefresh()
 					end,
 					default = "CENTER",
@@ -736,6 +754,7 @@ local function registerEditModeBars()
 						if a.x == new then return end
 						a.x = new
 						a.autoSpacing = false
+						syncEditModeLayoutFromAnchor()
 						queueRefresh()
 					end,
 					default = 0,
@@ -761,6 +780,7 @@ local function registerEditModeBars()
 						if a.y == new then return end
 						a.y = new
 						a.autoSpacing = false
+						syncEditModeLayoutFromAnchor()
 						queueRefresh()
 					end,
 					default = 0,

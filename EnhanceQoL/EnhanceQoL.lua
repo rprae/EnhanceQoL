@@ -678,6 +678,7 @@ local function ApplyAlphaToRegion(target, alpha, useFade)
 		return
 	end
 
+	if group.targetAlpha ~= nil and group.targetAlpha == alpha and group.IsPlaying and group:IsPlaying() then return end
 	if group:IsPlaying() then group:Stop() end
 	anim:SetFromAlpha(current)
 	anim:SetToAlpha(alpha)
@@ -1065,20 +1066,20 @@ local function EnsureFrameState(frame, cbData)
 	return state
 end
 
-local function ClearUnitFrameState(frame, cbData)
+local function ClearUnitFrameState(frame, cbData, opts)
 	if not frame then return end
-	ApplyUnitFrameStateDriver(frame, nil)
+	if not (opts and opts.noStateDriver) then ApplyUnitFrameStateDriver(frame, nil) end
 	RestoreUnitFrameVisibility(frame, cbData)
 	frameVisibilityStates[frame] = nil
 end
 
-local function ApplyVisibilityToUnitFrame(frameName, cbData, config)
+local function ApplyVisibilityToUnitFrame(frameName, cbData, config, opts)
 	if type(frameName) ~= "string" or frameName == "" then return false end
 	local frame = _G[frameName]
 	if not frame then return false end
 
 	if not config then
-		ClearUnitFrameState(frame, cbData)
+		ClearUnitFrameState(frame, cbData, opts)
 		return true
 	end
 
@@ -1091,7 +1092,7 @@ local function ApplyVisibilityToUnitFrame(frameName, cbData, config)
 
 	local driverExpression = BuildUnitFrameDriverExpression(config)
 	local needsHealth = config and config.PLAYER_HEALTH_NOT_FULL and state.supportsPlayerHealthRule
-	local useDriver = driverExpression and not config.MOUSEOVER and not needsHealth
+	local useDriver = driverExpression and not config.MOUSEOVER and not needsHealth and not (opts and opts.noStateDriver)
 
 	if useDriver then
 		state.driverActive = true
@@ -1101,7 +1102,7 @@ local function ApplyVisibilityToUnitFrame(frameName, cbData, config)
 	end
 
 	state.driverActive = false
-	ApplyUnitFrameStateDriver(frame, nil)
+	if not (opts and opts.noStateDriver) then ApplyUnitFrameStateDriver(frame, nil) end
 
 	if config.MOUSEOVER then
 		state.isMouseOver = MouseIsOver(frame)
@@ -1153,6 +1154,9 @@ UpdateUnitFrameMouseover = function(barName, cbData)
 	UpdateFrameVisibilityHealthRegistration()
 end
 addon.functions.UpdateUnitFrameMouseover = UpdateUnitFrameMouseover
+
+local function ApplyFrameVisibilityConfig(frameName, cbData, config, opts) return ApplyVisibilityToUnitFrame(frameName, cbData, config, opts) end
+addon.functions.ApplyFrameVisibilityConfig = ApplyFrameVisibilityConfig
 
 local function ApplyUnitFrameSettingByVar(varName)
 	if not varName then return end
@@ -1483,10 +1487,59 @@ local EQOL_LastMouseoverBar
 local EQOL_LastMouseoverVar
 
 local function EQOL_ShouldKeepVisibleByFlyout() return _G.SpellFlyout and _G.SpellFlyout:IsShown() and MouseIsOver(_G.SpellFlyout) end
+local ACTIONBAR_VISIBILITY_MOUSEOVER_ONLY = { MOUSEOVER = true }
+local function IsActionBarMouseoverGroupEnabled() return addon.db and addon.db.actionBarMouseoverShowAll == true end
+
+local function ShouldFadeActionBar(skipFade)
+	if skipFade then return false end
+	return not IsActionBarMouseoverGroupEnabled()
+end
+
+local function IsAnyActionBarHovered()
+	for _, info in ipairs(addon.variables.actionBarNames or {}) do
+		local bar = _G[info.name]
+		if bar and bar:IsShown() and MouseIsOver(bar) then return true end
+	end
+	return false
+end
+
+local function IsActionBarGroupHoverActive()
+	if EQOL_ShouldKeepVisibleByFlyout() then return true end
+	return IsAnyActionBarHovered()
+end
+
+local function UpdateActionBarGroupHoverState()
+	if not IsActionBarMouseoverGroupEnabled() then return end
+	addon.variables = addon.variables or {}
+	local vars = addon.variables
+	local active = IsActionBarGroupHoverActive()
+	if vars._eqolActionBarGroupHoverActive == active then return end
+	vars._eqolActionBarGroupHoverActive = active
+	if addon.functions and addon.functions.RefreshAllActionBarVisibilityAlpha then addon.functions.RefreshAllActionBarVisibilityAlpha() end
+end
+
+local function ShouldShowActionBarOnMouseover(bar)
+	if MouseIsOver(bar) or EQOL_ShouldKeepVisibleByFlyout() then return true end
+	if IsActionBarMouseoverGroupEnabled() then
+		local vars = addon.variables
+		local cached = vars and vars._eqolActionBarGroupHoverActive
+		if cached ~= nil then return cached end
+		if IsAnyActionBarHovered() then return true end
+	end
+	return false
+end
 
 local function GetActionBarVisibilityConfig(variable, incoming, persistLegacy)
 	local source = incoming
 	if source == nil and addon.db then source = addon.db[variable] end
+
+	if not persistLegacy and incoming == nil then
+		if type(source) == "table" then
+			if source.MOUSEOVER == true or source.ALWAYS_IN_COMBAT == true or source.ALWAYS_OUT_OF_COMBAT == true or source.SKYRIDING_ACTIVE == true then return source end
+			return nil
+		end
+		if source == true then return ACTIONBAR_VISIBILITY_MOUSEOVER_ONLY end
+	end
 
 	local config
 	if type(source) == "table" then
@@ -1554,7 +1607,7 @@ addon.functions.GetActionBarFadeStrength = GetActionBarFadeStrength
 
 local function GetActionBarFadedAlpha() return 1 - GetActionBarFadeStrength() end
 
-local function ApplyActionBarAlpha(bar, variable, config, combatOverride)
+local function ApplyActionBarAlpha(bar, variable, config, combatOverride, skipFade)
 	if not bar then return end
 	local cfg
 	if type(config) == "table" then
@@ -1565,40 +1618,46 @@ local function ApplyActionBarAlpha(bar, variable, config, combatOverride)
 		cfg = GetActionBarVisibilityConfig(variable)
 	end
 	if not cfg then return end
+	local useFade = ShouldFadeActionBar(skipFade)
 	if ActionBarShouldForceShowByConfig(cfg, combatOverride) then
-		ApplyAlphaToRegion(bar, 1, true)
+		ApplyAlphaToRegion(bar, 1, useFade)
 		return
 	end
 	if cfg.MOUSEOVER then
-		if MouseIsOver(bar) or EQOL_ShouldKeepVisibleByFlyout() then
-			ApplyAlphaToRegion(bar, 1, true)
+		if ShouldShowActionBarOnMouseover(bar) then
+			ApplyAlphaToRegion(bar, 1, useFade)
 		else
-			ApplyAlphaToRegion(bar, GetActionBarFadedAlpha(), true)
+			ApplyAlphaToRegion(bar, GetActionBarFadedAlpha(), useFade)
 		end
 	else
-		ApplyAlphaToRegion(bar, GetActionBarFadedAlpha(), true)
+		ApplyAlphaToRegion(bar, GetActionBarFadedAlpha(), useFade)
 	end
 end
 
 local function EQOL_HideBarIfNotHovered(bar, variable)
 	local cfg = GetActionBarVisibilityConfig(variable)
 	if not cfg then return end
+	if IsActionBarMouseoverGroupEnabled() then
+		UpdateActionBarGroupHoverState()
+		return
+	end
 	C_Timer.After(0, function()
 		local current = GetActionBarVisibilityConfig(variable)
 		if not current then return end
+		local useFade = ShouldFadeActionBar()
 		if ActionBarShouldForceShowByConfig(current) then
-			ApplyAlphaToRegion(bar, 1, true)
+			ApplyAlphaToRegion(bar, 1, useFade)
 			return
 		end
 		if not current.MOUSEOVER then
-			ApplyAlphaToRegion(bar, GetActionBarFadedAlpha(), true)
+			ApplyAlphaToRegion(bar, GetActionBarFadedAlpha(), useFade)
 			return
 		end
-		-- Only hide if neither the bar nor the spell flyout is under the mouse
-		if not MouseIsOver(bar) and not EQOL_ShouldKeepVisibleByFlyout() then
-			ApplyAlphaToRegion(bar, GetActionBarFadedAlpha(), true)
+		-- Only hide if neither the bar nor other hover targets are under the mouse
+		if not ShouldShowActionBarOnMouseover(bar) then
+			ApplyAlphaToRegion(bar, GetActionBarFadedAlpha(), useFade)
 		else
-			ApplyAlphaToRegion(bar, 1, true)
+			ApplyAlphaToRegion(bar, 1, useFade)
 		end
 	end)
 end
@@ -1607,14 +1666,26 @@ local function EQOL_HookSpellFlyout()
 	if not flyout or flyout.EQOL_MouseoverHooked then return end
 
 	flyout:HookScript("OnEnter", function()
+		if IsActionBarMouseoverGroupEnabled() then
+			UpdateActionBarGroupHoverState()
+			return
+		end
 		if EQOL_LastMouseoverBar and IsActionBarMouseoverEnabled(EQOL_LastMouseoverVar) then EQOL_LastMouseoverBar:SetAlpha(1) end
 	end)
 
 	flyout:HookScript("OnLeave", function()
+		if IsActionBarMouseoverGroupEnabled() then
+			UpdateActionBarGroupHoverState()
+			return
+		end
 		if EQOL_LastMouseoverBar and IsActionBarMouseoverEnabled(EQOL_LastMouseoverVar) then EQOL_HideBarIfNotHovered(EQOL_LastMouseoverBar, EQOL_LastMouseoverVar) end
 	end)
 
 	flyout:HookScript("OnHide", function()
+		if IsActionBarMouseoverGroupEnabled() then
+			UpdateActionBarGroupHoverState()
+			return
+		end
 		if EQOL_LastMouseoverBar and IsActionBarMouseoverEnabled(EQOL_LastMouseoverVar) then EQOL_HideBarIfNotHovered(EQOL_LastMouseoverBar, EQOL_LastMouseoverVar) end
 	end)
 
@@ -1659,7 +1730,11 @@ local function UpdateActionBarMouseover(barName, config, variable)
 		bar:SetScript("OnEnter", function()
 			local current = GetActionBarVisibilityConfig(variable)
 			if not current or not current.MOUSEOVER then return end
-			bar:SetAlpha(1)
+			if IsActionBarMouseoverGroupEnabled() then
+				UpdateActionBarGroupHoverState()
+			else
+				bar:SetAlpha(1)
+			end
 			EQOL_LastMouseoverBar = bar
 			EQOL_LastMouseoverVar = variable
 		end)
@@ -1673,7 +1748,11 @@ local function UpdateActionBarMouseover(barName, config, variable)
 		local current = GetActionBarVisibilityConfig(variable)
 		if not current then return end
 		if current.MOUSEOVER then
-			bar:SetAlpha(1)
+			if IsActionBarMouseoverGroupEnabled() then
+				UpdateActionBarGroupHoverState()
+			else
+				bar:SetAlpha(1)
+			end
 			EQOL_LastMouseoverBar = bar
 			EQOL_LastMouseoverVar = variable
 		elseif ActionBarShouldForceShowByConfig(current) then
@@ -1801,7 +1880,14 @@ local function ApplyExtraActionArtworkSetting()
 end
 addon.functions.ApplyExtraActionArtworkSetting = ApplyExtraActionArtworkSetting
 
-local function RefreshAllActionBarVisibilityAlpha(_, event)
+local function ApplyActionBarVisibilityAlpha(skipFade, event)
+	if addon.variables then
+		if IsActionBarMouseoverGroupEnabled() then
+			addon.variables._eqolActionBarGroupHoverActive = IsActionBarGroupHoverActive()
+		else
+			addon.variables._eqolActionBarGroupHoverActive = nil
+		end
+	end
 	local combatOverride
 	if event == "PLAYER_REGEN_DISABLED" then
 		combatOverride = true
@@ -1810,10 +1896,33 @@ local function RefreshAllActionBarVisibilityAlpha(_, event)
 	end
 	for _, info in ipairs(addon.variables.actionBarNames or {}) do
 		local bar = _G[info.name]
-		if bar then ApplyActionBarAlpha(bar, info.var, nil, combatOverride) end
+		if bar then ApplyActionBarAlpha(bar, info.var, nil, combatOverride, skipFade) end
 	end
 end
+local function RefreshAllActionBarVisibilityAlpha(skipFade, event)
+	if type(skipFade) == "string" and event == nil then
+		event = skipFade
+		skipFade = nil
+	end
+	addon.variables = addon.variables or {}
+	local vars = addon.variables
+	if skipFade then vars._eqolActionBarRefreshSkipFade = true end
+	if event then vars._eqolActionBarRefreshEvent = event end
+	if vars._eqolActionBarRefreshPending then return end
+	vars._eqolActionBarRefreshPending = true
+	C_Timer.After(0, function()
+		local state = addon.variables
+		if not state then return end
+		local pendingSkipFade = state._eqolActionBarRefreshSkipFade
+		local pendingEvent = state._eqolActionBarRefreshEvent
+		state._eqolActionBarRefreshSkipFade = nil
+		state._eqolActionBarRefreshEvent = nil
+		state._eqolActionBarRefreshPending = nil
+		ApplyActionBarVisibilityAlpha(pendingSkipFade, pendingEvent)
+	end)
+end
 addon.functions.RefreshAllActionBarVisibilityAlpha = RefreshAllActionBarVisibilityAlpha
+addon.functions.RequestActionBarRefresh = RefreshAllActionBarVisibilityAlpha
 
 local function EnsureSkyridingStateDriver()
 	addon.variables = addon.variables or {}
@@ -2146,6 +2255,8 @@ local function initMisc()
 					then
 						local editBox = self.editBox or self.GetEditBox and self:GetEditBox()
 						editBox:SetText(DELETE_ITEM_CONFIRM_STRING)
+						editBox:ClearFocus()
+						editBox:SetAutoFocus(false)
 					elseif addon.db["confirmPatronOrderDialog"] and self.data and type(self.data) == "table" and self.data.text == CRAFTING_ORDERS_OWN_REAGENTS_CONFIRMATION and self.GetButton then
 						local order = C_CraftingOrders.GetClaimedOrder()
 						if order and order.npcCustomerCreatureID and order.npcCustomerCreatureID > 0 then self:GetButton(1):Click() end
@@ -2596,6 +2707,17 @@ local function initChatFrame()
 			end
 		end
 
+	addon.functions.ApplyChatFrameMaxLines = addon.functions.ApplyChatFrameMaxLines
+		or function()
+			local frame = DEFAULT_CHAT_FRAME or ChatFrame1
+			if not frame or not frame.SetMaxLines then return end
+			if addon.db and addon.db.chatFrameMaxLines2000 then
+				frame:SetMaxLines(2000)
+			else
+				frame:SetMaxLines(128)
+			end
+		end
+
 	if ChatFrame1 then
 		addon.functions.InitDBValue("chatFrameFadeEnabled", ChatFrame1:GetFading())
 		addon.functions.InitDBValue("chatFrameFadeTimeVisible", ChatFrame1:GetTimeVisible())
@@ -2610,6 +2732,7 @@ local function initChatFrame()
 		addon.functions.InitDBValue("chatFrameFadeDuration", 3)
 	end
 
+	addon.functions.InitDBValue("chatFrameMaxLines2000", false)
 	addon.functions.InitDBValue("enableChatIM", false)
 	addon.functions.InitDBValue("enableChatIMFade", false)
 	addon.functions.InitDBValue("chatIMUseCustomSound", false)
@@ -2618,6 +2741,7 @@ local function initChatFrame()
 	addon.functions.InitDBValue("enableChatHistory", false)
 	addon.functions.InitDBValue("chatChannelHistoryMaxLines", 500)
 	addon.functions.InitDBValue("chatChannelHistoryMaxViewLines", 1000)
+	addon.functions.InitDBValue("chatHistoryRestoreOnLogin", false)
 	addon.functions.InitDBValue("chatChannelHistoryFontSize", 12)
 	addon.functions.InitDBValue("chatChannelHistoryLootQualities", {
 		[0] = true,
@@ -2642,6 +2766,8 @@ local function initChatFrame()
 	addon.functions.InitDBValue("chatIMHideInCombat", false)
 	addon.functions.InitDBValue("chatIMUseAnimation", true)
 	addon.functions.InitDBValue("chatShowLootCurrencyIcons", false)
+	addon.functions.InitDBValue("chatShowItemLevelInLinks", false)
+	addon.functions.InitDBValue("chatShowItemLevelLocation", false)
 	addon.functions.InitDBValue("chatHideLearnUnlearn", false)
 	addon.functions.InitDBValue("chatBubbleFontOverride", false)
 	addon.functions.InitDBValue("chatBubbleFontSize", DEFAULT_CHAT_BUBBLE_FONT_SIZE)
@@ -2649,6 +2775,7 @@ local function initChatFrame()
 	-- Apply learn/unlearn message filter based on saved setting
 	addon.functions.ApplyChatLearnFilter(addon.db["chatHideLearnUnlearn"])
 	if addon.ChatIcons and addon.ChatIcons.SetEnabled then addon.ChatIcons:SetEnabled(addon.db["chatShowLootCurrencyIcons"]) end
+	if addon.ChatIcons and addon.ChatIcons.SetItemLevelEnabled then addon.ChatIcons:SetItemLevelEnabled(addon.db["chatShowItemLevelInLinks"]) end
 
 	if addon.ChatIM and addon.ChatIM.SetEnabled then addon.ChatIM:SetEnabled(addon.db["enableChatIM"]) end
 end
@@ -2675,9 +2802,13 @@ local function initSocial()
 	addon.functions.InitDBValue("friendsListDecorShowLocation", true)
 	addon.functions.InitDBValue("friendsListDecorHideOwnRealm", true)
 	addon.functions.InitDBValue("friendsListDecorNameFontSize", 0)
+	addon.functions.InitDBValue("communityChatPrivacyEnabled", false)
+	addon.functions.InitDBValue("communityChatPrivacyMode", 1)
 	if addon.Ignore and addon.Ignore.SetEnabled then addon.Ignore:SetEnabled(addon.db["enableIgnore"]) end
 	if addon.Ignore and addon.Ignore.UpdateAnchor then addon.Ignore:UpdateAnchor() end
 	if addon.FriendsListDecor and addon.FriendsListDecor.SetEnabled then addon.FriendsListDecor:SetEnabled(addon.db["friendsListDecorEnabled"] == true) end
+	if addon.CommunityChatPrivacy and addon.CommunityChatPrivacy.SetMode then addon.CommunityChatPrivacy:SetMode(addon.db["communityChatPrivacyMode"]) end
+	if addon.CommunityChatPrivacy and addon.CommunityChatPrivacy.SetEnabled then addon.CommunityChatPrivacy:SetEnabled(addon.db["communityChatPrivacyEnabled"]) end
 end
 
 local initLootToast
@@ -2835,9 +2966,41 @@ local function initUI()
 		end
 	end
 
+	-- Fill square minimap corners when the housing static overlay is shown
+	function addon.functions.applySquareMinimapHousingBackdrop()
+		if not Minimap or not MinimapBackdrop or not MinimapBackdrop.StaticOverlayTexture or not addon.db.enableSquareMinimap then return end
+
+		if not addon.general.squareMinimapHousingBackdropFrame then
+			local f = CreateFrame("Frame", nil, Minimap)
+			f:SetAllPoints(Minimap)
+			f:SetFrameStrata("LOW")
+			f:SetFrameLevel(4)
+			f.texture = f:CreateTexture(nil, "BACKGROUND")
+			f.texture:SetAllPoints(f)
+			f.texture:SetColorTexture(0, 0, 0, 1)
+			f:Hide()
+			addon.general.squareMinimapHousingBackdropFrame = f
+		end
+
+		local show = addon.db and addon.db.enableSquareMinimap and MinimapBackdrop.StaticOverlayTexture:IsShown()
+		addon.general.squareMinimapHousingBackdropFrame:SetShown(show)
+		if show then
+			if _G.EQOLBORDER then _G.EQOLBORDER:SetFrameLevel(5) end
+		else
+			if _G.EQOLBORDER then _G.EQOLBORDER:SetFrameLevel(Minimap:GetFrameLevel() or 2) end
+		end
+
+		if not addon.variables.squareMinimapHousingBackdropHooked then
+			MinimapBackdrop.StaticOverlayTexture:HookScript("OnShow", addon.functions.applySquareMinimapHousingBackdrop)
+			MinimapBackdrop.StaticOverlayTexture:HookScript("OnHide", addon.functions.applySquareMinimapHousingBackdrop)
+			addon.variables.squareMinimapHousingBackdropHooked = true
+		end
+	end
+
 	-- Apply border at startup
 	C_Timer.After(0, function()
 		if addon.functions.applySquareMinimapBorder then addon.functions.applySquareMinimapBorder() end
+		if addon.functions.applySquareMinimapHousingBackdrop then addon.functions.applySquareMinimapHousingBackdrop() end
 	end)
 
 	function addon.functions.toggleMinimapButton(value)
@@ -3567,6 +3730,23 @@ local function RestorePosition(frame)
 	end
 end
 
+local function OpenSettingsRoot()
+	if not (Settings and Settings.OpenToCategory) then return end
+	if not (addon.SettingsLayout and addon.SettingsLayout.rootCategory) then return end
+
+	if InCombatLockdown and InCombatLockdown() then
+		addon.variables = addon.variables or {}
+		addon.variables.pendingSettingsOpen = true
+		return
+	end
+
+	addon.variables = addon.variables or {}
+	addon.variables.pendingSettingsOpen = nil
+	Settings.OpenToCategory(addon.SettingsLayout.rootCategory:GetID())
+end
+
+addon.functions.OpenSettingsRoot = OpenSettingsRoot
+
 function addon.functions.checkReloadFrame()
 	if addon.variables.requireReload == false then return end
 	if _G["ReloadUIPopup"] and _G["ReloadUIPopup"]:IsShown() then return end
@@ -3743,7 +3923,7 @@ local function CreateUI()
 		icon = "Interface\\AddOns\\" .. addonName .. "\\Icons\\Icon.tga", -- Hier kannst du dein eigenes Icon verwenden
 		OnClick = function(_, msg)
 			if msg == "LeftButton" then
-				Settings.OpenToCategory(addon.SettingsLayout.rootCategory:GetID())
+				OpenSettingsRoot()
 			else
 				MenuUtil.CreateContextMenu(UIParent, QuickMenuGenerator)
 			end
@@ -3761,13 +3941,7 @@ local function CreateUI()
 		text = "Enhance QoL",
 		icon = "Interface\\AddOns\\EnhanceQoL\\Icons\\Icon.tga",
 		notCheckable = true,
-		func = function(button, menuInputData, menu)
-			if frame:IsShown() then
-				frame:Hide()
-			else
-				frame:Show()
-			end
-		end,
+		func = function(button, menuInputData, menu) OpenSettingsRoot() end,
 		funcOnEnter = function(button)
 			MenuUtil.ShowTooltip(button, function(tooltip) tooltip:SetText(L["Left-Click to show options"]) end)
 		end,
@@ -4066,12 +4240,6 @@ function loadMain()
 
 	-- Slash-Command hinzufügen
 	SLASH_ENHANCEQOL1 = "/eqol"
-	SLASH_ENHANCEQOL2 = "/eqol resetframe"
-	SLASH_ENHANCEQOL3 = "/eqol aag"
-	SLASH_ENHANCEQOL4 = "/eqol rag"
-	SLASH_ENHANCEQOL5 = "/eqol lag"
-	SLASH_ENHANCEQOL6 = "/eqol lcid"
-	SLASH_ENHANCEQOL6 = "/eqol rq"
 	SlashCmdList["ENHANCEQOL"] = function(msg)
 		if msg == "resetframe" then
 			-- Frame zurücksetzen
@@ -4113,12 +4281,14 @@ function loadMain()
 			end
 		elseif msg == "rq" then
 			if addon.Query and addon.Query.frame then addon.Query.frame:Show() end
-		else
+		elseif msg == "combat" or msg == "legacy" then
 			if addon.aceFrame:IsShown() then
 				addon.aceFrame:Hide()
 			else
 				addon.aceFrame:Show()
 			end
+		else
+			OpenSettingsRoot()
 		end
 	end
 
@@ -4450,6 +4620,10 @@ local eventHandlers = {
 			addon.variables.unitSpecId = specId
 		end
 
+		if not addon.variables.maxLevel then addon.variables.maxLevel = GetMaxLevelForPlayerExpansion() end
+		addon.variables.isMaxLevel = {}
+		addon.variables.isMaxLevel[addon.variables.maxLevel] = true
+
 		if addon.db["moneyTracker"] then
 			addon.db["moneyTracker"][UnitGUID("player")] = {
 				name = UnitName("player"),
@@ -4502,6 +4676,7 @@ local eventHandlers = {
 				addon.variables.pendingExtraActionArtwork = nil
 				if addon.functions.ApplyExtraActionArtworkSetting then addon.functions.ApplyExtraActionArtworkSetting() end
 			end
+			if addon.variables.pendingSettingsOpen then OpenSettingsRoot() end
 		end
 	end,
 	["QUEST_COMPLETE"] = function()

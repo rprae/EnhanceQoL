@@ -543,13 +543,6 @@ local frames = {
 		defaultEnabled = true,
 	},
 	{
-		id = "GossipFrame",
-		label = L["Gossip"] or "Gossip",
-		group = "world",
-		names = { "GossipFrame" },
-		defaultEnabled = true,
-	},
-	{
 		id = "ClassTrainerFrame",
 		label = MINIMAP_TRACKING_TRAINER_CLASS,
 		group = "world",
@@ -600,7 +593,7 @@ local frames = {
 		id = "QuestFrame",
 		label = L["Quest"] or "Quest",
 		group = "world",
-		names = { "QuestFrame" },
+		names = { "QuestFrame", "GossipFrame" },
 		defaultEnabled = true,
 	},
 	{
@@ -615,13 +608,6 @@ local frames = {
 		label = L["Event Toasts"] or "Event Toasts",
 		group = "system",
 		names = { "EventToastManagerFrame" },
-		defaultEnabled = true,
-	},
-	{
-		id = "UIWidgetTopCenterContainerFrame",
-		label = L["Top Center Widgets"] or "Top Center Widgets",
-		group = "system",
-		names = { "UIWidgetTopCenterContainerFrame" },
 		defaultEnabled = true,
 	},
 	{
@@ -698,6 +684,34 @@ local settings = {
 		get = function() return db.scaleModifier or "CTRL" end,
 		set = function(value) db.scaleModifier = value end,
 		parentCheck = function() return db.scaleEnabled end,
+	},
+	{
+		type = "dropdown",
+		var = "moverPositionPersistence",
+		dbKey = "positionPersistence",
+		text = L["Position Persistence"] or "Position persistence",
+		list = {
+			close = {
+				text = L["Position Persistence Close"] or "Until close of the frame",
+				tooltip = L["Position Persistence Close Tooltip"] or "Does not save the position and resets when the frame closes.",
+			},
+			lockout = {
+				text = L["Position Persistence Lockout"] or "Until logout",
+				tooltip = L["Position Persistence Lockout Tooltip"] or "Saves the position only until you log out.",
+			},
+			reset = {
+				text = L["Position Persistence Reset"] or "Until reset",
+				tooltip = L["Position Persistence Reset Tooltip"] or "Saves the position until you reset it.",
+			},
+		},
+		order = { "close", "lockout", "reset" },
+		default = "reset",
+		get = function() return db.positionPersistence or "reset" end,
+		set = function(value)
+			db.positionPersistence = value
+			addon.Mover.functions.ApplyAll()
+		end,
+		parentCheck = function() return db.enabled end,
 	},
 	{
 		type = "checkbox",

@@ -1,11 +1,120 @@
 # Changelog
 
-## [6.6.0] – 2025-12-23
+## [6.6.0] – 2025-12-30
+
+### ✨ Added
+
+- **UF Plus**
+
+  - New text modes (Max, Max/Percent) + optional percent symbol hiding.
+  - New unit frame text modes (Cur/Max + percent combos) + separator dropdown.
+  - Target aura anchor now supports LEFT/RIGHT + growth direction combinations.
+  - Separate debuff growth direction option for target auras.
+  - Power bar can be detached with custom width + offsets.
+  - Per-frame “Show when” visibility rules for custom unit frames in Edit Mode.
+  - Per-main-power color overrides for power bars (optional desaturation).
+  - Portrait options for unit frames (side + separator).
+  - Portrait separator settings (toggle/size/texture/color).
+  - Portrait option to force a square background.
+  - Border offset control for unit frame textures.
+  - Status line name max width.
+  - Option to hide level display at max level.
+  - Unit status (AFK/DND/offline) indicator with adjustable offsets.
+  - Click Casting Addon support (e.g. Clique).
+
+- **Mover**
+
+  - Position persistence mode (close / logout / reset).
+  - Reset scale + position to defaults with scale modifier + right-click on a handle.
+
+- **Data Panels**
+
+  - Difficulty stream now opens a difficulty selection menu on click.
+  - New Mythic+ Key stream with owned-key display.
+  - New Loot Spec stream with quick menu for loot spec + active spec.
+  - New Coordinates stream for persistent player coordinates.
+
+- **Action Bars**
+
+  - Option to show all action bars when hovering any mouseover bar.
+
+- **Chat / Social / History**
+
+  - Social: Community chat privacy toggle (Always / Session) + quick eye reveal + overlay hint.
+  - Chat History: optional restore of recent messages on login.
+  - Chat: toggle to bump the default chat window history to 2000 lines.
+  - Chat: optional item level (and equip slot) appended to item links.
+
+- **Bags**
+
+  - New filter toggle to show upgrades only.
+
+- **Misc**
+  - Black border for square minimap in housing.
+  - Upgrade arrow outline for better visibility on bright icons.
+  - Added 4 missing teleport items for Brawl'gar Arena.
 
 ### 🔄 Changed
 
-- Moved the "Hide Minimap Button" setting to Map Navigation.
-- UF/Resource Bars: texture/font/outline dropdowns now stay open on click so you can browse SharedMedia options faster.
+- **UF Plus / Resource Bars**
+
+  - Resting indicator settings merged into the Unit status section.
+  - Sample cast previews now auto-show in Edit Mode.
+  - Name/Level font sizes are now configurable independently in the status line.
+  - UF/Resource Bars: texture/font/outline dropdowns now stay open on click (faster SharedMedia browsing).
+  - Castbar backdrop now uses the Blizzard default background when the default texture is selected.
+
+- **Mover**
+
+  - Merged Quest and Gossip Frame.
+
+- **Data Panels**
+
+  - Talent stream now offers a loadout switch menu.
+  - Durability stream tooltip expanded with per-item details and repair info.
+
+- **Chat**
+
+  - Item/currency icon option now applies to all item links.
+  - “DELETE” for the delete-item dialog now also removes focus of the editbox (for addons like DialogKey).
+
+- **Misc**
+  - Upgrade arrow color in inventory changed to green.
+  - Upgrade arrow size increased.
+  - Moved the “Hide Minimap Button” setting to Map Navigation.
+  - `/eqol` now opens the new settings menu; `/eqol combat` and `/eqol legacy` open the legacy options window.
+
+### 🐛 Fixed
+
+- **UF Plus / Resource Bars**
+
+  - Resource Bars: anchor changes made via dropdowns/sliders now sync to Edit Mode layouts (positions persist after reload).
+  - Focus frame health now updates on unit health events.
+  - Defaults are now properly used as fallback.
+  - Castbar backdrop was shown on reload when nothing was being cast.
+  - Some target auras were missing.
+  - Aura debuff color fixed in Midnight.
+  - Non-interruptible color wasn’t working in Midnight.
+  - Channeling animation for castbar was in the wrong direction.
+  - Font/outline bug fixed.
+  - Click Casting modifiers for Target/Menu weren’t working.
+  - Class resources (e.g., combo points) now stay above unit frame borders after form swaps.
+
+- **Mover**
+
+  - Fixed overlapping issues with some UI elements.
+
+- **Action Bars**
+
+  - Fade amount slider now applies instantly without animation (reduces lag).
+  - Mouseover performance: coalesced refreshes and reduced fade restarts.
+
+- **Tooltips / Misc**
+  - Macro-ID on tooltip was wrong.
+  - Aura tooltip was hidden in restricted combat (secret) on party/raid when _Hide friendly tooltip_ was active
+  - Auto container opening now skips while dead to avoid "You can't do that when you're dead" spam.
+  - Mouse ring/trail now share a single runner and lazily allocate trail elements to reduce hot-path work.
+  - Upgrade Arrow in inventory didn't check for "recommended for specialization"
 
 ---
 
@@ -23,6 +132,7 @@
 
 ### ❌ Removed
 
+- UF Plus: removed "Show sample cast" and "Show sample absorb" toggles (auto in Edit Mode).
 - Removed the option to show party frames in solo content
 - Removed the cloak upgrade button feature
 

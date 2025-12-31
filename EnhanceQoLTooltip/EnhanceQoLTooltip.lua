@@ -310,7 +310,7 @@ local function checkSpell(tooltip, id, name, isSpell)
 			local line = tooltip and _G[tooltip:GetName() .. "TextLeft1"]
 			if line then
 				local current = line:GetText()
-				if current and not current:find("|T", 1, true) then
+				if ((issecretvalue and not issecretvalue(current)) or not issecretvalue) and current and not current:find("|T", 1, true) then
 					local size = addon.db and addon.db["TooltipItemIconSize"] or 16
 					if size < 10 then
 						size = 10
@@ -915,12 +915,19 @@ if TooltipDataProcessor then
 		local id, name, _, timeLimit, kind
 
 		if issecretvalue and issecretvalue(data.type) then
-			-- check for mouseover
-			if UnitIsEnemy("mouseover", "player") or UnitIsFriend("mouseover", "player") then
-				kind = "unit"
-			else
-				-- assume it's a aura?
-				kind = "aura"
+			-- check for owner
+			local owner = tooltip.GetOwner and tooltip:GetOwner()
+			if owner then
+				if owner.auraInstanceID then kind = "aura" end
+			end
+			if not kind then
+				-- check for mouseover
+				if UnitIsEnemy("mouseover", "player") or UnitIsFriend("mouseover", "player") then
+					kind = "unit"
+				else
+					-- assume it's an aura?
+					kind = "aura"
+				end
 			end
 		else
 			kind = addon.Tooltip.variables.kindsByID[tonumber(data.type)]
@@ -931,8 +938,13 @@ if TooltipDataProcessor then
 			checkSpell(tooltip, id, name, true)
 			return
 		elseif kind == "macro" then
+			local ttInfo = tooltip:GetPrimaryTooltipInfo()
 			id = data.id
-			name = L["MacroID"]
+			if ttInfo and ttInfo.getterArgs then
+				local actionSlot = ttInfo.getterArgs[1]
+				if actionSlot then id = GetActionText(actionSlot) end
+			end
+			name = MACRO
 			checkSpell(tooltip, id, name)
 			return
 		elseif kind == "unit" then

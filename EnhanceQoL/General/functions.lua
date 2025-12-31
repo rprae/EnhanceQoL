@@ -508,6 +508,17 @@ local bagIlvlAnchors = {
 	BOTTOMRIGHT = { point = "BOTTOMRIGHT", x = 0, y = 2 },
 }
 
+local bagUpgradeAnchors = {
+	TOPLEFT = { point = "TOPLEFT", x = 1, y = -1 },
+	TOPRIGHT = { point = "TOPRIGHT", x = -1, y = -1 },
+	BOTTOMLEFT = { point = "BOTTOMLEFT", x = 1, y = 1 },
+	BOTTOMRIGHT = { point = "BOTTOMRIGHT", x = -1, y = 1 },
+}
+
+local UPGRADE_ICON_PATH = "Interface\\AddOns\\EnhanceQoL\\Icons\\upgradeilvl.tga"
+local UPGRADE_ICON_SIZE = 22
+local UPGRADE_ICON_GLOW_SIZE = 24
+
 function addon.functions.ApplyBagItemLevelPosition(target, anchorFrame, position)
 	if not target or not anchorFrame then return end
 	local anchor = bagIlvlAnchors[position] or bagIlvlAnchors.TOPRIGHT
@@ -540,9 +551,142 @@ function addon.functions.ApplyBagBoundPosition(target, anchorFrame, position)
 	target:SetPoint(anchor.point, anchorFrame, anchor.point, anchor.x, anchor.y)
 end
 
+function addon.functions.ApplyBagUpgradeIconPosition(target, anchorFrame, position)
+	if not target or not anchorFrame then return end
+	local anchor = bagUpgradeAnchors[position] or bagUpgradeAnchors.BOTTOMRIGHT
+	target:ClearAllPoints()
+	target:SetPoint(anchor.point, anchorFrame, anchor.point, anchor.x, anchor.y)
+end
+
+function addon.functions.AlignUpgradeIconGlow(glow, icon)
+	if not glow or not icon then return end
+	glow:ClearAllPoints()
+	glow:SetPoint("CENTER", icon, "CENTER", 0, 0)
+end
+
+function addon.functions.EnsureBagUpgradeIcon(button)
+	if not button then return end
+	if not button.ItemUpgradeIcon then
+		button.ItemUpgradeIcon = button:CreateTexture(nil, "ARTWORK")
+		button.ItemUpgradeIcon:SetDrawLayer("ARTWORK", 2)
+	end
+	if not button.ItemUpgradeIconGlow then
+		button.ItemUpgradeIconGlow = button:CreateTexture(nil, "ARTWORK")
+		button.ItemUpgradeIconGlow:SetDrawLayer("ARTWORK", 1)
+	end
+	button.ItemUpgradeIcon:SetTexture(UPGRADE_ICON_PATH)
+	button.ItemUpgradeIcon:SetSize(UPGRADE_ICON_SIZE, UPGRADE_ICON_SIZE)
+	button.ItemUpgradeIcon:SetVertexColor(0, 1, 0, 1)
+	button.ItemUpgradeIconGlow:SetTexture(UPGRADE_ICON_PATH)
+	button.ItemUpgradeIconGlow:SetSize(UPGRADE_ICON_GLOW_SIZE, UPGRADE_ICON_GLOW_SIZE)
+	button.ItemUpgradeIconGlow:SetVertexColor(0, 0, 0, 0.9)
+end
+
+local function getEquipSlotsFor(equipLoc)
+	if equipLoc == "INVTYPE_FINGER" then
+		return { 11, 12 }
+	elseif equipLoc == "INVTYPE_TRINKET" then
+		return { 13, 14 }
+	elseif equipLoc == "INVTYPE_HEAD" then
+		return { 1 }
+	elseif equipLoc == "INVTYPE_NECK" then
+		return { 2 }
+	elseif equipLoc == "INVTYPE_SHOULDER" then
+		return { 3 }
+	elseif equipLoc == "INVTYPE_CLOAK" then
+		return { 15 }
+	elseif equipLoc == "INVTYPE_CHEST" or equipLoc == "INVTYPE_ROBE" then
+		return { 5 }
+	elseif equipLoc == "INVTYPE_WRIST" then
+		return { 9 }
+	elseif equipLoc == "INVTYPE_HAND" then
+		return { 10 }
+	elseif equipLoc == "INVTYPE_WAIST" then
+		return { 6 }
+	elseif equipLoc == "INVTYPE_LEGS" then
+		return { 7 }
+	elseif equipLoc == "INVTYPE_FEET" then
+		return { 8 }
+	elseif equipLoc == "INVTYPE_WEAPONMAINHAND" or equipLoc == "INVTYPE_2HWEAPON" or equipLoc == "INVTYPE_RANGED" or equipLoc == "INVTYPE_RANGEDRIGHT" then
+		return { 16 }
+	elseif equipLoc == "INVTYPE_WEAPONOFFHAND" or equipLoc == "INVTYPE_HOLDABLE" or equipLoc == "INVTYPE_SHIELD" then
+		return { 17 }
+	elseif equipLoc == "INVTYPE_WEAPON" then
+		-- One-hand weapon: compare against both if present
+		return { 16, 17 }
+	end
+	return nil
+end
+
+local cachedUnitClass, cachedUnitSpec, cachedSpecFilters
+local function getCurrentSpecFilters()
+	local unitClass = addon.variables.unitClass
+	local unitSpec = addon.variables.unitSpec
+	if not unitClass or not unitSpec then
+		cachedUnitClass, cachedUnitSpec, cachedSpecFilters = nil, nil, nil
+		return nil
+	end
+	if unitClass ~= cachedUnitClass or unitSpec ~= cachedUnitSpec then
+		cachedUnitClass, cachedUnitSpec = unitClass, unitSpec
+		local classFilters = addon.itemBagFilterTypes and addon.itemBagFilterTypes[unitClass]
+		cachedSpecFilters = classFilters and classFilters[unitSpec] or nil
+	end
+	return cachedSpecFilters
+end
+
+local function isItemRecommendedForSpec(itemLink, itemEquipLoc, classID, subclassID)
+	if not itemLink then return false end
+	if not IsEquippableItem(itemLink) then return false end
+
+	if itemEquipLoc == nil or classID == nil or subclassID == nil then
+		local _, _, _, equipLoc, _, instantClassID, instantSubclassID = GetItemInfoInstant(itemLink)
+		itemEquipLoc = itemEquipLoc or equipLoc
+		if classID == nil then classID = instantClassID end
+		if subclassID == nil then subclassID = instantSubclassID end
+	end
+
+	if not itemEquipLoc or classID == nil or subclassID == nil then return false end
+	if itemEquipLoc == "INVTYPE_TABARD" then return false end
+	if itemEquipLoc == "INVTYPE_CLOAK" then return true end
+
+	local specFilters = getCurrentSpecFilters()
+	if not specFilters then return false end
+	local classEntry = specFilters[classID]
+	local value = classEntry and classEntry[subclassID]
+	return value ~= nil and value ~= false
+end
+
+local function isBagItemUpgrade(itemLink, itemEquipLoc, itemLevel)
+	if not itemLink or not itemEquipLoc then return false end
+	local slots = getEquipSlotsFor(itemEquipLoc)
+	if not slots or #slots == 0 then return false end
+
+	local itemLevelText = itemLevel
+	if itemLevelText == nil then itemLevelText = C_Item.GetDetailedItemLevelInfo(itemLink) end
+	local numericLevel = tonumber(itemLevelText)
+	if not numericLevel then return false end
+
+	local baseline
+	for _, invSlot in ipairs(slots) do
+		local link = GetInventoryItemLink("player", invSlot)
+		local eqIlvl = link and (C_Item.GetDetailedItemLevelInfo(link) or 0) or 0
+		if baseline == nil then
+			baseline = eqIlvl
+		else
+			baseline = math.min(baseline, eqIlvl) -- favor upgrade vs the worse of two (rings/trinkets/1H weapons)
+		end
+	end
+
+	if baseline == nil then return false end
+	return numericLevel > baseline
+end
+
 local function updateButtonInfo(itemButton, bag, slot, frameName)
 	itemButton:SetAlpha(1)
-	if itemButton.ItemContextOverlay then itemButton.ItemContextOverlay:Hide() end
+	if itemButton.EQOLFilterOverlay then
+		itemButton.EQOLFilterOverlay:SetAlpha(1)
+		itemButton.EQOLFilterOverlay:Hide()
+	end
 
 	if itemButton.ItemLevelText then
 		itemButton.ItemLevelText:SetAlpha(1)
@@ -561,6 +705,10 @@ local function updateButtonInfo(itemButton, bag, slot, frameName)
 		itemButton.ItemUpgradeIcon:SetAlpha(1)
 		itemButton.ItemUpgradeIcon:Hide()
 	end
+	if itemButton.ItemUpgradeIconGlow then
+		itemButton.ItemUpgradeIconGlow:SetAlpha(1)
+		itemButton.ItemUpgradeIconGlow:Hide()
+	end
 	local itemLink = C_Container.GetContainerItemLink(bag, slot)
 	if itemLink then
 		local _, _, itemQuality, _, _, _, _, _, itemEquipLoc, _, sellPrice, classID, subclassID, tBindType, expId = GetItemInfo(itemLink)
@@ -571,6 +719,7 @@ local function updateButtonInfo(itemButton, bag, slot, frameName)
 			bType, bKey, upgradeKey, bAuc = getTooltipInfo(bag, slot, classID, tBindType)
 		end
 		local setVisibility
+		local isUpgrade = nil
 
 		if addon.filterFrame then
 			if classID == 15 and subclassID == 0 then bAuc = true end -- ignore lockboxes etc.
@@ -588,6 +737,10 @@ local function updateButtonInfo(itemButton, bag, slot, frameName)
 				end
 				if addon.itemBagFilters["currentExpension"] and LE_EXPANSION_LEVEL_CURRENT ~= expId then setVisibility = true end
 				if addon.itemBagFilters["equipment"] and (nil == itemEquipLoc or addon.variables.ignoredEquipmentTypes[itemEquipLoc]) then setVisibility = true end
+				if addon.itemBagFilters["upgradeOnly"] then
+					if isUpgrade == nil then isUpgrade = isBagItemUpgrade(itemLink, itemEquipLoc) end
+					if not isUpgrade then setVisibility = true end
+				end
 				if addon.itemBagFilters["bind"] then
 					if nil == addon.itemBagFiltersBound[bKey] or addon.itemBagFiltersBound[bKey] == false then setVisibility = true end
 				end
@@ -647,92 +800,22 @@ local function updateButtonInfo(itemButton, bag, slot, frameName)
 
 				-- Upgrade arrow (bag): indicate if this item is higher ilvl than equipped
 				if addon.db["showUpgradeArrowOnBagItems"] then
-					local function getEquipSlotsFor(equipLoc)
-						if equipLoc == "INVTYPE_FINGER" then
-							return { 11, 12 }
-						elseif equipLoc == "INVTYPE_TRINKET" then
-							return { 13, 14 }
-						elseif equipLoc == "INVTYPE_HEAD" then
-							return { 1 }
-						elseif equipLoc == "INVTYPE_NECK" then
-							return { 2 }
-						elseif equipLoc == "INVTYPE_SHOULDER" then
-							return { 3 }
-						elseif equipLoc == "INVTYPE_CLOAK" then
-							return { 15 }
-						elseif equipLoc == "INVTYPE_CHEST" or equipLoc == "INVTYPE_ROBE" then
-							return { 5 }
-						elseif equipLoc == "INVTYPE_WRIST" then
-							return { 9 }
-						elseif equipLoc == "INVTYPE_HAND" then
-							return { 10 }
-						elseif equipLoc == "INVTYPE_WAIST" then
-							return { 6 }
-						elseif equipLoc == "INVTYPE_LEGS" then
-							return { 7 }
-						elseif equipLoc == "INVTYPE_FEET" then
-							return { 8 }
-						elseif equipLoc == "INVTYPE_WEAPONMAINHAND" or equipLoc == "INVTYPE_2HWEAPON" or equipLoc == "INVTYPE_RANGED" or equipLoc == "INVTYPE_RANGEDRIGHT" then
-							return { 16 }
-						elseif equipLoc == "INVTYPE_WEAPONOFFHAND" or equipLoc == "INVTYPE_HOLDABLE" or equipLoc == "INVTYPE_SHIELD" then
-							return { 17 }
-						elseif equipLoc == "INVTYPE_WEAPON" then
-							-- One-hand weapon: compare against both if present
-							return { 16, 17 }
-						end
-						return nil
-					end
-
-					local slots = getEquipSlotsFor(itemEquipLoc)
-					local baseline
-					if slots and #slots > 0 then
-						for _, invSlot in ipairs(slots) do
-							local link = GetInventoryItemLink("player", invSlot)
-							if link then
-								local eqIlvl = C_Item.GetDetailedItemLevelInfo(link) or 0
-								if baseline == nil then
-									baseline = eqIlvl
-								else
-									baseline = math.min(baseline, eqIlvl) -- favor upgrade vs the worse of two (rings/trinkets/1H weapons)
-								end
-							else
-								-- empty slot counts as 0
-								if baseline == nil then
-									baseline = 0
-								else
-									baseline = math.min(baseline, 0)
-								end
-							end
-						end
-					end
-
-					local isUpgrade = false
-					if baseline ~= nil and itemLevelText and tonumber(itemLevelText) then isUpgrade = tonumber(itemLevelText) > baseline end
-
-					if isUpgrade then
-						if not itemButton.ItemUpgradeIcon then
-							itemButton.ItemUpgradeIcon = itemButton:CreateTexture(nil, "ARTWORK")
-							itemButton.ItemUpgradeIcon:SetDrawLayer("ARTWORK", 2)
-							itemButton.ItemUpgradeIcon:SetSize(14, 14)
-						end
-						itemButton.ItemUpgradeIcon:SetTexture("Interface\\AddOns\\EnhanceQoL\\Icons\\upgradeilvl.tga")
-						itemButton.ItemUpgradeIcon:ClearAllPoints()
+					local isRecommended = isItemRecommendedForSpec(itemLink, itemEquipLoc, classID, subclassID)
+					if isRecommended and isUpgrade == nil then isUpgrade = isBagItemUpgrade(itemLink, itemEquipLoc, itemLevelText) end
+					if isRecommended and isUpgrade then
+						addon.functions.EnsureBagUpgradeIcon(itemButton)
 						local posUp = addon.db["bagUpgradeIconPosition"] or "BOTTOMRIGHT"
-						if posUp == "TOPRIGHT" then
-							itemButton.ItemUpgradeIcon:SetPoint("TOPRIGHT", itemButton, "TOPRIGHT", -1, -2)
-						elseif posUp == "TOPLEFT" then
-							itemButton.ItemUpgradeIcon:SetPoint("TOPLEFT", itemButton, "TOPLEFT", 2, -2)
-						elseif posUp == "BOTTOMLEFT" then
-							itemButton.ItemUpgradeIcon:SetPoint("BOTTOMLEFT", itemButton, "BOTTOMLEFT", 2, 2)
-						else -- BOTTOMRIGHT
-							itemButton.ItemUpgradeIcon:SetPoint("BOTTOMRIGHT", itemButton, "BOTTOMRIGHT", -1, 2)
-						end
+						addon.functions.ApplyBagUpgradeIconPosition(itemButton.ItemUpgradeIcon, itemButton, posUp)
+						addon.functions.AlignUpgradeIconGlow(itemButton.ItemUpgradeIconGlow, itemButton.ItemUpgradeIcon)
+						itemButton.ItemUpgradeIconGlow:Show()
 						itemButton.ItemUpgradeIcon:Show()
 					else
 						if itemButton.ItemUpgradeIcon then itemButton.ItemUpgradeIcon:Hide() end
+						if itemButton.ItemUpgradeIconGlow then itemButton.ItemUpgradeIconGlow:Hide() end
 					end
 				else
 					if itemButton.ItemUpgradeIcon then itemButton.ItemUpgradeIcon:Hide() end
+					if itemButton.ItemUpgradeIconGlow then itemButton.ItemUpgradeIconGlow:Hide() end
 				end
 
 				if addon.db["showBindOnBagItems"] and bType then
@@ -761,10 +844,12 @@ local function updateButtonInfo(itemButton, bag, slot, frameName)
 
 		if setVisibility then
 			itemButton:SetAlpha(0.1)
-			if itemButton.ItemContextOverlay then
-				itemButton.ItemContextOverlay:Show()
-				itemButton.ItemContextOverlay:SetColorTexture(0, 0, 0, 0.8)
+			if not itemButton.EQOLFilterOverlay then
+				itemButton.EQOLFilterOverlay = itemButton:CreateTexture(nil, "ARTWORK")
+				itemButton.EQOLFilterOverlay:SetColorTexture(0, 0, 0, 0.8)
+				itemButton.EQOLFilterOverlay:SetAllPoints()
 			end
+			itemButton.EQOLFilterOverlay:Show()
 
 			if itemButton.ItemLevelText then itemButton.ItemLevelText:SetAlpha(0.1) end
 			if itemButton.ItemBoundType then itemButton.ItemBoundType:SetAlpha(0.1) end
@@ -772,7 +857,7 @@ local function updateButtonInfo(itemButton, bag, slot, frameName)
 			if itemButton.ProfessionQualityOverlay and addon.db["fadeBagQualityIcons"] then itemButton.ProfessionQualityOverlay:SetAlpha(0.1) end
 		else
 			itemButton:SetAlpha(1)
-			if itemButton.ItemContextOverlay then itemButton.ItemContextOverlay:Hide() end
+			if itemButton.EQOLFilterOverlay then itemButton.EQOLFilterOverlay:Hide() end
 			if itemButton.ItemLevelText then itemButton.ItemLevelText:SetAlpha(1) end
 			if itemButton.ItemBoundType then itemButton.ItemBoundType:SetAlpha(1) end
 			if itemButton.ItemUpgradeIcon then itemButton.ItemUpgradeIcon:SetAlpha(1) end
@@ -793,6 +878,7 @@ local filterData = {
 		label = BAG_FILTER_EQUIPMENT,
 		child = {
 			{ type = "CheckBox", key = "equipment", label = L["bagFilterEquip"] },
+			{ type = "CheckBox", key = "upgradeOnly", label = L["bagFilterUpgradeOnly"] },
 			{ type = "CheckBox", key = "usableOnly", label = L["bagFilterSpec"] },
 		},
 	},

@@ -88,6 +88,47 @@ function DataPanel.GetOptionsHintText()
 	if shouldShowOptionsHint() then return L["Right-Click for options"] end
 end
 
+local function partsOnEnter(b)
+	local s = b.slot
+	if not s then return end
+	GameTooltip:SetOwner(b, "ANCHOR_TOPLEFT")
+	if s.perCurrency and b.currencyID then
+		GameTooltip:SetCurrencyByID(b.currencyID)
+		if s.showDescription == false then
+			local info = C_CurrencyInfo.GetCurrencyInfo(b.currencyID)
+			if info and info.description and info.description ~= "" then
+				local name = GameTooltip:GetName()
+				for i = 2, GameTooltip:NumLines() do
+					local line = _G[name .. "TextLeft" .. i]
+					if line and line:GetText() == info.description then
+						line:SetText("")
+						break
+					end
+				end
+			end
+		end
+		local hint = DataPanel.GetOptionsHintText and DataPanel.GetOptionsHintText()
+		if hint then
+			GameTooltip:AddLine(" ")
+			GameTooltip:AddLine(hint)
+		end
+	elseif s.tooltip then
+		GameTooltip:SetText(s.tooltip)
+	end
+	GameTooltip:Show()
+end
+
+local function partsOnLeave() GameTooltip:Hide() end
+
+local function partsOnClick(b, btn, ...)
+	if btn == "RightButton" and not DataPanel.IsMenuModifierActive(btn) then return end
+	local s = b.slot
+	if not s then return end
+	local fn = s.OnClick
+	if type(fn) == "table" then fn = fn[btn] end
+	if fn then fn(b, btn, ...) end
+end
+
 local function registerEditModePanel(panel)
 	if not EditMode or not EditMode.RegisterFrame then return end
 	if panel.editModeRegistered then
@@ -175,9 +216,7 @@ local function registerEditModePanel(panel)
 	local buttons = {
 		{
 			text = DELETE_BUTTON_LABEL,
-			click = function()
-				DataPanel:PromptDelete(panel)
-			end,
+			click = function() DataPanel:PromptDelete(panel) end,
 		},
 	}
 
@@ -587,70 +626,60 @@ function DataPanel.Create(id, name, existingOnly)
 				self:Refresh()
 			end
 
+			local wasParts = data.usingParts
 			if payload.parts then
+				data.usingParts = true
 				data.text:SetText("")
 				data.text:Hide()
 				data.parts = data.parts or {}
-				local prev
+				local partsFontChanged = data.partsFont ~= font or data.partsFontSize ~= size
+				if partsFontChanged then
+					data.partsFont = font
+					data.partsFontSize = size
+				end
+				local buttonHeight = button:GetHeight()
+				local heightChanged = data.partsHeight ~= buttonHeight
+				if heightChanged then data.partsHeight = buttonHeight end
 				local totalWidth = 0
 				for i, part in ipairs(payload.parts) do
 					local child = data.parts[i]
+					local isNew = false
 					if not child then
 						child = CreateFrame("Button", nil, button)
 						child.text = child:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 						child.text:SetAllPoints()
 						child:RegisterForClicks("AnyUp")
-						data.parts[i] = child
-					end
-					child:Show()
-					child:SetHeight(button:GetHeight())
-					child.text:SetFont(font, size, "OUTLINE")
-					child.text:SetText(part.text or "")
-					local w = child.text:GetStringWidth()
-					child:SetWidth(w)
-					child:ClearAllPoints()
-					if prev then
-						child:SetPoint("LEFT", prev, "RIGHT", 5, 0)
-					else
-						child:SetPoint("LEFT", button, "LEFT", 0, 0)
-					end
-					prev = child
-					child.currencyID = part.id
-					child:SetScript("OnEnter", function(b)
-						GameTooltip:SetOwner(b, "ANCHOR_TOPLEFT")
-						if data.perCurrency and b.currencyID then
-							GameTooltip:SetCurrencyByID(b.currencyID)
-							if data.showDescription == false then
-								local info = C_CurrencyInfo.GetCurrencyInfo(b.currencyID)
-								if info and info.description and info.description ~= "" then
-									local name = GameTooltip:GetName()
-									for i = 2, GameTooltip:NumLines() do
-										local line = _G[name .. "TextLeft" .. i]
-										if line and line:GetText() == info.description then
-											line:SetText("")
-											break
-										end
-									end
-								end
-							end
-							local hint = DataPanel.GetOptionsHintText and DataPanel.GetOptionsHintText()
-							if hint then
-								GameTooltip:AddLine(" ")
-								GameTooltip:AddLine(hint)
-							end
-						elseif data.tooltip then
-							GameTooltip:SetText(data.tooltip)
+						child.slot = data
+						child:SetScript("OnEnter", partsOnEnter)
+						child:SetScript("OnLeave", partsOnLeave)
+						child:SetScript("OnClick", partsOnClick)
+						if i == 1 then
+							child:SetPoint("LEFT", button, "LEFT", 0, 0)
+						else
+							child:SetPoint("LEFT", data.parts[i - 1], "RIGHT", 5, 0)
 						end
-						GameTooltip:Show()
-					end)
-					child:SetScript("OnLeave", function() GameTooltip:Hide() end)
-					child:SetScript("OnClick", function(_, btn, ...)
-						if btn == "RightButton" and not DataPanel.IsMenuModifierActive(btn) then return end
-						local fn = data.OnClick
-						if type(fn) == "table" then fn = fn[btn] end
-						if fn then fn(_, btn, ...) end
-					end)
-					totalWidth = totalWidth + w + (i > 1 and 5 or 0)
+						data.parts[i] = child
+						isNew = true
+					end
+					child.slot = data
+					child:Show()
+					if isNew or heightChanged then child:SetHeight(buttonHeight) end
+					if isNew or partsFontChanged then
+						child.text:SetFont(font, size, "OUTLINE")
+					end
+					local text = part.text or ""
+					local textChanged = text ~= child.lastText
+					if isNew or textChanged then
+						child.text:SetText(text)
+						child.lastText = text
+					end
+					if isNew or textChanged or partsFontChanged then
+						local w = child.text:GetStringWidth()
+						child.lastWidth = w
+						child:SetWidth(w)
+					end
+					child.currencyID = part.id
+					totalWidth = totalWidth + (child.lastWidth or 0) + (i > 1 and 5 or 0)
 				end
 				if data.parts then
 					for i = #payload.parts + 1, #data.parts do
@@ -659,9 +688,13 @@ function DataPanel.Create(id, name, existingOnly)
 				end
 				if totalWidth ~= data.lastWidth then
 					data.lastWidth = totalWidth
-					self:Refresh()
+					data.button:SetWidth(totalWidth)
+					if self.lastWidths and self.lastWidths[name] then
+						self.lastWidths[name] = totalWidth
+					end
 				end
 			else
+				data.usingParts = nil
 				if data.parts then
 					for _, child in ipairs(data.parts) do
 						child:Hide()
@@ -669,27 +702,34 @@ function DataPanel.Create(id, name, existingOnly)
 				end
 				data.text:Show()
 				local text = payload.text or ""
+				local textChanged = false
 				if text ~= data.lastText then
 					data.text:SetText(text)
 					data.lastText = text
+					textChanged = true
+				end
+				local newSize = payload.fontSize or data.fontSize
+				local fontChanged = newSize and data.fontSize ~= newSize
+				if fontChanged then
+					data.text:SetFont(font, newSize, "OUTLINE")
+					data.fontSize = newSize
+				end
+				if textChanged or fontChanged or wasParts then
 					local width = data.text:GetStringWidth()
 					if width ~= data.lastWidth then
 						data.lastWidth = width
-						self:Refresh()
+						data.button:SetWidth(width)
+						if self.lastWidths and self.lastWidths[name] then
+							self.lastWidths[name] = width
+						end
 					end
 				end
 			end
-
-			local newSize = payload.fontSize or data.fontSize
-			if newSize and data.fontSize ~= newSize then
-				data.text:SetFont(font, newSize, "OUTLINE")
-				data.fontSize = newSize
-				if not payload.parts then
-					local width = data.text:GetStringWidth()
-					if width ~= data.lastWidth then
-						data.lastWidth = width
-						self:Refresh()
-					end
+			if payload.parts then
+				local newSize = payload.fontSize or data.fontSize
+				if newSize and data.fontSize ~= newSize then
+					data.text:SetFont(font, newSize, "OUTLINE")
+					data.fontSize = newSize
 				end
 			end
 			data.tooltip = payload.tooltip
