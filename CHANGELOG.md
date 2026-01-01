@@ -10,6 +10,8 @@
   - Player frame can optionally show auras (default off).
   - Player unit status can show group number.
   - Edit Mode shows sample auras for frames with auras enabled.
+- **Misc**
+  - Quick-skip cinematics option (auto-confirms the skip prompt on Esc/Space/Enter).
 
 ---
 
