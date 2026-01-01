@@ -1729,8 +1729,6 @@ local function buildUnitSettings(unit)
 		local anchorOpts = {
 			{ value = "TOP", label = L["Top"] or "Top" },
 			{ value = "BOTTOM", label = L["Bottom"] or "Bottom" },
-			{ value = "LEFT", label = HUD_EDIT_MODE_SETTING_BAGS_DIRECTION_LEFT or "Left" },
-			{ value = "RIGHT", label = HUD_EDIT_MODE_SETTING_BAGS_DIRECTION_RIGHT or "Right" },
 		}
 		local castAnchor = radioDropdown(L["Anchor"] or "Anchor", anchorOpts, function() return getValue(unit, { "cast", "anchor" }, castDef.anchor or "BOTTOM") end, function(val)
 			setValue(unit, { "cast", "anchor" }, val or "BOTTOM")

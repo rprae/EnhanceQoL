@@ -414,6 +414,13 @@ local function getAuraFilters(unit)
 	return AURA_FILTER_HELPFUL, AURA_FILTER_HARMFUL
 end
 
+local function isAuraIconsEnabled(ac, def)
+	if ac and ac.enabled ~= nil then return ac.enabled ~= false end
+	local defAc = (def and def.auraIcons) or defaults.target.auraIcons
+	if defAc and defAc.enabled ~= nil then return defAc.enabled ~= false end
+	return true
+end
+
 local function getAuraTables(unit)
 	unit = unit or "target"
 	if unit == UNIT.PLAYER or unit == "player" then return playerAuras, playerAuraOrder, playerAuraIndexById end
@@ -1198,7 +1205,7 @@ local function updateTargetAuraIcons(startIndex, unit)
 	local cfg = st.cfg or ensureDB(unit)
 	local def = defaultsFor(unit)
 	local ac = cfg.auraIcons or (def and def.auraIcons) or defaults.target.auraIcons or { size = 24, padding = 2, max = 16, showCooldown = true }
-	if ac.enabled == false then
+	if not isAuraIconsEnabled(ac, def) then
 		hideAuraContainers(st)
 		return
 	end
@@ -1325,7 +1332,7 @@ local function fullScanTargetAuras(unit)
 	local cfg = (st and st.cfg) or ensureDB(unit)
 	local def = defaultsFor(unit)
 	local ac = cfg.auraIcons or (def and def.auraIcons) or defaults.target.auraIcons or {}
-	if ac.enabled == false then
+	if not isAuraIconsEnabled(ac, def) then
 		if st then st._sampleAurasActive = nil end
 		updateTargetAuraIcons(nil, unit)
 		return
@@ -3861,7 +3868,7 @@ local function onEvent(self, event, unit, arg1)
 		if not cfg or cfg.enabled == false then return end
 		local def = defaultsFor(unit)
 		local ac = cfg.auraIcons or (def and def.auraIcons) or defaults.target.auraIcons or { size = 24, padding = 2, max = 16, showCooldown = true }
-		if ac.enabled == false then return end
+		if not isAuraIconsEnabled(ac, def) then return end
 		if addon.EditModeLib and addon.EditModeLib:IsInEditMode() then
 			local st = states[unit]
 			if st and st._sampleAurasActive then return end
