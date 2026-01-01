@@ -1326,15 +1326,18 @@ local function fullScanTargetAuras(unit)
 	local def = defaultsFor(unit)
 	local ac = cfg.auraIcons or (def and def.auraIcons) or defaults.target.auraIcons or {}
 	if ac.enabled == false then
+		if st then st._sampleAurasActive = nil end
 		updateTargetAuraIcons(nil, unit)
 		return
 	end
 	if addon.EditModeLib and addon.EditModeLib:IsInEditMode() then
 		local hidePermanent = ac.hidePermanentAuras == true or ac.hidePermanent == true
+		if st then st._sampleAurasActive = true end
 		fillSampleAuras(unit, ac, hidePermanent)
 		updateTargetAuraIcons(nil, unit)
 		return
 	end
+	if st then st._sampleAurasActive = nil end
 	if not UnitExists or not UnitExists(unit) then
 		updateTargetAuraIcons(nil, unit)
 		return
@@ -3848,6 +3851,8 @@ local function onEvent(self, event, unit, arg1)
 		local ac = cfg.auraIcons or (def and def.auraIcons) or defaults.target.auraIcons or { size = 24, padding = 2, max = 16, showCooldown = true }
 		if ac.enabled == false then return end
 		if addon.EditModeLib and addon.EditModeLib:IsInEditMode() then
+			local st = states[unit]
+			if st and st._sampleAurasActive then return end
 			fullScanTargetAuras(unit)
 			return
 		end
