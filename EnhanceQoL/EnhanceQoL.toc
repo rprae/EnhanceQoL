@@ -81,3 +81,7 @@ Modules\Food\Food.xml
 # Mouse
 Modules\Mouse\Locales\[TextLocale].lua
 Modules\Mouse\Mouse.xml
+
+# Mover
+Modules\Mover\Locales\[TextLocale].lua
+Modules\Mover\Mover.xml

@@ -4567,6 +4567,11 @@ local function setAllHooks()
 		if addon.Mouse.functions.InitDB then addon.Mouse.functions.InitDB() end
 		if addon.Mouse.functions.InitState then addon.Mouse.functions.InitState() end
 	end
+	if addon.Mover and addon.Mover.functions then
+		if addon.Mover.functions.InitDB then addon.Mover.functions.InitDB() end
+		if addon.Mover.functions.InitRegistry then addon.Mover.functions.InitRegistry() end
+		if addon.Mover.functions.InitSettings then addon.Mover.functions.InitSettings() end
+	end
 end
 
 function loadMain()
@@ -4742,7 +4747,6 @@ local eventHandlers = {
 			loadMain()
 			EQOL.PersistSignUpNote()
 
-			loadSubAddon("EnhanceQoLMover")
 			--@debug@
 			loadSubAddon("EnhanceQoLQuery")
 			--@end-debug@
