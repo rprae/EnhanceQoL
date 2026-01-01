@@ -1,4 +1,4 @@
-local MODULE_MAJOR, EXPECTED_MINOR = "LibEQOLSettingsMode-1.0", 7001001
+local MODULE_MAJOR, EXPECTED_MINOR = "LibEQOLSettingsMode-1.0", 9000000
 local _, lib = pcall(LibStub, MODULE_MAJOR)
 if not lib then
 	return
@@ -555,10 +555,10 @@ function LibEQOL_MultiDropdownMixin:SetupDropdownMenu(button, setting, optionsFu
 				end, opt)
 			end
 		end
-		
+
 		if useScroll and rootDescription.DisableReacquireFrames then
-        	rootDescription:DisableReacquireFrames()
-    	end
+			rootDescription:DisableReacquireFrames()
+		end
 	end)
 
 	if initTooltip then

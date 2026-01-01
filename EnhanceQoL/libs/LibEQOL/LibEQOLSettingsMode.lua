@@ -1,4 +1,4 @@
-local MODULE_MAJOR, MINOR = "LibEQOLSettingsMode-1.0", 7001001
+local MODULE_MAJOR, MINOR = "LibEQOLSettingsMode-1.0", 9000000
 local LibStub = _G.LibStub
 assert(LibStub, MODULE_MAJOR .. " requires LibStub")
 
@@ -116,10 +116,11 @@ local function addOptionToContainer(container, key, entry)
 	local optionData = container:Add(value, label, tooltip)
 	if type(entry) == "table" then
 		if entry.text ~= nil then
-			optionData.text = entry.text
-		end
-		if entry.label ~= nil then
-			optionData.label = entry.label
+			local text = entry.text
+			if type(text) ~= "string" and type(text) ~= "number" then
+				text = tostring(text)
+			end
+			optionData.text = text
 		end
 		if entry.disabled ~= nil then
 			optionData.disabled = entry.disabled
