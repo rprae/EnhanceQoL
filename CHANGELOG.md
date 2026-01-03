@@ -37,8 +37,11 @@
   - Economy root reorganized into Vendors & Services, Merchant UI, Auction House, Mailbox, and Gold & Tracking.
   - Vendor module settings moved under Economy with separate Selling & Shopping and Destroy sections.
   - Quest settings moved to Gameplay with a single Questing accordion.
+- **Gear & Upgrades**
+  - Character/Inspect display options now use a multi-select dropdown with per-option tooltips.
 - **Minimap**
   - Square minimap layout now anchors the mail icon to the top-left of the minimap.
+  - Button Sink labels and tooltips refreshed for clarity.
 
 ### 🐛 Fixed
 
