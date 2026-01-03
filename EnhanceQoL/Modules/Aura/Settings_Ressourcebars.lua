@@ -1356,7 +1356,7 @@ local function registerEditModeBars()
 			if barType ~= "RUNES" then
 				local function defaultStyle()
 					if barType == "HEALTH" then return "PERCENT" end
-					if barType == "MANA" then return "PERCENT" end
+					if barType == "MANA" or barType == "STAGGER" then return "PERCENT" end
 					return "CURMAX"
 				end
 				local textOptions = {
@@ -1676,177 +1676,179 @@ local function registerEditModeBars()
 				})
 			end
 
-			settingsList[#settingsList + 1] = {
-				name = COLOR,
-				kind = settingType.Collapsible,
-				id = "colorsetting",
-				defaultCollapsed = true,
-			}
-
-			settingsList[#settingsList + 1] = {
-				name = L["Custom bar color"] or "Custom bar color",
-				kind = settingType.CheckboxColor,
-				field = "useBarColor",
-				default = false,
-				get = function()
-					local c = curSpecCfg()
-					return c and c.useBarColor == true
-				end,
-				set = function(_, value)
-					local c = curSpecCfg()
-					if not c then return end
-					c.useBarColor = value and true or false
-					if c.useBarColor and c.useClassColor then c.useClassColor = false end
-					queueRefresh()
-					addon.EditModeLib.internal:RefreshSettings()
-				end,
-				colorDefault = toUIColor(cfg and cfg.barColor, { 1, 1, 1, 1 }),
-				colorGet = function()
-					local c = curSpecCfg()
-					local col = (c and c.barColor) or (cfg and cfg.barColor) or { 1, 1, 1, 1 }
-					local r, g, b, a = toColorComponents(col, { 1, 1, 1, 1 })
-					return { r = r, g = g, b = b, a = a }
-				end,
-				colorSet = function(_, value)
-					local c = curSpecCfg()
-					if not c then return end
-					c.barColor = toColorArray(value, { 1, 1, 1, 1 })
-					queueRefresh()
-				end,
-				isEnabled = function()
-					local c = curSpecCfg()
-					return not (c and c.useClassColor == true)
-				end,
-				hasOpacity = true,
-				parentId = "colorsetting",
-			}
-
-			if barType ~= "RUNES" then
+			if barType ~= "STAGGER" then
 				settingsList[#settingsList + 1] = {
-					name = L["Use class color"] or "Use class color",
-					kind = settingType.Checkbox,
-					field = "useClassColor",
+					name = COLOR,
+					kind = settingType.Collapsible,
+					id = "colorsetting",
+					defaultCollapsed = true,
+				}
+
+				settingsList[#settingsList + 1] = {
+					name = L["Custom bar color"] or "Custom bar color",
+					kind = settingType.CheckboxColor,
+					field = "useBarColor",
+					default = false,
 					get = function()
 						local c = curSpecCfg()
-						return c and c.useClassColor == true
+						return c and c.useBarColor == true
 					end,
 					set = function(_, value)
 						local c = curSpecCfg()
 						if not c then return end
-						c.useClassColor = value and true or false
-						if c.useClassColor and c.useBarColor then c.useBarColor = false end
+						c.useBarColor = value and true or false
+						if c.useBarColor and c.useClassColor then c.useClassColor = false end
 						queueRefresh()
 						addon.EditModeLib.internal:RefreshSettings()
 					end,
+					colorDefault = toUIColor(cfg and cfg.barColor, { 1, 1, 1, 1 }),
+					colorGet = function()
+						local c = curSpecCfg()
+						local col = (c and c.barColor) or (cfg and cfg.barColor) or { 1, 1, 1, 1 }
+						local r, g, b, a = toColorComponents(col, { 1, 1, 1, 1 })
+						return { r = r, g = g, b = b, a = a }
+					end,
+					colorSet = function(_, value)
+						local c = curSpecCfg()
+						if not c then return end
+						c.barColor = toColorArray(value, { 1, 1, 1, 1 })
+						queueRefresh()
+					end,
 					isEnabled = function()
 						local c = curSpecCfg()
-						return not (c and c.useBarColor == true)
+						return not (c and c.useClassColor == true)
 					end,
 					hasOpacity = true,
-					default = false,
 					parentId = "colorsetting",
 				}
-			end
 
-			if barType == "HOLY_POWER" then
+				if barType ~= "RUNES" then
+					settingsList[#settingsList + 1] = {
+						name = L["Use class color"] or "Use class color",
+						kind = settingType.Checkbox,
+						field = "useClassColor",
+						get = function()
+							local c = curSpecCfg()
+							return c and c.useClassColor == true
+						end,
+						set = function(_, value)
+							local c = curSpecCfg()
+							if not c then return end
+							c.useClassColor = value and true or false
+							if c.useClassColor and c.useBarColor then c.useBarColor = false end
+							queueRefresh()
+							addon.EditModeLib.internal:RefreshSettings()
+						end,
+						isEnabled = function()
+							local c = curSpecCfg()
+							return not (c and c.useBarColor == true)
+						end,
+						hasOpacity = true,
+						default = false,
+						parentId = "colorsetting",
+					}
+				end
+
+				if barType == "HOLY_POWER" then
+					settingsList[#settingsList + 1] = {
+						name = L["Use 3 HP color"] or "Use custom color at 3 Holy Power",
+						kind = settingType.CheckboxColor,
+						field = "useHolyThreeColor",
+						default = false,
+						get = function()
+							local c = curSpecCfg()
+							return c and c.useHolyThreeColor == true
+						end,
+						set = function(_, value)
+							local c = curSpecCfg()
+							if not c then return end
+							c.useHolyThreeColor = value and true or false
+							queueRefresh()
+						end,
+						colorDefault = toUIColor(cfg and cfg.holyThreeColor, { 1, 0.8, 0.2, 1 }),
+						colorGet = function()
+							local c = curSpecCfg()
+							local col = (c and c.holyThreeColor) or (cfg and cfg.holyThreeColor) or { 1, 0.8, 0.2, 1 }
+							local r, g, b, a = toColorComponents(col, { 1, 0.8, 0.2, 1 })
+							return { r = r, g = g, b = b, a = a }
+						end,
+						colorSet = function(_, value)
+							local c = curSpecCfg()
+							if not c then return end
+							c.holyThreeColor = toColorArray(value, { 1, 0.8, 0.2, 1 })
+							queueRefresh()
+						end,
+						hasOpacity = true,
+						parentId = "colorsetting",
+					}
+				end
+
+				if barType == "MAELSTROM_WEAPON" then
+					settingsList[#settingsList + 1] = {
+						name = "Use 5-stack color",
+						kind = settingType.CheckboxColor,
+						field = "useMaelstromFiveColor",
+						default = true,
+						get = function()
+							local c = curSpecCfg()
+							return c and c.useMaelstromFiveColor ~= false
+						end,
+						set = function(_, value)
+							local c = curSpecCfg()
+							if not c then return end
+							c.useMaelstromFiveColor = value and true or false
+							queueRefresh()
+						end,
+						colorDefault = toUIColor(cfg and cfg.maelstromFiveColor, { 0.2, 0.7, 1, 1 }),
+						colorGet = function()
+							local c = curSpecCfg()
+							local col = (c and c.maelstromFiveColor) or (cfg and cfg.maelstromFiveColor) or { 0.2, 0.7, 1, 1 }
+							local r, g, b, a = toColorComponents(col, { 0.2, 0.7, 1, 1 })
+							return { r = r, g = g, b = b, a = a }
+						end,
+						colorSet = function(_, value)
+							local c = curSpecCfg()
+							if not c then return end
+							c.maelstromFiveColor = toColorArray(value, { 0.2, 0.7, 1, 1 })
+							queueRefresh()
+						end,
+						hasOpacity = true,
+						parentId = "colorsetting",
+					}
+				end
+
 				settingsList[#settingsList + 1] = {
-					name = L["Use 3 HP color"] or "Use custom color at 3 Holy Power",
+					name = L["Use max color"] or "Use max color",
 					kind = settingType.CheckboxColor,
-					field = "useHolyThreeColor",
-					default = false,
+					field = "useMaxColor",
+					default = barType == "MAELSTROM_WEAPON",
 					get = function()
 						local c = curSpecCfg()
-						return c and c.useHolyThreeColor == true
+						return c and c.useMaxColor == true
 					end,
 					set = function(_, value)
 						local c = curSpecCfg()
 						if not c then return end
-						c.useHolyThreeColor = value and true or false
+						c.useMaxColor = value and true or false
 						queueRefresh()
 					end,
-					colorDefault = toUIColor(cfg and cfg.holyThreeColor, { 1, 0.8, 0.2, 1 }),
+					colorDefault = toUIColor(cfg and cfg.maxColor, { 0, 1, 0, 1 }),
 					colorGet = function()
 						local c = curSpecCfg()
-						local col = (c and c.holyThreeColor) or (cfg and cfg.holyThreeColor) or { 1, 0.8, 0.2, 1 }
-						local r, g, b, a = toColorComponents(col, { 1, 0.8, 0.2, 1 })
+						local col = (c and c.maxColor) or (cfg and cfg.maxColor) or { 0, 1, 0, 1 }
+						local r, g, b, a = toColorComponents(col, { 0, 1, 0, 1 })
 						return { r = r, g = g, b = b, a = a }
 					end,
 					colorSet = function(_, value)
 						local c = curSpecCfg()
 						if not c then return end
-						c.holyThreeColor = toColorArray(value, { 1, 0.8, 0.2, 1 })
+						c.maxColor = toColorArray(value, { 0, 1, 0, 1 })
 						queueRefresh()
 					end,
 					hasOpacity = true,
 					parentId = "colorsetting",
 				}
 			end
-
-			if barType == "MAELSTROM_WEAPON" then
-				settingsList[#settingsList + 1] = {
-					name = "Use 5-stack color",
-					kind = settingType.CheckboxColor,
-					field = "useMaelstromFiveColor",
-					default = true,
-					get = function()
-						local c = curSpecCfg()
-						return c and c.useMaelstromFiveColor ~= false
-					end,
-					set = function(_, value)
-						local c = curSpecCfg()
-						if not c then return end
-						c.useMaelstromFiveColor = value and true or false
-						queueRefresh()
-					end,
-					colorDefault = toUIColor(cfg and cfg.maelstromFiveColor, { 0.2, 0.7, 1, 1 }),
-					colorGet = function()
-						local c = curSpecCfg()
-						local col = (c and c.maelstromFiveColor) or (cfg and cfg.maelstromFiveColor) or { 0.2, 0.7, 1, 1 }
-						local r, g, b, a = toColorComponents(col, { 0.2, 0.7, 1, 1 })
-						return { r = r, g = g, b = b, a = a }
-					end,
-					colorSet = function(_, value)
-						local c = curSpecCfg()
-						if not c then return end
-						c.maelstromFiveColor = toColorArray(value, { 0.2, 0.7, 1, 1 })
-						queueRefresh()
-					end,
-					hasOpacity = true,
-					parentId = "colorsetting",
-				}
-			end
-
-			settingsList[#settingsList + 1] = {
-				name = L["Use max color"] or "Use max color",
-				kind = settingType.CheckboxColor,
-				field = "useMaxColor",
-				default = barType == "MAELSTROM_WEAPON",
-				get = function()
-					local c = curSpecCfg()
-					return c and c.useMaxColor == true
-				end,
-				set = function(_, value)
-					local c = curSpecCfg()
-					if not c then return end
-					c.useMaxColor = value and true or false
-					queueRefresh()
-				end,
-				colorDefault = toUIColor(cfg and cfg.maxColor, { 0, 1, 0, 1 }),
-				colorGet = function()
-					local c = curSpecCfg()
-					local col = (c and c.maxColor) or (cfg and cfg.maxColor) or { 0, 1, 0, 1 }
-					local r, g, b, a = toColorComponents(col, { 0, 1, 0, 1 })
-					return { r = r, g = g, b = b, a = a }
-				end,
-				colorSet = function(_, value)
-					local c = curSpecCfg()
-					if not c then return end
-					c.maxColor = toColorArray(value, { 0, 1, 0, 1 })
-					queueRefresh()
-				end,
-				hasOpacity = true,
-				parentId = "colorsetting",
-			}
 
 			do -- Backdrop
 				local function backdropEnabled()

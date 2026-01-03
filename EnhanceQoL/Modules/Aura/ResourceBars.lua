@@ -17,7 +17,7 @@ local LSM = LibStub("LibSharedMedia-3.0")
 
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_Aura")
 
-local UnitPower, UnitPowerMax, UnitHealth, UnitHealthMax, UnitGetTotalAbsorbs, GetTime = UnitPower, UnitPowerMax, UnitHealth, UnitHealthMax, UnitGetTotalAbsorbs, GetTime
+local UnitPower, UnitPowerMax, UnitHealth, UnitHealthMax, UnitGetTotalAbsorbs, UnitStagger, GetTime = UnitPower, UnitPowerMax, UnitHealth, UnitHealthMax, UnitGetTotalAbsorbs, UnitStagger, GetTime
 local CreateFrame = CreateFrame
 local After = C_Timer and C_Timer.After
 local CopyTable = CopyTable
@@ -192,6 +192,7 @@ end
 ResourceBars.PowerLabels = {
 	MAELSTROM_WEAPON = (C_Spell.GetSpellName(RB.MAELSTROM_WEAPON_SPELL_ID)) or "Maelstrom Weapon",
 	VOID_METAMORPHOSIS = (C_Spell.GetSpellName(RB.VOID_METAMORPHOSIS_SPELL_ID)) or "Void Metamorphosis",
+	STAGGER = (_G and _G["STAGGER"]) or "Stagger",
 }
 
 RB.AURA_POWER_CONFIG = {
@@ -354,7 +355,32 @@ local function setBarDesaturated(bar, flag)
 	if bar and bar.SetStatusBarDesaturated then bar:SetStatusBarDesaturated(flag and true or false) end
 end
 
+local STAGGER_YELLOW_THRESHOLD = 0.30
+local STAGGER_RED_THRESHOLD = 0.60
+local STAGGER_FALLBACK_COLORS = {
+	green = { r = 0.52, g = 1.0, b = 0.52 },
+	yellow = { r = 1.0, g = 0.98, b = 0.72 },
+	red = { r = 1.0, g = 0.42, b = 0.42 },
+}
+
+local function getStaggerStateColor(percent)
+	local info = (GetPowerBarColor and GetPowerBarColor("STAGGER")) or (PowerBarColor and PowerBarColor["STAGGER"])
+	local key
+	if percent >= STAGGER_RED_THRESHOLD then
+		key = "red"
+	elseif percent >= STAGGER_YELLOW_THRESHOLD then
+		key = "yellow"
+	else
+		key = "green"
+	end
+	return (info and info[key]) or STAGGER_FALLBACK_COLORS[key] or STAGGER_FALLBACK_COLORS.green
+end
+
 local function getPowerBarColor(type)
+	if type == "STAGGER" then
+		local col = getStaggerStateColor(0)
+		return col.r or 1, col.g or 1, col.b or 1
+	end
 	if ResourcebarVars.CUSTOM_POWER_COLORS and ResourcebarVars.CUSTOM_POWER_COLORS[type] then
 		local c = ResourcebarVars.CUSTOM_POWER_COLORS[type]
 		return c[1] or 1, c[2] or 1, c[3] or 1
@@ -1379,7 +1405,14 @@ local function applyBarFillColor(bar, cfg, pType)
 	cfg = cfg or {}
 	local r, g, b, a
 	local shouldDesaturate = false
-	if pType == "HEALTH" and cfg.useClassColor == true then
+	if pType == "STAGGER" and cfg.useBarColor ~= true then
+		local stagger = (UnitStagger and UnitStagger("player")) or 0
+		local maxHealth = UnitHealthMax("player") or 1
+		local percent = maxHealth > 0 and (stagger / maxHealth) or 0
+		local col = getStaggerStateColor(percent)
+		r, g, b = col.r or 1, col.g or 1, col.b or 1
+		a = col.a or (cfg.barColor and cfg.barColor[4]) or 1
+	elseif pType == "HEALTH" and cfg.useClassColor == true then
 		r, g, b, a = getPlayerClassColor()
 		a = a or (cfg.barColor and cfg.barColor[4]) or 1
 		shouldDesaturate = true
@@ -2113,7 +2146,7 @@ powertypeClasses = {
 		[3] = { MAIN = "SOUL_SHARDS", MANA = true },
 	},
 	MONK = {
-		[1] = { MAIN = "ENERGY", MANA = true },
+		[1] = { MAIN = "ENERGY", STAGGER = true },
 		[2] = { MAIN = "MANA" },
 		[3] = { MAIN = "CHI", ENERGY = true, MANA = true },
 	},
@@ -2167,6 +2200,7 @@ classPowerTypes = {
 	"MAELSTROM_WEAPON",
 	"VOID_METAMORPHOSIS",
 	"CHI",
+	"STAGGER",
 	"INSANITY",
 	"ARCANE_CHARGES",
 	"MANA",
@@ -2553,6 +2587,109 @@ function updatePowerBar(type, runeSlot)
 			deactivateRuneTicker(bar)
 		end
 		if bar.text then bar.text:SetText("") end
+		return
+	end
+	if type == "STAGGER" then
+		local cfg = getBarSettings(type) or {}
+		local maxHealth = UnitHealthMax("player") or 1
+		if maxHealth <= 0 then return end
+		if bar._lastMax ~= maxHealth then
+			bar._lastMax = maxHealth
+			bar:SetMinMaxValues(0, maxHealth)
+		end
+		local curPower = (UnitStagger and UnitStagger("player")) or 0
+
+		local style = bar._style or "PERCENT"
+		local smooth = cfg.smoothFill == true
+		if not addon.variables.isMidnight and smooth then
+			bar._smoothTarget = curPower
+			bar._smoothDeadzone = cfg.smoothDeadzone or bar._smoothDeadzone or RB.DEFAULT_SMOOTH_DEADZONE
+			bar._smoothSpeed = RB.SMOOTH_SPEED
+			if not bar._smoothInitialized then
+				bar:SetValue(curPower)
+				bar._smoothInitialized = true
+			end
+			bar._smoothEnabled = true
+			tryActivateSmooth(bar)
+		else
+			bar._smoothTarget = nil
+			bar._smoothDeadzone = cfg.smoothDeadzone or bar._smoothDeadzone or RB.DEFAULT_SMOOTH_DEADZONE
+			bar._smoothSpeed = RB.SMOOTH_SPEED
+			bar:SetValue(curPower)
+			bar._smoothInitialized = nil
+			bar._smoothEnabled = false
+			stopSmoothUpdater(bar)
+		end
+		bar._lastVal = curPower
+
+		local percent = maxHealth > 0 and (curPower / maxHealth) or 0
+		local percentDisplay = percent * 100
+		local percentStr
+		if addon.variables.isMidnight then
+			percentStr = string.format("%s%%", AbbreviateLargeNumbers(percentDisplay))
+		else
+			percentStr = tostring(floor(percentDisplay + 0.5))
+		end
+		if bar.text then
+			if style == "NONE" then
+				if bar._textShown then
+					bar.text:SetText("")
+					bar._lastText = ""
+					bar.text:Hide()
+					bar._textShown = false
+				elseif bar._lastText ~= "" then
+					bar.text:SetText("")
+					bar._lastText = ""
+				end
+			else
+				local text
+				if style == "PERCENT" then
+					text = percentStr
+				elseif style == "CURRENT" then
+					text = tostring(curPower)
+				else
+					text = AbbreviateLargeNumbers(curPower) .. " / " .. (AbbreviateLargeNumbers(maxHealth))
+				end
+				if (not addon.variables.isMidnight or (issecretvalue and not issecretvalue(text))) and bar._lastText ~= text then
+					bar.text:SetText(text)
+					bar._lastText = text
+				else
+					bar.text:SetText(text)
+				end
+				if not bar._textShown then
+					bar.text:Show()
+					bar._textShown = true
+				end
+			end
+		end
+
+		local baseR, baseG, baseB, baseA
+		if cfg.useBarColor then
+			local custom = cfg.barColor or RB.WHITE
+			baseR, baseG, baseB, baseA = custom[1] or 1, custom[2] or 1, custom[3] or 1, custom[4] or 1
+		else
+			local col = getStaggerStateColor(percent)
+			baseR, baseG, baseB = col.r or 1, col.g or 1, col.b or 1
+			baseA = col.a or (cfg.barColor and cfg.barColor[4]) or 1
+		end
+		bar._baseColor = bar._baseColor or {}
+		bar._baseColor[1], bar._baseColor[2], bar._baseColor[3], bar._baseColor[4] = baseR, baseG, baseB, baseA
+
+		local targetR, targetG, targetB, targetA = baseR, baseG, baseB, baseA
+		local flag
+		if cfg.useMaxColor == true and curPower >= max(maxHealth, 1) then
+			local maxCol = cfg.maxColor or RB.WHITE
+			targetR, targetG, targetB, targetA = maxCol[1] or targetR, maxCol[2] or targetG, maxCol[3] or targetB, maxCol[4] or targetA
+			flag = "max"
+		end
+		local lc = bar._lastColor or {}
+		if lc[1] ~= targetR or lc[2] ~= targetG or lc[3] ~= targetB or lc[4] ~= targetA then
+			lc[1], lc[2], lc[3], lc[4] = targetR, targetG, targetB, targetA
+			bar._lastColor = lc
+			bar:SetStatusBarColor(lc[1], lc[2], lc[3], lc[4])
+		end
+		bar._usingMaxColor = flag == "max"
+		configureSpecialTexture(bar, type, cfg)
 		return
 	end
 	if isAuraPowerType(type) then
@@ -3167,7 +3304,7 @@ local function createPowerBar(type, anchor)
 	bar._cfg = settings
 	bar._rbType = type
 	powerbar[type] = bar
-	local defaultStyle = (type == "MANA") and "PERCENT" or "CURMAX"
+	local defaultStyle = (type == "MANA" or type == "STAGGER") and "PERCENT" or "CURMAX"
 	bar._style = settings and settings.textStyle or defaultStyle
 	bar:SetSize(w, h)
 	do
@@ -3329,7 +3466,9 @@ local function classUsesAuraPowers(class)
 	return false
 end
 
-if classUsesAuraPowers(addon.variables.unitClass) then table.insert(eventsToRegister, "UNIT_AURA") end
+local function classNeedsUnitAura(class) return classUsesAuraPowers(class) or class == "MONK" end
+
+if classNeedsUnitAura(addon.variables.unitClass) then table.insert(eventsToRegister, "UNIT_AURA") end
 local function setPowerbars(opts)
 	local _, powerToken = UnitPowerType("player")
 	powerfrequent = {}
@@ -3705,6 +3844,10 @@ local function scheduleSpecRefresh()
 	end)
 end
 
+local function updateStaggerBarIfShown()
+	if powerbar["STAGGER"] and powerbar["STAGGER"]:IsShown() then updatePowerBar("STAGGER") end
+end
+
 local function eventHandler(self, event, unit, arg1)
 	if event == "UNIT_DISPLAYPOWER" and unit == "player" then
 		setPowerbars()
@@ -3743,6 +3886,7 @@ local function eventHandler(self, event, unit, arg1)
 			for pType, _ in pairs(RB.AURA_POWER_CONFIG or {}) do
 				if powerbar[pType] and powerbar[pType]:IsShown() then updatePowerBar(pType) end
 			end
+			updateStaggerBarIfShown()
 			return
 		end
 
@@ -3752,14 +3896,18 @@ local function eventHandler(self, event, unit, arg1)
 				if powerbar[pType] and powerbar[pType]:IsShown() then updatePowerBar(pType) end
 			end
 		end
+		updateStaggerBarIfShown()
 		return
-	elseif (event == "UNIT_MAXHEALTH" or event == "UNIT_HEALTH" or event == "UNIT_ABSORB_AMOUNT_CHANGED") and healthBar and healthBar:IsShown() then
-		if event == "UNIT_MAXHEALTH" then
-			local max = UnitHealthMax("player")
-			healthBar._lastMax = max
-			healthBar:SetMinMaxValues(0, max)
+	elseif event == "UNIT_MAXHEALTH" or event == "UNIT_HEALTH" or event == "UNIT_ABSORB_AMOUNT_CHANGED" then
+		if healthBar and healthBar:IsShown() then
+			if event == "UNIT_MAXHEALTH" then
+				local max = UnitHealthMax("player")
+				healthBar._lastMax = max
+				healthBar:SetMinMaxValues(0, max)
+			end
+			updateHealthBar(event)
 		end
-		updateHealthBar(event)
+		updateStaggerBarIfShown()
 	elseif event == "UNIT_POWER_UPDATE" and powerbar[arg1] and powerbar[arg1]:IsShown() and not powerfrequent[arg1] then
 		updatePowerBar(arg1)
 	elseif event == "UNIT_POWER_FREQUENT" and powerbar[arg1] and powerbar[arg1]:IsShown() and powerfrequent[arg1] then
@@ -4111,7 +4259,7 @@ function ResourceBars.Refresh()
 
 			local cfg = getBarSettings(pType)
 			bar._cfg = cfg
-			local defaultStyle = (pType == "MANA") and "PERCENT" or "CURMAX"
+			local defaultStyle = (pType == "MANA" or pType == "STAGGER") and "PERCENT" or "CURMAX"
 			bar._style = (cfg and cfg.textStyle) or defaultStyle
 
 			if pType == "RUNES" then
