@@ -3421,6 +3421,7 @@ local function initUI()
 	addon.functions.InitDBValue("lootspec_quickswitch", {})
 	addon.functions.InitDBValue("minimapSinkHoleData", {})
 	addon.functions.InitDBValue("hideQuickJoinToast", false)
+	addon.functions.InitDBValue("showTrainAllButton", false)
 	addon.functions.InitDBValue("autoCancelDruidFlightForm", false)
 	addon.functions.InitDBValue("enableSquareMinimap", false)
 	addon.functions.InitDBValue("enableSquareMinimapBorder", false)
@@ -3671,6 +3672,106 @@ local function initUI()
 		end
 	end
 	addon.functions.toggleQuickJoinToastButton(addon.db["hideQuickJoinToast"])
+
+	local function getTrainAllSummary()
+		if not GetNumTrainerServices or not GetTrainerServiceInfo then return 0, 0 end
+		local count, cost = 0, 0
+		local numServices = GetNumTrainerServices() or 0
+		for i = 1, numServices do
+			local _, serviceType = GetTrainerServiceInfo(i)
+			if serviceType == "available" then
+				count = count + 1
+				local price = GetTrainerServiceCost(i)
+				if price then cost = cost + price end
+			end
+		end
+		return count, cost
+	end
+
+	local function updateTrainAllButtonState()
+		local button = addon.variables and addon.variables.trainAllButton
+		if not button then return end
+		if not addon.db or not addon.db.showTrainAllButton then
+			button:Hide()
+			return
+		end
+		local count = select(1, getTrainAllSummary())
+		button:SetEnabled(count > 0)
+		if button:IsMouseOver() then
+			if count > 0 then
+				local onEnter = button:GetScript("OnEnter")
+				if onEnter then onEnter(button) end
+			elseif GameTooltip and GameTooltip:IsOwned(button) then
+				GameTooltip_Hide()
+			end
+		end
+	end
+
+	function addon.functions.applyTrainAllButton()
+		if not addon.db or not addon.db.showTrainAllButton then
+			if addon.variables and addon.variables.trainAllButton then addon.variables.trainAllButton:Hide() end
+			return
+		end
+
+		EventUtil.ContinueOnAddOnLoaded("Blizzard_TrainerUI", function()
+			if not ClassTrainerFrame or not ClassTrainerTrainButton then return end
+			addon.variables = addon.variables or {}
+			local button = addon.variables.trainAllButton
+			if not button then
+				button = CreateFrame("Button", "EQOLTrainAllButton", ClassTrainerFrame, "MagicButtonTemplate")
+				button:SetText((L and L["trainAllButtonLabel"]) or "Train All")
+				button:SetHeight(ClassTrainerTrainButton:GetHeight() or 22)
+				button:SetScript("OnClick", function()
+					for i = 1, GetNumTrainerServices() do
+						local _, serviceType = GetTrainerServiceInfo(i)
+						if serviceType == "available" then BuyTrainerService(i) end
+					end
+				end)
+				button:SetScript("OnEnter", function(self)
+					local count, cost = getTrainAllSummary()
+					if count <= 0 then return end
+					GameTooltip:SetOwner(self, "ANCHOR_TOP", 0, 4)
+					GameTooltip:ClearLines()
+					local template = (count == 1 and L and L["trainAllButtonTooltipSingle"]) or (L and L["trainAllButtonTooltipMulti"])
+					if template then
+						local moneyString = C_CurrencyInfo and C_CurrencyInfo.GetCoinTextureString and C_CurrencyInfo.GetCoinTextureString(cost) or GetCoinTextureString(cost)
+						GameTooltip:AddLine(template:format(count, moneyString))
+						GameTooltip:Show()
+					end
+				end)
+				button:SetScript("OnLeave", GameTooltip_Hide)
+				addon.variables.trainAllButton = button
+			end
+
+			button:ClearAllPoints()
+			button:SetPoint("RIGHT", ClassTrainerTrainButton, "LEFT", -1, 0)
+
+			local fontString = button.GetFontString and button:GetFontString()
+			if fontString then fontString:SetWordWrap(false) end
+			local baseWidth = (fontString and fontString:GetStringWidth() or 0) + 20
+			local minWidth = 80
+			if baseWidth < minWidth then baseWidth = minWidth end
+			button:SetWidth(baseWidth)
+
+			if ClassTrainerFrameMoneyBg then
+				local gap = ClassTrainerFrame:GetWidth() - ClassTrainerFrameMoneyBg:GetWidth() - ClassTrainerTrainButton:GetWidth() - 13
+				if gap > 0 and button:GetWidth() > gap then
+					button:SetWidth(gap)
+					if fontString then fontString:SetWidth(gap - 10) end
+				end
+			end
+
+			button:Show()
+
+			if not addon.variables.trainAllButtonHooked then
+				hooksecurefunc("ClassTrainerFrame_Update", updateTrainAllButtonState)
+				addon.variables.trainAllButtonHooked = true
+			end
+			updateTrainAllButtonState()
+		end)
+	end
+
+	if addon.functions.applyTrainAllButton then addon.functions.applyTrainAllButton() end
 
 	-- Hide/show specific minimap elements based on multi-select
 	local function getMinimapElementFrames()

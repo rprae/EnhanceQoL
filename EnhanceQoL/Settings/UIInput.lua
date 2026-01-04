@@ -462,6 +462,16 @@ data = {
 		parentSection = interfaceExpandable,
 	},
 	{
+		var = "showTrainAllButton",
+		text = L["showTrainAllButton"],
+		desc = L["showTrainAllButtonDesc"],
+		func = function(v)
+			addon.db["showTrainAllButton"] = v
+			if addon.functions.applyTrainAllButton then addon.functions.applyTrainAllButton() end
+		end,
+		parentSection = interfaceExpandable,
+	},
+	{
 		var = "hideMicroMenuNotificationOverlay",
 		text = L["hideMicroMenuNotificationOverlay"],
 		desc = L["hideMicroMenuNotificationOverlayDesc"],

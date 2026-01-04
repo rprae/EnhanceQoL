@@ -38,6 +38,8 @@
 - **Minimap**
   - Hide addon minimap buttons until you mouse over the minimap.
   - Unclamp the minimap cluster so it can sit closer to the screen edge.
+- **Interface**
+  - Train All button in the trainer window to learn all available skills at once.
 - **Mailbox**
   - Option to remember the last recipient in the Send Mail field until the mailbox closes.
 - **Character Frame**
