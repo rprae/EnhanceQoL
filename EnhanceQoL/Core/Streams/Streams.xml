@@ -11,4 +11,8 @@
         <Script file="Stream_Stats.lua"/>
         <Script file="Stream_Talentbuilt.lua"/>
         <Script file="Stream_Volume.lua"/>
+        <Script file="Stream_MarkBarCommon.lua"/>
+        <Script file="Stream_MarkBarTarget.lua"/>
+        <Script file="Stream_MarkBarWorld.lua"/>
+        <Script file="Stream_MarkBarUtility.lua"/>
 </Ui>
