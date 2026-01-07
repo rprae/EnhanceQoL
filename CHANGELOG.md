@@ -49,6 +49,8 @@
   - Login UI scale preset (applies on login; changing it reloads the UI).
 - **Action Tracker**
   - Edit Mode-driven tracker for recent player spells with size/spacing/direction/fade and max icon count.
+- **GCD Bar (Midnight)**
+  - Edit Mode bar for the global cooldown with size, texture, and color controls.
 - **Mailbox**
   - Option to remember the last recipient in the Send Mail field until the mailbox closes.
 - **Character Frame**

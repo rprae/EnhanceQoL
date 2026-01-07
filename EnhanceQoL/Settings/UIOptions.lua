@@ -736,7 +736,18 @@ local function createFrameCategory()
 	})
 end
 
-function addon.functions.initUIOptions() end
+function addon.functions.initUIOptions()
+	if addon.variables.isMidnight then
+		local defaults = (addon.GCDBar and addon.GCDBar.defaults) or {}
+		addon.functions.InitDBValue("gcdBarEnabled", false)
+		addon.functions.InitDBValue("gcdBarWidth", defaults.width or 200)
+		addon.functions.InitDBValue("gcdBarHeight", defaults.height or 18)
+		addon.functions.InitDBValue("gcdBarTexture", defaults.texture or "DEFAULT")
+		addon.functions.InitDBValue("gcdBarColor", defaults.color or { r = 1, g = 0.82, b = 0.2, a = 1 })
+
+		if addon.GCDBar and addon.GCDBar.OnSettingChanged then addon.GCDBar:OnSettingChanged(addon.db["gcdBarEnabled"]) end
+	end
+end
 
 local function createNameplatesCategory()
 	local category = addon.SettingsLayout.rootUI
@@ -799,14 +810,25 @@ local function createCastbarCategory()
 	})
 	addon.SettingsLayout.uiCastbarsExpandable = expandable
 
-	addon.functions.SettingsCreateCheckbox(category, {
-		var = "ShowTargetCastbar",
-		text = L["ShowTargetCastbar"],
-		get = function() return getCVarOptionState("ShowTargetCastbar") end,
-		func = function(value) setCVarOptionState("ShowTargetCastbar", value) end,
-		default = false,
-		parentSection = expandable,
-	})
+	if addon.variables.isMidnight then
+		addon.functions.SettingsCreateHeadline(category, C_Spell.GetSpellName(61304) or "GCD", {
+			parentSection = expandable,
+		})
+		addon.functions.SettingsCreateCheckbox(category, {
+			var = "gcdBarEnabled",
+			text = L["gcdBarEnabled"] or "Enable GCD bar",
+			desc = L["gcdBarDesc"],
+			func = function(value)
+				addon.db["gcdBarEnabled"] = value and true or false
+				if addon.GCDBar and addon.GCDBar.OnSettingChanged then addon.GCDBar:OnSettingChanged(addon.db["gcdBarEnabled"]) end
+			end,
+			parentSection = expandable,
+		})
+
+		addon.functions.SettingsCreateText(category, "|cffffd700" .. (L["gcdBarEditModeHint"] or "Configure size, texture, and color in Edit Mode.") .. "|r", {
+			parentSection = expandable,
+		})
+	end
 
 	local function getCastbarOptions()
 		local options = {
@@ -816,8 +838,15 @@ local function createCastbarCategory()
 		if not isEQoLUnitEnabled("focus") then table.insert(options, { value = "FocusFrameSpellBar", text = FOCUS }) end
 		return options
 	end
-
 	addon.functions.SettingsCreateHeadline(category, L["CastBars2"], {
+		parentSection = expandable,
+	})
+	addon.functions.SettingsCreateCheckbox(category, {
+		var = "ShowTargetCastbar",
+		text = L["ShowTargetCastbar"],
+		get = function() return getCVarOptionState("ShowTargetCastbar") end,
+		func = function(value) setCVarOptionState("ShowTargetCastbar", value) end,
+		default = false,
 		parentSection = expandable,
 	})
 

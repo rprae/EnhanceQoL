@@ -56,6 +56,7 @@ Core\Streams\Streams.xml
 Submodules\GemHelper.lua
 Submodules\ContainerActions.lua
 Submodules\ActionTracker.lua
+Submodules\GCDBar.lua
 Submodules\ChatIM\ChannelHistory.lua
 Submodules\ChatIM\UI.lua
 Submodules\ChatIM\Core.lua
