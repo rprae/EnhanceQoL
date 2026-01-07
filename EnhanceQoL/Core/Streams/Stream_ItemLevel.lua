@@ -1,11 +1,10 @@
--- luacheck: globals EnhanceQoL GetAverageItemLevel GetItemLevelColor GetInventoryItemLink GetInventoryItemTexture C_Item GetDetailedItemLevelInfo NOT_APPLICABLE ITEM_LEVEL_ABBR STAT_AVERAGE_ITEM_LEVEL STAT_AVERAGE_ITEM_LEVEL_EQUIPPED LFG_LIST_ITEM_LEVEL_INSTR_PVP_SHORT
+-- luacheck: globals EnhanceQoL GetAverageItemLevel GetItemLevelColor GetInventoryItemLink GetInventoryItemTexture C_Item GetDetailedItemLevelInfo NOT_APPLICABLE ITEM_LEVEL_ABBR STAT_AVERAGE_ITEM_LEVEL STAT_AVERAGE_ITEM_LEVEL_EQUIPPED LFG_LIST_ITEM_LEVEL_INSTR_PVP_SHORT EQUIPPED
 local addonName, addon = ...
 local L = addon.L
 
 local format = string.format
 local floor = math.floor
 
-local stream
 local lastAvg, lastEquipped, lastPvp
 
 local slotIDs = { 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17 }
@@ -142,6 +141,6 @@ local provider = {
 	end,
 }
 
-stream = EnhanceQoL.DataHub.RegisterStream(provider)
+EnhanceQoL.DataHub.RegisterStream(provider)
 
 return provider

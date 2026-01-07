@@ -85,7 +85,7 @@ local function textureOptions()
 		seen[lv] = true
 		list[#list + 1] = { value = value, label = label }
 	end
-	add("DEFAULT", L["Default"] or "Default")
+	add("DEFAULT", _G.DEFAULT)
 	add("SOLID", "Solid")
 	if LSM and LSM.HashTable then
 		for name, path in pairs(LSM:HashTable("statusbar") or {}) do

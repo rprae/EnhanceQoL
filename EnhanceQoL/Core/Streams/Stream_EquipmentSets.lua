@@ -4,7 +4,6 @@ local L = addon.L
 
 local format = string.format
 
-local stream
 local sets = {}
 
 local function sortSetIDs(ids)
@@ -143,6 +142,6 @@ local provider = {
 	OnMouseEnter = function(btn) showTooltip(btn) end,
 }
 
-stream = EnhanceQoL.DataHub.RegisterStream(provider)
+EnhanceQoL.DataHub.RegisterStream(provider)
 
 return provider

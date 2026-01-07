@@ -5,7 +5,6 @@ local L = addon.L
 local format = string.format
 local floor = math.floor
 
-local stream
 local lastScore
 local lastRuns
 local lastColor
@@ -105,6 +104,6 @@ local provider = {
 	end,
 }
 
-stream = EnhanceQoL.DataHub.RegisterStream(provider)
+EnhanceQoL.DataHub.RegisterStream(provider)
 
 return provider
