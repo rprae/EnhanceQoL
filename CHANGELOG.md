@@ -43,6 +43,8 @@
 - **Interface**
   - Train All button in the trainer window to learn all available skills at once.
   - Login UI scale preset (applies on login; changing it reloads the UI).
+- **Action Tracker**
+  - Edit Mode-driven tracker for recent player spells with size/spacing/direction/fade and max icon count.
 - **Mailbox**
   - Option to remember the last recipient in the Send Mail field until the mailbox closes.
 - **Character Frame**
@@ -66,6 +68,7 @@
   - Brewmaster no longer shows the unused Mana bar.
   - Removed the "Gap between bars" unit frame setting (detached power bar replaces this use case).
   - Export scope now lists only specs with saved settings; “All specs” exports only configured specs.
+  - Profile export/import now supports an “All classes” scope (exports all class specs + global Resource Bar settings; auto-detects All-Classes payloads on import and reloads).
 - **Gear & Upgrades**
   - Character/Inspect display options now use a multi-select dropdown with per-option tooltips.
 - **Items & Inventory**

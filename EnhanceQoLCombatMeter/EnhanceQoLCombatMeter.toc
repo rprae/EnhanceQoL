@@ -1,4 +1,4 @@
-## Interface: 110207, 120000, 120001
+## Interface: 110207
 ## Title: Combat Meter
 ## Author: R41Z0R
 ## Version: @project-version@

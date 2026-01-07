@@ -898,7 +898,6 @@ local function exportResourceProfile(scopeKey)
 	if not classKey then return nil, "NO_CLASS" end
 	addon.db.personalResourceBarSettings = addon.db.personalResourceBarSettings or {}
 	local classConfig = addon.db.personalResourceBarSettings[classKey]
-	if type(classConfig) ~= "table" then return nil, "NO_DATA" end
 
 	local payload = {
 		kind = RB.RESOURCE_SHARE_KIND,
@@ -909,7 +908,24 @@ local function exportResourceProfile(scopeKey)
 		specNames = {},
 	}
 
-	if scopeKey == "ALL" then
+	if scopeKey == "ALL_CLASSES" then
+		payload.version = 2
+		payload.class = "ALL"
+		payload.specs = nil
+		payload.specNames = nil
+		payload.classes = CopyTable(addon.db.personalResourceBarSettings)
+		do
+			local globals = {}
+			if type(addon.db.resourceBarsAutoEnable) == "table" then globals.resourceBarsAutoEnable = CopyTable(addon.db.resourceBarsAutoEnable) end
+			if addon.db.resourceBarsHideOutOfCombat ~= nil then globals.resourceBarsHideOutOfCombat = addon.db.resourceBarsHideOutOfCombat and true or false end
+			if addon.db.resourceBarsHideMounted ~= nil then globals.resourceBarsHideMounted = addon.db.resourceBarsHideMounted and true or false end
+			if addon.db.resourceBarsHideVehicle ~= nil then globals.resourceBarsHideVehicle = addon.db.resourceBarsHideVehicle and true or false end
+			if type(addon.db.globalResourceBarSettings) == "table" then globals.globalResourceBarSettings = CopyTable(addon.db.globalResourceBarSettings) end
+			if next(globals) then payload.globalSettings = globals end
+		end
+		if type(payload.classes) ~= "table" or not next(payload.classes) then return nil, "EMPTY" end
+	elseif scopeKey == "ALL" then
+		if type(classConfig) ~= "table" then return nil, "NO_DATA" end
 		local hasData = false
 		for specIndex, specCfg in pairs(classConfig) do
 			if type(specCfg) == "table" then
@@ -924,6 +940,7 @@ local function exportResourceProfile(scopeKey)
 		end
 		if not hasData then return nil, "EMPTY" end
 	else
+		if type(classConfig) ~= "table" then return nil, "NO_DATA" end
 		local specIndex = tonumber(scopeKey)
 		if not specIndex then return nil, "NO_SPEC" end
 		local specCfg = classConfig[specIndex]
@@ -955,38 +972,107 @@ local function importResourceProfile(encoded, scopeKey)
 	if not ok or type(data) ~= "table" then return false, "DESERIALIZE" end
 
 	if data.kind ~= RB.RESOURCE_SHARE_KIND then return false, "WRONG_KIND" end
-	if data.class and data.class ~= addon.variables.unitClass then return false, "WRONG_CLASS", data.class end
+	if data.class and data.class ~= addon.variables.unitClass and data.class ~= "ALL" then return false, "WRONG_CLASS", data.class end
 
-	local specs = data.specs
-	if type(specs) ~= "table" then return false, "NO_SPECS" end
-
-	addon.db.personalResourceBarSettings = addon.db.personalResourceBarSettings or {}
-	local classKey = addon.variables.unitClass
-	addon.db.personalResourceBarSettings[classKey] = addon.db.personalResourceBarSettings[classKey] or {}
-	local classConfig = addon.db.personalResourceBarSettings[classKey]
-	local applied = {}
+	local appliedMode
+	if data.class == "ALL" and type(data.classes) == "table" then
+		scopeKey = "ALL_CLASSES"
+		appliedMode = "ALL_CLASSES"
+	end
 
 	local enableState = data.enableResourceFrame
-	if scopeKey == "ALL" then
-		for specIndex, specCfg in pairs(specs) do
-			local idx = tonumber(specIndex)
-			if idx and type(specCfg) == "table" then
-				classConfig[idx] = CopyTable(specCfg)
-				applied[#applied + 1] = idx
+	local applied = {}
+	addon.db.personalResourceBarSettings = addon.db.personalResourceBarSettings or {}
+	local classKey = addon.variables.unitClass
+
+	local function normalizeSpecs(specs)
+		if type(specs) ~= "table" then return nil end
+		if type(specs.specs) == "table" then return specs.specs end
+		return specs
+	end
+
+	local function normalizeClassMap(classes)
+		if type(classes) ~= "table" then return nil end
+		local normalized = {}
+		local any = false
+		for classTag, classCfg in pairs(classes) do
+			local specs = normalizeSpecs(classCfg)
+			if type(specs) == "table" then
+				normalized[classTag] = CopyTable(specs)
+				any = true
 			end
 		end
-		if #applied == 0 then return false, "NO_SPECS" end
-	else
-		local targetIndex = tonumber(scopeKey)
+		if not any then return nil end
+		return normalized
+	end
+
+	local function applyGlobalSettings(global)
+		if type(global) ~= "table" then return end
+		if type(global.resourceBarsAutoEnable) == "table" then addon.db.resourceBarsAutoEnable = CopyTable(global.resourceBarsAutoEnable) end
+		if global.resourceBarsHideOutOfCombat ~= nil then addon.db.resourceBarsHideOutOfCombat = global.resourceBarsHideOutOfCombat and true or false end
+		if global.resourceBarsHideMounted ~= nil then addon.db.resourceBarsHideMounted = global.resourceBarsHideMounted and true or false end
+		if global.resourceBarsHideVehicle ~= nil then addon.db.resourceBarsHideVehicle = global.resourceBarsHideVehicle and true or false end
+		if type(global.globalResourceBarSettings) == "table" then addon.db.globalResourceBarSettings = CopyTable(global.globalResourceBarSettings) end
+	end
+
+	local function applySpecsToClass(targetClass, specs, scope)
+		specs = normalizeSpecs(specs)
+		if type(specs) ~= "table" then return false, "NO_SPECS" end
+		addon.db.personalResourceBarSettings[targetClass] = addon.db.personalResourceBarSettings[targetClass] or {}
+		local classConfig = addon.db.personalResourceBarSettings[targetClass]
+		if scope == "ALL" then
+			local any = false
+			for specIndex, specCfg in pairs(specs) do
+				local idx = tonumber(specIndex)
+				if idx and type(specCfg) == "table" then
+					classConfig[idx] = CopyTable(specCfg)
+					if targetClass == classKey then applied[#applied + 1] = idx end
+					any = true
+				end
+			end
+			if not any then return false, "NO_SPECS" end
+			return true
+		end
+
+		local targetIndex = tonumber(scope)
 		if not targetIndex then return false, "NO_SPEC" end
 		local sourceCfg = specs[targetIndex] or specs[tostring(targetIndex)]
 		if type(sourceCfg) ~= "table" then return false, "SPEC_MISMATCH" end
 		classConfig[targetIndex] = CopyTable(sourceCfg)
-		applied[#applied + 1] = targetIndex
+		if targetClass == classKey then applied[#applied + 1] = targetIndex end
+		return true
+	end
+
+	if scopeKey == "ALL_CLASSES" and type(data.classes) == "table" then
+		local normalized = normalizeClassMap(data.classes)
+		if not normalized then return false, "NO_SPECS" end
+		addon.db.personalResourceBarSettings = normalized
+		applyGlobalSettings(data.globalSettings or data.global)
+		return true, {}, enableState, appliedMode or "ALL_CLASSES"
+	end
+
+	if type(data.classes) == "table" then
+		if scopeKey == "ALL_CLASSES" then
+			local any = false
+			for classTag, classCfg in pairs(data.classes) do
+				local okApply = applySpecsToClass(classTag, classCfg, "ALL")
+				if okApply then any = true end
+			end
+			if not any then return false, "NO_SPECS" end
+		else
+			local classCfg = data.classes[classKey]
+			local okApply, reason = applySpecsToClass(classKey, classCfg, scopeKey == "ALL" and "ALL" or scopeKey)
+			if not okApply then return false, reason end
+		end
+	else
+		local specs = data.specs
+		if type(specs) ~= "table" then return false, "NO_SPECS" end
+		local okApply, reason = applySpecsToClass(classKey, specs, scopeKey == "ALL" and "ALL" or scopeKey)
+		if not okApply then return false, reason end
 	end
 
 	tsort(applied)
-	return true, applied, enableState
+	return true, applied, enableState, appliedMode or scopeKey
 end
 addon.Aura.functions.importResourceProfile = importResourceProfile
 

@@ -2396,15 +2396,27 @@ addon.Aura.functions.AddResourceBarsProfileSettings = function()
 	addon.SettingsLayout.resourceBarsProfileBuilt = true
 
 	local classKey = addon.variables.unitClass or "UNKNOWN"
-	addon.db.resourceBarsProfileScope = addon.db.resourceBarsProfileScope or {}
+	local function ensureProfileScope()
+		addon.db = addon.db or {}
+		if type(addon.db.resourceBarsProfileScope) ~= "table" then addon.db.resourceBarsProfileScope = {} end
+		return addon.db.resourceBarsProfileScope
+	end
 	local function getScope()
-		local cur = addon.db.resourceBarsProfileScope[classKey]
+		local scope = ensureProfileScope()
+		local cur = scope and scope[classKey]
 		if not cur then cur = "ALL" end
 		return cur
 	end
-	local function setScope(val) addon.db.resourceBarsProfileScope[classKey] = val end
+	local function setScope(val)
+		local scope = ensureProfileScope()
+		if scope then scope[classKey] = val end
+	end
 
-	local scopeList, scopeOrder = { ALL = L["All specs"] or "All specs" }, { "ALL" }
+	local scopeList = {
+		ALL = L["All specs"] or "All specs",
+		ALL_CLASSES = L["All classes"] or "All classes",
+	}
+	local scopeOrder = { "ALL" }
 	local classID = addon.variables and addon.variables.unitClassID
 	local classTag = addon.variables and addon.variables.unitClass
 	if (not classID) or not classTag then
@@ -2413,7 +2425,15 @@ addon.Aura.functions.AddResourceBarsProfileSettings = function()
 		if not classID then classID = id end
 	end
 	classID = tonumber(classID)
-	if classID and classID > 0 and classTag and C_SpecializationInfo and C_SpecializationInfo.GetNumSpecializationsForClassID and ResourceBars.powertypeClasses and ResourceBars.powertypeClasses[classTag] then
+	if
+		classID
+		and classID > 0
+		and classTag
+		and C_SpecializationInfo
+		and C_SpecializationInfo.GetNumSpecializationsForClassID
+		and ResourceBars.powertypeClasses
+		and ResourceBars.powertypeClasses[classTag]
+	then
 		local specCount = C_SpecializationInfo.GetNumSpecializationsForClassID(classID)
 		for specIndex = 1, (specCount or 0) do
 			local _, specName = GetSpecializationInfoForClassID(classID, specIndex)
@@ -2423,6 +2443,7 @@ addon.Aura.functions.AddResourceBarsProfileSettings = function()
 			end
 		end
 	end
+	scopeOrder[#scopeOrder + 1] = "ALL_CLASSES"
 
 	local cProfiles = addon.SettingsLayout.rootPROFILES
 
@@ -2510,13 +2531,14 @@ addon.Aura.functions.AddResourceBarsProfileSettings = function()
 				local editBox = self.editBox or self:GetEditBox()
 				local input = editBox:GetText() or ""
 				local scopeKey = getScope() or "ALL"
-				local ok, applied, enableState = addon.Aura.functions.importResourceProfile(input, scopeKey)
+				local ok, applied, enableState, appliedMode = addon.Aura.functions.importResourceProfile(input, scopeKey)
 				if not ok then
 					local msg = ResourceBars.ImportErrorMessage and ResourceBars.ImportErrorMessage(applied, enableState) or (L["ImportProfileFailed"] or "Import failed.")
 					print("|cff00ff98Enhance QoL|r: " .. tostring(msg))
 					return
 				end
-				if enableState ~= nil and scopeKey == "ALL" then
+				local isAllClasses = appliedMode == "ALL_CLASSES"
+				if enableState ~= nil and (scopeKey == "ALL" or scopeKey == "ALL_CLASSES" or isAllClasses) then
 					local prev = addon.db["enableResourceFrame"]
 					addon.db["enableResourceFrame"] = enableState and true or false
 					if enableState and prev ~= true and addon.Aura.ResourceBars and addon.Aura.ResourceBars.EnableResourceBars then
@@ -2543,6 +2565,7 @@ addon.Aura.functions.AddResourceBarsProfileSettings = function()
 					print("|cff00ff98Enhance QoL|r: " .. msg)
 				end
 				Settings.NotifyUpdate("EQOL_" .. "enableResourceFrame")
+				if (scopeKey == "ALL_CLASSES" or isAllClasses) and ReloadUI then ReloadUI() end
 			end
 			StaticPopup_Show("EQOL_RESOURCEBAR_IMPORT_SETTINGS")
 		end,
