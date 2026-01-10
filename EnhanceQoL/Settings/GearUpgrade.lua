@@ -2,136 +2,167 @@ local addonName, addon = ...
 
 local L = LibStub("AceLocale-3.0"):GetLocale(addonName)
 
-local cGearUpgrade = addon.functions.SettingsCreateCategory(nil, L["GearUpgrades"], nil, "GearUpgrade")
+local cGearUpgrade = addon.SettingsLayout.rootGENERAL
+local expandable = addon.functions.SettingsCreateExpandableSection(cGearUpgrade, {
+	name = L["GearUpgrades"],
+	newTagID = "GearUpgrades",
+	expanded = false,
+	colorizeTitle = false,
+})
 addon.SettingsLayout.gearUpgradeCategory = cGearUpgrade
 
-addon.functions.SettingsCreateHeadline(cGearUpgrade, L["Show on Character Frame"])
+addon.functions.SettingsCreateHeadline(cGearUpgrade, L["Show on Character Frame"], { parentSection = expandable })
+
+local function ensureDisplayOptions()
+	if addon.functions and addon.functions.ensureDisplayDB then
+		addon.functions.ensureDisplayDB()
+	else
+		addon.db.charDisplayOptions = addon.db.charDisplayOptions or {}
+		addon.db.inspectDisplayOptions = addon.db.inspectDisplayOptions or {}
+	end
+end
+
+local function isCharDisplaySelected(key)
+	ensureDisplayOptions()
+	local t = addon.db.charDisplayOptions
+	if key == "ilvl" then return t.ilvl == true end
+	if key == "gems" then return t.gems == true end
+	if key == "enchants" then return t.enchants == true end
+	if key == "gemtip" then return t.gemtip == true end
+	if key == "durability" then return addon.db["showDurabilityOnCharframe"] == true end
+	if key == "catalyst" then return addon.db["showCatalystChargesOnCharframe"] == true end
+	if key == "movementspeed" then return addon.db["movementSpeedStatEnabled"] == true end
+	return false
+end
+
+local function setCharDisplayOption(key, value)
+	ensureDisplayOptions()
+	local enabled = value and true or false
+	if key == "ilvl" or key == "gems" or key == "enchants" or key == "gemtip" then
+		addon.db.charDisplayOptions[key] = enabled
+		addon.functions.setCharFrame()
+	elseif key == "durability" then
+		addon.db["showDurabilityOnCharframe"] = enabled
+		addon.functions.calculateDurability()
+	elseif key == "catalyst" then
+		addon.db["showCatalystChargesOnCharframe"] = enabled
+	elseif key == "movementspeed" then
+		addon.db["movementSpeedStatEnabled"] = enabled
+		if enabled then
+			if addon.MovementSpeedStat and addon.MovementSpeedStat.Refresh then addon.MovementSpeedStat.Refresh() end
+		else
+			addon.MovementSpeedStat.Disable()
+		end
+	end
+end
+
+local function applyCharDisplaySelection(selection)
+	selection = selection or {}
+	ensureDisplayOptions()
+	addon.db.charDisplayOptions.ilvl = selection.ilvl == true
+	addon.db.charDisplayOptions.gems = selection.gems == true
+	addon.db.charDisplayOptions.enchants = selection.enchants == true
+	addon.db.charDisplayOptions.gemtip = selection.gemtip == true
+	addon.db["showDurabilityOnCharframe"] = selection.durability == true
+	addon.db["showCatalystChargesOnCharframe"] = selection.catalyst == true
+	addon.db["movementSpeedStatEnabled"] = selection.movementspeed == true
+	addon.functions.setCharFrame()
+	addon.functions.calculateDurability()
+	if addon.db["movementSpeedStatEnabled"] then
+		if addon.MovementSpeedStat and addon.MovementSpeedStat.Refresh then addon.MovementSpeedStat.Refresh() end
+	else
+		addon.MovementSpeedStat.Disable()
+	end
+end
+
+local charDisplayDropdown = addon.functions.SettingsCreateMultiDropdown(cGearUpgrade, {
+	var = "charframe_display",
+	text = L["gearDisplayElements"] or "Elements",
+	options = {
+		{ value = "ilvl", text = STAT_AVERAGE_ITEM_LEVEL, tooltip = L["gearDisplayOptionItemLevelDesc"] },
+		{ value = "gems", text = AUCTION_CATEGORY_GEMS, tooltip = L["gearDisplayOptionGemsDesc"] },
+		{ value = "enchants", text = ENCHANTS, tooltip = L["gearDisplayOptionEnchantsDesc"] },
+		{ value = "gemtip", text = L["Gem slot tooltip"], tooltip = L["gearDisplayOptionGemTooltipDesc"] },
+		{ value = "durability", text = DURABILITY, tooltip = L["gearDisplayOptionDurabilityDesc"] },
+		{ value = "catalyst", text = L["Catalyst Charges"], tooltip = L["gearDisplayOptionCatalystDesc"] },
+		{ value = "movementspeed", text = STAT_MOVEMENT_SPEED, tooltip = L["gearDisplayOptionMovementSpeedDesc"] },
+	},
+	isSelectedFunc = function(key) return isCharDisplaySelected(key) end,
+	setSelectedFunc = function(key, selected) setCharDisplayOption(key, selected) end,
+	setSelection = applyCharDisplaySelection,
+	parentSection = expandable,
+})
+
+addon.functions.SettingsCreateDropdown(cGearUpgrade, {
+	list = {
+		TOPLEFT = L["topLeft"],
+		TOP = L["top"],
+		TOPRIGHT = L["topRight"],
+		LEFT = L["left"],
+		CENTER = L["center"],
+		RIGHT = L["right"],
+		BOTTOMLEFT = L["bottomLeft"],
+		BOTTOM = L["bottom"],
+		BOTTOMRIGHT = L["bottomRight"],
+	},
+	text = L["charIlvlPosition"],
+	get = function() return addon.db["charIlvlPosition"] or "BOTTOMLEFT" end,
+	set = function(key)
+		addon.db["charIlvlPosition"] = key
+		addon.functions.setCharFrame()
+	end,
+	parent = charDisplayDropdown,
+	parentCheck = function() return isCharDisplaySelected("ilvl") end,
+	default = "BOTTOMLEFT",
+	var = "charIlvlPosition",
+	type = Settings.VarType.String,
+	parentSection = expandable,
+})
+
+addon.functions.SettingsCreateHeadline(cGearUpgrade, L["Show on Inspect Frame"], { parentSection = expandable })
+
+local function isInspectDisplaySelected(key)
+	ensureDisplayOptions()
+	local t = addon.db.inspectDisplayOptions
+	if key == "ilvl" then return t.ilvl == true end
+	if key == "gems" then return t.gems == true end
+	if key == "enchants" then return t.enchants == true end
+	if key == "gemtip" then return t.gemtip == true end
+	return false
+end
+
+local function setInspectDisplayOption(key, value)
+	ensureDisplayOptions()
+	addon.db.inspectDisplayOptions[key] = value and true or false
+end
+
+local function applyInspectDisplaySelection(selection)
+	selection = selection or {}
+	ensureDisplayOptions()
+	addon.db.inspectDisplayOptions.ilvl = selection.ilvl == true
+	addon.db.inspectDisplayOptions.gems = selection.gems == true
+	addon.db.inspectDisplayOptions.enchants = selection.enchants == true
+	addon.db.inspectDisplayOptions.gemtip = selection.gemtip == true
+end
+
+addon.functions.SettingsCreateMultiDropdown(cGearUpgrade, {
+	var = "inspectframe_display",
+	text = L["gearDisplayElements"] or "Elements",
+	options = {
+		{ value = "ilvl", text = STAT_AVERAGE_ITEM_LEVEL, tooltip = L["gearDisplayOptionItemLevelDesc"] },
+		{ value = "gems", text = AUCTION_CATEGORY_GEMS, tooltip = L["gearDisplayOptionGemsDesc"] },
+		{ value = "enchants", text = ENCHANTS, tooltip = L["gearDisplayOptionEnchantsDesc"] },
+		{ value = "gemtip", text = L["Gem slot tooltip"], tooltip = L["gearDisplayOptionGemTooltipDesc"] },
+	},
+	isSelectedFunc = function(key) return isInspectDisplaySelected(key) end,
+	setSelectedFunc = function(key, selected) setInspectDisplayOption(key, selected) end,
+	setSelection = applyInspectDisplaySelection,
+	parentSection = expandable,
+})
+
+addon.functions.SettingsCreateHeadline(cGearUpgrade, AUCTION_CATEGORY_GEMS, { parentSection = expandable })
 
 local data = {
-	{
-		var = "charframe_ilvl",
-		text = STAT_AVERAGE_ITEM_LEVEL,
-		func = function(value)
-			addon.db.charDisplayOptions["ilvl"] = value and true or false
-			addon.functions.setCharFrame()
-		end,
-		get = function() return addon.db.charDisplayOptions["ilvl"] end,
-		children = {
-			{
-				list = {
-					TOPLEFT = L["topLeft"],
-					TOP = L["top"],
-					TOPRIGHT = L["topRight"],
-					LEFT = L["left"],
-					CENTER = L["center"],
-					RIGHT = L["right"],
-					BOTTOMLEFT = L["bottomLeft"],
-					BOTTOM = L["bottom"],
-					BOTTOMRIGHT = L["bottomRight"],
-				},
-				text = L["charIlvlPosition"],
-				get = function() return addon.db["charIlvlPosition"] or "BOTTOMLEFT" end,
-				set = function(key)
-					addon.db["charIlvlPosition"] = key
-					addon.functions.setCharFrame()
-				end,
-				parentCheck = function()
-					return addon.SettingsLayout.elements["charframe_ilvl"]
-						and addon.SettingsLayout.elements["charframe_ilvl"].setting
-						and addon.SettingsLayout.elements["charframe_ilvl"].setting:GetValue() == true
-				end,
-				parent = true,
-				default = "BOTTOMLEFT",
-				var = "charIlvlPosition",
-				type = Settings.VarType.String,
-				sType = "dropdown",
-			},
-		},
-	},
-	{
-		var = "charframe_movementspeed",
-		text = STAT_MOVEMENT_SPEED,
-		func = function(value)
-			addon.db["movementSpeedStatEnabled"] = value and true or false
-			if value then
-				if addon.MovementSpeedStat and addon.MovementSpeedStat.Refresh then addon.MovementSpeedStat.Refresh() end
-			else
-				addon.MovementSpeedStat.Disable()
-			end
-		end,
-		get = function() return addon.db["movementSpeedStatEnabled"] end,
-	},
-	{
-		var = "charframe_gems",
-		text = AUCTION_CATEGORY_GEMS,
-		func = function(value) addon.db.charDisplayOptions["gems"] = value and true or false end,
-		get = function() return addon.db.charDisplayOptions["gems"] end,
-	},
-	{
-		var = "charframe_enchants",
-		text = ENCHANTS,
-		func = function(value) addon.db.charDisplayOptions["enchants"] = value and true or false end,
-		get = function() return addon.db.charDisplayOptions["enchants"] end,
-	},
-	{
-		var = "charframe_gemtip",
-		text = L["Gem slot tooltip"],
-		func = function(value) addon.db.charDisplayOptions["gemtip"] = value and true or false end,
-		get = function() return addon.db.charDisplayOptions["gemtip"] end,
-	},
-	{
-		var = "charframe_durability",
-		text = DURABILITY,
-		func = function(value)
-			addon.db["showDurabilityOnCharframe"] = value and true or false
-			addon.functions.calculateDurability()
-		end,
-		get = function() return addon.db["showDurabilityOnCharframe"] end,
-	},
-	{
-		var = "charframe_catalyst",
-		text = L["Catalyst Charges"],
-		func = function(value) addon.db["showCatalystChargesOnCharframe"] = value and true or false end,
-		get = function() return addon.db["showCatalystChargesOnCharframe"] end,
-	},
-}
-table.sort(data, function(a, b) return a.text < b.text end)
-addon.functions.SettingsCreateCheckboxes(cGearUpgrade, data)
-
-addon.functions.SettingsCreateHeadline(cGearUpgrade, L["Show on Inspect Frame"])
-
-data = {
-	{
-		var = "inspect_ilvl",
-		text = STAT_AVERAGE_ITEM_LEVEL,
-		func = function(value) addon.db.inspectDisplayOptions["ilvl"] = value and true or false end,
-		get = function() return addon.db.inspectDisplayOptions["ilvl"] end,
-	},
-	{
-		var = "inspect_gems",
-		text = AUCTION_CATEGORY_GEMS,
-		func = function(value) addon.db.inspectDisplayOptions["gems"] = value and true or false end,
-		get = function() return addon.db.inspectDisplayOptions["gems"] end,
-	},
-	{
-		var = "inspect_enchants",
-		text = ENCHANTS,
-		func = function(value) addon.db.inspectDisplayOptions["enchants"] = value and true or false end,
-		get = function() return addon.db.inspectDisplayOptions["enchants"] end,
-	},
-	{
-		var = "inspect_gemtip",
-		text = L["Gem slot tooltip"],
-		func = function(value) addon.db.inspectDisplayOptions["gemtip"] = value and true or false end,
-		get = function() return addon.db.inspectDisplayOptions["gemtip"] end,
-	},
-}
-table.sort(data, function(a, b) return a.text < b.text end)
-addon.functions.SettingsCreateCheckboxes(cGearUpgrade, data)
-
-addon.functions.SettingsCreateHeadline(cGearUpgrade, AUCTION_CATEGORY_GEMS)
-
-data = {
 	{
 		var = "enableGemHelper",
 		text = L["enableGemHelper"],
@@ -144,11 +175,12 @@ data = {
 		end,
 		get = function() return addon.db["enableGemHelper"] end,
 		desc = L["enableGemHelperDesc"],
+		parentSection = expandable,
 	},
 }
 addon.functions.SettingsCreateCheckboxes(cGearUpgrade, data)
 
-addon.functions.SettingsCreateHeadline(cGearUpgrade, AUCTION_CATEGORY_MISCELLANEOUS)
+addon.functions.SettingsCreateHeadline(cGearUpgrade, AUCTION_CATEGORY_MISCELLANEOUS, { parentSection = expandable })
 
 data = {
 	{
@@ -160,12 +192,15 @@ data = {
 		end,
 		get = function() return addon.db["instantCatalystEnabled"] end,
 		desc = L["instantCatalystEnabledDesc"],
+		parentSection = expandable,
 	},
 	{
 		var = "openCharframeOnUpgrade",
 		text = L["openCharframeOnUpgrade"],
 		func = function(value) addon.db["openCharframeOnUpgrade"] = value and true or false end,
 		get = function() return addon.db["openCharframeOnUpgrade"] end,
+		desc = L["openCharframeOnUpgradeDesc"],
+		parentSection = expandable,
 	},
 }
 

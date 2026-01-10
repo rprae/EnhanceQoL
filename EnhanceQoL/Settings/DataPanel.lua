@@ -2,10 +2,15 @@ local addonName, addon = ...
 
 local L = LibStub("AceLocale-3.0"):GetLocale(addonName)
 
-local cDataPanel = addon.functions.SettingsCreateCategory(nil, L["DataPanel"], nil, "DataPanel")
-addon.SettingsLayout.dataPanelCategory = cDataPanel
+local cDataPanel = addon.SettingsLayout.rootUI
 
-addon.functions.SettingsCreateText(cDataPanel, L["DataPanelEditModeHint"])
+local expandable = addon.functions.SettingsCreateExpandableSection(cDataPanel, {
+	name = L["DataPanel"],
+	expanded = false,
+	colorizeTitle = false,
+})
+
+addon.functions.SettingsCreateText(cDataPanel, L["DataPanelEditModeHint"], { parentSection = expandable })
 
 local data = {
 	var = "Show options tooltip hint",
@@ -21,6 +26,7 @@ local data = {
 		end
 	end,
 	default = false,
+	parentSection = expandable,
 }
 
 addon.functions.SettingsCreateCheckbox(cDataPanel, data)
@@ -39,6 +45,7 @@ data = {
 	end,
 	default = "",
 	var = "Context menu modifier",
+	parentSection = expandable,
 }
 
 addon.functions.SettingsCreateDropdown(cDataPanel, data)
@@ -47,6 +54,7 @@ data = {
 	var = "Add Panel",
 	text = L["Add Panel"],
 	func = function() StaticPopup_Show("EQOL_CREATE_DATAPANEL") end,
+	parentSection = expandable,
 }
 addon.functions.SettingsCreateButton(cDataPanel, data)
 ----- REGION END

@@ -1,24 +1,123 @@
 # Changelog
 
-## [6.7.0] - 2026-01-01
+## [7.0.0] - 2026-01-10
 
 ### ✨ Added
 
 - **UF Plus**
   - Per-frame aura toggle for Player/Target/Boss frames
-  - Boss frames can optionally show auras.
-  - Player frame can optionally show auras (default off).
   - Player unit status can show group number.
+  - Additional health/mana text modes (percent-first + level combos).
+  - Health/Power texts now support a center slot with independent offsets.
+  - Unit status text now has its own font size/font/outline controls + Edit Mode sample.
+  - PvP indicator icon for Player/Target/Focus.
+  - Role indicator icon for Player/Target/Focus.
+  - Optional reverse-fill absorb bar in UF.
+  - Cast bars now show interrupted/failed feedback on Target/Focus/Boss.
+  - Cast bars can show Remaining or Elapsed/Total duration text.
+  - Resource bars can show configurable threshold lines (count/color/thickness).
+  - Single opacity slider for UF Plus “Show when” visibility.
+  - Brewmaster: Stagger secondary resource bar with native Stagger colors.
+  - Detached power bar can use its own border (texture/size/offset).
+  - Cast bar icon offset slider for Target/Focus/Boss frames.
+  - Optional border highlight for mouseover/aggro.
   - Edit Mode shows sample auras for frames with auras enabled.
+  - Tapped mob color indicator for unit frames.
+  - Player castbar can optionally show the cast target.
+  - Castbar change max name width cap
 - **Misc**
   - Auto-accept summons.
   - Auto-accept resurrection requests.
   - Auto-release in PvP/BGs.
+  - Latency stream: configurable ping colors + display mode (FPS/Latency).
+  - Master volume stream: DataPanel popup slider for Sound_MasterVolume.
+  - DataPanels: new Location, Time, and Realm streams (subzone + zone color + time format + time color options).
+  - DataPanels: Item Level stream with per-slot tooltip breakdown.
+  - DataPanels: Mythic+ Rating stream (current season score + run list tooltip).
+  - DataPanels: Equipment Sets stream with left-click swap menu.
+  - DataPanels: Micro Bar stream with a quick-access menu.
+  - DataPanels: text outline/shadow toggles + in/out-of-combat opacity sliders.
+  - DataPanels: Latency + Realm streams now support a text color picker.
   - Quick-skip cinematics option (auto-confirms the skip prompt on Esc/Space/Enter).
+  - Added missing Dalaran teleport ring variants.
+- **Chat**
+  - Use arrow keys in the chat input without holding Alt.
+  - Move the chat editbox to the top of the chat window.
+  - Unclamp chat windows from the screen edges.
+  - Hide the combat log tab while docked.
+- **Questing**
+  - Objective Tracker can minimize to the (+) button only.
+- **Minimap**
+  - Hide addon minimap buttons until you mouse over the minimap.
+  - Unclamp the minimap cluster so it can sit closer to the screen edge.
+- **Interface**
+  - Train All button in the trainer window to learn all available skills at once.
+  - Login UI scale preset (applies on login; changing it reloads the UI).
+- **Action Tracker**
+  - Edit Mode-driven tracker for recent player spells with size/spacing/direction/fade and max icon count.
+- **Cooldown Viewer**
+  - Added a “When I have a target” visibility rule in the Cooldown Manager “Show when” options.
+- **GCD Bar (Midnight)**
+  - Edit Mode bar for the global cooldown with size, texture, and color controls.
+- **Mailbox**
+  - Option to remember the last recipient in the Send Mail field until the mailbox closes.
+- **Character Frame**
+  - Item level display can show equipped/average when enabled.
+
+### 🔄 Changed
+
+- **Settings UI**
+  - Root categories now use a consistent expandable section layout.
+  - UI root renamed to Display.
+  - Social now contains Chat settings under the Social root.
+  - System root removed; Sound + Shared Media moved to a dedicated Sound root.
+  - CVar toggles moved into General (Movement & Input + System), Display (Frames), Minimap & Map, Mouse, Action Bars, and Chat.
+  - Economy root reorganized into Repair Options, Vendor Options, Merchant UI, Auction House, Mailbox, and Gold & Tracking.
+  - Vendor module settings moved under Economy as Vendor Options, with Destroy as a subsection.
+  - Quest settings moved to Gameplay with a single Questing accordion.
+  - Frame visibility rules now have a global fade amount slider.
+  - Blizzard frame options now hide when EQoL frames are enabled (Health Text, Castbars, Visibility rules).
+  - Game Menu scaling option removed (Mover handles it instead).
+- **UF Plus / Resource Bars**
+  - Brewmaster no longer shows the unused Mana bar.
+  - Removed the "Gap between bars" unit frame setting (detached power bar replaces this use case).
+  - Export scope now lists only specs with saved settings; “All specs” exports only configured specs.
+  - Profile export/import now supports an “All classes” scope (exports all class specs + global Resource Bar settings; auto-detects All-Classes payloads on import and reloads).
+- **Gear & Upgrades**
+  - Character/Inspect display options now use a multi-select dropdown with per-option tooltips.
+- **Items & Inventory**
+  - Bag display options and item level targets now use multi-select dropdowns with tooltips.
+  - Dialog auto-confirm options are grouped into a single multi-select dropdown.
+- **Vendors & Services**
+  - Section renamed to “Repair Options”.
+  - Craft Shopper moved under Auction House.
+  - Auto-sell junk moved under Vendor Options.
+- **Minimap**
+  - Square minimap layout now anchors the mail icon to the top-left of the minimap.
+  - Button Sink labels and tooltips refreshed for clarity.
+  - Button Sink settings moved under Minimap & Map.
+- **Mythic+ Teleports**
+  - Teleports now collapse to owned items when multiple variants exist (ex. Kirin Tor Rings); tooltip shows `X other variants available`.
+- **Tooltip**
+  - Optional modifier override to show hidden tooltips while in combat/dungeons.
 
 ### 🐛 Fixed
 
+- Resource bars hidden kept a wrong health/powervalue on show
 - Unit Frame Strata set at least "High" blocks options window
+- Unit Frames had a shadow color on the texts which made it darker
+- TomTom Minimap Icons are ignored in Button Sink
+- Mover: Dragging no longer overlays the PlayerSpells/Talents UI, so buttons remain clickable.
+- Mover: Disabled entries no longer get touched, and mousewheel scaling no longer blocks MerchantFrame scrolling.
+- Blizzard Boss Frame visibility rule now hides when EQoL Boss Frames are enabled.
+- UF Plus Edit Mode samples now show percent text for Boss frame power/health.
+- Resource Bars: Warlock Soul Shards now show partial values (e.g. 3.4).
+- Resource Bars: Spec toggles now initialize unused specs and profile scope no longer errors on missing data (invalid class IDs or scope table).
+- UF Plus: Level text now refreshes on level-up.
+- DataPanels: Micro Bar missions entry no longer errors when Covenant data is unavailable.
+- Show Leader/Assist Icon on Raidframes expanded the size in edit mode for the selection overlay
+- Bonus Roll frame no longer disappears when loot anchoring is disabled.
+- Edit Mode: imported layouts now reuse the last EQoL layout positions instead of resetting.
 
 ---
 

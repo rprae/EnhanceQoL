@@ -629,11 +629,35 @@ end
 addon.functions.calculateDurability = calculateDurability
 
 local function UpdateItemLevel()
-	local statFrame = CharacterStatsPane.ItemLevelFrame
-	if statFrame and statFrame.Value then
-		local avgItemLevel, equippedItemLevel = GetAverageItemLevel()
-		local customItemLevel = equippedItemLevel
-		statFrame.Value:SetText(string.format("%.2f", customItemLevel))
+	local statFrame = CharacterStatsPane and CharacterStatsPane.ItemLevelFrame
+	if not (statFrame and statFrame.Value and GetAverageItemLevel) then return end
+
+	local avgItemLevel, equippedItemLevel = GetAverageItemLevel()
+	if not avgItemLevel or not equippedItemLevel then return end
+
+	local showDetailed = addon.db and addon.db.charDisplayOptions and addon.db.charDisplayOptions["ilvl"]
+	if not showDetailed then
+		local minItemLevel = C_PaperDollInfo and C_PaperDollInfo.GetMinItemLevel and C_PaperDollInfo.GetMinItemLevel()
+		local displayItemLevel = math.max(minItemLevel or 0, equippedItemLevel)
+		statFrame.Value:SetText(math.floor(displayItemLevel))
+		if GetItemLevelColor then
+			local r, g, b = GetItemLevelColor()
+			if r and g and b then statFrame.Value:SetTextColor(r, g, b) end
+		end
+		return
+	end
+
+	local equippedText = string.format("%.2f", equippedItemLevel)
+	local avgText = string.format("%.2f", avgItemLevel)
+	if avgText ~= equippedText then
+		statFrame.Value:SetText(equippedText .. "/" .. avgText)
+	else
+		statFrame.Value:SetText(equippedText)
+	end
+
+	if GetItemLevelColor then
+		local r, g, b = GetItemLevelColor()
+		if r and g and b then statFrame.Value:SetTextColor(r, g, b) end
 	end
 end
 hooksecurefunc("PaperDollFrame_SetItemLevel", function(statFrame, unit) UpdateItemLevel() end)
@@ -1498,265 +1522,230 @@ end
 ---- END REGION
 
 ---- REGION SETTINGS
-local cInventory = addon.functions.SettingsCreateCategory(nil, L["ItemsInventory"], nil, "ItemsInventory")
-addon.SettingsLayout.inventoryCategory = cInventory
-addon.functions.SettingsCreateHeadline(cInventory, BAGSLOT)
 
-local data = {
-	{
-		var = "showIlvlOnMerchantframe",
-		text = L["showIlvlOnMerchantframe"],
-		func = function(value) addon.db["showIlvlOnMerchantframe"] = value end,
-	},
-	{
-		var = "showIlvlOnBagItems",
-		text = L["showIlvlOnBagItems"],
-		func = function(value)
-			addon.db["showIlvlOnBagItems"] = value
-			for _, frame in ipairs(ContainerFrameContainer.ContainerFrames) do
-				if frame:IsShown() then addon.functions.updateBags(frame) end
-			end
-			if ContainerFrameCombinedBags:IsShown() then addon.functions.updateBags(ContainerFrameCombinedBags) end
-		end,
-		children = {
-			{
-				list = {
-					TOPLEFT = L["topLeft"],
-					TOP = L["top"],
-					TOPRIGHT = L["topRight"],
-					LEFT = L["left"],
-					CENTER = L["center"],
-					RIGHT = L["right"],
-					BOTTOMLEFT = L["bottomLeft"],
-					BOTTOM = L["bottom"],
-					BOTTOMRIGHT = L["bottomRight"],
-				},
-				text = L["bagIlvlPosition"],
-				get = function() return addon.db["bagIlvlPosition"] or "TOPLEFT" end,
-				set = function(key) addon.db["bagIlvlPosition"] = key end,
-				parentCheck = function()
-					return addon.SettingsLayout.elements["showIlvlOnBagItems"]
-						and addon.SettingsLayout.elements["showIlvlOnBagItems"].setting
-						and addon.SettingsLayout.elements["showIlvlOnBagItems"].setting:GetValue() == true
-				end,
-				parent = true,
-				default = "BOTTOMLEFT",
-				var = "bagIlvlPosition",
-				type = Settings.VarType.String,
-				sType = "dropdown",
-			},
-		},
-	},
-	{
-		var = "showBagFilterMenu",
-		text = L["showBagFilterMenu"],
-		desc = (L["showBagFilterMenuDesc"]):format(SHIFT_KEY_TEXT),
-		func = function(value)
-			addon.db["showBagFilterMenu"] = value
-			for _, frame in ipairs(ContainerFrameContainer.ContainerFrames) do
-				if frame:IsShown() then addon.functions.updateBags(frame) end
-			end
-			if ContainerFrameCombinedBags:IsShown() then addon.functions.updateBags(ContainerFrameCombinedBags) end
-			if value then
-				if BankFrame:IsShown() then
-					for slot = 1, C_Container.GetContainerNumSlots(BANK_CONTAINER) do
-						local itemButton = _G["BankFrameItem" .. slot]
-						if itemButton then addon.functions.updateBank(itemButton, -1, slot) end
-					end
-				end
-			else
-				if BankFrame:IsShown() then
-					for slot = 1, C_Container.GetContainerNumSlots(BANK_CONTAINER) do
-						local itemButton = _G["BankFrameItem" .. slot]
-						if itemButton and itemButton.ItemLevelText then itemButton.ItemLevelText:Hide() end
-					end
-				end
-			end
-			if _G.BankPanel and _G.BankPanel:IsShown() then addon.functions.updateBags(_G.BankPanel) end
-		end,
-	},
-	{
-		var = "fadeBagQualityIcons",
-		text = L["fadeBagQualityIcons"],
-		func = function(value)
-			addon.db["fadeBagQualityIcons"] = value
-			for _, frame in ipairs(ContainerFrameContainer.ContainerFrames) do
-				if frame:IsShown() then addon.functions.updateBags(frame) end
-			end
-			if ContainerFrameCombinedBags:IsShown() then addon.functions.updateBags(ContainerFrameCombinedBags) end
-			if _G.BankPanel and _G.BankPanel:IsShown() then addon.functions.updateBags(_G.BankPanel) end
-		end,
-	},
-	{
-		var = "showIlvlOnBankFrame",
-		text = L["showIlvlOnBankFrame"],
-		func = function(value)
-			addon.db["showIlvlOnBankFrame"] = value
-			if value then
-				if BankFrame:IsShown() then
-					for slot = 1, C_Container.GetContainerNumSlots(BANK_CONTAINER) do
-						local itemButton = _G["BankFrameItem" .. slot]
-						if itemButton then addon.functions.updateBank(itemButton, -1, slot) end
-					end
-				end
-			else
-				if BankFrame:IsShown() then
-					for slot = 1, C_Container.GetContainerNumSlots(BANK_CONTAINER) do
-						local itemButton = _G["BankFrameItem" .. slot]
-						if itemButton and itemButton.ItemLevelText then itemButton.ItemLevelText:Hide() end
-					end
-				end
-			end
-			if _G.BankPanel and _G.BankPanel:IsShown() then addon.functions.updateBags(_G.BankPanel) end
-		end,
-	},
-	{
-		var = "showBindOnBagItems",
-		text = L["showBindOnBagItems"]:format(_G.ITEM_BIND_ON_EQUIP, _G.ITEM_ACCOUNTBOUND_UNTIL_EQUIP, _G.ITEM_BNETACCOUNTBOUND),
-		func = function(value)
-			addon.db["showBindOnBagItems"] = value
-			for _, frame in ipairs(ContainerFrameContainer.ContainerFrames) do
-				if frame:IsShown() then addon.functions.updateBags(frame) end
-			end
-			if ContainerFrameCombinedBags:IsShown() then addon.functions.updateBags(ContainerFrameCombinedBags) end
-		end,
-	},
-	{
-		var = "showUpgradeArrowOnBagItems",
-		text = L["showUpgradeArrowOnBagItems"],
-		func = function(value)
-			addon.db["showUpgradeArrowOnBagItems"] = value
-			for _, frame in ipairs(ContainerFrameContainer.ContainerFrames) do
-				if frame:IsShown() then addon.functions.updateBags(frame) end
-			end
-			if ContainerFrameCombinedBags:IsShown() then addon.functions.updateBags(ContainerFrameCombinedBags) end
-			if _G.BankPanel and _G.BankPanel:IsShown() then addon.functions.updateBags(_G.BankPanel) end
-		end,
-		children = {
-			{
-				list = {
-					TOPLEFT = L["topLeft"],
-					TOPRIGHT = L["topRight"],
-					BOTTOMLEFT = L["bottomLeft"],
-					BOTTOMRIGHT = L["bottomRight"],
-				},
-				text = L["bagUpgradeIconPosition"],
-				get = function() return addon.db["bagUpgradeIconPosition"] or "TOPLEFT" end,
-				set = function(key)
-					addon.db["bagUpgradeIconPosition"] = key
-					for _, frame in ipairs(ContainerFrameContainer.ContainerFrames) do
-						if frame and frame:IsShown() then addon.functions.updateBags(frame) end
-					end
-					if ContainerFrameCombinedBags:IsShown() then addon.functions.updateBags(ContainerFrameCombinedBags) end
-					if _G.BankPanel and _G.BankPanel:IsShown() then addon.functions.updateBags(_G.BankPanel) end
-					if MerchantFrame and MerchantFrame:IsShown() then
-						if MerchantFrame_UpdateMerchantInfo then MerchantFrame_UpdateMerchantInfo() end
-						if MerchantFrame_UpdateBuybackInfo then MerchantFrame_UpdateBuybackInfo() end
-					end
-					if EquipmentFlyoutFrame and EquipmentFlyoutFrame:IsShown() and EquipmentFlyout_UpdateItems then EquipmentFlyout_UpdateItems() end
-				end,
-				parentCheck = function()
-					return addon.SettingsLayout.elements["showUpgradeArrowOnBagItems"]
-						and addon.SettingsLayout.elements["showUpgradeArrowOnBagItems"].setting
-						and addon.SettingsLayout.elements["showUpgradeArrowOnBagItems"].setting:GetValue() == true
-				end,
-				parent = true,
-				default = "TOPRIGHT",
-				var = "bagUpgradeIconPosition",
-				type = Settings.VarType.String,
-				sType = "dropdown",
-			},
-		},
-	},
-	{
-		text = L["closeBagsOnAuctionHouse"],
-		var = "closeBagsOnAuctionHouse",
-		func = function(value) addon.db["closeBagsOnAuctionHouse"] = value end,
-	},
-	-- moved Money Tracker to Vendors & Economy → Money
-}
-table.sort(data, function(a, b)
-	local textA = a.var
-	local textB = b.var
-	if a.text then
-		textA = a.text
-	else
-		textA = L[a.var]
+local cInventory = addon.SettingsLayout.rootGENERAL
+
+local expandable = addon.functions.SettingsCreateExpandableSection(cInventory, {
+	name = L["ItemsInventory"],
+	expanded = false,
+	colorizeTitle = false,
+})
+
+addon.functions.SettingsCreateHeadline(cInventory, BAGSLOT, { parentSection = expandable })
+
+local function refreshBagFrames(includeBankPanel)
+	for _, frame in ipairs(ContainerFrameContainer.ContainerFrames) do
+		if frame:IsShown() then addon.functions.updateBags(frame) end
 	end
-	if b.text then
-		textB = b.text
-	else
-		textB = L[b.var]
+	if ContainerFrameCombinedBags:IsShown() then addon.functions.updateBags(ContainerFrameCombinedBags) end
+	if includeBankPanel and _G.BankPanel and _G.BankPanel:IsShown() then addon.functions.updateBags(_G.BankPanel) end
+end
+
+local function refreshBankSlots(showIlvl)
+	if not BankFrame or not BankFrame:IsShown() then return end
+	for slot = 1, C_Container.GetContainerNumSlots(BANK_CONTAINER) do
+		local itemButton = _G["BankFrameItem" .. slot]
+		if itemButton then
+			if showIlvl then
+				addon.functions.updateBank(itemButton, -1, slot)
+			elseif itemButton.ItemLevelText then
+				itemButton.ItemLevelText:Hide()
+			end
+		end
 	end
-	return textA < textB
-end)
+end
 
-addon.functions.SettingsCreateCheckboxes(cInventory, data)
-
-addon.functions.SettingsCreateHeadline(cInventory, ENABLE_DIALOG)
-
-data = {
-	{
-		var = "deleteItemFillDialog",
-		text = L["deleteItemFillDialog"]:format(DELETE_ITEM_CONFIRM_STRING),
-		desc = L["deleteItemFillDialogDesc"],
-		func = function(value) addon.db["deleteItemFillDialog"] = value end,
-	},
-	{
-		var = "confirmPatronOrderDialog",
-		text = (L["confirmPatronOrderDialog"]):format(PROFESSIONS_CRAFTER_ORDER_TAB_NPC),
-		desc = L["confirmPatronOrderDialogDesc"],
-		func = function(value) addon.db["confirmPatronOrderDialog"] = value end,
-	},
-	{
-		var = "confirmTimerRemovalTrade",
-		text = L["confirmTimerRemovalTrade"],
-		desc = L["confirmTimerRemovalTradeDesc"],
-		func = function(value) addon.db["confirmTimerRemovalTrade"] = value end,
-	},
-	{
-		var = "confirmReplaceEnchant",
-		text = L["confirmReplaceEnchant"],
-		desc = L["confirmReplaceEnchantDesc"],
-		func = function(value) addon.db["confirmReplaceEnchant"] = value end,
-	},
-	{
-		var = "confirmSocketReplace",
-		text = L["confirmSocketReplace"],
-		desc = L["confirmSocketReplaceDesc"],
-		func = function(value) addon.db["confirmSocketReplace"] = value end,
-	},
-	{
-		var = "confirmPurchaseTokenItem",
-		text = L["confirmPurchaseTokenItem"],
-		desc = L["confirmPurchaseTokenItemDesc"],
-		func = function(value) addon.db["confirmPurchaseTokenItem"] = value end,
-	},
-	{
-		var = "confirmHighCostItem",
-		text = L["confirmHighCostItem"],
-		desc = L["confirmHighCostItemDesc"],
-		func = function(value) addon.db["confirmHighCostItem"] = value end,
-	},
-}
-
-table.sort(data, function(a, b)
-	local textA = a.var
-	local textB = b.var
-	if a.text then
-		textA = a.text
-	else
-		textA = L[a.var]
+local function refreshMerchantButtons()
+	if MerchantFrame and MerchantFrame:IsShown() then
+		updateMerchantButtonInfo()
+		updateBuybackButtonInfo()
 	end
-	if b.text then
-		textB = b.text
-	else
-		textB = L[b.var]
-	end
-	return textA < textB
-end)
+end
 
-local rData1 = addon.functions.SettingsCreateCheckboxes(cInventory, data)
+local function isBagDisplaySelected(key)
+	if key == "ilvl" then return addon.db["showIlvlOnBagItems"] == true end
+	if key == "upgrade" then return addon.db["showUpgradeArrowOnBagItems"] == true end
+	if key == "bind" then return addon.db["showBindOnBagItems"] == true end
+	return false
+end
+
+local function setBagDisplayOption(key, value)
+	local enabled = value and true or false
+	if key == "ilvl" then
+		addon.db["showIlvlOnBagItems"] = enabled
+		refreshBagFrames(false)
+	elseif key == "upgrade" then
+		addon.db["showUpgradeArrowOnBagItems"] = enabled
+		refreshBagFrames(true)
+	elseif key == "bind" then
+		addon.db["showBindOnBagItems"] = enabled
+		refreshBagFrames(false)
+	end
+end
+
+local function applyBagDisplaySelection(selection)
+	selection = selection or {}
+	addon.db["showIlvlOnBagItems"] = selection.ilvl == true
+	addon.db["showUpgradeArrowOnBagItems"] = selection.upgrade == true
+	addon.db["showBindOnBagItems"] = selection.bind == true
+	refreshBagFrames(true)
+end
+
+local bindDesc = L["showBindOnBagItemsDesc"]
+if bindDesc then bindDesc = bindDesc:format(_G.ITEM_BIND_ON_EQUIP, _G.ITEM_ACCOUNTBOUND_UNTIL_EQUIP, _G.ITEM_BNETACCOUNTBOUND) end
+
+local bagDisplayDropdown = addon.functions.SettingsCreateMultiDropdown(cInventory, {
+	var = "bagDisplayOptions",
+	text = L["bagDisplayElements"] or "Bag indicators",
+	options = {
+		{ value = "ilvl", text = L["showIlvlOnBagItems"], tooltip = L["showIlvlOnBagItemsDesc"] },
+		{ value = "upgrade", text = L["showUpgradeArrowOnBagItems"], tooltip = L["showUpgradeArrowOnBagItemsDesc"] },
+		{ value = "bind", text = L["showBindOnBagItems"], tooltip = bindDesc },
+	},
+	isSelectedFunc = function(key) return isBagDisplaySelected(key) end,
+	setSelectedFunc = function(key, selected) setBagDisplayOption(key, selected) end,
+	setSelection = applyBagDisplaySelection,
+	parentSection = expandable,
+})
+
+addon.functions.SettingsCreateDropdown(cInventory, {
+	list = {
+		TOPLEFT = L["topLeft"],
+		TOP = L["top"],
+		TOPRIGHT = L["topRight"],
+		LEFT = L["left"],
+		CENTER = L["center"],
+		RIGHT = L["right"],
+		BOTTOMLEFT = L["bottomLeft"],
+		BOTTOM = L["bottom"],
+		BOTTOMRIGHT = L["bottomRight"],
+	},
+	text = L["bagIlvlPosition"],
+	get = function() return addon.db["bagIlvlPosition"] or "TOPLEFT" end,
+	set = function(key) addon.db["bagIlvlPosition"] = key end,
+	parent = bagDisplayDropdown,
+	parentCheck = function() return isBagDisplaySelected("ilvl") end,
+	default = "BOTTOMLEFT",
+	var = "bagIlvlPosition",
+	type = Settings.VarType.String,
+	parentSection = expandable,
+})
+
+addon.functions.SettingsCreateDropdown(cInventory, {
+	list = {
+		TOPLEFT = L["topLeft"],
+		TOPRIGHT = L["topRight"],
+		BOTTOMLEFT = L["bottomLeft"],
+		BOTTOMRIGHT = L["bottomRight"],
+	},
+	text = L["bagUpgradeIconPosition"],
+	get = function() return addon.db["bagUpgradeIconPosition"] or "TOPLEFT" end,
+	set = function(key)
+		addon.db["bagUpgradeIconPosition"] = key
+		for _, frame in ipairs(ContainerFrameContainer.ContainerFrames) do
+			if frame and frame:IsShown() then addon.functions.updateBags(frame) end
+		end
+		if ContainerFrameCombinedBags:IsShown() then addon.functions.updateBags(ContainerFrameCombinedBags) end
+		if _G.BankPanel and _G.BankPanel:IsShown() then addon.functions.updateBags(_G.BankPanel) end
+		if MerchantFrame and MerchantFrame:IsShown() then
+			if MerchantFrame_UpdateMerchantInfo then MerchantFrame_UpdateMerchantInfo() end
+			if MerchantFrame_UpdateBuybackInfo then MerchantFrame_UpdateBuybackInfo() end
+		end
+		if EquipmentFlyoutFrame and EquipmentFlyoutFrame:IsShown() and EquipmentFlyout_UpdateItems then EquipmentFlyout_UpdateItems() end
+	end,
+	parent = bagDisplayDropdown,
+	parentCheck = function() return isBagDisplaySelected("upgrade") end,
+	default = "TOPRIGHT",
+	var = "bagUpgradeIconPosition",
+	type = Settings.VarType.String,
+	parentSection = expandable,
+})
+
+local function isBagItemLevelTargetSelected(key)
+	if key == "bank" then return addon.db["showIlvlOnBankFrame"] == true end
+	if key == "merchant" then return addon.db["showIlvlOnMerchantframe"] == true end
+	return false
+end
+
+local function setBagItemLevelTarget(key, value)
+	local enabled = value and true or false
+	if key == "bank" then
+		addon.db["showIlvlOnBankFrame"] = enabled
+		refreshBankSlots(enabled)
+		if _G.BankPanel and _G.BankPanel:IsShown() then addon.functions.updateBags(_G.BankPanel) end
+	elseif key == "merchant" then
+		addon.db["showIlvlOnMerchantframe"] = enabled
+		refreshMerchantButtons()
+	end
+end
+
+local function applyBagItemLevelTargets(selection)
+	selection = selection or {}
+	addon.db["showIlvlOnBankFrame"] = selection.bank == true
+	addon.db["showIlvlOnMerchantframe"] = selection.merchant == true
+	refreshBankSlots(addon.db["showIlvlOnBankFrame"])
+	if _G.BankPanel and _G.BankPanel:IsShown() then addon.functions.updateBags(_G.BankPanel) end
+	refreshMerchantButtons()
+end
+
+addon.functions.SettingsCreateMultiDropdown(cInventory, {
+	var = "bagItemLevelTargets",
+	text = L["bagItemLevelTargets"] or "Item level targets",
+	options = {
+		{ value = "bank", text = L["showIlvlOnBankFrame"], tooltip = L["showIlvlOnBankFrameDesc"] },
+		{ value = "merchant", text = L["showIlvlOnMerchantframe"], tooltip = L["showIlvlOnMerchantframeDesc"] },
+	},
+	isSelectedFunc = function(key) return isBagItemLevelTargetSelected(key) end,
+	setSelectedFunc = function(key, selected) setBagItemLevelTarget(key, selected) end,
+	setSelection = applyBagItemLevelTargets,
+	parentSection = expandable,
+})
+
+addon.functions.SettingsCreateCheckbox(cInventory, {
+	var = "showBagFilterMenu",
+	text = L["showBagFilterMenu"],
+	desc = (L["showBagFilterMenuDesc"]):format(SHIFT_KEY_TEXT),
+	func = function(value)
+		addon.db["showBagFilterMenu"] = value
+		for _, frame in ipairs(ContainerFrameContainer.ContainerFrames) do
+			if frame:IsShown() then addon.functions.updateBags(frame) end
+		end
+		if ContainerFrameCombinedBags:IsShown() then addon.functions.updateBags(ContainerFrameCombinedBags) end
+		if value then
+			if BankFrame:IsShown() then
+				for slot = 1, C_Container.GetContainerNumSlots(BANK_CONTAINER) do
+					local itemButton = _G["BankFrameItem" .. slot]
+					if itemButton then addon.functions.updateBank(itemButton, -1, slot) end
+				end
+			end
+		else
+			if BankFrame:IsShown() then
+				for slot = 1, C_Container.GetContainerNumSlots(BANK_CONTAINER) do
+					local itemButton = _G["BankFrameItem" .. slot]
+					if itemButton and itemButton.ItemLevelText then itemButton.ItemLevelText:Hide() end
+				end
+			end
+		end
+		if _G.BankPanel and _G.BankPanel:IsShown() then addon.functions.updateBags(_G.BankPanel) end
+	end,
+	parentSection = expandable,
+})
+
+addon.functions.SettingsCreateCheckbox(cInventory, {
+	var = "fadeBagQualityIcons",
+	text = L["fadeBagQualityIcons"],
+	desc = L["fadeBagQualityIconsDesc"],
+	func = function(value)
+		addon.db["fadeBagQualityIcons"] = value
+		for _, frame in ipairs(ContainerFrameContainer.ContainerFrames) do
+			if frame:IsShown() then addon.functions.updateBags(frame) end
+		end
+		if ContainerFrameCombinedBags:IsShown() then addon.functions.updateBags(ContainerFrameCombinedBags) end
+		if _G.BankPanel and _G.BankPanel:IsShown() then addon.functions.updateBags(_G.BankPanel) end
+	end,
+	parentSection = expandable,
+})
+-- moved Money Tracker to Vendors & Economy → Money
 
 ---- REGION END
 

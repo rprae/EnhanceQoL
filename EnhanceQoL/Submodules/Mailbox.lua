@@ -1,3 +1,4 @@
+-- luacheck: globals SendMailFrame_SendMail SendMailFrame_Reset
 local parentAddonName = "EnhanceQoL"
 local addonName, addon = ...
 if _G[parentAddonName] then
@@ -22,6 +23,10 @@ Mailbox.filtered = Mailbox.filtered or {}
 Mailbox.sortKey = Mailbox.sortKey or "name"
 Mailbox.sortAsc = Mailbox.sortAsc ~= false -- default true
 Mailbox.seeded = Mailbox.seeded or false
+Mailbox.lastRecipient = Mailbox.lastRecipient or nil
+Mailbox.rememberHooksInit = Mailbox.rememberHooksInit or false
+Mailbox.rememberHooksAttached = Mailbox.rememberHooksAttached or false
+Mailbox.rememberEventFrame = Mailbox.rememberEventFrame or nil
 
 local ROW_HEIGHT = 20
 -- Effective content width equals 222 (see XML). Allocate columns conservatively to avoid clipping
@@ -32,9 +37,11 @@ local function ensureDB()
 	if addon.functions and addon.functions.InitDBValue then
 		addon.functions.InitDBValue("enableMailboxAddressBook", false)
 		addon.functions.InitDBValue("mailboxContacts", {})
+		addon.functions.InitDBValue("mailboxRememberLastRecipient", false)
 	else
 		addon.db.enableMailboxAddressBook = addon.db.enableMailboxAddressBook or false
 		addon.db.mailboxContacts = addon.db.mailboxContacts or {}
+		addon.db.mailboxRememberLastRecipient = addon.db.mailboxRememberLastRecipient or false
 	end
 end
 
@@ -42,6 +49,76 @@ local function getClassColor(class)
 	local tbl = (CUSTOM_CLASS_COLORS or RAID_CLASS_COLORS) or {}
 	local c = tbl[class] or { r = 1, g = 1, b = 1 }
 	return c.r or 1, c.g or 1, c.b or 1
+end
+
+local function rememberRecipientEnabled() return addon.db and addon.db.mailboxRememberLastRecipient end
+
+local function clearRememberedRecipient() Mailbox.lastRecipient = nil end
+
+local function captureRememberedRecipient()
+	if not rememberRecipientEnabled() then return end
+	if not SendMailNameEditBox then return end
+	local name = SendMailNameEditBox:GetText()
+	if name and name ~= "" then
+		Mailbox.lastRecipient = name
+	else
+		Mailbox.lastRecipient = nil
+	end
+end
+
+local function restoreRememberedRecipient()
+	if not rememberRecipientEnabled() then return end
+	if not MailFrame or not MailFrame:IsShown() then return end
+	if not SendMailNameEditBox then return end
+	local name = Mailbox.lastRecipient
+	if name and name ~= "" then
+		SendMailNameEditBox:SetText(name)
+		SendMailNameEditBox:HighlightText(0, 0)
+	end
+end
+
+function Mailbox:EnsureRememberRecipientHooks()
+	if self.rememberHooksInit then return end
+	self.rememberHooksInit = true
+
+	local function tryHook()
+		if self.rememberHooksAttached then return end
+		if type(SendMailFrame_SendMail) ~= "function" or type(SendMailFrame_Reset) ~= "function" then return end
+		hooksecurefunc("SendMailFrame_SendMail", captureRememberedRecipient)
+		hooksecurefunc("SendMailFrame_Reset", restoreRememberedRecipient)
+		self.rememberHooksAttached = true
+	end
+
+	local frame = self.rememberEventFrame
+	if not frame then
+		frame = CreateFrame("Frame")
+		self.rememberEventFrame = frame
+	end
+	frame:RegisterEvent("ADDON_LOADED")
+	frame:RegisterEvent("MAIL_SHOW")
+	frame:RegisterEvent("MAIL_CLOSED")
+	frame:SetScript("OnEvent", function(_, event, addonName)
+		if event == "ADDON_LOADED" then
+			if addonName ~= "Blizzard_MailFrame" then return end
+			tryHook()
+		elseif event == "MAIL_SHOW" then
+			tryHook()
+		elseif event == "MAIL_CLOSED" then
+			clearRememberedRecipient()
+		end
+	end)
+
+	tryHook()
+end
+
+function Mailbox:SetRememberRecipientEnabled(v)
+	ensureDB()
+	addon.db.mailboxRememberLastRecipient = v and true or false
+	if addon.db.mailboxRememberLastRecipient then
+		self:EnsureRememberRecipientHooks()
+	else
+		clearRememberedRecipient()
+	end
 end
 
 function Mailbox:AddSelfToContacts()
@@ -454,5 +531,6 @@ if not Mailbox.loginFrame then
 		if addon.db.enableMailboxAddressBook then Mailbox:AddSelfToContacts() end
 		-- Apply enable state once UI exists
 		Mailbox:SetEnabled(addon.db.enableMailboxAddressBook)
+		if addon.db.mailboxRememberLastRecipient then Mailbox:EnsureRememberRecipientHooks() end
 	end)
 end

@@ -1,11 +1,20 @@
 local addonName, addon = ...
 
 local L = LibStub("AceLocale-3.0"):GetLocale(addonName)
+local getCVarOptionState = addon.functions.GetCVarOptionState or function() return false end
+local setCVarOptionState = addon.functions.SetCVarOptionState or function() end
 
-local cMapNav = addon.functions.SettingsCreateCategory(nil, L["MapNavigation"], nil, "MapNavigation")
+local cMapNav = addon.SettingsLayout.rootUI
 addon.SettingsLayout.mapNavigationCategory = cMapNav
 
-addon.functions.SettingsCreateHeadline(cMapNav, MINIMAP_LABEL)
+local mapExpandable = addon.functions.SettingsCreateExpandableSection(cMapNav, {
+	name = L["MapNavigation"],
+	newTagID = "MapNavigation",
+	expanded = false,
+	colorizeTitle = false,
+})
+
+addon.functions.SettingsCreateHeadline(cMapNav, L["MapBasics"] or "Map Basics", { parentSection = mapExpandable })
 
 local data = {
 	{
@@ -21,7 +30,39 @@ local data = {
 			end
 		end,
 		default = false,
+		parentSection = mapExpandable,
 	},
+	{
+		var = "showWorldMapCoordinates",
+		text = L["showWorldMapCoordinates"],
+		desc = L["showWorldMapCoordinatesDesc"],
+		func = function(value)
+			addon.db["showWorldMapCoordinates"] = value
+			if value then
+				addon.functions.EnableWorldMapCoordinates()
+			else
+				addon.functions.DisableWorldMapCoordinates()
+			end
+		end,
+		default = false,
+		parentSection = mapExpandable,
+	},
+	{
+		var = "mapFade",
+		text = L["mapFade"],
+		get = function() return getCVarOptionState("mapFade") end,
+		func = function(value) setCVarOptionState("mapFade", value) end,
+		default = false,
+		parentSection = mapExpandable,
+	},
+}
+
+table.sort(data, function(a, b) return a.text < b.text end)
+addon.functions.SettingsCreateCheckboxes(cMapNav, data)
+
+addon.functions.SettingsCreateHeadline(cMapNav, L["SquareMinimap"] or "Square Minimap", { parentSection = mapExpandable })
+
+data = {
 	{
 		var = "enableSquareMinimap",
 		text = L["SquareMinimap"],
@@ -32,6 +73,7 @@ local data = {
 			addon.functions.checkReloadFrame()
 		end,
 		default = false,
+		parentSection = mapExpandable,
 		children = {
 			{
 				var = "enableSquareMinimapLayout",
@@ -53,6 +95,7 @@ local data = {
 				end,
 				parent = true,
 				notify = "enableSquareMinimap",
+				parentSection = mapExpandable,
 			},
 			{
 				var = "enableSquareMinimapBorder",
@@ -71,6 +114,7 @@ local data = {
 				end,
 				parent = true,
 				notify = "enableSquareMinimap",
+				parentSection = mapExpandable,
 			},
 			{
 				var = "squareMinimapBorderSize",
@@ -94,6 +138,7 @@ local data = {
 				parent = true,
 				default = 1,
 				sType = "slider",
+				parentSection = mapExpandable,
 			},
 			{
 				var = "squareMinimapBorderColor",
@@ -114,8 +159,47 @@ local data = {
 				callback = function()
 					if addon.functions.applySquareMinimapBorder then addon.functions.applySquareMinimapBorder() end
 				end,
+				parentSection = mapExpandable,
 			},
 		},
+	},
+}
+
+table.sort(data, function(a, b) return a.text < b.text end)
+addon.functions.SettingsCreateCheckboxes(cMapNav, data)
+
+addon.functions.SettingsCreateHeadline(cMapNav, L["MinimapButtonsAndCluster"] or "Minimap Buttons & Cluster", { parentSection = mapExpandable })
+
+data = {
+	{
+		var = "minimapButtonsMouseover",
+		text = L["minimapButtonsMouseover"],
+		desc = L["minimapButtonsMouseoverDesc"],
+		func = function(key)
+			addon.db["minimapButtonsMouseover"] = key
+			if addon.functions.applyMinimapButtonMouseover then addon.functions.applyMinimapButtonMouseover() end
+		end,
+		default = false,
+		parentCheck = function()
+			return not (
+				addon.SettingsLayout.elements["enableMinimapButtonBin"]
+				and addon.SettingsLayout.elements["enableMinimapButtonBin"].setting
+				and addon.SettingsLayout.elements["enableMinimapButtonBin"].setting:GetValue() == true
+			)
+		end,
+		notify = "enableMinimapButtonBin",
+		parentSection = mapExpandable,
+	},
+	{
+		var = "unclampMinimapCluster",
+		text = L["unclampMinimapCluster"],
+		desc = L["unclampMinimapClusterDesc"],
+		func = function(key)
+			addon.db["unclampMinimapCluster"] = key
+			if addon.functions.applyMinimapClusterClamp then addon.functions.applyMinimapClusterClamp() end
+		end,
+		default = false,
+		parentSection = mapExpandable,
 	},
 	{
 		var = "hideMinimapButton",
@@ -125,6 +209,7 @@ local data = {
 			addon.functions.toggleMinimapButton(addon.db["hideMinimapButton"])
 		end,
 		default = false,
+		parentSection = mapExpandable,
 	},
 }
 
@@ -134,6 +219,7 @@ addon.functions.SettingsCreateCheckboxes(cMapNav, data)
 addon.functions.SettingsCreateMultiDropdown(cMapNav, {
 	var = "hiddenMinimapElements",
 	text = L["minimapHideElements"],
+	parentSection = mapExpandable,
 	options = {
 		{ value = "Tracking", text = L["minimapHideElements_Tracking"] },
 		{ value = "ZoneInfo", text = L["minimapHideElements_ZoneInfo"] },
@@ -147,29 +233,7 @@ addon.functions.SettingsCreateMultiDropdown(cMapNav, {
 	end,
 })
 
-addon.functions.SettingsCreateHeadline(cMapNav, WORLD_MAP)
-
-data = {
-	{
-		var = "showWorldMapCoordinates",
-		text = L["showWorldMapCoordinates"],
-		desc = L["showWorldMapCoordinatesDesc"],
-		func = function(value)
-			addon.db["showWorldMapCoordinates"] = value
-			if value then
-				addon.functions.EnableWorldMapCoordinates()
-			else
-				addon.functions.DisableWorldMapCoordinates()
-			end
-		end,
-		default = false,
-	},
-}
-
-table.sort(data, function(a, b) return a.text < b.text end)
-addon.functions.SettingsCreateCheckboxes(cMapNav, data)
-
-addon.functions.SettingsCreateHeadline(cMapNav, SPECIALIZATION)
+addon.functions.SettingsCreateHeadline(cMapNav, L["LootspecAndLandingPage"] or "Lootspec & Landing Page", { parentSection = mapExpandable })
 
 data = {
 	{
@@ -185,28 +249,337 @@ data = {
 			end
 		end,
 		default = false,
+		parentSection = mapExpandable,
+	},
+	{
+		var = "enableLandingPageMenu",
+		text = L["enableLandingPageMenu"],
+		desc = L["enableLandingPageMenuDesc"],
+		func = function(key) addon.db["enableLandingPageMenu"] = key end,
+		default = false,
+		parentSection = mapExpandable,
 	},
 }
 
 table.sort(data, function(a, b) return a.text < b.text end)
 addon.functions.SettingsCreateCheckboxes(cMapNav, data)
 
-addon.functions.SettingsCreateHeadline(cMapNav, L["MinimapButtonSinkGroup"])
+addon.functions.SettingsCreateText(cMapNav, "|cff99e599" .. L["landingPageHide"] .. "|r", { parentSection = mapExpandable })
+
+local function resolveLandingPageId(value)
+	if type(value) == "number" then return value end
+	if type(value) == "string" then
+		local reverse = addon.variables and addon.variables.landingPageReverse
+		return (reverse and reverse[value]) or tonumber(value)
+	end
+end
+
+local function normalizeHiddenLandingPages()
+	addon.db.hiddenLandingPages = addon.db.hiddenLandingPages or {}
+	local toClear = {}
+	for key, flag in pairs(addon.db.hiddenLandingPages) do
+		if type(key) ~= "number" then
+			local resolved = resolveLandingPageId(key)
+			if resolved then
+				addon.db.hiddenLandingPages[resolved] = flag and true or nil
+				table.insert(toClear, key)
+			end
+		end
+	end
+	for _, key in ipairs(toClear) do
+		addon.db.hiddenLandingPages[key] = nil
+	end
+end
+
+normalizeHiddenLandingPages()
+
+local function getIgnoreStateLandingPage(value)
+	if not value then return false end
+	addon.db.hiddenLandingPages = addon.db.hiddenLandingPages or {}
+	local resolved = resolveLandingPageId(value)
+	if not resolved then return false end
+	return addon.db.hiddenLandingPages[resolved] and true or false
+end
+
+local function setIgnoreStateLandingPage(value, shouldSelect)
+	if not value then return end
+	addon.db.hiddenLandingPages = addon.db.hiddenLandingPages or {}
+	local resolved = resolveLandingPageId(value)
+	if not resolved then return end
+	if shouldSelect then
+		addon.db.hiddenLandingPages[resolved] = true
+	else
+		addon.db.hiddenLandingPages[resolved] = nil
+	end
+	local page = addon.variables and addon.variables.landingPageType and addon.variables.landingPageType[resolved]
+	if page and addon.functions.toggleLandingPageButton then addon.functions.toggleLandingPageButton(page.title, shouldSelect) end
+end
+
+addon.functions.SettingsCreateMultiDropdown(cMapNav, {
+	var = "hiddenLandingPages",
+	text = HIDE,
+	parentSection = mapExpandable,
+	optionfunc = function()
+		local buttons = (addon.variables and addon.variables.landingPageType) or {}
+		local list = {}
+		for id in pairs(buttons) do
+			table.insert(list, { value = id, text = buttons[id].title })
+		end
+		table.sort(list, function(a, b) return tostring(a.text) < tostring(b.text) end)
+		return list
+	end,
+	isSelectedFunc = getIgnoreStateLandingPage,
+	setSelectedFunc = setIgnoreStateLandingPage,
+})
+
+addon.functions.SettingsCreateHeadline(cMapNav, L["InstanceDifficultyIndicator"] or "Instance Difficulty Indicator", { parentSection = mapExpandable })
+
+data = {
+	{
+		var = "showInstanceDifficulty",
+		text = L["showInstanceDifficulty"],
+		desc = L["showInstanceDifficultyDesc"],
+		func = function(key)
+			addon.db["showInstanceDifficulty"] = key
+			if addon.InstanceDifficulty and addon.InstanceDifficulty.SetEnabled then addon.InstanceDifficulty:SetEnabled(key) end
+		end,
+		default = false,
+		parentSection = mapExpandable,
+		children = {
+			{
+				var = "instanceDifficultyFontSize",
+				text = L["instanceDifficultyFontSize"],
+				parentCheck = function()
+					return addon.SettingsLayout.elements["showInstanceDifficulty"]
+						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting
+						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting:GetValue() == true
+				end,
+				get = function() return addon.db and addon.db.instanceDifficultyFontSize or 1 end,
+				set = function(value)
+					addon.db["instanceDifficultyFontSize"] = value
+					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
+				end,
+				min = 8,
+				max = 28,
+				step = 1,
+				parent = true,
+				default = 14,
+				sType = "slider",
+				parentSection = mapExpandable,
+			},
+			{
+				var = "instanceDifficultyOffsetX",
+				text = L["instanceDifficultyOffsetX"],
+				parentCheck = function()
+					return addon.SettingsLayout.elements["showInstanceDifficulty"]
+						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting
+						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting:GetValue() == true
+				end,
+				get = function() return addon.db and addon.db.instanceDifficultyOffsetX or 0 end,
+				set = function(value)
+					addon.db["instanceDifficultyOffsetX"] = value
+					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
+				end,
+				min = -400,
+				max = 400,
+				step = 1,
+				parent = true,
+				default = 0,
+				sType = "slider",
+				parentSection = mapExpandable,
+			},
+			{
+				var = "instanceDifficultyOffsetY",
+				text = L["instanceDifficultyOffsetY"],
+				parentCheck = function()
+					return addon.SettingsLayout.elements["showInstanceDifficulty"]
+						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting
+						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting:GetValue() == true
+				end,
+				get = function() return addon.db and addon.db.instanceDifficultyOffsetY or 0 end,
+				set = function(value)
+					addon.db["instanceDifficultyOffsetY"] = value
+					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
+				end,
+				min = -400,
+				max = 400,
+				step = 1,
+				parent = true,
+				default = 0,
+				sType = "slider",
+				parentSection = mapExpandable,
+			},
+			{
+				var = "instanceDifficultyUseColors",
+				text = L["instanceDifficultyUseColors"],
+				func = function(key)
+					addon.db["instanceDifficultyUseColors"] = key
+					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
+				end,
+				default = false,
+				sType = "checkbox",
+				parentCheck = function()
+					return addon.SettingsLayout.elements["showInstanceDifficulty"]
+						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting
+						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting:GetValue() == true
+				end,
+				parent = true,
+				notify = "showInstanceDifficulty",
+				parentSection = mapExpandable,
+			},
+			{
+				var = "instanceDifficultyColors",
+				subvar = "LFR",
+				hasOpacity = true,
+				text = _G["PLAYER_DIFFICULTY3"],
+				parentCheck = function()
+					return addon.SettingsLayout.elements["instanceDifficultyUseColors"]
+						and addon.SettingsLayout.elements["instanceDifficultyUseColors"].setting
+						and addon.SettingsLayout.elements["instanceDifficultyUseColors"].setting:GetValue() == true
+						and addon.SettingsLayout.elements["showInstanceDifficulty"]
+						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting
+						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting:GetValue() == true
+				end,
+				parent = true,
+				default = false,
+				sType = "colorpicker",
+				callback = function()
+					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
+				end,
+				parentSection = mapExpandable,
+			},
+			{
+				var = "instanceDifficultyColors",
+				subvar = "NM",
+				hasOpacity = true,
+				text = _G["PLAYER_DIFFICULTY1"],
+				parentCheck = function()
+					return addon.SettingsLayout.elements["instanceDifficultyUseColors"]
+						and addon.SettingsLayout.elements["instanceDifficultyUseColors"].setting
+						and addon.SettingsLayout.elements["instanceDifficultyUseColors"].setting:GetValue() == true
+						and addon.SettingsLayout.elements["showInstanceDifficulty"]
+						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting
+						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting:GetValue() == true
+				end,
+				parent = true,
+				default = false,
+				sType = "colorpicker",
+				callback = function()
+					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
+				end,
+				parentSection = mapExpandable,
+			},
+			{
+				var = "instanceDifficultyColors",
+				subvar = "HC",
+				hasOpacity = true,
+				text = _G["PLAYER_DIFFICULTY2"],
+				parentCheck = function()
+					return addon.SettingsLayout.elements["instanceDifficultyUseColors"]
+						and addon.SettingsLayout.elements["instanceDifficultyUseColors"].setting
+						and addon.SettingsLayout.elements["instanceDifficultyUseColors"].setting:GetValue() == true
+						and addon.SettingsLayout.elements["showInstanceDifficulty"]
+						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting
+						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting:GetValue() == true
+				end,
+				parent = true,
+				default = false,
+				sType = "colorpicker",
+				callback = function()
+					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
+				end,
+				parentSection = mapExpandable,
+			},
+			{
+				var = "instanceDifficultyColors",
+				subvar = "M",
+				hasOpacity = true,
+				text = _G["PLAYER_DIFFICULTY6"],
+				parentCheck = function()
+					return addon.SettingsLayout.elements["instanceDifficultyUseColors"]
+						and addon.SettingsLayout.elements["instanceDifficultyUseColors"].setting
+						and addon.SettingsLayout.elements["instanceDifficultyUseColors"].setting:GetValue() == true
+						and addon.SettingsLayout.elements["showInstanceDifficulty"]
+						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting
+						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting:GetValue() == true
+				end,
+				parent = true,
+				default = false,
+				sType = "colorpicker",
+				callback = function()
+					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
+				end,
+				parentSection = mapExpandable,
+			},
+			{
+				var = "instanceDifficultyColors",
+				subvar = "MPLUS",
+				hasOpacity = true,
+				text = _G["PLAYER_DIFFICULTY_MYTHIC_PLUS"],
+				parentCheck = function()
+					return addon.SettingsLayout.elements["instanceDifficultyUseColors"]
+						and addon.SettingsLayout.elements["instanceDifficultyUseColors"].setting
+						and addon.SettingsLayout.elements["instanceDifficultyUseColors"].setting:GetValue() == true
+						and addon.SettingsLayout.elements["showInstanceDifficulty"]
+						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting
+						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting:GetValue() == true
+				end,
+				parent = true,
+				default = false,
+				sType = "colorpicker",
+				callback = function()
+					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
+				end,
+				parentSection = mapExpandable,
+			},
+			{
+				var = "instanceDifficultyColors",
+				subvar = "TW",
+				hasOpacity = true,
+				text = _G["PLAYER_DIFFICULTY_TIMEWALKER"],
+				parentCheck = function()
+					return addon.SettingsLayout.elements["instanceDifficultyUseColors"]
+						and addon.SettingsLayout.elements["instanceDifficultyUseColors"].setting
+						and addon.SettingsLayout.elements["instanceDifficultyUseColors"].setting:GetValue() == true
+						and addon.SettingsLayout.elements["showInstanceDifficulty"]
+						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting
+						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting:GetValue() == true
+				end,
+				parent = true,
+				default = false,
+				sType = "colorpicker",
+				callback = function()
+					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
+				end,
+				parentSection = mapExpandable,
+			},
+		},
+	},
+}
+
+table.sort(data, function(a, b) return a.text < b.text end)
+addon.functions.SettingsCreateCheckboxes(cMapNav, data)
+
+addon.functions.SettingsCreateHeadline(cMapNav, L["MinimapButtonBin"] or "Minimap Button Bin", { parentSection = mapExpandable })
+local buttonSinkSection = mapExpandable
 
 data = {
 	{
 		var = "enableMinimapButtonBin",
 		text = L["enableMinimapButtonBin"],
-		desc = L["enableMinimapButtonBin"],
+		desc = L["enableMinimapButtonBinDesc"],
 		func = function(key)
 			addon.db["enableMinimapButtonBin"] = key
 			addon.functions.toggleButtonSink()
+			if addon.functions.applyMinimapButtonMouseover then addon.functions.applyMinimapButtonMouseover() end
 		end,
 		default = false,
+		parentSection = buttonSinkSection,
 		children = {
 			{
 				var = "useMinimapButtonBinIcon",
 				text = L["useMinimapButtonBinIcon"],
+				desc = L["useMinimapButtonBinIconDesc"],
 				func = function(key)
 					addon.db["useMinimapButtonBinIcon"] = key
 					if key then addon.db["useMinimapButtonBinMouseover"] = false end
@@ -227,6 +600,7 @@ data = {
 				end,
 				parent = true,
 				notify = "enableMinimapButtonBin",
+				parentSection = buttonSinkSection,
 			},
 			{
 				var = "buttonSinkAnchorPreference",
@@ -282,10 +656,12 @@ data = {
 				end,
 				notify = "enableMinimapButtonBin",
 				sType = "dropdown",
+				parentSection = buttonSinkSection,
 			},
 			{
 				var = "useMinimapButtonBinMouseover",
 				text = L["useMinimapButtonBinMouseover"],
+				desc = L["useMinimapButtonBinMouseoverDesc"],
 				func = function(key)
 					addon.db["useMinimapButtonBinMouseover"] = key
 					if key then addon.db["useMinimapButtonBinIcon"] = false end
@@ -303,10 +679,12 @@ data = {
 				end,
 				parent = true,
 				notify = "enableMinimapButtonBin",
+				parentSection = buttonSinkSection,
 			},
 			{
 				var = "lockMinimapButtonBin",
 				text = L["lockMinimapButtonBin"],
+				desc = L["lockMinimapButtonBinDesc"],
 				func = function(key)
 					addon.db["lockMinimapButtonBin"] = key
 					addon.functions.toggleButtonSink()
@@ -323,10 +701,12 @@ data = {
 				end,
 				parent = true,
 				notify = "enableMinimapButtonBin",
+				parentSection = buttonSinkSection,
 			},
 			{
 				var = "minimapButtonBinHideBorder",
 				text = L["minimapButtonBinHideBorder"],
+				desc = L["minimapButtonBinHideBorderDesc"],
 				func = function(key)
 					addon.db["minimapButtonBinHideBorder"] = key
 					addon.functions.toggleButtonSink()
@@ -339,10 +719,12 @@ data = {
 						and addon.SettingsLayout.elements["enableMinimapButtonBin"].setting:GetValue() == true
 				end,
 				parent = true,
+				parentSection = buttonSinkSection,
 			},
 			{
 				var = "minimapButtonBinHideBackground",
 				text = L["minimapButtonBinHideBackground"],
+				desc = L["minimapButtonBinHideBackgroundDesc"],
 				func = function(key)
 					addon.db["minimapButtonBinHideBackground"] = key
 					if addon.functions.applyButtonSinkAppearance then addon.functions.applyButtonSinkAppearance() end
@@ -355,10 +737,12 @@ data = {
 						and addon.SettingsLayout.elements["enableMinimapButtonBin"].setting:GetValue() == true
 				end,
 				parent = true,
+				parentSection = buttonSinkSection,
 			},
 			{
 				var = "minimapButtonBinColumns",
 				text = L["minimapButtonBinColumns"],
+				desc = L["minimapButtonBinColumnsDesc"],
 				set = function(val)
 					val = math.floor(val + 0.5)
 					if val < 1 then
@@ -380,10 +764,12 @@ data = {
 				max = 10,
 				step = 1,
 				default = 4,
+				parentSection = buttonSinkSection,
 			},
 			{
 				text = "|cff99e599" .. L["ignoreMinimapSinkHole"] .. "|r",
 				sType = "hint",
+				parentSection = buttonSinkSection,
 			},
 		},
 	},
@@ -424,10 +810,11 @@ end
 
 addon.functions.SettingsCreateMultiDropdown(cMapNav, {
 	var = "ignoreMinimapSinkHole",
-	text = IGNORE,
+	text = L["minimapButtonBinIgnore"] or IGNORE,
 	parent = true,
 	element = addon.SettingsLayout.elements["enableMinimapButtonBin"] and addon.SettingsLayout.elements["enableMinimapButtonBin"].element,
 	parentCheck = isMinimapButtonBinEnabled,
+	parentSection = buttonSinkSection,
 	optionfunc = function()
 		local buttons = (addon.variables and addon.variables.bagButtonState) or {}
 		local list = {}
@@ -441,305 +828,6 @@ addon.functions.SettingsCreateMultiDropdown(cMapNav, {
 	isSelectedFunc = getIgnoreState,
 	setSelectedFunc = setIgnoreState,
 })
-
-addon.functions.SettingsCreateHeadline(cMapNav, L["LandingPage"])
-
-data = {
-	{
-		var = "enableLandingPageMenu",
-		text = L["enableLandingPageMenu"],
-		desc = L["enableLandingPageMenuDesc"],
-		func = function(key) addon.db["enableLandingPageMenu"] = key end,
-		default = false,
-	},
-}
-
-table.sort(data, function(a, b) return a.text < b.text end)
-addon.functions.SettingsCreateCheckboxes(cMapNav, data)
-
-addon.functions.SettingsCreateText(cMapNav, "|cff99e599" .. L["landingPageHide"] .. "|r")
-
-local function resolveLandingPageId(value)
-	if type(value) == "number" then return value end
-	if type(value) == "string" then
-		local reverse = addon.variables and addon.variables.landingPageReverse
-		return (reverse and reverse[value]) or tonumber(value)
-	end
-end
-
-local function normalizeHiddenLandingPages()
-	addon.db.hiddenLandingPages = addon.db.hiddenLandingPages or {}
-	local toClear = {}
-	for key, flag in pairs(addon.db.hiddenLandingPages) do
-		if type(key) ~= "number" then
-			local resolved = resolveLandingPageId(key)
-			if resolved then
-				addon.db.hiddenLandingPages[resolved] = flag and true or nil
-				table.insert(toClear, key)
-			end
-		end
-	end
-	for _, key in ipairs(toClear) do
-		addon.db.hiddenLandingPages[key] = nil
-	end
-end
-
-normalizeHiddenLandingPages()
-
-local function getIgnoreStateLandingPage(value)
-	if not value then return false end
-	addon.db.hiddenLandingPages = addon.db.hiddenLandingPages or {}
-	local resolved = resolveLandingPageId(value)
-	if not resolved then return false end
-	return addon.db.hiddenLandingPages[resolved] and true or false
-end
-
-local function setIgnoreStateLandingPage(value, shouldSelect)
-	if not value then return end
-	addon.db.hiddenLandingPages = addon.db.hiddenLandingPages or {}
-	local resolved = resolveLandingPageId(value)
-	if not resolved then return end
-	if shouldSelect then
-		addon.db.hiddenLandingPages[resolved] = true
-	else
-		addon.db.hiddenLandingPages[resolved] = nil
-	end
-	local page = addon.variables and addon.variables.landingPageType and addon.variables.landingPageType[resolved]
-	if page and addon.functions.toggleLandingPageButton then addon.functions.toggleLandingPageButton(page.title, shouldSelect) end
-end
-
-addon.functions.SettingsCreateMultiDropdown(cMapNav, {
-	var = "hiddenLandingPages",
-	text = HIDE,
-	optionfunc = function()
-		local buttons = (addon.variables and addon.variables.landingPageType) or {}
-		local list = {}
-		for id in pairs(buttons) do
-			table.insert(list, { value = id, text = buttons[id].title })
-		end
-		table.sort(list, function(a, b) return tostring(a.text) < tostring(b.text) end)
-		return list
-	end,
-	isSelectedFunc = getIgnoreStateLandingPage,
-	setSelectedFunc = setIgnoreStateLandingPage,
-})
-
-addon.functions.SettingsCreateHeadline(cMapNav, L["showInstanceDifficulty"])
-
-data = {
-	{
-		var = "showInstanceDifficulty",
-		text = L["showInstanceDifficulty"],
-		desc = L["showInstanceDifficultyDesc"],
-		func = function(key)
-			addon.db["showInstanceDifficulty"] = key
-			if addon.InstanceDifficulty and addon.InstanceDifficulty.SetEnabled then addon.InstanceDifficulty:SetEnabled(key) end
-		end,
-		default = false,
-		children = {
-			{
-				var = "instanceDifficultyFontSize",
-				text = L["instanceDifficultyFontSize"],
-				parentCheck = function()
-					return addon.SettingsLayout.elements["showInstanceDifficulty"]
-						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting
-						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting:GetValue() == true
-				end,
-				get = function() return addon.db and addon.db.instanceDifficultyFontSize or 1 end,
-				set = function(value)
-					addon.db["instanceDifficultyFontSize"] = value
-					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
-				end,
-				min = 8,
-				max = 28,
-				step = 1,
-				parent = true,
-				default = 14,
-				sType = "slider",
-			},
-			{
-				var = "instanceDifficultyOffsetX",
-				text = L["instanceDifficultyOffsetX"],
-				parentCheck = function()
-					return addon.SettingsLayout.elements["showInstanceDifficulty"]
-						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting
-						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting:GetValue() == true
-				end,
-				get = function() return addon.db and addon.db.instanceDifficultyOffsetX or 0 end,
-				set = function(value)
-					addon.db["instanceDifficultyOffsetX"] = value
-					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
-				end,
-				min = -400,
-				max = 400,
-				step = 1,
-				parent = true,
-				default = 0,
-				sType = "slider",
-			},
-			{
-				var = "instanceDifficultyOffsetY",
-				text = L["instanceDifficultyOffsetY"],
-				parentCheck = function()
-					return addon.SettingsLayout.elements["showInstanceDifficulty"]
-						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting
-						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting:GetValue() == true
-				end,
-				get = function() return addon.db and addon.db.instanceDifficultyOffsetY or 0 end,
-				set = function(value)
-					addon.db["instanceDifficultyOffsetY"] = value
-					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
-				end,
-				min = -400,
-				max = 400,
-				step = 1,
-				parent = true,
-				default = 0,
-				sType = "slider",
-			},
-			{
-				var = "instanceDifficultyUseColors",
-				text = L["instanceDifficultyUseColors"],
-				func = function(key)
-					addon.db["instanceDifficultyUseColors"] = key
-					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
-				end,
-				default = false,
-				sType = "checkbox",
-				parentCheck = function()
-					return addon.SettingsLayout.elements["showInstanceDifficulty"]
-						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting
-						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting:GetValue() == true
-				end,
-				parent = true,
-				notify = "showInstanceDifficulty",
-			},
-			{
-				var = "instanceDifficultyColors",
-				subvar = "LFR",
-				hasOpacity = true,
-				text = _G["PLAYER_DIFFICULTY3"],
-				parentCheck = function()
-					return addon.SettingsLayout.elements["instanceDifficultyUseColors"]
-						and addon.SettingsLayout.elements["instanceDifficultyUseColors"].setting
-						and addon.SettingsLayout.elements["instanceDifficultyUseColors"].setting:GetValue() == true
-						and addon.SettingsLayout.elements["showInstanceDifficulty"]
-						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting
-						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting:GetValue() == true
-				end,
-				parent = true,
-				default = false,
-				sType = "colorpicker",
-				callback = function()
-					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
-				end,
-			},
-			{
-				var = "instanceDifficultyColors",
-				subvar = "NM",
-				hasOpacity = true,
-				text = _G["PLAYER_DIFFICULTY1"],
-				parentCheck = function()
-					return addon.SettingsLayout.elements["instanceDifficultyUseColors"]
-						and addon.SettingsLayout.elements["instanceDifficultyUseColors"].setting
-						and addon.SettingsLayout.elements["instanceDifficultyUseColors"].setting:GetValue() == true
-						and addon.SettingsLayout.elements["showInstanceDifficulty"]
-						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting
-						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting:GetValue() == true
-				end,
-				parent = true,
-				default = false,
-				sType = "colorpicker",
-				callback = function()
-					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
-				end,
-			},
-			{
-				var = "instanceDifficultyColors",
-				subvar = "HC",
-				hasOpacity = true,
-				text = _G["PLAYER_DIFFICULTY2"],
-				parentCheck = function()
-					return addon.SettingsLayout.elements["instanceDifficultyUseColors"]
-						and addon.SettingsLayout.elements["instanceDifficultyUseColors"].setting
-						and addon.SettingsLayout.elements["instanceDifficultyUseColors"].setting:GetValue() == true
-						and addon.SettingsLayout.elements["showInstanceDifficulty"]
-						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting
-						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting:GetValue() == true
-				end,
-				parent = true,
-				default = false,
-				sType = "colorpicker",
-				callback = function()
-					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
-				end,
-			},
-			{
-				var = "instanceDifficultyColors",
-				subvar = "M",
-				hasOpacity = true,
-				text = _G["PLAYER_DIFFICULTY6"],
-				parentCheck = function()
-					return addon.SettingsLayout.elements["instanceDifficultyUseColors"]
-						and addon.SettingsLayout.elements["instanceDifficultyUseColors"].setting
-						and addon.SettingsLayout.elements["instanceDifficultyUseColors"].setting:GetValue() == true
-						and addon.SettingsLayout.elements["showInstanceDifficulty"]
-						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting
-						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting:GetValue() == true
-				end,
-				parent = true,
-				default = false,
-				sType = "colorpicker",
-				callback = function()
-					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
-				end,
-			},
-			{
-				var = "instanceDifficultyColors",
-				subvar = "MPLUS",
-				hasOpacity = true,
-				text = _G["PLAYER_DIFFICULTY_MYTHIC_PLUS"],
-				parentCheck = function()
-					return addon.SettingsLayout.elements["instanceDifficultyUseColors"]
-						and addon.SettingsLayout.elements["instanceDifficultyUseColors"].setting
-						and addon.SettingsLayout.elements["instanceDifficultyUseColors"].setting:GetValue() == true
-						and addon.SettingsLayout.elements["showInstanceDifficulty"]
-						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting
-						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting:GetValue() == true
-				end,
-				parent = true,
-				default = false,
-				sType = "colorpicker",
-				callback = function()
-					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
-				end,
-			},
-			{
-				var = "instanceDifficultyColors",
-				subvar = "TW",
-				hasOpacity = true,
-				text = _G["PLAYER_DIFFICULTY_TIMEWALKER"],
-				parentCheck = function()
-					return addon.SettingsLayout.elements["instanceDifficultyUseColors"]
-						and addon.SettingsLayout.elements["instanceDifficultyUseColors"].setting
-						and addon.SettingsLayout.elements["instanceDifficultyUseColors"].setting:GetValue() == true
-						and addon.SettingsLayout.elements["showInstanceDifficulty"]
-						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting
-						and addon.SettingsLayout.elements["showInstanceDifficulty"].setting:GetValue() == true
-				end,
-				parent = true,
-				default = false,
-				sType = "colorpicker",
-				callback = function()
-					if addon.InstanceDifficulty then addon.InstanceDifficulty:Update() end
-				end,
-			},
-		},
-	},
-}
-
-table.sort(data, function(a, b) return a.text < b.text end)
-addon.functions.SettingsCreateCheckboxes(cMapNav, data)
 
 ----- REGION END
 
@@ -846,6 +934,7 @@ local function applySquareMinimapLayout(self, underneath)
 
 	local addonCompartment = _G.AddonCompartmentFrame
 	local instanceDifficulty = MinimapCluster and MinimapCluster.InstanceDifficulty
+	local indicatorFrame = MinimapCluster and MinimapCluster.IndicatorFrame
 
 	local headerUnderneath = underneath
 	if headerUnderneath == nil then
@@ -859,7 +948,7 @@ local function applySquareMinimapLayout(self, underneath)
 	Minimap:ClearAllPoints()
 	Minimap.ZoomIn:ClearAllPoints()
 	Minimap.ZoomOut:ClearAllPoints()
-	MinimapCluster.IndicatorFrame:ClearAllPoints()
+	if indicatorFrame then indicatorFrame:ClearAllPoints() end
 	if addonCompartment then addonCompartment:ClearAllPoints() end
 	if instanceDifficulty then instanceDifficulty:ClearAllPoints() end
 
@@ -878,7 +967,7 @@ local function applySquareMinimapLayout(self, underneath)
 		Minimap.ZoomOut:SetPoint("RIGHT", Minimap.ZoomIn, "LEFT", -6, 0)
 		if addonCompartment then addonCompartment:SetPoint("TOP", Minimap.ZoomIn, "TOP", 0, -20) end
 	end
-	MinimapCluster.IndicatorFrame:SetPoint("RIGHT", MinimapCluster.Tracking.Button, "LEFT", -10, 0)
+	if indicatorFrame then indicatorFrame:SetPoint("TOPLEFT", Minimap, "TOPLEFT", 2, -2) end
 
 	if addonCompartment then addonCompartment:SetFrameStrata("MEDIUM") end
 end
@@ -890,10 +979,21 @@ function addon.functions.applySquareMinimapLayout(forceUnderneath)
 		hooksecurefunc(MinimapCluster, "SetHeaderUnderneath", applySquareMinimapLayout)
 		addon.variables.squareMinimapLayoutHooked = true
 	end
+	if not addon.variables.squareMinimapIndicatorHooked and type(_G.MiniMapIndicatorFrame_UpdatePosition) == "function" then
+		hooksecurefunc("MiniMapIndicatorFrame_UpdatePosition", function()
+			if not addon.db or not addon.db.enableSquareMinimap or not addon.db.enableSquareMinimapLayout then return end
+			if not Minimap or not MinimapCluster or not MinimapCluster.IndicatorFrame then return end
+			MinimapCluster.IndicatorFrame:ClearAllPoints()
+			MinimapCluster.IndicatorFrame:SetPoint("TOPLEFT", Minimap, "TOPLEFT", 2, -2)
+		end)
+		addon.variables.squareMinimapIndicatorHooked = true
+	end
 end
 
 function addon.functions.initMapNav()
 	addon.functions.applySquareMinimapLayout()
+	if addon.functions.applyMinimapClusterClamp then addon.functions.applyMinimapClusterClamp() end
+	if addon.functions.applyMinimapButtonMouseover then addon.functions.applyMinimapButtonMouseover() end
 	addon.functions.EnableWorldMapCoordinates()
 end
 

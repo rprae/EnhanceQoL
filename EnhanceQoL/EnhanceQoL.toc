@@ -26,6 +26,7 @@
 libs\LibStub\LibStub.lua
 libs\AceLocale-3.0\AceLocale-3.0.xml
 locales\[TextLocale].lua
+Modules\MythicPlus\Locales\[TextLocale].lua
 Init.lua
 NewSettingsTable.lua
 
@@ -35,6 +36,7 @@ libs\LibDBIcon-1.0\lib.xml
 libs\AceGUI-3.0\AceGUI-3.0.xml
 libs\LibDeflate\lib.xml
 libs\LibSharedMedia-3.0\lib.xml
+libs\LibOpenKeystone\LibOpenKeystone.lua
 libs\AceSerializer-3.0\AceSerializer-3.0.xml
 libs\AceComm-3.0\AceComm-3.0.xml
 libs\LibEQOL\LibEQOL.xml
@@ -53,9 +55,13 @@ Core\MovementSpeedStat.lua
 Core\Streams\Streams.xml
 Submodules\GemHelper.lua
 Submodules\ContainerActions.lua
+Submodules\ActionTracker.lua
+Submodules\GCDBar.lua
 Submodules\ChatIM\ChannelHistory.lua
 Submodules\ChatIM\UI.lua
 Submodules\ChatIM\Core.lua
+Submodules\TradeMailLog.xml
+Submodules\TradeMailLog.lua
 Submodules\LootToast.lua
 Submodules\ChatIcons.lua
 Submodules\CommunityChatPrivacy.lua
@@ -68,4 +74,37 @@ Submodules\Merchant.lua
 Submodules\HealthText.lua
 Submodules\Mailbox.lua
 Submodules\Mailbox.xml
+Modules\Aura\Locales\[TextLocale].lua
+Modules\Aura\Init.lua
+Modules\Aura\ResourceBars.lua
 Settings\SettingsUI.xml
+
+# Aura
+Modules\Aura\Aura.xml
+
+# Mouse
+Modules\Mouse\Locales\[TextLocale].lua
+Modules\Mouse\Mouse.xml
+
+# Mover
+Modules\Mover\Locales\[TextLocale].lua
+Modules\Mover\Mover.xml
+
+# Sound
+Modules\Sound\Locales\[TextLocale].lua
+Modules\Sound\Sound.xml
+
+# Tooltip
+Modules\Tooltip\Locales\[TextLocale].lua
+Modules\Tooltip\Tooltip.xml
+
+# MythicPlus
+Modules\MythicPlus\MythicPlus.xml
+
+# Vendor
+Modules\Vendor\Locales\[TextLocale].lua
+Modules\Vendor\Vendor.xml
+
+# Food
+Modules\Food\Locales\[TextLocale].lua
+Modules\Food\Food.xml

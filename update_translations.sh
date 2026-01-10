@@ -14,16 +14,16 @@ declare -A locale_files=(
   ["EnhanceQoL"]="EnhanceQoL/Locales/enUS.lua"
 
   # sub‑modules – add or remove lines if your structure changes
-  ["Aura"]="EnhanceQoLAura/Locales/enUS.lua"
+  ["Aura"]="EnhanceQoL/Modules/Aura/Locales/enUS.lua"
   ["CombatMeter"]="EnhanceQoLCombatMeter/Locales/enUS.lua"
-  ["Drink"]="EnhanceQoLDrinkMacro/Locales/enUS.lua"
-  ["Mouse"]="EnhanceQoLMouse/Locales/enUS.lua"
-  ["Mover"]="EnhanceQoLMover/Locales/enUS.lua"
-  ["MythicPlus"]="EnhanceQoLMythicPlus/Locales/enUS.lua"
+  ["Drink"]="EnhanceQoL/Modules/Food/Locales/enUS.lua"
+  ["Mouse"]="EnhanceQoL/Modules/Mouse/Locales/enUS.lua"
+  ["Mover"]="EnhanceQoL/Modules/Mover/Locales/enUS.lua"
+  ["MythicPlus"]="EnhanceQoL/Modules/MythicPlus/Locales/enUS.lua"
   ["SharedMedia"]="EnhanceQoLSharedMedia/Locales/enUS.lua"
-  ["Sound"]="EnhanceQoLSound/Locales/enUS.lua"
-  ["Tooltip"]="EnhanceQoLTooltip/Locales/enUS.lua"
-  ["Vendor"]="EnhanceQoLVendor/Locales/enUS.lua"
+  ["Sound"]="EnhanceQoL/Modules/Sound/Locales/enUS.lua"
+  ["Tooltip"]="EnhanceQoL/Modules/Tooltip/Locales/enUS.lua"
+  ["Vendor"]="EnhanceQoL/Modules/Vendor/Locales/enUS.lua"
 )
 
 tempfile=$( mktemp )

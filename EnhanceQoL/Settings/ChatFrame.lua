@@ -1,11 +1,27 @@
+-- luacheck: globals MAIL
 local addonName, addon = ...
 
 local L = LibStub("AceLocale-3.0"):GetLocale(addonName)
+local getCVarOptionState = addon.functions.GetCVarOptionState or function() return false end
+local setCVarOptionState = addon.functions.SetCVarOptionState or function() end
 
-local cChatFrame = addon.functions.SettingsCreateCategory(nil, CHAT, nil, "ChatFrame")
+local function applyParentSection(entries, section)
+	for _, entry in ipairs(entries or {}) do
+		entry.parentSection = section
+		if entry.children then applyParentSection(entry.children, section) end
+	end
+end
+
+local cChatFrame = addon.SettingsLayout.rootSOCIAL
 addon.SettingsLayout.chatframeCategory = cChatFrame
 
-addon.functions.SettingsCreateHeadline(cChatFrame, COMMUNITIES_ADD_TO_CHAT_DROP_DOWN_TITLE)
+local chatWindowExpandable = addon.functions.SettingsCreateExpandableSection(cChatFrame, {
+	name = L["ChatWindow"] or "Chat Window",
+	expanded = false,
+	colorizeTitle = false,
+})
+
+addon.functions.SettingsCreateHeadline(cChatFrame, COMMUNITIES_ADD_TO_CHAT_DROP_DOWN_TITLE, { parentSection = chatWindowExpandable })
 
 local data = {
 	{
@@ -69,6 +85,60 @@ local data = {
 		default = false,
 	},
 	{
+		var = "chatUseArrowKeys",
+		text = L["chatUseArrowKeys"],
+		desc = L["chatUseArrowKeysDesc"],
+		func = function(key)
+			addon.db["chatUseArrowKeys"] = key
+			if addon.functions.ApplyChatArrowKeys then addon.functions.ApplyChatArrowKeys(key) end
+		end,
+		default = false,
+	},
+	{
+		var = "chatMouseScroll",
+		text = L["chatMouseScroll"],
+		get = function() return getCVarOptionState("chatMouseScroll") end,
+		func = function(value) setCVarOptionState("chatMouseScroll", value) end,
+		default = false,
+	},
+	{
+		var = "WholeChatWindowClickable",
+		text = L["WholeChatWindowClickable"],
+		get = function() return getCVarOptionState("WholeChatWindowClickable") end,
+		func = function(value) setCVarOptionState("WholeChatWindowClickable", value) end,
+		default = false,
+	},
+	{
+		var = "chatEditBoxOnTop",
+		text = L["chatEditBoxOnTop"],
+		desc = L["chatEditBoxOnTopDesc"],
+		func = function(key)
+			addon.db["chatEditBoxOnTop"] = key
+			if addon.functions.ApplyChatEditBoxOnTop then addon.functions.ApplyChatEditBoxOnTop(key) end
+		end,
+		default = false,
+	},
+	{
+		var = "chatUnclampFrame",
+		text = L["chatUnclampFrame"],
+		desc = L["chatUnclampFrameDesc"],
+		func = function(key)
+			addon.db["chatUnclampFrame"] = key
+			if addon.functions.ApplyChatUnclampFrame then addon.functions.ApplyChatUnclampFrame(key) end
+		end,
+		default = false,
+	},
+	{
+		var = "chatHideCombatLogTab",
+		text = L["chatHideCombatLogTab"],
+		desc = L["chatHideCombatLogTabDesc"],
+		func = function(key)
+			addon.db["chatHideCombatLogTab"] = key
+			if addon.functions.ApplyChatHideCombatLogTab then addon.functions.ApplyChatHideCombatLogTab(key) end
+		end,
+		default = false,
+	},
+	{
 		var = "chatFrameFadeEnabled",
 		text = L["chatFrameFadeEnabled"],
 		desc = L["chatFrameFadeEnabled"],
@@ -122,51 +192,26 @@ local data = {
 	},
 }
 
+applyParentSection(data, chatWindowExpandable)
 table.sort(data, function(a, b) return a.text < b.text end)
 addon.functions.SettingsCreateCheckboxes(cChatFrame, data)
 
-addon.functions.SettingsCreateHeadline(cChatFrame, CHAT_BUBBLES_TEXT)
+local chatIMExpandable = addon.functions.SettingsCreateExpandableSection(cChatFrame, {
+	name = L["InstantMessenger"] or "Instant Messenger",
+	expanded = false,
+	colorizeTitle = false,
+})
 
-data = {
-	{
-		var = "chatBubbleFontOverride",
-		text = L["chatBubbleFontOverride"],
-		desc = L["chatBubbleFontOverrideDesc"],
-		func = function(key)
-			addon.db["chatBubbleFontOverride"] = key
-			addon.functions.ApplyChatBubbleFontSize(addon.db["chatBubbleFontSize"])
-		end,
-		default = false,
-		children = {
-			{
-				var = "chatBubbleFontSize",
-				text = L["chatBubbleFontSize"],
-				parentCheck = function()
-					return addon.SettingsLayout.elements["chatBubbleFontOverride"]
-						and addon.SettingsLayout.elements["chatBubbleFontOverride"].setting
-						and addon.SettingsLayout.elements["chatBubbleFontOverride"].setting:GetValue() == true
-				end,
-				get = function() return addon.db and addon.db.chatBubbleFontSize or 13 end,
-				set = function(value)
-					addon.db["chatBubbleFontSize"] = value
-					local applied = addon.functions.ApplyChatBubbleFontSize(value)
-				end,
-				min = 1,
-				max = 36,
-				step = 1,
-				parent = true,
-				default = 13,
-				sType = "slider",
-			},
-		},
-	},
-}
-
-table.sort(data, function(a, b) return a.text < b.text end)
-addon.functions.SettingsCreateCheckboxes(cChatFrame, data)
-
-addon.functions.SettingsCreateHeadline(cChatFrame, L["Instant Chats"])
-addon.functions.SettingsCreateText(cChatFrame, "|cff99e599" .. L["RightClickCloseTab"] .. "|r")
+addon.functions.SettingsCreateText(cChatFrame, "|cff99e599" .. L["RightClickCloseTab"] .. "|r", { parentSection = chatIMExpandable })
+addon.functions.SettingsCreateCheckbox(cChatFrame, {
+	var = "hideQuickJoinToast",
+	text = HIDE .. " " .. COMMUNITIES_NOTIFICATION_SETTINGS_DIALOG_QUICK_JOIN_LABEL,
+	func = function(v)
+		addon.db["hideQuickJoinToast"] = v
+		addon.functions.toggleQuickJoinToastButton(addon.db["hideQuickJoinToast"])
+	end,
+	parentSection = chatIMExpandable,
+})
 
 data = {
 	{
@@ -314,6 +359,7 @@ data = {
 	},
 }
 
+applyParentSection(data, chatIMExpandable)
 table.sort(data[1].children, function(a, b) return a.text < b.text end)
 table.sort(data, function(a, b) return a.text < b.text end)
 addon.functions.SettingsCreateCheckboxes(cChatFrame, data)
@@ -350,6 +396,7 @@ data = {
 	end,
 	parent = true,
 	element = addon.SettingsLayout.elements["enableChatIM"].element,
+	parentSection = chatIMExpandable,
 	default = "",
 	var = "ChatIMHistoryClear",
 	type = Settings.VarType.String,
@@ -362,6 +409,7 @@ data = {
 	parentCheck = function()
 		return addon.SettingsLayout.elements["enableChatIM"] and addon.SettingsLayout.elements["enableChatIM"].setting and addon.SettingsLayout.elements["enableChatIM"].setting:GetValue() == true
 	end,
+	parentSection = chatIMExpandable,
 	func = function()
 		StaticPopupDialogs["EQOL_CLEAR_IM_HISTORY"] = StaticPopupDialogs["EQOL_CLEAR_IM_HISTORY"]
 			or {
@@ -382,7 +430,11 @@ data = {
 }
 addon.functions.SettingsCreateButton(cChatFrame, data)
 
-addon.functions.SettingsCreateHeadline(cChatFrame, L["CH_TITLE_HISTORY"])
+local chatHistoryExpandable = addon.functions.SettingsCreateExpandableSection(cChatFrame, {
+	name = L["CH_TITLE_HISTORY"] or "Chat History",
+	expanded = false,
+	colorizeTitle = false,
+})
 
 local chatHistoryStrataOptions = {}
 local strataOrder = {
@@ -433,6 +485,8 @@ local CHAT_FILTER_OPTIONS = {
 	{ key = "ACHIEVEMENT", label = makeFilterLabel("ACHIEVEMENT", "236507", ACHIEVEMENTS) },
 	{ key = "SYSTEM", label = makeFilterLabel("SYSTEM", nil, SYSTEM_MESSAGES or SYSTEM) },
 	{ key = "OPENING", label = makeFilterLabel("OPENING", nil, OPENING) },
+	{ key = "TRADE", label = makeFilterLabel("TRADE", "Interface\\Icons\\INV_Misc_Coin_01", TRADE or "Trade") },
+	{ key = "MAIL", label = makeFilterLabel("MAIL", "Interface\\MailFrame\\Mail-Icon", MAIL_LABEL or MAIL or INBOX or "Mail") },
 	{ key = "MONSTER", label = makeFilterLabel("MONSTER", nil, EXAMPLE_TARGET_MONSTER or "Monster") },
 }
 
@@ -714,6 +768,52 @@ data = {
 	},
 }
 
+applyParentSection(data, chatHistoryExpandable)
+addon.functions.SettingsCreateCheckboxes(cChatFrame, data)
+
+local chatBubblesExpandable = addon.functions.SettingsCreateExpandableSection(cChatFrame, {
+	name = L["ChatBubbles"] or "Chat Bubbles",
+	expanded = false,
+	colorizeTitle = false,
+})
+
+data = {
+	{
+		var = "chatBubbleFontOverride",
+		text = L["chatBubbleFontOverride"],
+		desc = L["chatBubbleFontOverrideDesc"],
+		func = function(key)
+			addon.db["chatBubbleFontOverride"] = key
+			addon.functions.ApplyChatBubbleFontSize(addon.db["chatBubbleFontSize"])
+		end,
+		default = false,
+		children = {
+			{
+				var = "chatBubbleFontSize",
+				text = L["chatBubbleFontSize"],
+				parentCheck = function()
+					return addon.SettingsLayout.elements["chatBubbleFontOverride"]
+						and addon.SettingsLayout.elements["chatBubbleFontOverride"].setting
+						and addon.SettingsLayout.elements["chatBubbleFontOverride"].setting:GetValue() == true
+				end,
+				get = function() return addon.db and addon.db.chatBubbleFontSize or 13 end,
+				set = function(value)
+					addon.db["chatBubbleFontSize"] = value
+					local applied = addon.functions.ApplyChatBubbleFontSize(value)
+				end,
+				min = 1,
+				max = 36,
+				step = 1,
+				parent = true,
+				default = 13,
+				sType = "slider",
+			},
+		},
+	},
+}
+
+applyParentSection(data, chatBubblesExpandable)
+table.sort(data, function(a, b) return a.text < b.text end)
 addon.functions.SettingsCreateCheckboxes(cChatFrame, data)
 ----- REGION END
 

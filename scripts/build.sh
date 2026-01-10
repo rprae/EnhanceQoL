@@ -1,81 +1,59 @@
 #!/bin/bash
+set -euo pipefail
 
-# Pfade zu den Verzeichnissen anpassen
-ROOT_DIR=$(pwd)/
-WOW_ADDON_DIR="/Applications/World of Warcraft/_retail_/Interface/AddOns"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+WOW_ROOT="/Applications/World of Warcraft"
+VERSION="$(git -C "$ROOT_DIR" describe --tags --always 2>/dev/null || echo "dev")"
 
-# Verzeichnisse für die Addons
-EnhanceQoL_ADDON_DIR="$WOW_ADDON_DIR/EnhanceQoL"
-EnhanceQoL_AURA_MACRO_DIR="$WOW_ADDON_DIR/EnhanceQoLAura"
-EnhanceQoL_COMBAT_METER_DIR="$WOW_ADDON_DIR/EnhanceQoLCombatMeter"
-EnhanceQoL_DRINK_MACRO_DIR="$WOW_ADDON_DIR/EnhanceQoLDrinkMacro"
-EnhanceQoL_QUERY_DIR="$WOW_ADDON_DIR/EnhanceQoLQuery"
-EnhanceQoL_MOUSE_QUERY_DIR="$WOW_ADDON_DIR/EnhanceQoLMouse"
-EnhanceQoL_MOVE_QUERY_DIR="$WOW_ADDON_DIR/EnhanceQoLMover"
-EnhanceQoL_MYTHIC_PLUS_QUERY_DIR="$WOW_ADDON_DIR/EnhanceQoLMythicPlus"
-EnhanceQoL_SHAREDMEDIA_QUERY_DIR="$WOW_ADDON_DIR/EnhanceQoLSharedMedia"
-EnhanceQoL_SOUND_QUERY_DIR="$WOW_ADDON_DIR/EnhanceQoLSound"
-EnhanceQoL_TOOLTIP_QUERY_DIR="$WOW_ADDON_DIR/EnhanceQoLTooltip"
-EnhanceQoL_VENDOR_QUERY_DIR="$WOW_ADDON_DIR/EnhanceQoLVendor"
+declare -a TARGET_DIRS=()
+declare -a TARGET_LABELS=()
 
-VERSION=$(git describe --tags --always)
+detect_target() {
+	local flavor="$1"
+	local label="$2"
+	local addon_dir="$WOW_ROOT/$flavor/Interface/AddOns"
+	if [[ -d "$addon_dir" ]]; then
+		TARGET_DIRS+=("$addon_dir")
+		TARGET_LABELS+=("$label")
+	fi
+}
 
-# Lösche die bestehenden Addon-Verzeichnisse, wenn sie existieren
-rm -rf "$EnhanceQoL_ADDON_DIR"
-rm -rf "$EnhanceQoL_AURA_MACRO_DIR"
-rm -rf "$EnhanceQoL_COMBAT_METER_DIR"
-rm -rf "$EnhanceQoL_DRINK_MACRO_DIR"
-rm -rf "$EnhanceQoL_QUERY_DIR"
-rm -rf "$EnhanceQoL_MOUSE_QUERY_DIR"
-rm -rf "$EnhanceQoL_MOVE_QUERY_DIR"
-rm -rf "$EnhanceQoL_MYTHIC_PLUS_QUERY_DIR"
-rm -rf "$EnhanceQoL_SHAREDMEDIA_QUERY_DIR"
-rm -rf "$EnhanceQoL_SOUND_QUERY_DIR"
-rm -rf "$EnhanceQoL_TOOLTIP_QUERY_DIR"
-rm -rf "$EnhanceQoL_VENDOR_QUERY_DIR"
+detect_target "_retail_" "Retail"
+detect_target "_ptr_" "PTR"
+detect_target "_xptr_" "XPTR"
+detect_target "_beta_" "Beta"
 
-# Erstelle die Addon-Verzeichnisse neu
-mkdir -p "$EnhanceQoL_ADDON_DIR"
-mkdir -p "$EnhanceQoL_AURA_MACRO_DIR"
-mkdir -p "$EnhanceQoL_COMBAT_METER_DIR"
-mkdir -p "$EnhanceQoL_DRINK_MACRO_DIR"
-mkdir -p "$EnhanceQoL_QUERY_DIR"
-mkdir -p "$EnhanceQoL_MOUSE_QUERY_DIR"
-mkdir -p "$EnhanceQoL_MOVE_QUERY_DIR"
-mkdir -p "$EnhanceQoL_MYTHIC_PLUS_QUERY_DIR"
-mkdir -p "$EnhanceQoL_SHAREDMEDIA_QUERY_DIR"
-mkdir -p "$EnhanceQoL_SOUND_QUERY_DIR"
-mkdir -p "$EnhanceQoL_TOOLTIP_QUERY_DIR"
-mkdir -p "$EnhanceQoL_VENDOR_QUERY_DIR"
+if [[ ${#TARGET_DIRS[@]} -eq 0 ]]; then
+	echo "Keine WoW-Installationen gefunden (Retail/PTR/XPTR/Beta) in: $WOW_ROOT"
+	exit 1
+fi
 
-echo "$ROOT_DIR"
+deploy_to() {
+	local wow_addon_dir="$1"
+	local label="$2"
+	local addon_dir="$wow_addon_dir/EnhanceQoL"
+	local combat_dir="$wow_addon_dir/EnhanceQoLCombatMeter"
+	local query_dir="$wow_addon_dir/EnhanceQoLQuery"
+	local sharedmedia_dir="$wow_addon_dir/EnhanceQoLSharedMedia"
 
-# Kopiere die Addon-Dateien
-cp -r "$ROOT_DIR/EnhanceQoL/"* "$EnhanceQoL_ADDON_DIR/"
-cp -r "$ROOT_DIR/EnhanceQoLAura/"* "$EnhanceQoL_AURA_MACRO_DIR/"
-cp -r "$ROOT_DIR/EnhanceQoLCombatMeter/"* "$EnhanceQoL_COMBAT_METER_DIR/"
-cp -r "$ROOT_DIR/EnhanceQoLDrinkMacro/"* "$EnhanceQoL_DRINK_MACRO_DIR/"
-cp -r "$ROOT_DIR/EnhanceQoLQuery/"* "$EnhanceQoL_QUERY_DIR/"
-cp -r "$ROOT_DIR/EnhanceQoLMouse/"* "$EnhanceQoL_MOUSE_QUERY_DIR/"
-cp -r "$ROOT_DIR/EnhanceQoLMover/"* "$EnhanceQoL_MOVE_QUERY_DIR/"
-cp -r "$ROOT_DIR/EnhanceQoLMythicPlus/"* "$EnhanceQoL_MYTHIC_PLUS_QUERY_DIR/"
-cp -r "$ROOT_DIR/EnhanceQoLSharedMedia/"* "$EnhanceQoL_SHAREDMEDIA_QUERY_DIR/"
-cp -r "$ROOT_DIR/EnhanceQoLSound/"* "$EnhanceQoL_SOUND_QUERY_DIR/"
-cp -r "$ROOT_DIR/EnhanceQoLTooltip/"* "$EnhanceQoL_TOOLTIP_QUERY_DIR/"
-cp -r "$ROOT_DIR/EnhanceQoLVendor/"* "$EnhanceQoL_VENDOR_QUERY_DIR/"
+	echo "Deploy: $label ($wow_addon_dir)"
 
-# Version in den .toc-Dateien ersetzen
-sed -i '' "s/@project-version@/$VERSION/" "$EnhanceQoL_ADDON_DIR/EnhanceQoL.toc"
-sed -i '' "s/@project-version@/$VERSION/" "$EnhanceQoL_AURA_MACRO_DIR/EnhanceQoLAura.toc"
-sed -i '' "s/@project-version@/$VERSION/" "$EnhanceQoL_COMBAT_METER_DIR/EnhanceQoLCombatMeter.toc"
-sed -i '' "s/@project-version@/$VERSION/" "$EnhanceQoL_DRINK_MACRO_DIR/EnhanceQoLDrinkMacro.toc"
-sed -i '' "s/@project-version@/$VERSION/" "$EnhanceQoL_QUERY_DIR/EnhanceQoLQuery.toc"
-sed -i '' "s/@project-version@/$VERSION/" "$EnhanceQoL_MOUSE_QUERY_DIR/EnhanceQoLMouse.toc"
-sed -i '' "s/@project-version@/$VERSION/" "$EnhanceQoL_MOVE_QUERY_DIR/EnhanceQoLMover.toc"
-sed -i '' "s/@project-version@/$VERSION/" "$EnhanceQoL_MYTHIC_PLUS_QUERY_DIR/EnhanceQoLMythicPlus.toc"
-sed -i '' "s/@project-version@/$VERSION/" "$EnhanceQoL_SHAREDMEDIA_QUERY_DIR/EnhanceQoLSharedMedia.toc"
-sed -i '' "s/@project-version@/$VERSION/" "$EnhanceQoL_SOUND_QUERY_DIR/EnhanceQoLSound.toc"
-sed -i '' "s/@project-version@/$VERSION/" "$EnhanceQoL_TOOLTIP_QUERY_DIR/EnhanceQoLTooltip.toc"
-sed -i '' "s/@project-version@/$VERSION/" "$EnhanceQoL_VENDOR_QUERY_DIR/EnhanceQoLVendor.toc"
+	rm -rf "$wow_addon_dir"/EnhanceQoL*
+	mkdir -p "$addon_dir" "$combat_dir" "$query_dir" "$sharedmedia_dir"
 
-echo "Addons wurden nach $WOW_ADDON_DIR kopiert."
+	cp -r "$ROOT_DIR/EnhanceQoL/"* "$addon_dir/"
+	cp -r "$ROOT_DIR/EnhanceQoLCombatMeter/"* "$combat_dir/"
+	cp -r "$ROOT_DIR/EnhanceQoLQuery/"* "$query_dir/"
+	cp -r "$ROOT_DIR/EnhanceQoLSharedMedia/"* "$sharedmedia_dir/"
+
+	sed -i '' "s/@project-version@/$VERSION/" "$addon_dir/EnhanceQoL.toc"
+	sed -i '' "s/@project-version@/$VERSION/" "$combat_dir/EnhanceQoLCombatMeter.toc"
+	sed -i '' "s/@project-version@/$VERSION/" "$query_dir/EnhanceQoLQuery.toc"
+	sed -i '' "s/@project-version@/$VERSION/" "$sharedmedia_dir/EnhanceQoLSharedMedia.toc"
+}
+
+for i in "${!TARGET_DIRS[@]}"; do
+	deploy_to "${TARGET_DIRS[$i]}" "${TARGET_LABELS[$i]}"
+done
+
+echo "Fertig. Addons wurden in ${#TARGET_DIRS[@]} Installation(en) verteilt."

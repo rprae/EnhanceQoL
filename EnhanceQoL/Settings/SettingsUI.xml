@@ -1,19 +1,22 @@
 <Ui>
 	<Script file='SettingsUI.lua'/>
-	<Script file='CombatDungeon.lua'/>
-	<Script file='ItemInventory.lua'/>
+	<Script file='MainCategory.lua'/>
 	<Script file='ContainerAction.lua'/>
-	<Script file='GearUpgrade.lua'/>
-	<Script file='UIInput.lua'/>
-	<Script file='VendorEconomy.lua'/>
-	<Script file='Loot.lua'/>
-	<Script file='MapNavigation.lua'/>
 	<Script file='Quest.lua'/>
+	<Script file='CombatDungeon.lua'/>
+	<Script file='GearUpgrade.lua'/>
+	<Script file='ItemInventory.lua'/>
+	<Script file='Loot.lua'/>
 	<Script file='ChatFrame.lua'/>
-	<Script file='DataPanel.lua'/>
 	<Script file='Social.lua'/>
+	<Script file='VendorEconomy.lua'/>
 	<Script file='System.lua'/>
-	<Script file='UnitFrames.lua'/>
-	<Script file='Profiles.lua'/>
 	<Script file='UIOptions.lua'/>
+	<Script file='../Modules/Aura/Settings_Ressourcebars.lua'/>
+	<Script file='UIInput.lua'/>
+	<Script file='ActionTracker.lua'/>
+	<Script file='MapNavigation.lua'/>
+	<Script file='DataPanel.lua'/>
+	<Script file='Profiles.lua'/>
+	<Script file='UnitFrames.lua'/>
 </Ui>

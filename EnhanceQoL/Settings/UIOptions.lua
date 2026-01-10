@@ -11,20 +11,30 @@ local UpdateUnitFrameMouseover = addon.functions.UpdateUnitFrameMouseover or fun
 local RefreshAllActionBarAnchors = addon.functions.RefreshAllActionBarAnchors or function() end
 local RefreshAllActionBarVisibilityAlpha = addon.functions.RefreshAllActionBarVisibilityAlpha or function() end
 local GetActionBarFadeStrength = addon.functions.GetActionBarFadeStrength or function() return 1 end
+local GetFrameFadeStrength = addon.functions.GetFrameFadeStrength or function() return 1 end
+local RefreshAllFrameVisibilityAlpha = addon.functions.RefreshAllFrameVisibilityAlpha or function() end
 local GetVisibilityRuleMetadata = addon.functions.GetVisibilityRuleMetadata or function() return {} end
 local HasFrameVisibilityOverride = addon.functions.HasFrameVisibilityOverride or function() return false end
 local SetCooldownViewerVisibility = addon.functions.SetCooldownViewerVisibility or function() end
 local GetCooldownViewerVisibility = addon.functions.GetCooldownViewerVisibility or function() return nil end
 local IsCooldownViewerEnabled = addon.functions.IsCooldownViewerEnabled or function() return false end
+local getCVarOptionState = addon.functions.GetCVarOptionState or function() return false end
+local setCVarOptionState = addon.functions.SetCVarOptionState or function() end
 
 local ACTION_BAR_FRAME_NAMES = constants.ACTION_BAR_FRAME_NAMES or {}
 local ACTION_BAR_ANCHOR_ORDER = constants.ACTION_BAR_ANCHOR_ORDER or {}
 local ACTION_BAR_ANCHOR_CONFIG = constants.ACTION_BAR_ANCHOR_CONFIG or {}
 local COOLDOWN_VIEWER_FRAMES = constants.COOLDOWN_VIEWER_FRAMES or {}
-local COOLDOWN_VIEWER_VISIBILITY_MODES = constants.COOLDOWN_VIEWER_VISIBILITY_MODES or {
-	NONE = "NONE",
-	HIDE_WHILE_MOUNTED = "HIDE_WHILE_MOUNTED",
-}
+local COOLDOWN_VIEWER_VISIBILITY_MODES = constants.COOLDOWN_VIEWER_VISIBILITY_MODES
+	or {
+		IN_COMBAT = "IN_COMBAT",
+		WHILE_MOUNTED = "WHILE_MOUNTED",
+		WHILE_NOT_MOUNTED = "WHILE_NOT_MOUNTED",
+		MOUSEOVER = "MOUSEOVER",
+		PLAYER_HAS_TARGET = "PLAYER_HAS_TARGET",
+		NONE = "NONE",
+		HIDE_WHILE_MOUNTED = "HIDE_WHILE_MOUNTED",
+	}
 local wipe = wipe
 local fontOrder = {}
 
@@ -45,6 +55,34 @@ local function collectRuleOptions(kind)
 		return a.order < b.order
 	end)
 	return options
+end
+
+local function isEQoLUnitEnabled(unit)
+	if not addon.Aura then return false end
+	local db = addon.db and addon.db.ufFrames
+	if not db then return false end
+	if unit == "boss" then
+		local bossCfg = db.boss
+		if bossCfg and bossCfg.enabled then return true end
+		for i = 1, 5 do
+			local cfg = db["boss" .. i]
+			if cfg and cfg.enabled then return true end
+		end
+		return false
+	end
+	local cfg = db[unit]
+	return cfg and cfg.enabled == true
+end
+
+local function shouldShowBlizzardFrameVisibility(info)
+	if not addon.Aura then return true end
+	if not info or not info.name then return true end
+	if info.name == "PlayerFrame" then return not isEQoLUnitEnabled("player") end
+	if info.name == "TargetFrame" then return not isEQoLUnitEnabled("target") end
+	if info.name == "FocusFrame" then return not isEQoLUnitEnabled("focus") end
+	if info.name == "PetFrame" then return not isEQoLUnitEnabled("pet") end
+	if info.name == "BossTargetFrameContainer" then return not isEQoLUnitEnabled("boss") end
+	return true
 end
 
 local ACTIONBAR_RULE_OPTIONS = collectRuleOptions("actionbar")
@@ -72,13 +110,14 @@ local function buildFontDropdown()
 	return list
 end
 
-local function createActionBarVisibility(category)
+local function createActionBarVisibility(category, expandable)
 	if #ACTIONBAR_RULE_OPTIONS == 0 then return end
 
-	addon.functions.SettingsCreateHeadline(category, L["visibilityScenarioGroupTitle"] or ACTIONBARS_LABEL)
+	addon.functions.SettingsCreateHeadline(category, L["visibilityScenarioGroupTitle"] or ACTIONBARS_LABEL, { parentSection = expandable })
+
 	local explain = L["ActionbarVisibilityExplain2"]
 	if explain and _G["HUD_EDIT_MODE_SETTING_ACTION_BAR_VISIBLE_SETTING_ALWAYS"] and _G["HUD_EDIT_MODE_MENU"] then
-		addon.functions.SettingsCreateText(category, explain:format(_G["HUD_EDIT_MODE_SETTING_ACTION_BAR_VISIBLE_SETTING_ALWAYS"], _G["HUD_EDIT_MODE_MENU"]))
+		addon.functions.SettingsCreateText(category, explain:format(_G["HUD_EDIT_MODE_SETTING_ACTION_BAR_VISIBLE_SETTING_ALWAYS"], _G["HUD_EDIT_MODE_MENU"]), { parentSection = expandable })
 	end
 
 	local bars, seenVars = {}, {}
@@ -93,10 +132,13 @@ local function createActionBarVisibility(category)
 
 	for _, info in ipairs(bars) do
 		if info.var and info.name then
+			local exp = expandable
+			local ABRule = collectRuleOptions("actionbar")
+
 			addon.functions.SettingsCreateMultiDropdown(category, {
 				var = info.var .. "_visibility",
 				text = info.text or info.name or info.var,
-				options = ACTIONBAR_RULE_OPTIONS,
+				options = ABRule,
 				isSelectedFunc = function(key)
 					local cfg = NormalizeActionBarVisibilityConfig(info.var)
 					return cfg and cfg[key] == true
@@ -112,6 +154,7 @@ local function createActionBarVisibility(category)
 					local normalized = NormalizeActionBarVisibilityConfig(info.var, working)
 					UpdateActionBarMouseover(info.name, normalized, info.var)
 				end,
+				parentSection = exp,
 			})
 		end
 	end
@@ -130,6 +173,7 @@ local function createActionBarVisibility(category)
 			end
 			RefreshAllActionBarVisibilityAlpha()
 		end,
+		parentSection = expandable,
 	})
 
 	local function getFadePercent()
@@ -155,13 +199,14 @@ local function createActionBarVisibility(category)
 			addon.db.actionBarFadeStrength = pct / 100
 			RefreshAllActionBarVisibilityAlpha(true)
 		end,
+		parentSection = expandable,
 	})
 end
 
-local function createAnchorControls(category)
+local function createAnchorControls(category, expandable)
 	if #ACTION_BAR_FRAME_NAMES == 0 then return end
 
-	addon.functions.SettingsCreateHeadline(category, L["actionBarAnchorSectionTitle"] or "Button growth")
+	addon.functions.SettingsCreateHeadline(category, L["actionBarAnchorSectionTitle"] or "Button growth", { parentSection = expandable })
 
 	local anchorToggle = addon.functions.SettingsCreateCheckbox(category, {
 		var = "actionBarAnchorEnabled",
@@ -171,6 +216,7 @@ local function createAnchorControls(category)
 			addon.db["actionBarAnchorEnabled"] = value and true or false
 			RefreshAllActionBarAnchors()
 		end,
+		parentSection = expandable,
 	})
 
 	local anchorOptions = {
@@ -212,12 +258,13 @@ local function createAnchorControls(category)
 			parent = true,
 			element = anchorToggle.element,
 			parentCheck = function() return anchorToggle.setting and anchorToggle.setting:GetValue() == true end,
+			parentSection = expandable,
 		})
 	end
 end
 
-local function createButtonAppearanceControls(category)
-	addon.functions.SettingsCreateHeadline(category, L["actionBarAppearanceHeader"] or "Button appearance")
+local function createButtonAppearanceControls(category, expandable)
+	addon.functions.SettingsCreateHeadline(category, L["actionBarAppearanceHeader"] or "Button appearance", { parentSection = expandable })
 
 	addon.functions.SettingsCreateCheckbox(category, {
 		var = "actionBarHideBorders",
@@ -227,6 +274,7 @@ local function createButtonAppearanceControls(category)
 			addon.db.actionBarHideBorders = value and true or false
 			if ActionBarLabels and ActionBarLabels.RefreshActionButtonBorders then ActionBarLabels.RefreshActionButtonBorders() end
 		end,
+		parentSection = expandable,
 	})
 
 	addon.functions.SettingsCreateCheckbox(category, {
@@ -237,6 +285,7 @@ local function createButtonAppearanceControls(category)
 			addon.db.actionBarHideAssistedRotation = value and true or false
 			if addon.functions.UpdateAssistedCombatFrameHiding then addon.functions.UpdateAssistedCombatFrameHiding() end
 		end,
+		parentSection = expandable,
 	})
 
 	addon.functions.SettingsCreateCheckbox(category, {
@@ -247,11 +296,12 @@ local function createButtonAppearanceControls(category)
 			addon.db.hideExtraActionArtwork = value and true or false
 			if addon.functions.ApplyExtraActionArtworkSetting then addon.functions.ApplyExtraActionArtworkSetting() end
 		end,
+		parentSection = expandable,
 	})
 end
 
-local function createLabelControls(category)
-	addon.functions.SettingsCreateHeadline(category, L["actionBarLabelGroupTitle"] or "Button text")
+local function createLabelControls(category, expandable)
+	addon.functions.SettingsCreateHeadline(category, L["actionBarLabelGroupTitle"] or "Button text", { parentSection = expandable })
 
 	local outlineOrder = { "NONE", "OUTLINE", "THICKOUTLINE", "MONOCHROMEOUTLINE" }
 	local outlineOptions = {
@@ -274,6 +324,7 @@ local function createLabelControls(category)
 			end
 			if ActionBarLabels and ActionBarLabels.RefreshAllMacroNameVisibility then ActionBarLabels.RefreshAllMacroNameVisibility() end
 		end,
+		parentSection = expandable,
 	})
 
 	macroOverride = addon.functions.SettingsCreateCheckbox(category, {
@@ -288,6 +339,7 @@ local function createLabelControls(category)
 			if ActionBarLabels and ActionBarLabels.RefreshAllMacroNameVisibility then ActionBarLabels.RefreshAllMacroNameVisibility() end
 			if ActionBarLabels and ActionBarLabels.RefreshAllHotkeyStyles then ActionBarLabels.RefreshAllHotkeyStyles() end
 		end,
+		parentSection = expandable,
 	})
 
 	local function macroParentCheck() return macroOverride.setting and macroOverride.setting:GetValue() == true and hideMacro.setting and hideMacro.setting:GetValue() ~= true end
@@ -312,6 +364,7 @@ local function createLabelControls(category)
 		parent = true,
 		element = macroOverride.element,
 		parentCheck = macroParentCheck,
+		parentSection = expandable,
 	})
 
 	addon.functions.SettingsCreateDropdown(category, {
@@ -329,6 +382,7 @@ local function createLabelControls(category)
 		parent = true,
 		element = macroOverride.element,
 		parentCheck = macroParentCheck,
+		parentSection = expandable,
 	})
 
 	addon.functions.SettingsCreateSlider(category, {
@@ -355,6 +409,7 @@ local function createLabelControls(category)
 		parent = true,
 		element = macroOverride.element,
 		parentCheck = macroParentCheck,
+		parentSection = expandable,
 	})
 
 	local hotkeyOverride = addon.functions.SettingsCreateCheckbox(category, {
@@ -365,6 +420,7 @@ local function createLabelControls(category)
 			if ActionBarLabels and ActionBarLabels.RefreshAllHotkeyVisibility then ActionBarLabels.RefreshAllHotkeyVisibility() end
 			if ActionBarLabels and ActionBarLabels.RefreshAllHotkeyStyles then ActionBarLabels.RefreshAllHotkeyStyles() end
 		end,
+		parentSection = expandable,
 	})
 
 	local function hotkeyParentCheck() return hotkeyOverride.setting and hotkeyOverride.setting:GetValue() == true end
@@ -389,6 +445,7 @@ local function createLabelControls(category)
 		parent = true,
 		element = hotkeyOverride.element,
 		parentCheck = hotkeyParentCheck,
+		parentSection = expandable,
 	})
 
 	addon.functions.SettingsCreateDropdown(category, {
@@ -406,6 +463,7 @@ local function createLabelControls(category)
 		parent = true,
 		element = hotkeyOverride.element,
 		parentCheck = hotkeyParentCheck,
+		parentSection = expandable,
 	})
 
 	addon.functions.SettingsCreateSlider(category, {
@@ -432,9 +490,10 @@ local function createLabelControls(category)
 		parent = true,
 		element = hotkeyOverride.element,
 		parentCheck = hotkeyParentCheck,
+		parentSection = expandable,
 	})
 
-	addon.functions.SettingsCreateHeadline(category, L["actionBarKeybindVisibilityHeader"] or "Keybind label visibility")
+	addon.functions.SettingsCreateHeadline(category, L["actionBarKeybindVisibilityHeader"] or "Keybind label visibility", { parentSection = expandable })
 
 	local barOptions = {}
 	for _, info in ipairs(addon.variables.actionBarNames or {}) do
@@ -450,6 +509,7 @@ local function createLabelControls(category)
 			addon.db.actionBarShortHotkeys = value and true or false
 			if ActionBarLabels and ActionBarLabels.RefreshAllHotkeyStyles then ActionBarLabels.RefreshAllHotkeyStyles() end
 		end,
+		parentSection = expandable,
 	})
 
 	local rangeToggle = addon.functions.SettingsCreateCheckbox(category, {
@@ -461,6 +521,7 @@ local function createLabelControls(category)
 			if ActionBarLabels and ActionBarLabels.UpdateRangeOverlayEvents then ActionBarLabels.UpdateRangeOverlayEvents() end
 			if ActionBarLabels and ActionBarLabels.RefreshAllRangeOverlays then ActionBarLabels.RefreshAllRangeOverlays() end
 		end,
+		parentSection = expandable,
 	})
 
 	addon.functions.SettingsCreateColorPicker(category, {
@@ -473,6 +534,7 @@ local function createLabelControls(category)
 		element = rangeToggle.element,
 		parentCheck = function() return rangeToggle.setting and rangeToggle.setting:GetValue() == true end,
 		colorizeLabel = true,
+		parentSection = expandable,
 	})
 
 	addon.functions.SettingsCreateMultiDropdown(category, {
@@ -490,17 +552,34 @@ local function createLabelControls(category)
 			if ActionBarLabels and ActionBarLabels.RefreshAllHotkeyStyles then ActionBarLabels.RefreshAllHotkeyStyles() end
 		end,
 		desc = L["actionBarHideHotkeysDesc"],
+		parentSection = expandable,
 	})
 end
 
 local function createActionBarCategory()
-	local category = addon.functions.SettingsCreateCategory(nil, L["visibilityKindActionBars"] or ACTIONBARS_LABEL, nil, "ActionBar")
-	addon.SettingsLayout.actionBarCategory = category
+	--local category = addon.functions.SettingsCreateCategory(nil, L["visibilityKindActionBars"] or ACTIONBARS_LABEL, nil, "ActionBar")
+	--addon.SettingsLayout.actionBarCategory = category
+	local category = addon.SettingsLayout.rootUI
 
-	createActionBarVisibility(category)
-	createAnchorControls(category)
-	createButtonAppearanceControls(category)
-	createLabelControls(category)
+	local expandable = addon.functions.SettingsCreateExpandableSection(category, {
+		name = L["ActionBarsAndButtons"] or "Action Bars & Buttons",
+		expanded = false,
+		colorizeTitle = false,
+	})
+
+	addon.functions.SettingsCreateCheckbox(category, {
+		var = "AutoPushSpellToActionBar",
+		text = L["AutoPushSpellToActionBar"],
+		get = function() return getCVarOptionState("AutoPushSpellToActionBar") end,
+		func = function(value) setCVarOptionState("AutoPushSpellToActionBar", value) end,
+		default = false,
+		parentSection = expandable,
+	})
+
+	createActionBarVisibility(category, expandable)
+	createAnchorControls(category, expandable)
+	createButtonAppearanceControls(category, expandable)
+	createLabelControls(category, expandable)
 end
 
 local function setFrameRule(info, key, shouldSelect)
@@ -539,16 +618,20 @@ local function getFrameRuleOptions(info)
 	return options
 end
 
-local function createCooldownViewerDropdowns(category)
+local function createCooldownViewerDropdowns(category, expandable)
 	if not category or #COOLDOWN_VIEWER_FRAMES == 0 then return end
 
-	addon.functions.SettingsCreateHeadline(category, L["cooldownManagerHeader"] or "Show when")
+	addon.functions.SettingsCreateHeadline(category, L["cooldownManagerHeader"] or "Show when", { parentSection = expandable })
 
 	local options = {
 		{ value = COOLDOWN_VIEWER_VISIBILITY_MODES.IN_COMBAT, text = L["cooldownManagerShowCombat"] or "In combat" },
 		{ value = COOLDOWN_VIEWER_VISIBILITY_MODES.WHILE_MOUNTED, text = L["cooldownManagerShowMounted"] or "Mounted" },
 		{ value = COOLDOWN_VIEWER_VISIBILITY_MODES.WHILE_NOT_MOUNTED, text = L["cooldownManagerShowNotMounted"] or "Not mounted" },
 		{ value = COOLDOWN_VIEWER_VISIBILITY_MODES.MOUSEOVER, text = L["cooldownManagerShowMouseover"] or "On mouseover" },
+		{
+			value = COOLDOWN_VIEWER_VISIBILITY_MODES.PLAYER_HAS_TARGET,
+			text = L["cooldownManagerShowTarget"] or L["visibilityRule_playerHasTarget"] or "When I have a target",
+		},
 	}
 	local labels = {
 		EssentialCooldownViewer = L["cooldownViewerEssential"] or "Essential Cooldown Viewer",
@@ -561,6 +644,7 @@ local function createCooldownViewerDropdowns(category)
 	local desc = L["cooldownManagerShowDesc"] or "Requires the Cooldown Viewer to be enabled (cooldownViewerEnabled = 1). Visible while any selected condition is true."
 
 	for _, frameName in ipairs(COOLDOWN_VIEWER_FRAMES) do
+		local exp = expandable
 		local label = labels[frameName] or frameName
 		addon.functions.SettingsCreateMultiDropdown(category, {
 			var = "cooldownViewerVisibility_" .. tostring(frameName),
@@ -582,16 +666,24 @@ local function createCooldownViewerDropdowns(category)
 			end,
 			isEnabled = dropdownEnabled,
 			desc = desc,
+			parentSection = exp,
 		})
 	end
 end
 
 local function createFrameCategory()
-	local category = addon.functions.SettingsCreateCategory(nil, L["visibilityKindFrames"] or UNITFRAME_LABEL, nil, "Frames")
-	addon.SettingsLayout.frameVisibilityCategory = category
+	local category = addon.SettingsLayout.rootUI
 
-	addon.functions.SettingsCreateHeadline(category, L["visibilityScenarioGroupTitle"] or (L["ActionBarVisibilityLabel"] or "Visibility"))
-	if L["visibilityFrameExplain2"] then addon.functions.SettingsCreateText(category, L["visibilityFrameExplain2"]) end
+	local expandable = addon.functions.SettingsCreateExpandableSection(category, {
+		name = L["VisibilityAndFadingFrames"] or "Visibility & Fading (Frames)",
+		newTagID = "VisibilityFrames",
+		expanded = false,
+		colorizeTitle = false,
+	})
+	addon.SettingsLayout.uiFramesExpandable = expandable
+
+	addon.functions.SettingsCreateHeadline(category, L["visibilityScenarioGroupTitle"] or (L["ActionBarVisibilityLabel"] or "Visibility"), { parentSection = expandable })
+	if L["visibilityFrameExplain2"] then addon.functions.SettingsCreateText(category, L["visibilityFrameExplain2"], { parentSection = expandable }) end
 
 	local frames = {}
 	for _, info in ipairs(addon.variables.unitFrameNames or {}) do
@@ -599,10 +691,18 @@ local function createFrameCategory()
 	end
 	table.sort(frames, function(a, b) return (a.text or a.name or "") < (b.text or b.name or "") end)
 
+	local function expandWith(predicate)
+		return function()
+			if expandable and expandable.IsExpanded and expandable:IsExpanded() == false then return false end
+			return predicate()
+		end
+	end
+
 	for _, info in ipairs(frames) do
 		if info.var and info.name then
 			local options = getFrameRuleOptions(info)
 			if #options > 0 then
+				local function shouldShow() return shouldShowBlizzardFrameVisibility(info) end
 				local init = addon.functions.SettingsCreateMultiDropdown(category, {
 					var = info.var .. "_visibility",
 					text = info.text or info.name or info.var,
@@ -612,29 +712,219 @@ local function createFrameCategory()
 						return cfg and cfg[key] == true
 					end,
 					setSelectedFunc = function(key, shouldSelect) setFrameRule(info, key, shouldSelect) end,
-					isEnabled = function()
-						if not addon.Aura then return true end
-
-						local db = addon.db.ufFrames
-						if not db then return true end
-
-						if info.name == "PlayerFrame" and db.player and db.player.enabled then
-							return false
-						elseif info.name == "TargetFrame" and db.target and db.target.enabled then
-							return false
-						end
-
-						return true
-					end,
+					isEnabled = function() return shouldShow() end,
+					parentSection = expandWith(shouldShow),
 				})
 			end
 		end
 	end
 
-	createCooldownViewerDropdowns(category)
+	local function getFrameFadePercent()
+		local value = GetFrameFadeStrength()
+		if value < 0 then value = 0 end
+		if value > 1 then value = 1 end
+		return math.floor((value * 100) + 0.5)
+	end
+
+	addon.functions.SettingsCreateSlider(category, {
+		var = "frameVisibilityFadeStrength",
+		text = L["frameFadeStrength"] or "Fade amount",
+		desc = L["frameFadeStrengthDesc"],
+		min = 0,
+		max = 100,
+		step = 1,
+		default = 100,
+		get = getFrameFadePercent,
+		set = function(val)
+			local pct = tonumber(val) or 0
+			if pct < 0 then pct = 0 end
+			if pct > 100 then pct = 100 end
+			addon.db.frameVisibilityFadeStrength = pct / 100
+			RefreshAllFrameVisibilityAlpha()
+		end,
+		parentSection = expandable,
+	})
 end
 
-function addon.functions.initUIOptions() end
+function addon.functions.initUIOptions()
+	if addon.variables.isMidnight then
+		local defaults = (addon.GCDBar and addon.GCDBar.defaults) or {}
+		addon.functions.InitDBValue("gcdBarEnabled", false)
+		addon.functions.InitDBValue("gcdBarWidth", defaults.width or 200)
+		addon.functions.InitDBValue("gcdBarHeight", defaults.height or 18)
+		addon.functions.InitDBValue("gcdBarTexture", defaults.texture or "DEFAULT")
+		addon.functions.InitDBValue("gcdBarColor", defaults.color or { r = 1, g = 0.82, b = 0.2, a = 1 })
+
+		if addon.GCDBar and addon.GCDBar.OnSettingChanged then addon.GCDBar:OnSettingChanged(addon.db["gcdBarEnabled"]) end
+	end
+end
+
+local function createNameplatesCategory()
+	local category = addon.SettingsLayout.rootUI
+	local label = L["NameplatesAndNames"] or "Nameplates & Names"
+
+	local expandable = addon.functions.SettingsCreateExpandableSection(category, {
+		name = label,
+		expanded = false,
+		colorizeTitle = false,
+	})
+	addon.SettingsLayout.uiNameplatesExpandable = expandable
+
+	local nameplateData = {
+		{
+			var = "ShowClassColorInNameplate",
+			text = L["ShowClassColorInNameplate"],
+			get = function() return getCVarOptionState("ShowClassColorInNameplate") end,
+			func = function(value) setCVarOptionState("ShowClassColorInNameplate", value) end,
+			default = false,
+			parentSection = expandable,
+		},
+		{
+			var = "NameplatePersonalShowInCombat",
+			text = L["NameplatePersonalShowInCombat"],
+			get = function() return getCVarOptionState("NameplatePersonalShowInCombat") end,
+			func = function(value) setCVarOptionState("NameplatePersonalShowInCombat", value) end,
+			default = false,
+			parentSection = expandable,
+		},
+		{
+			var = "UnitNamePlayerGuild",
+			text = L["UnitNamePlayerGuild"],
+			get = function() return getCVarOptionState("UnitNamePlayerGuild") end,
+			func = function(value) setCVarOptionState("UnitNamePlayerGuild", value) end,
+			default = false,
+			parentSection = expandable,
+		},
+		{
+			var = "UnitNamePlayerPVPTitle",
+			text = L["UnitNamePlayerPVPTitle"],
+			get = function() return getCVarOptionState("UnitNamePlayerPVPTitle") end,
+			func = function(value) setCVarOptionState("UnitNamePlayerPVPTitle", value) end,
+			default = false,
+			parentSection = expandable,
+		},
+	}
+
+	table.sort(nameplateData, function(a, b) return a.text < b.text end)
+	addon.functions.SettingsCreateCheckboxes(category, nameplateData)
+end
+
+local function createCastbarCategory()
+	local category = addon.SettingsLayout.rootUI
+	local label = L["CastbarsAndCooldowns"] or "Castbars & Cooldowns"
+
+	local expandable = addon.functions.SettingsCreateExpandableSection(category, {
+		name = label,
+		expanded = false,
+		colorizeTitle = false,
+	})
+	addon.SettingsLayout.uiCastbarsExpandable = expandable
+
+	if addon.variables.isMidnight then
+		addon.functions.SettingsCreateHeadline(category, C_Spell.GetSpellName(61304) or "GCD", {
+			parentSection = expandable,
+		})
+		addon.functions.SettingsCreateCheckbox(category, {
+			var = "gcdBarEnabled",
+			text = L["gcdBarEnabled"] or "Enable GCD bar",
+			desc = L["gcdBarDesc"],
+			func = function(value)
+				addon.db["gcdBarEnabled"] = value and true or false
+				if addon.GCDBar and addon.GCDBar.OnSettingChanged then addon.GCDBar:OnSettingChanged(addon.db["gcdBarEnabled"]) end
+			end,
+			parentSection = expandable,
+		})
+
+		addon.functions.SettingsCreateText(category, "|cffffd700" .. (L["gcdBarEditModeHint"] or "Configure size, texture, and color in Edit Mode.") .. "|r", {
+			parentSection = expandable,
+		})
+	end
+
+	local function isCustomPlayerCastbarEnabled()
+		local cfg = addon.db and addon.db.ufFrames and addon.db.ufFrames.player
+		if not (cfg and cfg.enabled == true) then return false end
+		local castCfg = cfg.cast
+		if not castCfg then
+			local uf = addon.Aura and addon.Aura.UF
+			local defaults = uf and uf.defaults and uf.defaults.player
+			castCfg = defaults and defaults.cast
+		end
+		if not castCfg then return false end
+		return castCfg.enabled ~= false
+	end
+
+	local function getCastbarOptions()
+		local options = {}
+		if not isCustomPlayerCastbarEnabled() then table.insert(options, { value = "PlayerCastingBarFrame", text = PLAYER }) end
+		if not isEQoLUnitEnabled("target") then table.insert(options, { value = "TargetFrameSpellBar", text = TARGET }) end
+		if not isEQoLUnitEnabled("focus") then table.insert(options, { value = "FocusFrameSpellBar", text = FOCUS }) end
+		return options
+	end
+	local function shouldShowCastbarDropdown() return #getCastbarOptions() > 0 end
+	local function expandWith(predicate)
+		return function()
+			if expandable and expandable.IsExpanded and expandable:IsExpanded() == false then return false end
+			return predicate()
+		end
+	end
+	addon.functions.SettingsCreateHeadline(category, L["CastBars2"], {
+		parentSection = expandable,
+	})
+	addon.functions.SettingsCreateCheckbox(category, {
+		var = "ShowTargetCastbar",
+		text = L["ShowTargetCastbar"],
+		get = function() return getCVarOptionState("ShowTargetCastbar") end,
+		func = function(value) setCVarOptionState("ShowTargetCastbar", value) end,
+		default = false,
+		parentSection = expandable,
+	})
+
+	addon.functions.SettingsCreateMultiDropdown(category, {
+		var = "hiddenCastBars",
+		text = L["castBarsToHide2"],
+		optionfunc = getCastbarOptions,
+		isSelectedFunc = function(key)
+			if not key then return false end
+			if addon.db.hiddenCastBars and addon.db.hiddenCastBars[key] then return true end
+			return false
+		end,
+		setSelectedFunc = function(key, shouldSelect)
+			addon.db.hiddenCastBars = addon.db.hiddenCastBars or {}
+			addon.db.hiddenCastBars[key] = shouldSelect and true or false
+			addon.functions.ApplyCastBarVisibility()
+		end,
+		isEnabled = shouldShowCastbarDropdown,
+		parentSection = expandWith(shouldShowCastbarDropdown),
+	})
+
+	addon.functions.SettingsCreateCheckbox(category, {
+		var = "cooldownViewerEnabled",
+		text = L["cooldownViewerEnabled"],
+		get = function() return getCVarOptionState("cooldownViewerEnabled") end,
+		func = function(value) setCVarOptionState("cooldownViewerEnabled", value) end,
+		default = false,
+		parentSection = expandable,
+	})
+
+	createCooldownViewerDropdowns(category, expandable)
+end
+
+local function ensureBarsResourcesCategory()
+	local category = addon.SettingsLayout.rootUI
+	local expandable = addon.SettingsLayout.uiBarsResourcesExpandable
+	if expandable then return end
+
+	expandable = addon.functions.SettingsCreateExpandableSection(category, {
+		name = L["BarsAndResources"] or "Bars & Resources",
+		expanded = false,
+		colorizeTitle = false,
+		newTagID = "ResourceBars",
+	})
+	addon.SettingsLayout.uiBarsResourcesExpandable = expandable
+end
 
 createActionBarCategory()
 createFrameCategory()
+createNameplatesCategory()
+createCastbarCategory()
+ensureBarsResourcesCategory()

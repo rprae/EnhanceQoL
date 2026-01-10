@@ -2,10 +2,24 @@ local addonName, addon = ...
 
 local L = LibStub("AceLocale-3.0"):GetLocale(addonName)
 
-local cSocial = addon.functions.SettingsCreateCategory(nil, L["Social"], nil, "Social")
+local function applyParentSection(entries, section)
+	for _, entry in ipairs(entries or {}) do
+		entry.parentSection = section
+		if entry.children then applyParentSection(entry.children, section) end
+	end
+end
+
+local cSocial = addon.SettingsLayout.rootSOCIAL
 addon.SettingsLayout.socialCategory = cSocial
 
-local data = {
+local privacyExpandable = addon.functions.SettingsCreateExpandableSection(cSocial, {
+	name = L["PrivacyBlockingIgnore"] or "Privacy, Blocking & Ignore",
+	newTagID = "SocialGeneral",
+	expanded = false,
+	colorizeTitle = false,
+})
+
+local privacyData = {
 	{
 		var = "blockDuelRequests",
 		text = L["blockDuelRequests"],
@@ -172,6 +186,18 @@ local data = {
 		type = "CheckBox",
 		func = function(value) addon.db["autoAcceptSummon"] = value end,
 	},
+}
+
+applyParentSection(privacyData, privacyExpandable)
+addon.functions.SettingsCreateCheckboxes(cSocial, privacyData)
+
+local friendsExpandable = addon.functions.SettingsCreateExpandableSection(cSocial, {
+	name = L["FriendsAndCommunities"] or "Friends & Communities",
+	expanded = false,
+	colorizeTitle = false,
+})
+
+local friendsData = {
 	{
 		var = "friendsListDecorEnabled",
 		text = L["friendsListDecorEnabledLabel"],
@@ -286,7 +312,8 @@ local data = {
 	},
 }
 
-addon.functions.SettingsCreateCheckboxes(cSocial, data)
+applyParentSection(friendsData, friendsExpandable)
+addon.functions.SettingsCreateCheckboxes(cSocial, friendsData)
 
 ----- REGION END
 

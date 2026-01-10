@@ -1,0 +1,1306 @@
+-- luacheck: globals C_GameRules GetIconForRole
+local parentAddonName = "EnhanceQoL"
+local addonName, addon = ...
+
+if _G[parentAddonName] then
+	addon = _G[parentAddonName]
+else
+	error(parentAddonName .. " is not loaded")
+end
+
+addon.Aura = addon.Aura or {}
+addon.Aura.UFHelper = addon.Aura.UFHelper or {}
+local H = addon.Aura.UFHelper
+
+addon.variables = addon.variables or {}
+
+local LSM = LibStub("LibSharedMedia-3.0")
+local CASTING_BAR_TYPES = _G.CASTING_BAR_TYPES
+local EnumPowerType = Enum and Enum.PowerType
+local BLIZZARD_TEX = "Interface\\TargetingFrame\\UI-StatusBar"
+local abs = math.abs
+local floor = math.floor
+local UnitThreatSituation = UnitThreatSituation
+local UnitExists = UnitExists
+
+local atlasByPower = {
+	LUNAR_POWER = "Unit_Druid_AstralPower_Fill",
+	MAELSTROM = "Unit_Shaman_Maelstrom_Fill",
+	INSANITY = "Unit_Priest_Insanity_Fill",
+	FURY = "Unit_DemonHunter_Fury_Fill",
+	RUNIC_POWER = "UI-HUD-UnitFrame-Player-PortraitOn-Bar-RunicPower",
+	ENERGY = "UI-HUD-UnitFrame-Player-PortraitOn-ClassResource-Bar-Energy",
+	FOCUS = "UI-HUD-UnitFrame-Player-PortraitOn-Bar-Focus",
+	RAGE = "UI-HUD-UnitFrame-Player-PortraitOn-Bar-Rage",
+	MANA = "UI-HUD-UnitFrame-Player-PortraitOn-Bar-Mana",
+	HEALTH = "UI-HUD-UnitFrame-Player-PortraitOn-Bar-Health",
+}
+
+local npcColorDefaults = {
+	enemy = { 0.95, 0.15, 0.15, 1 },
+	neutral = { 1, 1, 0, 1 },
+	friendly = { 0.2, 1, 0.2, 1 },
+}
+
+local nameWidthCache = {}
+
+function H.clamp(value, minV, maxV)
+	if value < minV then return minV end
+	if value > maxV then return maxV end
+	return value
+end
+
+function H.trim(str)
+	if type(str) ~= "string" then return "" end
+	return str:match("^%s*(.-)%s*$")
+end
+
+function H.getFont(path)
+	if path and path ~= "" then return path end
+	return addon.variables and addon.variables.defaultFont or (LSM and LSM:Fetch("font", LSM.DefaultMedia.font)) or STANDARD_TEXT_FONT
+end
+
+function H.applyFont(fs, fontPath, size, outline)
+	if not fs then return end
+	fs:SetFont(H.getFont(fontPath), size or 14, outline or "OUTLINE")
+	fs:SetShadowColor(0, 0, 0, 0)
+	fs:SetShadowOffset(0, 0)
+end
+
+function H.resolveBorderTexture(key)
+	if not key or key == "" or key == "DEFAULT" then return "Interface\\Buttons\\WHITE8x8" end
+	if LSM then
+		local tex = LSM:Fetch("border", key)
+		if tex and tex ~= "" then return tex end
+	end
+	return key
+end
+
+local function ensureHighlightFrame(frame)
+	if not frame then return nil end
+	local highlight = frame._ufHighlight
+	if not highlight then
+		highlight = CreateFrame("Frame", nil, frame, "BackdropTemplate")
+		highlight:EnableMouse(false)
+		frame._ufHighlight = highlight
+	end
+	highlight:SetFrameStrata(frame:GetFrameStrata())
+	local baseLevel = frame:GetFrameLevel() or 0
+	highlight:SetFrameLevel(baseLevel + 4)
+	highlight:ClearAllPoints()
+	highlight:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
+	highlight:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
+	return highlight
+end
+
+function H.buildHighlightConfig(cfg, def)
+	local hcfg = (cfg and cfg.highlight) or {}
+	local hdef = (def and def.highlight) or {}
+	local enabled = hcfg.enabled
+	if enabled == nil then enabled = hdef.enabled end
+	if enabled ~= true then return nil end
+	local mouseover = hcfg.mouseover
+	if mouseover == nil then mouseover = hdef.mouseover end
+	if mouseover == nil then mouseover = true end
+	local aggro = hcfg.aggro
+	if aggro == nil then aggro = hdef.aggro end
+	if aggro == nil then aggro = true end
+	local texture = hcfg.texture or hdef.texture or "DEFAULT"
+	local size = hcfg.size
+	if size == nil then size = hdef.size end
+	size = tonumber(size) or 1
+	if size < 1 then size = 1 end
+	local color = hcfg.color
+	if type(color) ~= "table" then color = hdef.color end
+	if type(color) ~= "table" then color = { 1, 0, 0, 1 } end
+	return {
+		enabled = true,
+		mouseover = mouseover == true,
+		aggro = aggro == true,
+		texture = texture,
+		size = size,
+		color = color,
+	}
+end
+
+function H.applyHighlightStyle(st, highlightCfg)
+	if not st or not st.barGroup then return end
+	if not highlightCfg or highlightCfg.enabled ~= true then
+		local highlight = st.barGroup._ufHighlight
+		if highlight then
+			highlight:SetBackdrop(nil)
+			highlight:Hide()
+		end
+		st._highlightFrame = nil
+		return
+	end
+	local highlight = ensureHighlightFrame(st.barGroup)
+	if not highlight then return end
+	st._highlightFrame = highlight
+	local size = highlightCfg.size or 1
+	if size < 1 then size = 1 end
+	local insetVal = highlightCfg.inset
+	if insetVal == nil then insetVal = size end
+	local color = highlightCfg.color or { 1, 0, 0, 1 }
+	highlight:SetBackdrop({
+		bgFile = "Interface\\Buttons\\WHITE8x8",
+		edgeFile = H.resolveBorderTexture(highlightCfg.texture),
+		edgeSize = size,
+		insets = { left = insetVal, right = insetVal, top = insetVal, bottom = insetVal },
+	})
+	highlight:SetBackdropColor(0, 0, 0, 0)
+	highlight:SetBackdropBorderColor(color[1] or 1, color[2] or 0, color[3] or 0, color[4] or 1)
+	highlight:Hide()
+end
+
+local function hasAggro(unit)
+	if not UnitThreatSituation or not unit then return false end
+	if UnitExists and not UnitExists(unit) then return false end
+	local threat = UnitThreatSituation(unit)
+	return threat and threat >= 2
+end
+
+function H.updateHighlight(st, unit, playerUnit)
+	if not st or not st.barGroup then return end
+	local cfg = st._highlightCfg
+	local highlight = st.barGroup._ufHighlight
+	if not cfg or cfg.enabled ~= true then
+		if highlight then highlight:Hide() end
+		return
+	end
+	if not highlight then
+		H.applyHighlightStyle(st, cfg)
+		highlight = st.barGroup._ufHighlight
+		if not highlight then return end
+	end
+	local show = false
+	if cfg.mouseover and st._hovered then
+		show = true
+	elseif cfg.aggro and (unit == (playerUnit or "player") or unit == "pet") and hasAggro(unit) then
+		show = true
+	end
+	if show then
+		local color = cfg.color or { 1, 0, 0, 1 }
+		highlight:SetBackdropBorderColor(color[1] or 1, color[2] or 0, color[3] or 0, color[4] or 1)
+		highlight:Show()
+	else
+		highlight:Hide()
+	end
+end
+
+function H.updateAllHighlights(states, unitTokens, maxBossFrames)
+	if type(states) ~= "table" or type(unitTokens) ~= "table" then return end
+	local playerUnit = unitTokens.PLAYER or "player"
+	H.updateHighlight(states[playerUnit], playerUnit, playerUnit)
+	if unitTokens.TARGET then H.updateHighlight(states[unitTokens.TARGET], unitTokens.TARGET, playerUnit) end
+	if unitTokens.TARGET_TARGET then H.updateHighlight(states[unitTokens.TARGET_TARGET], unitTokens.TARGET_TARGET, playerUnit) end
+	if unitTokens.FOCUS then H.updateHighlight(states[unitTokens.FOCUS], unitTokens.FOCUS, playerUnit) end
+	if unitTokens.PET then H.updateHighlight(states[unitTokens.PET], unitTokens.PET, playerUnit) end
+	local maxBoss = tonumber(maxBossFrames) or 0
+	for i = 1, maxBoss do
+		local unit = "boss" .. i
+		H.updateHighlight(states[unit], unit, playerUnit)
+	end
+end
+
+function H.resolveTexture(key)
+	if key == "SOLID" then return "Interface\\Buttons\\WHITE8x8" end
+	if not key or key == "DEFAULT" then return BLIZZARD_TEX end
+	if LSM then
+		local tex = LSM:Fetch("statusbar", key)
+		if tex then return tex end
+	end
+	return key
+end
+
+function H.resolveSeparatorTexture(key)
+	if not key or key == "" or key == "SOLID" then return "Interface\\Buttons\\WHITE8x8" end
+	if key == "DEFAULT" then return BLIZZARD_TEX end
+	if LSM then
+		local tex = LSM:Fetch("statusbar", key)
+		if tex then return tex end
+	end
+	return key
+end
+
+function H.resolveCastTexture(key)
+	if key == "SOLID" then return "Interface\\Buttons\\WHITE8x8" end
+	if not key or key == "DEFAULT" then
+		if CASTING_BAR_TYPES and CASTING_BAR_TYPES.standard and CASTING_BAR_TYPES.standard.full then return CASTING_BAR_TYPES.standard.full end
+		return BLIZZARD_TEX
+	end
+	if LSM then
+		local tex = LSM:Fetch("statusbar", key)
+		if tex then return tex end
+	end
+	return key
+end
+
+function H.configureSpecialTexture(bar, pType, texKey, cfg)
+	if not bar or not pType then return end
+	local atlas = atlasByPower[pType]
+	if not atlas then return end
+	if texKey and texKey ~= "" and texKey ~= "DEFAULT" then return end
+	cfg = cfg or bar._cfg
+	local tex = bar:GetStatusBarTexture()
+	if tex and tex.SetAtlas then
+		local currentAtlas = tex.GetAtlas and tex:GetAtlas()
+		if currentAtlas ~= atlas then tex:SetAtlas(atlas, true) end
+		if tex.SetHorizTile then tex:SetHorizTile(false) end
+		if tex.SetVertTile then tex:SetVertTile(false) end
+	end
+end
+
+local reverseStyle = Enum.StatusBarFillStyle and Enum.StatusBarFillStyle.Reverse or "REVERSE"
+local standardStyle = Enum.StatusBarFillStyle and Enum.StatusBarFillStyle.Standard or "STANDARD"
+function H.applyStatusBarReverseFill(bar, reverse)
+	if not bar then return end
+	if bar.SetFillStyle then
+		bar:SetFillStyle(reverse and reverseStyle or standardStyle)
+	elseif bar.SetReverseFill then
+		bar:SetReverseFill(reverse and true or false)
+	end
+end
+
+function H.shouldUseDefaultCastArt(st) return st and st.castUseDefaultArt == true end
+
+local CAST_SPARK_WIDTH = 8
+local CAST_SPARK_HEIGHT = 20
+local CAST_SPARK_LAYER_DEFAULT = 3
+local CAST_SPARK_LAYER_CUSTOM = 7
+local EMPOWER_PIP_LAYER_DEFAULT = 2
+local EMPOWER_PIP_LAYER_CUSTOM = 6
+local EMPOWER_CUSTOM_PIP_MIN_WIDTH = 3
+local EMPOWER_CUSTOM_PIP_MAX_WIDTH = 6
+local EMPOWER_CUSTOM_PIP_ALPHA = 0.9
+local EMPOWER_CUSTOM_PIP_LINE_SUBLEVEL = 5
+local EMPOWER_CUSTOM_PIP_FX_SUBLEVEL = 7
+
+local function getCustomPipDimensions(barHeight)
+	local baseHeight = barHeight or 0
+	if baseHeight <= 0 then baseHeight = 16 end
+	local lineHeight = baseHeight
+	local width = floor(baseHeight * 0.18)
+	if width < EMPOWER_CUSTOM_PIP_MIN_WIDTH then width = EMPOWER_CUSTOM_PIP_MIN_WIDTH end
+	if width > EMPOWER_CUSTOM_PIP_MAX_WIDTH then width = EMPOWER_CUSTOM_PIP_MAX_WIDTH end
+	return width, lineHeight
+end
+
+local function setPipFxLayer(pip, layer, sublevel)
+	if not pip then return end
+	if pip.PipGlow and pip.PipGlow.SetDrawLayer then pip.PipGlow:SetDrawLayer(layer, sublevel) end
+	if pip.FlakesBottom and pip.FlakesBottom.SetDrawLayer then pip.FlakesBottom:SetDrawLayer(layer, sublevel) end
+	if pip.FlakesTop and pip.FlakesTop.SetDrawLayer then pip.FlakesTop:SetDrawLayer(layer, sublevel) end
+	if pip.FlakesTop02 and pip.FlakesTop02.SetDrawLayer then pip.FlakesTop02:SetDrawLayer(layer, sublevel) end
+	if pip.FlakesBottom02 and pip.FlakesBottom02.SetDrawLayer then pip.FlakesBottom02:SetDrawLayer(layer, sublevel) end
+end
+
+local function ensureCastSparkTextures(st)
+	if not st or not st.castBar then return nil end
+	local bar = st.castBar
+	if not st.castSparkLayer then
+		st.castSparkLayer = CreateFrame("Frame", nil, bar)
+		st.castSparkLayer:SetAllPoints(bar)
+		st.castSparkLayer:EnableMouse(false)
+	end
+	if st.castSparkLayer:GetParent() ~= bar then st.castSparkLayer:SetParent(bar) end
+	st.castSparkLayer:SetFrameStrata(bar:GetFrameStrata())
+	local baseLevel = bar:GetFrameLevel() or 0
+	local layerOffset = H.shouldUseDefaultCastArt(st) and CAST_SPARK_LAYER_DEFAULT or CAST_SPARK_LAYER_CUSTOM
+	st.castSparkLayer:SetFrameLevel(baseLevel + layerOffset)
+	local layer = st.castSparkLayer
+	local spark = st.castSpark
+	if not spark then
+		spark = layer:CreateTexture(nil, "OVERLAY", nil, 2)
+		if spark.SetAtlas then spark:SetAtlas("ui-castingbar-pip", false) end
+		spark:SetSize(CAST_SPARK_WIDTH, CAST_SPARK_HEIGHT)
+		spark.offsetY = 0
+		spark:Hide()
+		st.castSpark = spark
+	end
+	if not st.castSparkGlow then
+		local glow = layer:CreateTexture(nil, "OVERLAY", nil, 3)
+		if glow.SetBlendMode then glow:SetBlendMode("ADD") end
+		glow:Hide()
+		st.castSparkGlow = glow
+	end
+	if not st.castSparkShadow then
+		local shadow = layer:CreateTexture(nil, "OVERLAY", nil, 3)
+		shadow:Hide()
+		st.castSparkShadow = shadow
+	end
+	return spark
+end
+
+local function setSparkAtlas(spark, atlas)
+	if not spark then return end
+	if spark.SetAtlas then
+		local current = spark.GetAtlas and spark:GetAtlas()
+		if current ~= atlas then spark:SetAtlas(atlas, false) end
+	end
+end
+
+local function updateSparkFx(st, barType)
+	if not st then return end
+	local glow = st.castSparkGlow
+	local shadow = st.castSparkShadow
+	if glow then glow:Hide() end
+	if shadow then shadow:Hide() end
+	if not st.castSpark then return end
+
+	if barType == "channel" then
+		if shadow and shadow.SetAtlas then shadow:SetAtlas("cast_channel_pipshadow", true) end
+		if shadow then
+			shadow:ClearAllPoints()
+			shadow:SetPoint("RIGHT", st.castSpark, "LEFT", 1, 0)
+			shadow:Show()
+		end
+		return
+	end
+
+	if not glow then return end
+	if barType ~= "interrupted" and barType ~= "empowered" then
+		if glow.SetAtlas then glow:SetAtlas("cast_standard_pipglow", true) end
+		if glow.SetScale then glow:SetScale(1) end
+		glow:ClearAllPoints()
+		glow:SetPoint("RIGHT", st.castSpark, "LEFT", 2, 0)
+		glow:Show()
+	end
+end
+
+function H.hideCastSpark(st)
+	if not st then return end
+	if st.castSpark then st.castSpark:Hide() end
+	if st.castSparkGlow then st.castSparkGlow:Hide() end
+	if st.castSparkShadow then st.castSparkShadow:Hide() end
+end
+
+function H.updateCastSpark(st, overrideType)
+	if not st or not st.castBar then return end
+	local barType = overrideType
+	if not barType then
+		if st.castInterruptActive then
+			barType = "interrupted"
+		elseif st.castInfo then
+			if st.castInfo.isEmpowered then
+				barType = "empowered"
+			elseif st.castInfo.isChannel then
+				barType = "channel"
+			else
+				barType = "standard"
+			end
+		end
+	end
+	if not barType then
+		H.hideCastSpark(st)
+		return
+	end
+	local spark = ensureCastSparkTextures(st)
+	if not spark then return end
+
+	if barType == "interrupted" then
+		setSparkAtlas(spark, "ui-castingbar-pip-red")
+	elseif barType == "empowered" then
+		setSparkAtlas(spark, "ui-castingbar-empower-cursor")
+	else
+		setSparkAtlas(spark, "ui-castingbar-pip")
+	end
+	spark:Show()
+	updateSparkFx(st, barType)
+
+	local barHeight = st.castBar:GetHeight()
+	local sparkHeight = CAST_SPARK_HEIGHT
+	if barHeight and barHeight > 0 then
+		sparkHeight = barHeight + 8
+		if sparkHeight < CAST_SPARK_HEIGHT then sparkHeight = CAST_SPARK_HEIGHT end
+	end
+	spark:SetSize(CAST_SPARK_WIDTH, sparkHeight)
+	local extra = (barHeight and barHeight > 0) and (sparkHeight - barHeight) or 0
+	if barType == "empowered" then
+		spark.offsetY = (extra > 0) and (extra * 0.5) or 0
+	else
+		spark.offsetY = 0
+	end
+
+	local minVal, maxVal = st.castBar:GetMinMaxValues()
+	local value = st.castBar:GetValue()
+	if value == nil or maxVal == nil then
+		H.hideCastSpark(st)
+		return
+	end
+	if issecretvalue and ((minVal and issecretvalue(minVal)) or issecretvalue(value) or issecretvalue(maxVal)) then
+		H.hideCastSpark(st)
+		return
+	end
+	local range = (maxVal or 0) - (minVal or 0)
+	if not range or range == 0 then
+		H.hideCastSpark(st)
+		return
+	end
+	local width = st.castBar:GetWidth()
+	if not width or width <= 0 then return end
+	local progress = (value - (minVal or 0)) / range
+	if progress < 0 then
+		progress = 0
+	elseif progress > 1 then
+		progress = 1
+	end
+	local offset = width * progress
+	spark:SetPoint("CENTER", st.castBar, "LEFT", offset, spark.offsetY or 0)
+end
+
+local After = C_Timer and C_Timer.After
+local UnitEmpoweredChannelDuration = _G.UnitEmpoweredChannelDuration
+local UnitEmpoweredStagePercentages = _G.UnitEmpoweredStagePercentages
+local UnitEmpoweredStageDurations = _G.UnitEmpoweredStageDurations
+local GetUnitEmpowerHoldAtMaxTime = _G.GetUnitEmpowerHoldAtMaxTime
+local GetUnitEmpowerStageDuration = _G.GetUnitEmpowerStageDuration
+
+local function normalizeStageValues(...)
+	local count = select("#", ...)
+	if count == 1 and type((...)) == "table" then
+		local src = ...
+		local values = {}
+		for i = 1, #src do
+			values[i] = src[i]
+		end
+		return values
+	end
+	local values = {}
+	for i = 1, count do
+		local val = select(i, ...)
+		if val ~= nil then values[#values + 1] = val end
+	end
+	return values
+end
+
+local function normalizeDurationMilliseconds(value)
+	if type(value) ~= "number" then return nil end
+	if issecretvalue and issecretvalue(value) then return nil end
+	if value < 0 then return nil end
+	if value > 20 then return value end
+	return value * 1000
+end
+
+H.normalizeDurationMilliseconds = normalizeDurationMilliseconds
+
+local function durationToMilliseconds(duration)
+	if type(duration) == "number" then return normalizeDurationMilliseconds(duration) end
+	if type(duration) ~= "table" then return nil end
+	if duration.GetMilliseconds then
+		local ms = duration:GetMilliseconds()
+		if issecretvalue and issecretvalue(ms) then return nil end
+		return ms
+	end
+	if duration.GetSeconds then
+		local seconds = duration:GetSeconds()
+		if issecretvalue and issecretvalue(seconds) then return nil end
+		return normalizeDurationMilliseconds(seconds)
+	end
+	if duration.GetDuration then
+		local value = duration:GetDuration()
+		if issecretvalue and issecretvalue(value) then return nil end
+		if type(value) == "number" then return normalizeDurationMilliseconds(value) end
+	end
+	if duration.GetTime then
+		local value = duration:GetTime()
+		if issecretvalue and issecretvalue(value) then return nil end
+		if type(value) == "number" then return normalizeDurationMilliseconds(value) end
+	end
+	return nil
+end
+
+H.getDurationMilliseconds = durationToMilliseconds
+
+function H.getEmpoweredChannelDurationMilliseconds(unit)
+	if not unit or not UnitEmpoweredChannelDuration then return nil end
+	local duration = UnitEmpoweredChannelDuration(unit, true)
+	return durationToMilliseconds(duration)
+end
+
+function H.getEmpowerHoldMilliseconds(unit)
+	if not unit or not GetUnitEmpowerHoldAtMaxTime then return nil end
+	local hold = GetUnitEmpowerHoldAtMaxTime(unit)
+	return normalizeDurationMilliseconds(hold)
+end
+
+local function normalizeStagePercents(values, numStages)
+	if type(values) ~= "table" then return nil end
+	local cleaned = {}
+	local scale = 1
+	for i = 1, #values do
+		local val = values[i]
+		if type(val) == "number" and (not issecretvalue or not issecretvalue(val)) then
+			if val > 1 then scale = 100 end
+		end
+	end
+	local last = -1
+	for i = 1, #values do
+		local val = values[i]
+		if type(val) == "number" and (not issecretvalue or not issecretvalue(val)) then
+			if scale == 100 then val = val / 100 end
+			if val < 0 then
+				val = 0
+			elseif val > 1 then
+				val = 1
+			end
+			if val > last then
+				cleaned[#cleaned + 1] = val
+				last = val
+			end
+		end
+		if numStages and #cleaned >= numStages then break end
+	end
+	if #cleaned == 0 then return nil end
+	return cleaned
+end
+
+local function buildStagePercentsFromPercentages(values, numStages)
+	if type(values) ~= "table" then return nil end
+	local cleaned = {}
+	local scale = 1
+	local hasSecret = false
+	for i = 1, #values do
+		local val = values[i]
+		if type(val) == "number" then
+			if issecretvalue and issecretvalue(val) then
+				hasSecret = true
+			elseif val > 1 then
+				scale = 100
+			end
+		end
+	end
+	if hasSecret then return nil end
+	for i = 1, #values do
+		local val = values[i]
+		if type(val) == "number" then
+			if scale == 100 then val = val / 100 end
+			if val < 0 then
+				val = 0
+			elseif val > 1 then
+				val = 1
+			end
+			cleaned[#cleaned + 1] = val
+		end
+	end
+	if #cleaned == 0 then return nil end
+	if numStages and #cleaned > numStages then
+		while #cleaned > numStages do
+			table.remove(cleaned)
+		end
+	end
+	if numStages and #cleaned < numStages then return nil end
+	if #cleaned == 0 then return nil end
+	local sum = 0
+	for i = 1, #cleaned do
+		sum = sum + cleaned[i]
+	end
+	local assumeCumulative = #cleaned > 1 and sum > 1.02
+	if assumeCumulative then return normalizeStagePercents(cleaned, numStages) end
+	local cumulative = {}
+	local running = 0
+	for i = 1, #cleaned do
+		running = running + cleaned[i]
+		cumulative[i] = running
+	end
+	return normalizeStagePercents(cumulative, numStages)
+end
+
+local function buildEmpowerStagePercents(unit, numStages)
+	if not numStages or numStages <= 0 then return nil end
+	if UnitEmpoweredStagePercentages then
+		local percents = normalizeStageValues(UnitEmpoweredStagePercentages(unit, true))
+		percents = buildStagePercentsFromPercentages(percents, numStages)
+		if percents then return percents end
+	end
+	local durations
+	if UnitEmpoweredStageDurations then
+		durations = normalizeStageValues(UnitEmpoweredStageDurations(unit))
+	elseif GetUnitEmpowerStageDuration then
+		durations = {}
+		for i = 1, numStages do
+			durations[i] = GetUnitEmpowerStageDuration(unit, i - 1)
+		end
+	end
+	if type(durations) ~= "table" or #durations < numStages then return nil end
+	local hold = GetUnitEmpowerHoldAtMaxTime and GetUnitEmpowerHoldAtMaxTime(unit)
+	if hold ~= nil then
+		hold = durationToMilliseconds(hold)
+		if hold == nil then return nil end
+	end
+	local total = hold or 0
+	local percents = {}
+	local sum = 0
+	for i = 1, numStages do
+		local ms = durationToMilliseconds(durations[i])
+		if not ms then return nil end
+		sum = sum + ms
+		total = total + ms
+		percents[i] = sum
+	end
+	if not total or total <= 0 then return nil end
+	for i = 1, numStages do
+		percents[i] = percents[i] / total
+	end
+	return normalizeStagePercents(percents, numStages)
+end
+
+local function ensureEmpowerState(st)
+	if not st or not st.castBar then return nil end
+	if not st.castEmpower then st.castEmpower = { pips = {}, tiers = {} } end
+	local emp = st.castEmpower
+	if not emp.container then
+		emp.container = CreateFrame("Frame", nil, st.castBar)
+		emp.container:SetAllPoints(st.castBar)
+		emp.container:EnableMouse(false)
+	end
+	if emp.container:GetParent() ~= st.castBar then emp.container:SetParent(st.castBar) end
+	emp.container:SetFrameStrata(st.castBar:GetFrameStrata())
+	local baseLevel = st.castBar:GetFrameLevel() or 0
+	local layerOffset = H.shouldUseDefaultCastArt(st) and EMPOWER_PIP_LAYER_DEFAULT or EMPOWER_PIP_LAYER_CUSTOM
+	emp.container:SetFrameLevel(baseLevel + layerOffset)
+	return emp
+end
+
+local function addAlphaAnim(group, target, fromAlpha, toAlpha, duration, order, startDelay, smoothing)
+	local anim = group:CreateAnimation("Alpha")
+	anim:SetTarget(target)
+	anim:SetFromAlpha(fromAlpha or 0)
+	anim:SetToAlpha(toAlpha or 0)
+	anim:SetDuration(duration or 0)
+	anim:SetOrder(order or 1)
+	if startDelay and startDelay > 0 then anim:SetStartDelay(startDelay) end
+	if smoothing then anim:SetSmoothing(smoothing) end
+	return anim
+end
+
+local function addTranslationAnim(group, target, offsetX, offsetY, duration, order, smoothing)
+	local anim = group:CreateAnimation("Translation")
+	anim:SetTarget(target)
+	anim:SetOffset(offsetX or 0, offsetY or 0)
+	anim:SetDuration(duration or 0)
+	anim:SetOrder(order or 1)
+	if smoothing then anim:SetSmoothing(smoothing) end
+	return anim
+end
+
+local function addRotationAnim(group, target, degrees, duration, order, smoothing)
+	local anim = group:CreateAnimation("Rotation")
+	anim:SetTarget(target)
+	anim:SetDegrees(degrees or 0)
+	anim:SetDuration(duration or 0)
+	anim:SetOrder(order or 1)
+	if smoothing then anim:SetSmoothing(smoothing) end
+	if anim.SetOrigin then anim:SetOrigin("CENTER", 0, 0) end
+	return anim
+end
+
+local function ensureEmpowerPip(emp, index)
+	local pip = emp.pips[index]
+	if pip then return pip end
+	pip = CreateFrame("Frame", nil, emp.container)
+	pip:SetSize(7, 10)
+	pip.BasePip = pip:CreateTexture(nil, "ARTWORK", nil, 2)
+	if pip.BasePip.SetAtlas then pip.BasePip:SetAtlas("ui-castingbar-empower-pip", true) end
+	pip.BasePip:SetPoint("CENTER")
+	pip.PipGlow = pip:CreateTexture(nil, "OVERLAY", nil, 2)
+	if pip.PipGlow.SetAtlas then pip.PipGlow:SetAtlas("cast-empowered-pipflare", true) end
+	pip.PipGlow:SetAlpha(0)
+	pip.PipGlow:SetPoint("CENTER")
+	if pip.PipGlow.SetScale then pip.PipGlow:SetScale(0.5) end
+
+	pip.FlakesBottom = pip:CreateTexture(nil, "OVERLAY", nil, 2)
+	if pip.FlakesBottom.SetAtlas then pip.FlakesBottom:SetAtlas("Cast_Empowered_FlakesS01", true) end
+	if pip.FlakesBottom.SetScale then pip.FlakesBottom:SetScale(0.5) end
+	pip.FlakesBottom:SetAlpha(0)
+	pip.FlakesBottom:SetPoint("CENTER")
+
+	pip.FlakesTop = pip:CreateTexture(nil, "OVERLAY", nil, 2)
+	if pip.FlakesTop.SetAtlas then pip.FlakesTop:SetAtlas("Cast_Empowered_FlakesS02", true) end
+	if pip.FlakesTop.SetScale then pip.FlakesTop:SetScale(0.5) end
+	pip.FlakesTop:SetAlpha(0)
+	pip.FlakesTop:SetPoint("CENTER")
+
+	pip.FlakesTop02 = pip:CreateTexture(nil, "OVERLAY", nil, 2)
+	if pip.FlakesTop02.SetAtlas then pip.FlakesTop02:SetAtlas("Cast_Empowered_FlakesS03", true) end
+	if pip.FlakesTop02.SetScale then pip.FlakesTop02:SetScale(0.5) end
+	pip.FlakesTop02:SetAlpha(0)
+	pip.FlakesTop02:SetPoint("CENTER")
+
+	pip.FlakesBottom02 = pip:CreateTexture(nil, "OVERLAY", nil, 2)
+	if pip.FlakesBottom02.SetAtlas then pip.FlakesBottom02:SetAtlas("Cast_Empowered_FlakesS03", true) end
+	if pip.FlakesBottom02.SetScale then pip.FlakesBottom02:SetScale(0.5) end
+	pip.FlakesBottom02:SetAlpha(0)
+	pip.FlakesBottom02:SetPoint("CENTER")
+
+	pip.StageAnim = pip:CreateAnimationGroup()
+	pip.StageAnim:SetLooping("NONE")
+	if pip.StageAnim.SetToFinalAlpha then pip.StageAnim:SetToFinalAlpha(true) end
+
+	addAlphaAnim(pip.StageAnim, pip.PipGlow, 0, 0, 0, 1, nil, "NONE")
+	addAlphaAnim(pip.StageAnim, pip.PipGlow, 0.1, 1, 0.1, 1, 0, "NONE")
+	addAlphaAnim(pip.StageAnim, pip.PipGlow, 1, 0, 0.25, 1, 0.1, "OUT")
+
+	addTranslationAnim(pip.StageAnim, pip.FlakesBottom, 0, -30, 0.3, 1, "OUT")
+	addRotationAnim(pip.StageAnim, pip.FlakesBottom, 90, 0.3, 1, "OUT")
+	addAlphaAnim(pip.StageAnim, pip.FlakesBottom, 0.1, 1, 0.1, 1, 0, "NONE")
+	addAlphaAnim(pip.StageAnim, pip.FlakesBottom, 1, 0, 0.25, 1, 0.1, "NONE")
+
+	addTranslationAnim(pip.StageAnim, pip.FlakesTop, 0, 30, 0.3, 1, "OUT")
+	addRotationAnim(pip.StageAnim, pip.FlakesTop, -90, 0.3, 1, "OUT")
+	addAlphaAnim(pip.StageAnim, pip.FlakesTop, 0.1, 1, 0.1, 1, 0, "NONE")
+	addAlphaAnim(pip.StageAnim, pip.FlakesTop, 1, 0, 0.25, 1, 0.1, "NONE")
+
+	addTranslationAnim(pip.StageAnim, pip.FlakesTop02, 0, 35, 0.3, 1, "IN")
+	addRotationAnim(pip.StageAnim, pip.FlakesTop02, 60, 0.3, 1, "OUT")
+	addAlphaAnim(pip.StageAnim, pip.FlakesTop02, 0.1, 1, 0.1, 1, 0, "NONE")
+	addAlphaAnim(pip.StageAnim, pip.FlakesTop02, 1, 0, 0.25, 1, 0.1, "NONE")
+
+	addTranslationAnim(pip.StageAnim, pip.FlakesBottom02, 0, -35, 0.3, 1, "IN")
+	addRotationAnim(pip.StageAnim, pip.FlakesBottom02, -60, 0.3, 1, "OUT")
+	addAlphaAnim(pip.StageAnim, pip.FlakesBottom02, 0.1, 1, 0.1, 1, 0, "NONE")
+	addAlphaAnim(pip.StageAnim, pip.FlakesBottom02, 1, 0, 0.25, 1, 0.1, "NONE")
+
+	emp.pips[index] = pip
+	return pip
+end
+
+local function ensureEmpowerTier(emp, index)
+	local tier = emp.tiers[index]
+	if tier then return tier end
+	tier = CreateFrame("Frame", nil, emp.container)
+	tier.Normal = tier:CreateTexture(nil, "BACKGROUND", nil, 4)
+	tier.Disabled = tier:CreateTexture(nil, "BACKGROUND", nil, 4)
+	tier.Glow = tier:CreateTexture(nil, "BACKGROUND", nil, 5)
+	tier.Normal:SetAllPoints(tier)
+	tier.Disabled:SetAllPoints(tier)
+	tier.Glow:SetAllPoints(tier)
+	if tier.Glow.SetBlendMode then tier.Glow:SetBlendMode("ADD") end
+	tier.Glow:SetAlpha(0)
+	tier.GlowAnim = tier.Glow:CreateAnimationGroup()
+	local fadeIn = tier.GlowAnim:CreateAnimation("Alpha")
+	fadeIn:SetFromAlpha(0)
+	fadeIn:SetToAlpha(1)
+	fadeIn:SetDuration(0.1)
+	fadeIn:SetOrder(1)
+	local fadeOut = tier.GlowAnim:CreateAnimation("Alpha")
+	fadeOut:SetFromAlpha(1)
+	fadeOut:SetToAlpha(0)
+	fadeOut:SetDuration(0.5)
+	fadeOut:SetOrder(2)
+	emp.tiers[index] = tier
+	return tier
+end
+
+function H.clearEmpowerStages(st)
+	local emp = st and st.castEmpower
+	if not emp then return end
+	emp.stagePercents = nil
+	emp.stageCount = 0
+	emp.currentStage = 0
+	emp.layoutToken = (emp.layoutToken or 0) + 1
+	if emp.container then emp.container:Hide() end
+	for _, pip in pairs(emp.pips) do
+		if pip.StageAnim then pip.StageAnim:Stop() end
+		if pip.PipGlow then pip.PipGlow:SetAlpha(0) end
+		if pip.FlakesBottom then pip.FlakesBottom:SetAlpha(0) end
+		if pip.FlakesTop then pip.FlakesTop:SetAlpha(0) end
+		if pip.FlakesTop02 then pip.FlakesTop02:SetAlpha(0) end
+		if pip.FlakesBottom02 then pip.FlakesBottom02:SetAlpha(0) end
+		pip:Hide()
+	end
+	for _, tier in pairs(emp.tiers) do
+		if tier.GlowAnim then tier.GlowAnim:Stop() end
+		tier:Hide()
+	end
+end
+
+function H.layoutEmpowerStages(st)
+	local emp = st and st.castEmpower
+	if not st or not st.castBar or not emp or not emp.stagePercents then return end
+	local baseLevel = st.castBar:GetFrameLevel() or 0
+	local layerOffset = H.shouldUseDefaultCastArt(st) and EMPOWER_PIP_LAYER_DEFAULT or EMPOWER_PIP_LAYER_CUSTOM
+	if emp.container then emp.container:SetFrameLevel(baseLevel + layerOffset) end
+	local barLeft = st.castBar:GetLeft()
+	local barRight = st.castBar:GetRight()
+	if not barLeft or not barRight then
+		if After then
+			emp.layoutToken = (emp.layoutToken or 0) + 1
+			local token = emp.layoutToken
+			After(0, function()
+				local st2 = st
+				local emp2 = st2 and st2.castEmpower
+				if emp2 and emp2.layoutToken == token then H.layoutEmpowerStages(st2) end
+			end)
+		end
+		return
+	end
+	local barWidth = barRight - barLeft
+	if not barWidth or barWidth <= 0 then return end
+	local count = emp.stageCount or #emp.stagePercents
+	if count <= 0 then return end
+	local showTiers = H.shouldUseDefaultCastArt(st)
+	local container = emp.container or ensureEmpowerState(st).container
+	if container then container:Show() end
+	local barHeight = st.castBar:GetHeight() or 0
+
+	for i = 1, count do
+		local percent = emp.stagePercents[i]
+		local pip = ensureEmpowerPip(emp, i)
+		pip:ClearAllPoints()
+		local offset = barWidth * percent
+		if showTiers then
+			pip:SetSize(7, 10)
+			pip:SetPoint("TOP", st.castBar, "TOPLEFT", offset, -1)
+			pip:SetPoint("BOTTOM", st.castBar, "BOTTOMLEFT", offset, 1)
+			if pip.BasePip then
+				if pip.BasePip.SetAtlas then pip.BasePip:SetAtlas("ui-castingbar-empower-pip", true) end
+				if pip.BasePip.SetDrawLayer then pip.BasePip:SetDrawLayer("ARTWORK", 2) end
+				if pip.BasePip.SetVertexColor then pip.BasePip:SetVertexColor(1, 1, 1, 1) end
+				pip.BasePip:ClearAllPoints()
+				pip.BasePip:SetPoint("CENTER")
+			end
+			setPipFxLayer(pip, "OVERLAY", 2)
+		else
+			local lineWidth, lineHeight = getCustomPipDimensions(barHeight)
+			pip:SetHeight(lineHeight)
+			pip:SetWidth(lineWidth)
+			pip:SetPoint("TOP", st.castBar, "TOPLEFT", offset, 0)
+			pip:SetPoint("BOTTOM", st.castBar, "BOTTOMLEFT", offset, 0)
+			if pip.BasePip then
+				if pip.BasePip.SetDrawLayer then pip.BasePip:SetDrawLayer("OVERLAY", EMPOWER_CUSTOM_PIP_LINE_SUBLEVEL) end
+				pip.BasePip:ClearAllPoints()
+				pip.BasePip:SetAllPoints(pip)
+				if pip.BasePip.SetColorTexture then
+					pip.BasePip:SetColorTexture(1, 1, 1, EMPOWER_CUSTOM_PIP_ALPHA)
+				else
+					pip.BasePip:SetTexture("Interface\\Buttons\\WHITE8x8")
+					if pip.BasePip.SetVertexColor then pip.BasePip:SetVertexColor(1, 1, 1, EMPOWER_CUSTOM_PIP_ALPHA) end
+				end
+			end
+			setPipFxLayer(pip, "OVERLAY", EMPOWER_CUSTOM_PIP_FX_SUBLEVEL)
+		end
+		if pip.BasePip then pip.BasePip:Show() end
+		pip:Show()
+	end
+	for i = count + 1, #emp.pips do
+		emp.pips[i]:Hide()
+	end
+
+	if showTiers then
+		for i = 1, count do
+			local tier = ensureEmpowerTier(emp, i)
+			tier:ClearAllPoints()
+			local leftStagePip = emp.pips[i]
+			local rightStagePip = emp.pips[i + 1]
+			if leftStagePip then tier:SetPoint("TOPLEFT", leftStagePip, "TOP", 0, 0) end
+			if rightStagePip then
+				tier:SetPoint("BOTTOMRIGHT", rightStagePip, "BOTTOM", 0, 0)
+			else
+				tier:SetPoint("BOTTOMRIGHT", st.castBar, "BOTTOMRIGHT", 0, 1)
+			end
+
+			local tierLeft = tier:GetLeft()
+			local tierRight = tier:GetRight()
+			if tierLeft and tierRight then
+				local texLeft = (tierLeft - barLeft) / barWidth
+				local texRight = 1.0 - ((barRight - tierRight) / barWidth)
+				tier.Normal:SetTexCoord(texLeft, texRight, 0, 1)
+				tier.Disabled:SetTexCoord(texLeft, texRight, 0, 1)
+				tier.Glow:SetTexCoord(texLeft, texRight, 0, 1)
+			end
+
+			if tier.Normal.SetAtlas then tier.Normal:SetAtlas(("ui-castingbar-tier%d-empower"):format(i), true) end
+			if tier.Disabled.SetAtlas then tier.Disabled:SetAtlas(("ui-castingbar-disabled-tier%d-empower"):format(i), true) end
+			if tier.Glow.SetAtlas then tier.Glow:SetAtlas(("ui-castingbar-glow-tier%d-empower"):format(i), true) end
+
+			tier.Normal:SetShown(false)
+			tier.Disabled:SetShown(true)
+			tier.Glow:SetAlpha(0)
+			tier:Show()
+		end
+		for i = count + 1, #emp.tiers do
+			emp.tiers[i]:Hide()
+		end
+	else
+		for _, tier in pairs(emp.tiers) do
+			tier:Hide()
+		end
+	end
+end
+
+function H.updateEmpowerStageFromProgress(st, progress)
+	local emp = st and st.castEmpower
+	if not emp or not emp.stagePercents or not emp.stageCount then return end
+	if issecretvalue and issecretvalue(progress) then return end
+	local maxStage = 0
+	for i = 1, emp.stageCount do
+		local pct = emp.stagePercents[i]
+		if type(pct) == "number" and progress >= pct then
+			maxStage = i
+		else
+			break
+		end
+	end
+	if maxStage <= emp.currentStage then return end
+	local showTiers = H.shouldUseDefaultCastArt(st)
+	for i = emp.currentStage + 1, maxStage do
+		local pip = emp.pips[i]
+		if pip and pip.StageAnim then
+			pip.StageAnim:Stop()
+			pip.StageAnim:Play()
+		elseif pip and pip.PipGlowAnim then
+			pip.PipGlowAnim:Stop()
+			pip.PipGlowAnim:Play()
+		end
+		local tier = emp.tiers[i]
+		if showTiers and tier then
+			tier.Normal:SetShown(true)
+			tier.Disabled:SetShown(false)
+			if tier.GlowAnim then
+				tier.GlowAnim:Stop()
+				tier.GlowAnim:Play()
+			end
+		end
+	end
+	emp.currentStage = maxStage
+end
+
+function H.updateEmpowerStageFromBar(st)
+	if not st or not st.castBar then return end
+	local emp = st.castEmpower
+	if not emp or not emp.stagePercents then return end
+	local _, maxVal = st.castBar:GetMinMaxValues()
+	local value = st.castBar:GetValue()
+	if not maxVal or maxVal == 0 or value == nil then return end
+	if issecretvalue and (issecretvalue(value) or issecretvalue(maxVal)) then return end
+	H.updateEmpowerStageFromProgress(st, value / maxVal)
+end
+
+function H.setupEmpowerStages(st, unit, numStages)
+	H.clearEmpowerStages(st)
+	if not st or not unit or not numStages or numStages <= 0 then return end
+	local percents = buildEmpowerStagePercents(unit, numStages)
+	if not percents then return end
+	local emp = ensureEmpowerState(st)
+	if not emp then return end
+	emp.stagePercents = percents
+	emp.stageCount = #percents
+	emp.currentStage = 0
+	H.layoutEmpowerStages(st)
+end
+
+local WrapString = _G.C_StringUtil and _G.C_StringUtil.WrapString
+
+function H.formatCastName(nameText, castTarget, showTarget)
+	if not showTarget or type(castTarget) == "nil" then return nameText end
+	if WrapString then return WrapString(castTarget, nameText .. " --> ") or nameText end
+	if not castTarget or castTarget == "" then return nameText end
+	return nameText .. " --> " .. castTarget
+end
+
+function H.resolveTextDelimiter(delimiter)
+	if delimiter == nil or delimiter == "" then delimiter = " " end
+	if delimiter == " " then return " " end
+	return " " .. tostring(delimiter) .. " "
+end
+
+local function join2(a, b, sep) return a .. sep .. b end
+
+local function join3(a, b, c, sep) return a .. sep .. b .. sep .. c end
+
+local function join4(a, b, c, d, sep) return a .. sep .. b .. sep .. c .. sep .. d end
+
+function H.shortValue(val)
+	if val == nil then return "" end
+	if addon.variables and addon.variables.isMidnight then return AbbreviateNumbers(val) end
+	local absVal = abs(val)
+	if absVal >= 1e9 then
+		return ("%.1fB"):format(val / 1e9):gsub("%.0B", "B")
+	elseif absVal >= 1e6 then
+		return ("%.1fM"):format(val / 1e6):gsub("%.0M", "M")
+	elseif absVal >= 1e3 then
+		return ("%.1fK"):format(val / 1e3):gsub("%.0K", "K")
+	end
+	return tostring(floor(val + 0.5))
+end
+
+function H.textModeUsesLevel(mode) return type(mode) == "string" and mode:find("LEVEL", 1, true) ~= nil end
+
+function H.getUnitLevelText(unit, levelOverride)
+	if not unit then return "??" end
+	local rawLevel = tonumber(levelOverride) or UnitLevel(unit) or 0
+	local levelText = rawLevel > 0 and tostring(rawLevel) or "??"
+	local classification = UnitClassification and UnitClassification(unit)
+	if classification == "worldboss" then
+		levelText = "??"
+	elseif classification == "elite" then
+		levelText = levelText .. "+"
+	elseif classification == "rareelite" then
+		levelText = levelText .. " R+"
+	elseif classification == "rare" then
+		levelText = levelText .. " R"
+	elseif classification == "trivial" or classification == "minus" then
+		levelText = levelText .. "-"
+	end
+	return levelText
+end
+
+function H.formatText(mode, cur, maxv, useShort, percentValue, delimiter, hidePercentSymbol, levelText)
+	if mode == "NONE" then return "" end
+	local join = H.resolveTextDelimiter(delimiter)
+	local percentSuffix = hidePercentSymbol and "" or "%"
+	if levelText == nil or levelText == "" then levelText = "??" end
+	local isPercentMode = type(mode) == "string" and mode:find("PERCENT", 1, true) ~= nil
+	local function formatPercentMode(curText, maxText, percentText)
+		if not percentText then return "" end
+		if mode == "PERCENT" then return percentText end
+		if mode == "CURPERCENT" or mode == "CURPERCENTDASH" then return join2(curText, percentText, join) end
+		if mode == "CURMAXPERCENT" then return join3(curText, maxText, percentText, join) end
+		if mode == "MAXPERCENT" then return join2(maxText, percentText, join) end
+		if mode == "PERCENTMAX" then return join2(percentText, maxText, join) end
+		if mode == "PERCENTCUR" then return join2(percentText, curText, join) end
+		if mode == "PERCENTCURMAX" then return join3(percentText, curText, maxText, join) end
+		if mode == "LEVELPERCENT" then return join2(levelText, percentText, join) end
+		if mode == "LEVELPERCENTMAX" then return join3(levelText, percentText, maxText, join) end
+		if mode == "LEVELPERCENTCUR" then return join3(levelText, percentText, curText, join) end
+		if mode == "LEVELPERCENTCURMAX" then return join4(levelText, percentText, curText, maxText, join) end
+		return ""
+	end
+	if addon.variables and addon.variables.isMidnight and issecretvalue then
+		if (cur and issecretvalue(cur)) or (maxv and issecretvalue(maxv)) then
+			local scur = useShort and H.shortValue(cur) or BreakUpLargeNumbers(cur)
+			local smax = useShort and H.shortValue(maxv) or BreakUpLargeNumbers(maxv)
+			local percentText
+			if percentValue ~= nil then percentText = ("%s%s"):format(tostring(AbbreviateLargeNumbers(percentValue)), percentSuffix) end
+
+			if mode == "CURRENT" then return tostring(scur) end
+			if mode == "MAX" then return tostring(smax) end
+			if mode == "CURMAX" then return tostring(scur) .. "/" .. tostring(smax) end
+			if isPercentMode then return formatPercentMode(tostring(scur), tostring(smax), percentText) end
+			return ""
+		end
+	end
+	local percentText
+	if isPercentMode then
+		if percentValue ~= nil then
+			percentText = ("%d%s"):format(floor(percentValue + 0.5), percentSuffix)
+		elseif not maxv or maxv == 0 then
+			percentText = "0" .. percentSuffix
+		else
+			percentText = ("%d%s"):format(floor((cur or 0) / maxv * 100 + 0.5), percentSuffix)
+		end
+	end
+	if mode == "MAX" then
+		local maxText = useShort == false and tostring(maxv or 0) or H.shortValue(maxv or 0)
+		return maxText
+	end
+	if mode == "CURMAX" then
+		local curText = useShort == false and tostring(cur or 0) or H.shortValue(cur or 0)
+		local maxText = useShort == false and tostring(maxv or 0) or H.shortValue(maxv or 0)
+		return curText .. "/" .. maxText
+	end
+	if isPercentMode then
+		local curText = useShort == false and tostring(cur or 0) or H.shortValue(cur or 0)
+		local maxText = useShort == false and tostring(maxv or 0) or H.shortValue(maxv or 0)
+		return formatPercentMode(curText, maxText, percentText)
+	end
+	if useShort == false then return tostring(cur or 0) end
+	return H.shortValue(cur or 0)
+end
+
+function H.getNameLimitWidth(fontPath, fontSize, fontOutline, maxChars)
+	if not maxChars or maxChars <= 0 then return nil end
+	local font = H.getFont(fontPath)
+	local size = fontSize or 14
+	local outline = fontOutline or "OUTLINE"
+	local key = tostring(font) .. "|" .. tostring(size) .. "|" .. tostring(outline) .. "|" .. tostring(maxChars)
+	if nameWidthCache[key] then return nameWidthCache[key] end
+	if not nameWidthCache._measure and UIParent and UIParent.CreateFontString then
+		nameWidthCache._measure = UIParent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+		if nameWidthCache._measure then nameWidthCache._measure:Hide() end
+	end
+	local measure = nameWidthCache._measure
+	if not measure then return nil end
+	measure:SetFont(font, size, outline)
+	measure:SetText(string.rep("i", maxChars))
+	local width = measure:GetStringWidth() or 0
+	nameWidthCache[key] = width
+	return width
+end
+
+function H.applyNameCharLimit(st, scfg, defStatus)
+	if not st or not st.nameText then return end
+	local maxChars = scfg and scfg.nameMaxChars
+	if maxChars == nil and defStatus then maxChars = defStatus.nameMaxChars end
+	maxChars = tonumber(maxChars) or 0
+	if maxChars <= 0 then
+		if st.nameText.SetMaxLines then st.nameText:SetMaxLines(1) end
+		if st.nameText.SetWordWrap then st.nameText:SetWordWrap(false) end
+		st.nameText:SetWidth(0)
+		return
+	end
+	if st.nameText.SetMaxLines then st.nameText:SetMaxLines(1) end
+	if st.nameText.SetWordWrap then st.nameText:SetWordWrap(false) end
+	local width = H.getNameLimitWidth(scfg and scfg.font, scfg and scfg.fontSize or 14, scfg and scfg.fontOutline or "OUTLINE", maxChars)
+	if width and width > 0 then st.nameText:SetWidth(width) end
+end
+
+function H.getTextDelimiter(cfg, def)
+	local defaultDelim = (def and def.textDelimiter) or " "
+	local delimiter = cfg and cfg.textDelimiter
+	if delimiter == nil or delimiter == "" then delimiter = defaultDelim end
+	return delimiter
+end
+
+local function resolvePvPAtlas(unit)
+	if C_GameRules and C_GameRules.IsGameRuleActive and Enum and Enum.GameRule then
+		if C_GameRules.IsGameRuleActive(Enum.GameRule.UnitFramePvPContextualDisabled) then return nil end
+	end
+	if UnitIsPVPFreeForAll and UnitIsPVPFreeForAll(unit) then return "UI-HUD-UnitFrame-Player-PVP-FFAIcon" end
+	local factionGroup = UnitFactionGroup and UnitFactionGroup(unit)
+	if factionGroup and factionGroup ~= "Neutral" and UnitIsPVP and UnitIsPVP(unit) then
+		if UnitIsMercenary and UnitIsMercenary(unit) then
+			if factionGroup == "Horde" then
+				factionGroup = "Alliance"
+			elseif factionGroup == "Alliance" then
+				factionGroup = "Horde"
+			end
+		end
+		if factionGroup == "Horde" then
+			return "UI-HUD-UnitFrame-Player-PVP-HordeIcon"
+		elseif factionGroup == "Alliance" then
+			return "UI-HUD-UnitFrame-Player-PVP-AllianceIcon"
+		end
+	end
+	return nil
+end
+
+local function resolveRoleAtlas(role)
+	if not role or role == "NONE" then return nil end
+	if GetIconForRole then return GetIconForRole(role, false) end
+	if role == "TANK" then return "UI-LFG-RoleIcon-Tank" end
+	if role == "HEALER" then return "UI-LFG-RoleIcon-Healer" end
+	if role == "DAMAGER" then return "UI-LFG-RoleIcon-DPS" end
+	return nil
+end
+
+function H.updatePvPIndicator(st, unit, cfg, def, skipDisabled)
+	if unit ~= "player" and unit ~= "target" and unit ~= "focus" then return end
+	if not st or not st.pvpIcon then return end
+	def = def or {}
+	local pcfg = (cfg and cfg.pvpIndicator) or (def and def.pvpIndicator) or {}
+	local enabled = pcfg.enabled == true and not (cfg and cfg.enabled == false)
+	if not enabled and skipDisabled then return end
+
+	local offsetDef = def and def.pvpIndicator and def.pvpIndicator.offset or {}
+	local sizeDef = def and def.pvpIndicator and def.pvpIndicator.size or 20
+	local size = H.clamp(pcfg.size or sizeDef or 20, 10, 40)
+	local ox = (pcfg.offset and pcfg.offset.x) or offsetDef.x or 0
+	local oy = (pcfg.offset and pcfg.offset.y) or offsetDef.y or -2
+	local centerOffset = (st and st._portraitCenterOffset) or 0
+	st.pvpIcon:ClearAllPoints()
+	st.pvpIcon:SetSize(size, size)
+	st.pvpIcon:SetPoint("TOP", st.frame, "TOP", (ox or 0) + centerOffset, oy)
+
+	if not enabled then
+		st.pvpIcon:Hide()
+		return
+	end
+
+	local inEditMode = addon.EditModeLib and addon.EditModeLib:IsInEditMode()
+	local atlas = resolvePvPAtlas(unit)
+	if not atlas and inEditMode then
+		local sampleFaction = UnitFactionGroup and UnitFactionGroup("player")
+		if sampleFaction == "Horde" then
+			atlas = "UI-HUD-UnitFrame-Player-PVP-HordeIcon"
+		else
+			atlas = "UI-HUD-UnitFrame-Player-PVP-AllianceIcon"
+		end
+	end
+	if atlas then
+		st.pvpIcon:SetAtlas(atlas)
+		st.pvpIcon:Show()
+	else
+		st.pvpIcon:Hide()
+	end
+end
+
+function H.updateRoleIndicator(st, unit, cfg, def, skipDisabled)
+	if unit ~= "player" and unit ~= "target" and unit ~= "focus" then return end
+	if not st or not st.roleIcon then return end
+	def = def or {}
+	local rcfg = (cfg and cfg.roleIndicator) or (def and def.roleIndicator) or {}
+	local enabled = rcfg.enabled == true and not (cfg and cfg.enabled == false)
+	if not enabled and skipDisabled then return end
+
+	local offsetDef = def and def.roleIndicator and def.roleIndicator.offset or {}
+	local sizeDef = def and def.roleIndicator and def.roleIndicator.size or 18
+	local size = H.clamp(rcfg.size or sizeDef or 18, 10, 40)
+	local ox = (rcfg.offset and rcfg.offset.x) or offsetDef.x or 0
+	local oy = (rcfg.offset and rcfg.offset.y) or offsetDef.y or -2
+	local centerOffset = (st and st._portraitCenterOffset) or 0
+	st.roleIcon:ClearAllPoints()
+	st.roleIcon:SetSize(size, size)
+	st.roleIcon:SetPoint("TOP", st.frame, "TOP", (ox or 0) + centerOffset, oy)
+
+	if not enabled then
+		st.roleIcon:Hide()
+		return
+	end
+
+	local inEditMode = addon.EditModeLib and addon.EditModeLib:IsInEditMode()
+	local inGroup = IsInGroup and IsInGroup() or false
+	local role = inGroup and UnitGroupRolesAssigned and UnitGroupRolesAssigned(unit) or nil
+	if role == "NONE" then role = nil end
+	if not role and inEditMode then role = "DAMAGER" end
+
+	local atlas = resolveRoleAtlas(role)
+	if atlas then
+		st.roleIcon:SetAtlas(atlas)
+		st.roleIcon:Show()
+	else
+		st.roleIcon:Hide()
+	end
+end
+
+function H.getPowerColor(pToken)
+	if not pToken then pToken = EnumPowerType.MANA end
+	local overrides = addon.db and addon.db.ufPowerColorOverrides
+	local override = overrides and overrides[pToken]
+	if override then
+		if override.r then return override.r, override.g, override.b, override.a or 1 end
+		if override[1] then return override[1], override[2], override[3], override[4] or 1 end
+	end
+	if PowerBarColor then
+		local c = PowerBarColor[pToken]
+		if c then
+			if c.r then return c.r, c.g, c.b, c.a or 1 end
+			if c[1] then return c[1], c[2], c[3], c[4] or 1 end
+		end
+	end
+	return 0.1, 0.45, 1, 1
+end
+
+function H.isPowerDesaturated(pToken)
+	if not pToken then return false end
+	local overrides = addon.db and addon.db.ufPowerColorOverrides
+	return overrides and overrides[pToken] ~= nil
+end
+
+function H.getNPCColorDefault(key)
+	local c = key and npcColorDefaults[key]
+	if not c then return nil end
+	return c[1], c[2], c[3], c[4]
+end
+
+function H.getNPCColor(key)
+	if not key then return nil end
+	local overrides = addon.db and addon.db.ufNPCColorOverrides
+	local override = overrides and overrides[key]
+	if override then
+		if override.r then return override.r, override.g, override.b, override.a or 1 end
+		if override[1] then return override[1], override[2], override[3], override[4] or 1 end
+	end
+	return H.getNPCColorDefault(key)
+end

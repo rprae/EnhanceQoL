@@ -6,8 +6,14 @@ local serializer = LibStub("AceSerializer-3.0")
 local deflate = LibStub("LibDeflate")
 local PROFILE_EXPORT_KIND = "EQOL_PROFILE"
 
-local cProfiles = addon.functions.SettingsCreateCategory(nil, L["Profiles"], nil, "Profiles")
-addon.SettingsLayout.profilesCategory = cProfiles
+local cProfiles = addon.SettingsLayout.rootPROFILES
+
+local expandable = addon.functions.SettingsCreateExpandableSection(cProfiles, {
+	name = L["AddOn"],
+	expanded = false,
+	colorizeTitle = false,
+})
+
 local profileOrderActive, profileOrderGlobal, profileOrderCopy, profileOrderDelete = {}, {}, {}, {}
 
 -- Build a sorted dropdown list, optionally keeping an empty entry pinned to the top
@@ -127,9 +133,7 @@ end
 
 local function importErrorMessage(reason)
 	if reason == "NO_INPUT" then return L["ProfileImportEmpty"] or "Please paste a code to import." end
-	if reason == "INVALID" or reason == "DECODE" or reason == "DECOMPRESS" or reason == "DESERIALIZE" then
-		return L["ProfileImportInvalid"] or "The code could not be read."
-	end
+	if reason == "INVALID" or reason == "DECODE" or reason == "DECOMPRESS" or reason == "DESERIALIZE" then return L["ProfileImportInvalid"] or "The code could not be read." end
 	if reason == "NO_ACTIVE" or reason == "NO_DB" then return L["ProfileExportNoActive"] or "No active profile found." end
 	return L["ProfileImportFailed"] or "Profile import failed."
 end
@@ -146,6 +150,7 @@ local data = {
 	end,
 	default = "",
 	var = "profiledata",
+	parentSection = expandable,
 }
 
 addon.functions.SettingsCreateDropdown(cProfiles, data)
@@ -158,10 +163,11 @@ data = {
 	set = function(value) EnhanceQoLDB.profileGlobal = value end,
 	default = "",
 	var = "profilefirststart",
+	parentSection = expandable,
 }
 
 addon.functions.SettingsCreateDropdown(cProfiles, data)
-addon.functions.SettingsCreateText(cProfiles, L["ProfileUseGlobalDesc"])
+addon.functions.SettingsCreateText(cProfiles, L["ProfileUseGlobalDesc"], { parentSection = expandable })
 
 data = {
 	listFunc = function()
@@ -197,6 +203,7 @@ data = {
 	end,
 	default = "",
 	var = "profilecopy",
+	parentSection = expandable,
 }
 
 addon.functions.SettingsCreateDropdown(cProfiles, data)
@@ -233,18 +240,20 @@ data = {
 	desc = L["ProfileDeleteDesc2"],
 	default = "",
 	var = "profiledelete",
+	parentSection = expandable,
 }
 
 addon.functions.SettingsCreateDropdown(cProfiles, data)
 
 data = {
-var = "AddProfile",
-text = L["ProfileName"],
-func = function() StaticPopup_Show("EQOL_CREATE_PROFILE") end,
+	var = "AddProfile",
+	text = L["ProfileName"],
+	func = function() StaticPopup_Show("EQOL_CREATE_PROFILE") end,
+	parentSection = expandable,
 }
 addon.functions.SettingsCreateButton(cProfiles, data)
 
-addon.functions.SettingsCreateHeadline(cProfiles, L["ProfileShareHeader"] or "Export / Import")
+addon.functions.SettingsCreateHeadline(cProfiles, L["ProfileShareHeader"] or "Export / Import", { parentSection = expandable })
 
 addon.functions.SettingsCreateButton(cProfiles, {
 	var = "profileExport",
@@ -275,6 +284,7 @@ addon.functions.SettingsCreateButton(cProfiles, {
 		end
 		StaticPopup_Show("EQOL_PROFILE_EXPORT")
 	end,
+	parentSection = expandable,
 })
 
 addon.functions.SettingsCreateButton(cProfiles, {
@@ -303,11 +313,11 @@ addon.functions.SettingsCreateButton(cProfiles, {
 		StaticPopupDialogs["EQOL_PROFILE_IMPORT"].EditBoxOnEnterPressed = function(editBox)
 			local parent = editBox:GetParent()
 			if parent and parent.button1 then parent.button1:Click() end
-			end
-			StaticPopupDialogs["EQOL_PROFILE_IMPORT"].OnAccept = function(self)
-				local editBox = self.editBox or self:GetEditBox()
-				local input = editBox:GetText() or ""
-				local ok, reason = importActiveProfile(input)
+		end
+		StaticPopupDialogs["EQOL_PROFILE_IMPORT"].OnAccept = function(self)
+			local editBox = self.editBox or self:GetEditBox()
+			local input = editBox:GetText() or ""
+			local ok, reason = importActiveProfile(input)
 			if not ok then
 				print("|cff00ff98Enhance QoL|r: " .. tostring(importErrorMessage(reason)))
 				return
@@ -317,6 +327,7 @@ addon.functions.SettingsCreateButton(cProfiles, {
 		end
 		StaticPopup_Show("EQOL_PROFILE_IMPORT")
 	end,
+	parentSection = expandable,
 })
 
 ----- REGION END

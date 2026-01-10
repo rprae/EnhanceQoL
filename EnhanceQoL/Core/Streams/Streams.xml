@@ -1,13 +1,25 @@
 <Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.blizzard.com/wow/ui/ ..\\FrameXML\\UI.xsd">
         <Script file="Stream_Currency.lua"/>
         <Script file="Stream_Coordinates.lua"/>
+        <Script file="Stream_Location.lua"/>
+        <Script file="Stream_Realm.lua"/>
         <Script file="Stream_Difficulty.lua"/>
         <Script file="Stream_Durability.lua"/>
         <Script file="Stream_Friends.lua"/>
         <Script file="Stream_Gold.lua"/>
+        <Script file="Stream_ItemLevel.lua"/>
         <Script file="Stream_Latency.lua"/>
+        <Script file="Stream_Time.lua"/>
         <Script file="Stream_LootSpec.lua"/>
         <Script file="Stream_MythicKey.lua"/>
+        <Script file="Stream_MythicRating.lua"/>
+        <Script file="Stream_EquipmentSets.lua"/>
+        <Script file="Stream_MicroBar.lua"/>
         <Script file="Stream_Stats.lua"/>
         <Script file="Stream_Talentbuilt.lua"/>
+        <Script file="Stream_Volume.lua"/>
+        <Script file="Stream_MarkBarCommon.lua"/>
+        <Script file="Stream_MarkBarTarget.lua"/>
+        <Script file="Stream_MarkBarWorld.lua"/>
+        <Script file="Stream_MarkBarUtility.lua"/>
 </Ui>
