@@ -297,6 +297,7 @@ local defaults = {
 			showCastTarget = false,
 			nameOffset = { x = 6, y = 0 },
 			showDuration = true,
+			durationFormat = "REMAINING",
 			durationOffset = { x = -6, y = 0 },
 			font = nil,
 			fontSize = 12,
@@ -377,6 +378,7 @@ local defaults = {
 			showCastTarget = false,
 			nameOffset = { x = 6, y = 0 },
 			showDuration = true,
+			durationFormat = "REMAINING",
 			durationOffset = { x = -6, y = 0 },
 			font = nil,
 			fontSize = 12,
@@ -2084,12 +2086,25 @@ local function updateCastBar(unit)
 	end
 	if st.castDuration then
 		if ccfg.showDuration ~= false then
-			local remaining = (endMs - nowMs) / 1000
-			if remaining < 0 then remaining = 0 end
-			local tenths = math.floor(remaining * 10 + 0.5)
-			if st.castInfo.durationTenths ~= tenths then
-				st.castInfo.durationTenths = tenths
-				st.castDuration:SetText(("%.1f"):format(remaining))
+			local durationFormat = ccfg.durationFormat or "REMAINING"
+			if durationFormat == "ELAPSED_TOTAL" then
+				local total = duration / 1000
+				local elapsed = (nowMs - startMs) / 1000
+				if elapsed < 0 then elapsed = 0 end
+				if elapsed > total then elapsed = total end
+				local tenths = math.floor(elapsed * 10 + 0.5)
+				if st.castInfo.durationTenths ~= tenths then
+					st.castInfo.durationTenths = tenths
+					st.castDuration:SetText(("%.1f / %.1f"):format(elapsed, total))
+				end
+			else
+				local remaining = (endMs - nowMs) / 1000
+				if remaining < 0 then remaining = 0 end
+				local tenths = math.floor(remaining * 10 + 0.5)
+				if st.castInfo.durationTenths ~= tenths then
+					st.castInfo.durationTenths = tenths
+					st.castDuration:SetText(("%.1f"):format(remaining))
+				end
 			end
 			st.castDuration:Show()
 		else
@@ -2304,12 +2319,18 @@ local function setCastInfoFromUnit(unit)
 			st.castBar:Show()
 
 			local durObj, direction
+			-- TODO this can be made easier after ptr and beta have the same API
 			if _G.UnitEmpoweredChannelDuration then
 				durObj = _G.UnitEmpoweredChannelDuration(unit, true)
 				direction = Enum.StatusBarTimerDirection.ElapsedTime
-				if not durObj and UnitChannelDuration then
-					durObj = UnitChannelDuration(unit)
-					direction = Enum.StatusBarTimerDirection.RemainingTime
+				if not durObj then
+					if isChannel then
+						durObj = UnitChannelDuration(unit)
+						direction = Enum.StatusBarTimerDirection.RemainingTime
+					else
+						durObj = UnitCastingDuration(unit)
+						direction = Enum.StatusBarTimerDirection.ElapsedTime
+					end
 				end
 			elseif isChannel then
 				durObj = UnitChannelDuration(unit)
@@ -2323,6 +2344,7 @@ local function setCastInfoFromUnit(unit)
 				return
 			end
 			st.castBar:SetTimerDuration(durObj, Enum.StatusBarInterpolation.Immediate, direction)
+			st.castBarDuration = durObj
 			if st.castName then
 				local showName = ccfg.showName ~= false
 				st.castName:SetShown(showName)
@@ -2348,20 +2370,42 @@ local function setCastInfoFromUnit(unit)
 				CreateColor(clr[1] or 0.9, clr[2] or 0.7, clr[3] or 0.2, clr[4] or 1)
 			)
 			st.castBar:SetStatusBarDesaturated(true)
-			-- applyCastLayout(cfg, unit)
-			-- if st.castDuration then
-			-- 	st.castDuration:SetText("")
-			-- 	st.castDuration:Hide()
-			-- end
-			-- if isEmpowered then
-			-- 	UFHelper.setupEmpowerStages(st, unit, numEmpowerStages)
-			-- 	if not castOnUpdateHandlers[unit] then
-			-- 		st.castBar:SetScript("OnUpdate", function() updateCastBar(unit) end)
-			-- 		castOnUpdateHandlers[unit] = true
-			-- 	end
-			-- else
-			-- 	UFHelper.clearEmpowerStages(st)
-			-- end
+			local showDuration = ccfg.showDuration ~= false and st.castDuration ~= nil
+			if not showDuration then
+				if castOnUpdateHandlers[unit] then
+					st.castBar:SetScript("OnUpdate", nil)
+					castOnUpdateHandlers[unit] = nil
+				end
+				if st.castDuration then
+					st.castDuration:SetText("")
+					st.castDuration:Hide()
+				end
+			elseif not castOnUpdateHandlers[unit] then
+				st.castDuration:Show()
+				st.castBar._eqolCastDurationElapsed = 0
+				st.castBar:SetScript("OnUpdate", function(self, elapsed)
+					local timerObj = st.castBarDuration
+					if not timerObj then
+						self:SetScript("OnUpdate", nil)
+						castOnUpdateHandlers[unit] = nil
+						return
+					end
+
+					self._eqolCastDurationElapsed = (self._eqolCastDurationElapsed or 0) + (elapsed or 0)
+					if self._eqolCastDurationElapsed < 0.1 then return end
+					self._eqolCastDurationElapsed = 0
+
+					local durationFormat = ccfg.durationFormat or defc.durationFormat or "REMAINING"
+					if durationFormat == "ELAPSED_TOTAL" then
+						st.castDuration:SetText(("%.1f / %.1f"):format(timerObj:GetElapsedDuration(), timerObj:GetTotalDuration()))
+						return
+					else
+						st.castDuration:SetText(("%.1f"):format(timerObj:GetRemainingDuration()))
+						return
+					end
+				end)
+				castOnUpdateHandlers[unit] = true
+			end
 		else
 			stopCast(unit)
 		end

@@ -2317,12 +2317,20 @@ local function buildUnitSettings(unit)
 		castNameFontSize.isEnabled = isCastNameEnabled
 		list[#list + 1] = castNameFontSize
 
-		local castNameMaxCharsSetting = slider(L["UFCastNameMaxChars"] or "Cast name max width", 0, 100, 1, function()
-			return getValue(unit, { "cast", "nameMaxChars" }, castDef.nameMaxChars or 0)
-		end, function(val)
-			setValue(unit, { "cast", "nameMaxChars" }, val or 0)
-			refresh()
-		end, castDef.nameMaxChars or 0, "cast", true)
+		local castNameMaxCharsSetting = slider(
+			L["UFCastNameMaxChars"] or "Cast name max width",
+			0,
+			100,
+			1,
+			function() return getValue(unit, { "cast", "nameMaxChars" }, castDef.nameMaxChars or 0) end,
+			function(val)
+				setValue(unit, { "cast", "nameMaxChars" }, val or 0)
+				refresh()
+			end,
+			castDef.nameMaxChars or 0,
+			"cast",
+			true
+		)
 		castNameMaxCharsSetting.isEnabled = isCastNameEnabled
 		list[#list + 1] = castNameMaxCharsSetting
 
@@ -2338,6 +2346,25 @@ local function buildUnitSettings(unit)
 			"cast",
 			isCastEnabled
 		)
+
+		local castDurationFormatOptions = {
+			{ value = "REMAINING", label = L["UFCastDurationRemaining"] or "Remaining" },
+			{ value = "ELAPSED_TOTAL", label = L["UFCastDurationElapsedTotal"] or "Elapsed/Total" },
+		}
+
+		local castDurationFormat = checkboxDropdown(
+			L["UFCastDurationFormat"] or "Cast duration format",
+			castDurationFormatOptions,
+			function() return getValue(unit, { "cast", "durationFormat" }, castDef.durationFormat or "REMAINING") end,
+			function(val)
+				setValue(unit, { "cast", "durationFormat" }, val or "REMAINING")
+				refresh()
+			end,
+			castDef.durationFormat or "REMAINING",
+			"cast"
+		)
+		castDurationFormat.isEnabled = isCastDurationEnabled
+		list[#list + 1] = castDurationFormat
 
 		local castDurX = slider(
 			L["Duration X Offset"] or "Duration X Offset",
