@@ -108,6 +108,7 @@ local classResourceFramesByClass = {
 	MONK = { "MonkHarmonyBarFrame" },
 	PALADIN = { "PaladinPowerBarFrame" },
 	ROGUE = { "RogueComboPointBarFrame" },
+	SHAMAN = { "ShamanMaelstromWeaponBarFrame" },
 	WARLOCK = { "WarlockPowerFrame" },
 }
 local classResourceOriginalLayouts = {}

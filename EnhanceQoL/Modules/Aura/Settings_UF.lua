@@ -96,6 +96,7 @@ local classResourceClasses = {
 	MONK = true,
 	PALADIN = true,
 	ROGUE = true,
+	SHAMAN = true,
 	WARLOCK = true,
 }
 
@@ -2609,7 +2610,7 @@ local function buildUnitSettings(unit)
 	nameFontSizeSetting.isEnabled = isNameEnabled
 	list[#list + 1] = nameFontSizeSetting
 
-	local nameMaxCharsSetting = slider(L["UFNameMaxChars"] or "Name max width", 0, 30, 1, function() return getValue(unit, { "status", "nameMaxChars" }, statusDef.nameMaxChars or 0) end, function(val)
+	local nameMaxCharsSetting = slider(L["UFNameMaxChars"] or "Name max width", 0, 100, 1, function() return getValue(unit, { "status", "nameMaxChars" }, statusDef.nameMaxChars or 0) end, function(val)
 		setValue(unit, { "status", "nameMaxChars" }, val or 0)
 		refresh()
 	end, statusDef.nameMaxChars or 15, "status", true)

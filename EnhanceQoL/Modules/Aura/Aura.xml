@@ -6,5 +6,6 @@
 	<Script file="CooldownNotify.lua" />
 	<Script file="UF_Helper.lua" />
 	<Script file="UF.lua" />
+	<Script file="ShamanMaelstromWeaponBar.lua" />
 	<Script file="Settings_UF.lua" />
 </Ui>

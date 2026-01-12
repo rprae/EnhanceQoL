@@ -347,6 +347,17 @@ local function getAuraPowerCounts(pType)
 	return stacks or 0, logicalMax or 0, visualSegments or logicalMax
 end
 
+function ResourceBars.UpdateAuraPowerState(eventInfo)
+	if not RB.AURA_POWER_CONFIG then return end
+	if not eventInfo or eventInfo.isFullUpdate then
+		resetAuraTracking()
+		return
+	end
+	handleAuraEventInfo(eventInfo)
+end
+
+ResourceBars.GetAuraPowerCounts = getAuraPowerCounts
+
 local function getPlayerClassColor()
 	local class = addon and addon.variables and addon.variables.unitClass
 	if not class then return 0, 0.7, 0, 1 end
