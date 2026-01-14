@@ -218,6 +218,7 @@ local function updateVolume(streamObj)
 	streamObj.snapshot.fontSize = size
 	streamObj.snapshot.text = ("|TInterface\\Common\\VoiceChat-Speaker:%d:%d:0:0|t %s: %s"):format(size, size, label, formatPercent(volume))
 	streamObj.snapshot.tooltip = tooltip
+	streamObj.snapshot.ignoreMenuModifier = true
 	updateTooltipForButton(hoveredButton, tooltip)
 end
 

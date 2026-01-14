@@ -62,6 +62,9 @@ function addon.Tooltip.functions.InitDB()
 	init("TooltipHidePVP", false)
 	init("TooltipShowSpellIconInline", false)
 
+	-- Quest
+	init("TooltipShowQuestIDInQuestLog", false)
+
 	-- Buff
 	init("TooltipBuffHideType", 1)
 	init("TooltipBuffHideInCombat", false)

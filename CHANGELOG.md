@@ -21,10 +21,12 @@
 
 - Minimap Button Bin: Buttons are now sorted alphabetically by default.
 - DataPanels: Talents stream defaults to a grey "Talents:" prefix.
+- Resource Bars: Bar/Absorb texture dropdowns now show previews.
 
 ### 🐛 Fixed
 
 - Resource Bars: Font dropdown selection no longer resets on click (fonts are selectable again).
+- DataPanels: Volume stream right-click no longer requires the context menu modifier.
 
 ### ❌ Removed
 

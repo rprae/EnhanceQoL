@@ -199,8 +199,8 @@ end
 local function partsOnLeave() GameTooltip:Hide() end
 
 local function partsOnClick(b, btn, ...)
-	if btn == "RightButton" and not DataPanel.IsMenuModifierActive(btn) then return end
 	local s = b.slot
+	if btn == "RightButton" and not (s and s.ignoreMenuModifier) and not DataPanel.IsMenuModifierActive(btn) then return end
 	if not s then return end
 	local fn = s.OnClick
 	if type(fn) == "table" then fn = fn[btn] end
@@ -972,9 +972,9 @@ function DataPanel.Create(id, name, existingOnly)
 		end)
 		button:RegisterForClicks("AnyUp")
 		button:SetScript("OnClick", function(b, btn, ...)
-			if btn == "RightButton" and not DataPanel.IsMenuModifierActive(btn) then return end
 			local s = b.slot
-			local fn = s.OnClick
+			if btn == "RightButton" and not (s and s.ignoreMenuModifier) and not DataPanel.IsMenuModifierActive(btn) then return end
+			local fn = s and s.OnClick
 			if type(fn) == "table" then fn = fn[btn] end
 			if fn then fn(b, btn, ...) end
 		end)
@@ -1019,6 +1019,7 @@ function DataPanel.Create(id, name, existingOnly)
 				data.hover = nil
 				data.OnMouseEnter = nil
 				data.OnMouseLeave = nil
+				data.ignoreMenuModifier = payload.ignoreMenuModifier
 				if payload.OnClick ~= nil then data.OnClick = payload.OnClick end
 				return
 			elseif data.hidden then
@@ -1277,6 +1278,7 @@ function DataPanel.Create(id, name, existingOnly)
 			data.hover = payload.hover
 			data.OnMouseEnter = payload.OnMouseEnter
 			data.OnMouseLeave = payload.OnMouseLeave
+			data.ignoreMenuModifier = payload.ignoreMenuModifier
 			if payload.OnClick ~= nil then data.OnClick = payload.OnClick end
 			if hasSecureParts then data.secureInitialized = true end
 			if data.pendingPayload then

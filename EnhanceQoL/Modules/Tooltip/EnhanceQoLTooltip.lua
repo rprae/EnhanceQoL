@@ -991,6 +991,50 @@ local function IsUnitTooltip(tt)
 	return owner.unit or (owner.GetAttribute and owner:GetAttribute("unit"))
 end
 
+local function EnsureQuestIDInQuestLogLabel()
+	if addon.Tooltip.variables.questIDInQuestLogLabel then return addon.Tooltip.variables.questIDInQuestLogLabel end
+	if not QuestMapFrame or not QuestMapFrame.DetailsFrame or not QuestMapFrame.DetailsFrame.BackFrame then return end
+
+	local backFrame = QuestMapFrame.DetailsFrame.BackFrame and QuestMapFrame.DetailsFrame.BackFrame.BackButton or QuestMapFrame.DetailsFrame.BackFrame
+	local anchor = backFrame.AccountCompletedNotice or backFrame
+	local fs = backFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+	fs:SetJustifyH("RIGHT")
+	fs:SetJustifyV("MIDDLE")
+	if anchor ~= backFrame then
+		fs:SetPoint("RIGHT", anchor, "LEFT", -18, 0)
+	else
+		fs:SetPoint("TOPLEFT", backFrame, "TOPRIGHT", 14, -8)
+	end
+	fs:Hide()
+
+	addon.Tooltip.variables.questIDInQuestLogLabel = fs
+	return fs
+end
+
+local function UpdateQuestIDInQuestLogLabel(questID)
+	local fs = EnsureQuestIDInQuestLogLabel()
+	if not fs then return end
+	if not addon.db or not addon.db["TooltipShowQuestIDInQuestLog"] or not questID or questID == 0 then
+		fs:SetText("")
+		fs:Hide()
+		return
+	end
+
+	local label = ID or "ID"
+	fs:SetText(("%s: %s"):format(label, tostring(questID)))
+	fs:Show()
+end
+
+function addon.Tooltip.functions.UpdateQuestIDInQuestLog(questID)
+	if not QuestMapFrame or not QuestMapFrame.DetailsFrame then return end
+	local detailsFrame = QuestMapFrame.DetailsFrame
+	if not detailsFrame:IsShown() then
+		UpdateQuestIDInQuestLogLabel(nil)
+		return
+	end
+	UpdateQuestIDInQuestLogLabel(questID or detailsFrame.questID)
+end
+
 local function registerTooltipHooks()
 	if addon.Tooltip.variables.hooksInitialized then return end
 	addon.Tooltip.variables.hooksInitialized = true
@@ -1045,6 +1089,18 @@ local function registerTooltipHooks()
 		end
 	end)
 
+	hooksecurefunc("QuestMapFrame_ShowQuestDetails", function(questID)
+		if addon.Tooltip and addon.Tooltip.functions and addon.Tooltip.functions.UpdateQuestIDInQuestLog then
+			addon.Tooltip.functions.UpdateQuestIDInQuestLog(questID)
+		end
+	end)
+
+	hooksecurefunc("QuestMapFrame_CloseQuestDetails", function()
+		if addon.Tooltip and addon.Tooltip.functions and addon.Tooltip.functions.UpdateQuestIDInQuestLog then
+			addon.Tooltip.functions.UpdateQuestIDInQuestLog()
+		end
+	end)
+
 	-- Optionally hide the default "Right-click for options" instruction on unit tooltips
 	hooksecurefunc("GameTooltip_AddInstructionLine", function(tt, text)
 		if not addon.db or not addon.db["TooltipUnitHideRightClickInstruction"] then return end
@@ -1067,6 +1123,10 @@ local function registerTooltipHooks()
 			end
 		end
 	end)
+
+	if addon.Tooltip and addon.Tooltip.functions and addon.Tooltip.functions.UpdateQuestIDInQuestLog then
+		addon.Tooltip.functions.UpdateQuestIDInQuestLog()
+	end
 end
 
 function addon.Tooltip.functions.InitState()

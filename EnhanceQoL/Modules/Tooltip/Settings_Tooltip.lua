@@ -296,6 +296,17 @@ data = {
 		type = Settings.VarType.Boolean,
 		parentSection = expandable,
 	},
+	{
+		var = "TooltipShowQuestIDInQuestLog",
+		text = L["TooltipShowQuestIDInQuestLog"],
+		func = function(v)
+			addon.db["TooltipShowQuestIDInQuestLog"] = v
+			if addon.Tooltip and addon.Tooltip.functions and addon.Tooltip.functions.UpdateQuestIDInQuestLog then addon.Tooltip.functions.UpdateQuestIDInQuestLog() end
+		end,
+		default = false,
+		type = Settings.VarType.Boolean,
+		parentSection = expandable,
+	},
 }
 table.sort(data, function(a, b) return a.text < b.text end)
 
