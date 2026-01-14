@@ -105,6 +105,7 @@ local outlineOptions = {
 	{ value = "OUTLINE", label = L["Outline"] or "Outline" },
 	{ value = "THICKOUTLINE", label = L["Thick Outline"] or "Thick Outline" },
 	{ value = "MONOCHROMEOUTLINE", label = L["Monochrome Outline"] or "Monochrome Outline" },
+	{ value = "DROPSHADOW", label = L["Drop shadow"] or "Drop shadow" },
 }
 
 local anchorOptions = {

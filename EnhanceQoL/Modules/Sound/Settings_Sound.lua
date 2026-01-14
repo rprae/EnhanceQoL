@@ -34,6 +34,30 @@ end
 local cSound = addon.SettingsLayout.rootSOUND
 addon.SettingsLayout.soundCategory = cSound
 
+local audioDeviceExpandable = addon.functions.SettingsCreateExpandableSection(cSound, {
+	name = L["audioDeviceSection"] or "Audio device",
+	expanded = false,
+	colorizeTitle = false,
+})
+
+local function CreateAudioCheckbox(data)
+	data.parentSection = audioDeviceExpandable
+	return addon.functions.SettingsCreateCheckbox(cSound, data)
+end
+
+CreateAudioCheckbox({
+	var = "keepAudioSynced",
+	text = L["keepAudioSynced"] or "Keep audio synced",
+	desc = L["keepAudioSyncedDesc"],
+	func = function(value)
+		addon.db.keepAudioSynced = value and true or false
+		if addon.Sounds and addon.Sounds.functions and addon.Sounds.functions.UpdateAudioSync then
+			addon.Sounds.functions.UpdateAudioSync()
+		end
+	end,
+	default = false,
+})
+
 local soundExpandable = addon.functions.SettingsCreateExpandableSection(cSound, {
 	name = L["soundMuteSection"] or "Sounds to mute",
 	expanded = false,

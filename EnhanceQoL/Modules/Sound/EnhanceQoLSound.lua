@@ -52,6 +52,42 @@ local function applyMutedSounds()
 	end
 end
 
+local function isFrameShown(frame)
+	return frame and frame.IsShown and frame:IsShown()
+end
+
+local function isCinematicPlaying()
+	return isFrameShown(CinematicFrame) or isFrameShown(MovieFrame)
+end
+
+local function applyAudioSync()
+	if not SetCVar then return end
+	SetCVar("Sound_OutputDriverIndex", "0")
+	if Sound_GameSystem_RestartSoundSystem and not isCinematicPlaying() then
+		Sound_GameSystem_RestartSoundSystem()
+	end
+end
+
+local audioSyncFrame
+
+function addon.Sounds.functions.UpdateAudioSync()
+	if not audioSyncFrame then
+		audioSyncFrame = CreateFrame("Frame")
+		audioSyncFrame:SetScript("OnEvent", function()
+			if not addon.db or not addon.db.keepAudioSynced then return end
+			applyAudioSync()
+		end)
+	end
+
+	audioSyncFrame:UnregisterEvent("VOICE_CHAT_OUTPUT_DEVICES_UPDATED")
+
+	if addon.db and addon.db.keepAudioSynced then
+		audioSyncFrame:RegisterEvent("VOICE_CHAT_OUTPUT_DEVICES_UPDATED")
+		applyAudioSync()
+	end
+end
+
 function addon.Sounds.functions.InitState()
 	applyMutedSounds()
+	addon.Sounds.functions.UpdateAudioSync()
 end

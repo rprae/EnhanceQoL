@@ -2,6 +2,9 @@ local L = LibStub("AceLocale-3.0"):NewLocale("EnhanceQoL_Sound", "enUS", true)
 
 L["soundMuteExplained"] = "Enabling any setting below will mute the associated sound effect"
 L["soundMuteSection"] = "Sounds to mute"
+L["audioDeviceSection"] = "Audio device"
+L["keepAudioSynced"] = "Keep audio synced"
+L["keepAudioSyncedDesc"] = "If checked, when you change the audio output device in your operating system, the game audio output device will change automatically as long as a cinematic is not playing at the time.|n|nFor this to work, the game audio output device will be set to system default."
 
 L["monk"] = "Monk"
 

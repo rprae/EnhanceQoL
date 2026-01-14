@@ -43,6 +43,17 @@ local npcColorDefaults = {
 }
 
 local nameWidthCache = {}
+local DROP_SHADOW_FLAG = "DROPSHADOW"
+
+local function normalizeFontOutline(outline)
+	if outline == nil then return "OUTLINE" end
+	if outline == "" or outline == "NONE" or outline == DROP_SHADOW_FLAG then return nil end
+	return outline
+end
+
+local function wantsDropShadow(outline)
+	return outline == DROP_SHADOW_FLAG
+end
 
 function H.clamp(value, minV, maxV)
 	if value < minV then return minV end
@@ -62,9 +73,15 @@ end
 
 function H.applyFont(fs, fontPath, size, outline)
 	if not fs then return end
-	fs:SetFont(H.getFont(fontPath), size or 14, outline or "OUTLINE")
-	fs:SetShadowColor(0, 0, 0, 0)
-	fs:SetShadowOffset(0, 0)
+	local flags = normalizeFontOutline(outline)
+	fs:SetFont(H.getFont(fontPath), size or 14, flags)
+	if wantsDropShadow(outline) then
+		fs:SetShadowColor(0, 0, 0, 0.5)
+		fs:SetShadowOffset(0.5, -0.5)
+	else
+		fs:SetShadowColor(0, 0, 0, 0)
+		fs:SetShadowOffset(0, 0)
+	end
 end
 
 function H.resolveBorderTexture(key)
@@ -1123,8 +1140,8 @@ function H.getNameLimitWidth(fontPath, fontSize, fontOutline, maxChars)
 	if not maxChars or maxChars <= 0 then return nil end
 	local font = H.getFont(fontPath)
 	local size = fontSize or 14
-	local outline = fontOutline or "OUTLINE"
-	local key = tostring(font) .. "|" .. tostring(size) .. "|" .. tostring(outline) .. "|" .. tostring(maxChars)
+	local outline = normalizeFontOutline(fontOutline)
+	local key = tostring(font) .. "|" .. tostring(size) .. "|" .. tostring(outline or "") .. "|" .. tostring(maxChars)
 	if nameWidthCache[key] then return nameWidthCache[key] end
 	if not nameWidthCache._measure and UIParent and UIParent.CreateFontString then
 		nameWidthCache._measure = UIParent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
