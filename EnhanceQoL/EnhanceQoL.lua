@@ -2382,6 +2382,7 @@ local function initParty()
 	addon.EditModeLib:RegisterCallback("enter", function()
 		removeLeaderIcon()
 		removeAssistIcon()
+		if InCombatLockdown() then return end
 		CompactRaidFrameContainer:Layout()
 	end)
 	addon.EditModeLib:RegisterCallback("exit", function()

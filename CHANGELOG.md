@@ -1,5 +1,15 @@
 # Changelog
 
+## [7.1.1] - 2026-01-20
+
+### 🐛 Fixed
+
+- Bug when entering Edit Mode while in combat
+- Fixed Action Tracker showing passive effects of spells
+- Profiles import doesn't apply UF locations
+
+---
+
 ## [7.1.0] - 2026-01-20
 
 ### ✨ Added

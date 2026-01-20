@@ -71,6 +71,38 @@ local function sanitizeProfileData(source)
 	return filtered
 end
 
+local function reconcileEditModeLayouts(profileData, meta)
+	if type(profileData) ~= "table" then return end
+	local layouts = profileData.editModeLayouts
+	if type(layouts) ~= "table" then return end
+	local editMode = addon and addon.EditMode
+	if not (editMode and editMode.GetActiveLayoutName) then return end
+	local active = editMode:GetActiveLayoutName() or "_Global"
+	if layouts[active] ~= nil then return end
+
+	local sourceName = meta and (meta.editModeLayout or meta.editModeLayoutName)
+	if sourceName and layouts[sourceName] ~= nil then
+		layouts[active] = CopyTable(layouts[sourceName])
+		return
+	end
+
+	local firstName, firstLayout
+	local count = 0
+	for name, layout in pairs(layouts) do
+		if type(layout) == "table" and next(layout) ~= nil then
+			count = count + 1
+			if not firstName then
+				firstName = name
+				firstLayout = layout
+			end
+		end
+	end
+	if count == 1 and firstName and firstLayout and firstName ~= active then
+		layouts[active] = firstLayout
+		layouts[firstName] = nil
+	end
+end
+
 local function resolveExportProfileName(profileName)
 	if type(profileName) == "string" and profileName ~= "" then return profileName end
 	return getActiveProfileName()
@@ -83,6 +115,8 @@ local function exportActiveProfile(profileName)
 	local source = EnhanceQoLDB and EnhanceQoLDB.profiles and EnhanceQoLDB.profiles[profileName]
 	if type(source) ~= "table" or not next(source) then return nil, "NO_DATA" end
 
+	local activeLayout = addon.EditMode and addon.EditMode.GetActiveLayoutName and addon.EditMode:GetActiveLayoutName() or nil
+
 	local payload = {
 		meta = {
 			addon = addonName,
@@ -90,6 +124,7 @@ local function exportActiveProfile(profileName)
 			version = tostring(C_AddOns.GetAddOnMetadata(addonName, "Version") or ""),
 			profileVersion = 1,
 			profile = profileName,
+			editModeLayout = activeLayout,
 		},
 		data = sanitizeProfileData(source),
 	}
@@ -124,7 +159,9 @@ local function importActiveProfile(encoded)
 
 	if not EnhanceQoLDB or type(EnhanceQoLDB.profiles) ~= "table" then return false, "NO_DB" end
 
-	EnhanceQoLDB.profiles[target] = sanitizeProfileData(data)
+	local sanitized = sanitizeProfileData(data)
+	reconcileEditModeLayouts(sanitized, meta)
+	EnhanceQoLDB.profiles[target] = sanitized
 	addon.db = EnhanceQoLDB.profiles[target]
 
 	return true

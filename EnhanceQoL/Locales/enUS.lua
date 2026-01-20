@@ -696,6 +696,8 @@ L["Health Text"] = "Health Text"
 L["PlayerHealthText"] = "Player health text"
 L["TargetHealthText"] = "Target health text"
 L["HealthTextExplain2"] = "%s follows Blizzard 'Status Text'.\nAny other mode shows your chosen format for Player, Target, and Boss frames."
+L["Current/Max"] = "Current/Max"
+L["Current/Max Percent"] = "Current/Max (percent)"
 
 L["ActionbarVisibilityExplain2"] = '|cff99e599Set the action bar to "%s" in %s to use the options below.|r\n|cff99e599You can combine mouseover, in-combat, and out-of-combat visibility.|r'
 L["VisibilityHubName"] = "Visibility Hub"

@@ -70,12 +70,14 @@ addon.functions.SettingsCreateHeadline(cUnitFrame, L["Health Text"], {
 
 addon.functions.SettingsCreateText(cUnitFrame, "|cff99e599" .. string.format(L["HealthTextExplain2"], VIDEO_OPTIONS_DISABLED) .. "|r", { parentSection = expandWith(shouldShowHealthTextSection) })
 
-local healthTextOrder = { "OFF", "PERCENT", "ABS", "BOTH" }
+local healthTextOrder = { "OFF", "PERCENT", "ABS", "BOTH", "CURMAX", "CURMAXPERCENT" }
 local healthTextOptions = {
 	OFF = VIDEO_OPTIONS_DISABLED,
 	PERCENT = STATUS_TEXT_PERCENT,
 	ABS = STATUS_TEXT_VALUE,
 	BOTH = STATUS_TEXT_BOTH,
+	CURMAX = L["Current/Max"] or "Current/Max",
+	CURMAXPERCENT = L["Current/Max Percent"] or "Current/Max (percent)",
 }
 
 addon.functions.SettingsCreateDropdown(cUnitFrame, {

@@ -10,7 +10,7 @@ end
 local HealthText = addon.HealthText or {}
 addon.HealthText = HealthText
 
--- Modes per category: OFF, PERCENT, ABS, BOTH
+-- Modes per category: OFF, PERCENT, ABS, BOTH, CURMAX, CURMAXPERCENT
 HealthText.modes = HealthText.modes or { boss = "OFF", target = "OFF", player = "OFF" }
 
 HealthText.frame = HealthText.frame or CreateFrame("Frame")
@@ -58,25 +58,36 @@ local function fmt(mode, cur, max, unit)
 	if addon.variables.isMidnight then
 		if not unit then return "" end
 		cur = cur or 0
+		max = max or 0
 		if mode == "PERCENT" then
-			return string.format("%s%%", AbbreviateLargeNumbers(healthPercent(unit, cur, max)))
+			return string.format("%s%%", AbbreviateNumbers(healthPercent(unit, cur, max)))
 		elseif mode == "ABS" then
-			return AbbreviateLargeNumbers(cur)
+			return AbbreviateNumbers(cur)
 		elseif mode == "BOTH" then
 			local pct = healthPercent(unit, cur, max)
-			return string.format("%s%% (%s)", AbbreviateLargeNumbers(pct), AbbreviateLargeNumbers(cur))
+			return string.format("%s%% (%s)", AbbreviateNumbers(pct), AbbreviateNumbers(cur))
+		elseif mode == "CURMAX" then
+			return string.format("%s / %s", AbbreviateNumbers(cur), AbbreviateNumbers(max))
+		elseif mode == "CURMAXPERCENT" then
+			local pct = healthPercent(unit, cur, max)
+			return string.format("%s / %s (%s%%)", AbbreviateNumbers(cur), AbbreviateNumbers(max), AbbreviateNumbers(pct))
 		else
 			return ""
 		end
 	else -- TODO remove on midnght release
 		cur = cur or 0
+		max = max or 0
 		if mode == "ABS" then return abbr(cur) end
 		local pct = 0
-		if (max or 0) > 0 then pct = (cur / max) * 100 end
+		if max > 0 then pct = (cur / max) * 100 end
 		if mode == "PERCENT" then
 			return formatPct(pct)
 		elseif mode == "BOTH" then
 			return string.format("%s (%s)", formatPct(pct), abbr(cur))
+		elseif mode == "CURMAX" then
+			return string.format("%s / %s", abbr(cur), abbr(max))
+		elseif mode == "CURMAXPERCENT" then
+			return string.format("%s / %s (%s)", abbr(cur), abbr(max), formatPct(pct))
 		else
 			return ""
 		end
