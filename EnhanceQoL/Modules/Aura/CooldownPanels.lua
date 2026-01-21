@@ -216,9 +216,7 @@ local function getSlotMenuEntries()
 end
 
 local function getSlotLabel(slotId)
-	if not next(SLOT_LABELS) then
-		getSlotMenuEntries()
-	end
+	if not next(SLOT_LABELS) then getSlotMenuEntries() end
 	return SLOT_LABELS[slotId] or ("Slot " .. tostring(slotId))
 end
 
@@ -552,9 +550,11 @@ local function setGlow(frame, enabled)
 	end
 end
 
-local function isSafeNumber(value)
-	return type(value) == "number" and (not issecretvalue or not issecretvalue(value))
+local function onCooldownDone()
+	if CooldownPanels and CooldownPanels.RequestUpdate then CooldownPanels:RequestUpdate() end
 end
+
+local function isSafeNumber(value) return type(value) == "number" and (not issecretvalue or not issecretvalue(value)) end
 
 local function isSafeGreaterThan(value, threshold)
 	if not isSafeNumber(value) or not isSafeNumber(threshold) then return false end
@@ -1252,9 +1252,7 @@ local function ensureEditor()
 		CooldownPanels:RefreshEditor()
 	end)
 
-	slotButton:SetScript("OnClick", function(self)
-		showSlotMenu(self, editor.selectedPanelId)
-	end)
+	slotButton:SetScript("OnClick", function(self) showSlotMenu(self, editor.selectedPanelId) end)
 
 	panelNameBox:SetScript("OnEnterPressed", function(self)
 		local panelId = editor.selectedPanelId
@@ -1347,9 +1345,7 @@ local function ensureEditor()
 			if not entry then return end
 			local clamped = clampInt(value, minValue, maxValue, entry[field] or 0)
 			entry[field] = clamped
-			if self.Text then
-				self.Text:SetText((L["CooldownPanelGlowDuration"] or "Glow duration") .. ": " .. tostring(clamped) .. "s")
-			end
+			if self.Text then self.Text:SetText((L["CooldownPanelGlowDuration"] or "Glow duration") .. ": " .. tostring(clamped) .. "s") end
 			CooldownPanels:RefreshPanel(panelId)
 		end)
 	end
@@ -1512,9 +1508,7 @@ local function refreshEntryList(editor, panel)
 						end
 						local panelId = editor.selectedPanelId
 						local activePanel = panelId and CooldownPanels:GetPanel(panelId) or nil
-						if activePanel and moveEntryInOrder(activePanel, fromId, targetId) then
-							CooldownPanels:RefreshPanel(panelId)
-						end
+						if activePanel and moveEntryInOrder(activePanel, fromId, targetId) then CooldownPanels:RefreshPanel(panelId) end
 						CooldownPanels:RefreshEditor()
 					end)
 					row:SetScript("OnEnter", function(self)
@@ -1524,9 +1518,7 @@ local function refreshEntryList(editor, panel)
 						end
 					end)
 					row:SetScript("OnLeave", function(self)
-						if editor.draggingEntry then
-							updateRowVisual(self, self.entryId == editor.selectedEntryId)
-						end
+						if editor.draggingEntry then updateRowVisual(self, self.entryId == editor.selectedEntryId) end
 					end)
 					editor.entryRows[index] = row
 				end
@@ -1746,9 +1738,7 @@ local function refreshInspector(editor, panel, entry)
 			inspector.glowDuration._suspend = true
 			inspector.glowDuration:SetValue(duration)
 			inspector.glowDuration._suspend = nil
-			if inspector.glowDuration.Text then
-				inspector.glowDuration.Text:SetText((L["CooldownPanelGlowDuration"] or "Glow duration") .. ": " .. tostring(duration) .. "s")
-			end
+			if inspector.glowDuration.Text then inspector.glowDuration.Text:SetText((L["CooldownPanelGlowDuration"] or "Glow duration") .. ": " .. tostring(duration) .. "s") end
 			if inspector.glowDuration.Low then inspector.glowDuration.Low:SetText("0s") end
 			if inspector.glowDuration.High then inspector.glowDuration.High:SetText("30s") end
 		end
@@ -1902,6 +1892,7 @@ function CooldownPanels:UpdatePreviewIcons(panelId, countOverride)
 		icon.texture:SetTexture(getEntryIcon(entry))
 		icon.cooldown:SetHideCountdownNumbers(not (entry and entry.showCooldownText ~= false))
 		icon.cooldown:Clear()
+		if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", nil) end
 		icon.count:Hide()
 		icon.charges:Hide()
 		if icon.previewGlow then icon.previewGlow:Hide() end
@@ -1938,6 +1929,9 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 	local order = panel.order or {}
 	runtime.readyState = runtime.readyState or {}
 	runtime.readyAt = runtime.readyAt or {}
+	runtime.glowTimers = runtime.glowTimers or {}
+	local glowTimers = runtime.glowTimers
+	local initialPass = runtime.initialized ~= true
 	for _, entryId in ipairs(order) do
 		local entry = panel.entries and panel.entries[entryId]
 		if entry then
@@ -2017,11 +2011,25 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			end
 
 			if show then
+				local hadState = runtime.readyState[entryId] ~= nil
 				local wasReady = runtime.readyState[entryId] == true
 				if readyNow and not wasReady then
-					runtime.readyAt[entryId] = GetTime and GetTime() or nil
+					if not initialPass or hadState then
+						local now = GetTime and GetTime() or 0
+						runtime.readyAt[entryId] = now
+						if glowDuration > 0 and C_Timer and C_Timer.NewTimer then
+							if glowTimers[entryId] and glowTimers[entryId].Cancel then glowTimers[entryId]:Cancel() end
+							glowTimers[entryId] = C_Timer.NewTimer(glowDuration, function()
+								if runtime.readyAt and runtime.readyAt[entryId] == now then runtime.readyAt[entryId] = nil end
+								glowTimers[entryId] = nil
+								CooldownPanels:RequestUpdate()
+							end)
+						end
+					end
 				elseif not readyNow then
 					runtime.readyAt[entryId] = nil
+					if glowTimers[entryId] and glowTimers[entryId].Cancel then glowTimers[entryId]:Cancel() end
+					glowTimers[entryId] = nil
 				end
 				runtime.readyState[entryId] = readyNow
 				visible[#visible + 1] = {
@@ -2087,8 +2095,10 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			icon.cooldown:SetCooldown(cooldownStart, cooldownDuration, cooldownRate)
 			icon.texture:SetDesaturated(true)
 			icon.texture:SetAlpha(0.5)
+			if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", onCooldownDone) end
 		else
 			icon.cooldown:Clear()
+			if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", nil) end
 			icon.texture:SetDesaturated(false)
 			icon.texture:SetAlpha(1)
 		end
@@ -2107,9 +2117,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			local ready = false
 			local duration = tonumber(data.glowDuration) or 0
 			if duration > 0 then
-				if data.readyAt and GetTime then
-					ready = (GetTime() - data.readyAt) <= duration
-				end
+				if data.readyAt and GetTime then ready = (GetTime() - data.readyAt) <= duration end
 			else
 				if data.showCharges and data.chargesInfo and data.chargesInfo.currentCharges then
 					ready = isSafeGreaterThan(data.chargesInfo.currentCharges, 0)
@@ -2127,6 +2135,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 		local icon = frame.icons[i]
 		if icon then
 			icon.cooldown:Clear()
+			if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", nil) end
 			icon.count:Hide()
 			icon.charges:Hide()
 			icon.texture:SetDesaturated(false)
@@ -2136,6 +2145,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 	end
 
 	runtime.visibleCount = count
+	runtime.initialized = true
 end
 
 function CooldownPanels:ApplyPanelPosition(panelId)
