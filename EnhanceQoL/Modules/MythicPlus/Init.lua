@@ -58,16 +58,6 @@ function addon.MythicPlus.functions.InitDB()
 	init("groupfinderShowDungeonScoreFrame", false)
 
 	-- Misc
-	init("autoMarkTankInDungeon", false)
-	init("autoMarkTankInDungeonMarker", 6)
-	init("autoMarkHealerInDungeon", false)
-	init("autoMarkHealerInDungeonMarker", 5)
-	init("mythicPlusNoHealerMark", false)
-	init("mythicPlusIgnoreMythic", true)
-	init("mythicPlusIgnoreHeroic", true)
-	init("mythicPlusIgnoreNormal", true)
-	init("mythicPlusIgnoreTimewalking", true)
-	init("mythicPlusIgnoreEvent", false)
 
 	-- Mythic+ timer tweaks
 	init("mythicPlusShowChestTimers", true)

@@ -3465,6 +3465,7 @@ local function initUI()
 	addon.functions.InitDBValue("lootspec_quickswitch", {})
 	addon.functions.InitDBValue("minimapSinkHoleData", {})
 	addon.functions.InitDBValue("hideQuickJoinToast", false)
+	addon.functions.InitDBValue("hideScreenshotStatus", false)
 	addon.functions.InitDBValue("showTrainAllButton", false)
 	addon.functions.InitDBValue("autoCancelDruidFlightForm", false)
 	addon.functions.InitDBValue("enableSquareMinimap", false)
@@ -3647,6 +3648,21 @@ local function initUI()
 		end
 	end
 	addon.functions.toggleZoneText(addon.db["hideZoneText"], true)
+
+	function addon.functions.toggleScreenshotStatus(value)
+		if not ActionStatus or not ActionStatus.UnregisterEvent or not ActionStatus.RegisterEvent then return end
+		if value then
+			ActionStatus:UnregisterEvent("SCREENSHOT_STARTED")
+			ActionStatus:UnregisterEvent("SCREENSHOT_SUCCEEDED")
+			ActionStatus:UnregisterEvent("SCREENSHOT_FAILED")
+			if ActionStatus.Hide then ActionStatus:Hide() end
+		else
+			ActionStatus:RegisterEvent("SCREENSHOT_STARTED")
+			ActionStatus:RegisterEvent("SCREENSHOT_SUCCEEDED")
+			ActionStatus:RegisterEvent("SCREENSHOT_FAILED")
+		end
+	end
+	addon.functions.toggleScreenshotStatus(addon.db["hideScreenshotStatus"])
 
 	function addon.functions.toggleQuickJoinToastButton(value)
 		if value == false then

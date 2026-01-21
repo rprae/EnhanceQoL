@@ -1,5 +1,13 @@
 # Changelog
 
+## [7.3.0] - 2026-01-21
+
+### ✨ Added
+
+- Option to hide the "Screen captured" text
+
+---
+
 ## [7.2.0] - 2026-01-21
 
 ### ✨ Added
