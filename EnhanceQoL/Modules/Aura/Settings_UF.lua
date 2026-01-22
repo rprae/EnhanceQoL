@@ -3339,6 +3339,20 @@ local function buildUnitSettings(unit)
 		end, auraDef.showCooldown ~= false, "auras")
 		list[#list].isEnabled = isAuraEnabled
 
+		list[#list + 1] = checkbox(L["Show buffs"] or "Show buffs", function() return getValue(unit, { "auraIcons", "showBuffs" }, auraDef.showBuffs ~= false) end, function(val)
+			setValue(unit, { "auraIcons", "showBuffs" }, val and true or false)
+			refresh()
+			refreshAuras()
+		end, auraDef.showBuffs ~= false, "auras")
+		list[#list].isEnabled = isAuraEnabled
+
+		list[#list + 1] = checkbox(L["Show debuffs"] or "Show debuffs", function() return getValue(unit, { "auraIcons", "showDebuffs" }, auraDef.showDebuffs ~= false) end, function(val)
+			setValue(unit, { "auraIcons", "showDebuffs" }, val and true or false)
+			refresh()
+			refreshAuras()
+		end, auraDef.showDebuffs ~= false, "auras")
+		list[#list].isEnabled = isAuraEnabled
+
 		list[#list + 1] = slider(
 			L["Cooldown Text Size"] or "Cooldown text size",
 			0,

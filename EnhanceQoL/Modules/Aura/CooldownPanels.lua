@@ -64,6 +64,66 @@ local VALID_FONT_STYLE = {
 	THICKOUTLINE = true,
 	MONOCHROMEOUTLINE = true,
 }
+local GENERIC_ANCHORS = {
+	EQOL_ANCHOR_PLAYER = {
+		label = L["UFPlayerFrame"] or _G.HUD_EDIT_MODE_PLAYER_FRAME_LABEL or "Player Frame",
+		blizz = "PlayerFrame",
+		uf = "EQOLUFPlayerFrame",
+		ufKey = "player",
+	},
+	EQOL_ANCHOR_TARGET = {
+		label = L["UFTargetFrame"] or _G.HUD_EDIT_MODE_TARGET_FRAME_LABEL or "Target Frame",
+		blizz = "TargetFrame",
+		uf = "EQOLUFTargetFrame",
+		ufKey = "target",
+	},
+	EQOL_ANCHOR_TARGETTARGET = {
+		label = L["UFToTFrame"] or "Target of Target",
+		blizz = "TargetFrameToT",
+		uf = "EQOLUFToTFrame",
+		ufKey = "targettarget",
+	},
+	EQOL_ANCHOR_FOCUS = {
+		label = L["UFFocusFrame"] or _G.HUD_EDIT_MODE_FOCUS_FRAME_LABEL or "Focus Frame",
+		blizz = "FocusFrame",
+		uf = "EQOLUFFocusFrame",
+		ufKey = "focus",
+	},
+	EQOL_ANCHOR_PET = {
+		label = L["UFPetFrame"] or _G.HUD_EDIT_MODE_PET_FRAME_LABEL or "Pet Frame",
+		blizz = "PetFrame",
+		uf = "EQOLUFPetFrame",
+		ufKey = "pet",
+	},
+	EQOL_ANCHOR_BOSS = {
+		label = L["UFBossFrame"] or _G.HUD_EDIT_MODE_BOSS_FRAMES_LABEL or "Boss Frame",
+		blizz = "BossTargetFrameContainer",
+		uf = "EQOLUFBossContainer",
+		ufKey = "boss",
+	},
+}
+local GENERIC_ANCHOR_ORDER = {
+	"EQOL_ANCHOR_PLAYER",
+	"EQOL_ANCHOR_TARGET",
+	"EQOL_ANCHOR_TARGETTARGET",
+	"EQOL_ANCHOR_FOCUS",
+	"EQOL_ANCHOR_PET",
+	"EQOL_ANCHOR_BOSS",
+}
+local GENERIC_ANCHOR_BY_FRAME = {
+	PlayerFrame = "EQOL_ANCHOR_PLAYER",
+	EQOLUFPlayerFrame = "EQOL_ANCHOR_PLAYER",
+	TargetFrame = "EQOL_ANCHOR_TARGET",
+	EQOLUFTargetFrame = "EQOL_ANCHOR_TARGET",
+	TargetFrameToT = "EQOL_ANCHOR_TARGETTARGET",
+	EQOLUFToTFrame = "EQOL_ANCHOR_TARGETTARGET",
+	FocusFrame = "EQOL_ANCHOR_FOCUS",
+	EQOLUFFocusFrame = "EQOL_ANCHOR_FOCUS",
+	PetFrame = "EQOL_ANCHOR_PET",
+	EQOLUFPetFrame = "EQOL_ANCHOR_PET",
+	BossTargetFrameContainer = "EQOL_ANCHOR_BOSS",
+	EQOLUFBossContainer = "EQOL_ANCHOR_BOSS",
+}
 
 local GetItemInfoInstantFn = (C_Item and C_Item.GetItemInfoInstant) or GetItemInfoInstant
 local GetItemIconByID = C_Item and C_Item.GetItemIconByID
@@ -128,9 +188,7 @@ local function getRuntime(panelId)
 end
 
 local function refreshEditModeSettingValues()
-	if addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RefreshSettingValues then
-		addon.EditModeLib.internal:RefreshSettingValues()
-	end
+	if addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RefreshSettingValues then addon.EditModeLib.internal:RefreshSettingValues() end
 end
 
 local getEditor
@@ -175,6 +233,9 @@ end
 
 local function normalizeRelativeFrameName(value)
 	if type(value) ~= "string" or value == "" then return "UIParent" end
+	if GENERIC_ANCHORS[value] then return value end
+	local mapped = GENERIC_ANCHOR_BY_FRAME[value]
+	if mapped then return mapped end
 	return value
 end
 
@@ -193,21 +254,27 @@ local function ensurePanelAnchor(panel)
 	return anchor
 end
 
-local function anchorUsesUIParent(anchor)
-	return not anchor or (anchor.relativeFrame or "UIParent") == "UIParent"
-end
+local function anchorUsesUIParent(anchor) return not anchor or (anchor.relativeFrame or "UIParent") == "UIParent" end
 
 local function resolveAnchorFrame(anchor)
 	local relativeName = normalizeRelativeFrameName(anchor and anchor.relativeFrame)
 	if relativeName == "UIParent" then return UIParent end
+	local generic = GENERIC_ANCHORS[relativeName]
+	if generic then
+		local ufCfg = addon.db and addon.db.ufFrames
+		if ufCfg and generic.ufKey and ufCfg[generic.ufKey] and ufCfg[generic.ufKey].enabled then
+			local ufFrame = _G[generic.uf]
+			if ufFrame then return ufFrame end
+		end
+		local blizzFrame = _G[generic.blizz]
+		if blizzFrame then return blizzFrame end
+	end
 	local frame = _G[relativeName]
 	if frame then return frame end
 	return UIParent
 end
 
-local function panelFrameName(panelId)
-	return "EQOL_CooldownPanel" .. tostring(panelId)
-end
+local function panelFrameName(panelId) return "EQOL_CooldownPanel" .. tostring(panelId) end
 
 local function frameNameToPanelId(frameName)
 	if type(frameName) ~= "string" then return nil end
@@ -2905,9 +2972,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 	local chargesFontPath, chargesFontSize, chargesFontStyle = getChargesFontDefaults(frame)
 	local fontOptions = getFontOptions(countFontPath)
 	local chargesFontOptions = getFontOptions(chargesFontPath)
-	local function ensureAnchorTable()
-		return ensurePanelAnchor(panel)
-	end
+	local function ensureAnchorTable() return ensurePanelAnchor(panel) end
 	local function syncPanelPositionFromAnchor()
 		local a = ensureAnchorTable()
 		if not a then return end
@@ -2980,29 +3045,9 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 			end
 
 			add("UIParent", "UIParent")
-
-			if addon.variables and addon.variables.unitFrameNames then
-				for _, info in ipairs(addon.variables.unitFrameNames) do
-					if info.name then
-						local label = info.text or info.name
-						add(info.name, "Blizzard: " .. tostring(label))
-					end
-				end
-			else
-				add("PlayerFrame", "Blizzard: PlayerFrame")
-				add("TargetFrame", "Blizzard: TargetFrame")
-				add("FocusFrame", "Blizzard: FocusFrame")
-				add("PetFrame", "Blizzard: PetFrame")
-			end
-
-			local ufCfg = addon.db and addon.db.ufFrames
-			if ufCfg then
-				if ufCfg.player and ufCfg.player.enabled then add("EQOLUFPlayerFrame", "UF: " .. (L["UFPlayerFrame"] or "Player Frame")) end
-				if ufCfg.target and ufCfg.target.enabled then add("EQOLUFTargetFrame", "UF: " .. (L["UFTargetFrame"] or "Target Frame")) end
-				if ufCfg.targettarget and ufCfg.targettarget.enabled then add("EQOLUFToTFrame", "UF: " .. (L["UFToTFrame"] or "Target of Target")) end
-				if ufCfg.focus and ufCfg.focus.enabled then add("EQOLUFFocusFrame", "UF: " .. (L["UFFocusFrame"] or "Focus Frame")) end
-				if ufCfg.pet and ufCfg.pet.enabled then add("EQOLUFPetFrame", "UF: " .. (L["UFPetFrame"] or "Pet Frame")) end
-				if ufCfg.boss and ufCfg.boss.enabled then add("EQOLUFBossContainer", "UF: " .. (L["UFBossFrame"] or "Boss Frame")) end
+			for _, key in ipairs(GENERIC_ANCHOR_ORDER) do
+				local info = GENERIC_ANCHORS[key]
+				if info then add(key, info.label) end
 			end
 
 			local root = CooldownPanels:GetRoot()
