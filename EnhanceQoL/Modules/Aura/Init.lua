@@ -73,6 +73,9 @@ function addon.Aura.functions.InitDB()
 			},
 		},
 	})
+	init("cooldownPanelsEditorPoint", "CENTER")
+	init("cooldownPanelsEditorX", 0)
+	init("cooldownPanelsEditorY", 0)
 
 	if type(addon.db["buffTrackerSelectedCategory"]) ~= "number" then addon.db["buffTrackerSelectedCategory"] = 1 end
 

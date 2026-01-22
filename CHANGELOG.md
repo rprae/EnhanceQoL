@@ -7,7 +7,11 @@
 - DataPanels: Stream gap slider per panel.
 - DataPanels: Time stream left-click opens the Time Manager (stopwatch/alarm).
 - UF Plus: Aura cooldown text size slider.
+- UF Plus: Masque for Buff/Debuff
 - Resource Bars: Added "Use short numbers" toggle for text to control AbbreviateNumbers usage.
+- Cooldown Panels: New Cooldown Manager editor to build panels and add spells/items/slots with per-entry options (cooldown text, charges, stacks, glow, sound, item count).
+- Cooldown Panels: Anchor to Player/Target (auto-uses UF if enabled) and some external unit frames.
+- Cooldown Panels: Editor keybind and saved editor window position.
 
 ### 🐛 Fixed
 

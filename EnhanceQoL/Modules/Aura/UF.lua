@@ -35,6 +35,9 @@ local function DisableBossFrames()
 end
 
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_Aura")
+local MSQ = LibStub("Masque", true)
+local MSQgroup
+if MSQ then MSQgroup = MSQ:Group("EnhanceQoL", L["Unit Frame Buffs/Debuffs"]) end
 local LSM = LibStub("LibSharedMedia-3.0")
 local AceGUI = addon.AceGUI or LibStub("AceGUI-3.0")
 local DEFAULT_NOT_INTERRUPTIBLE_COLOR = { 204 / 255, 204 / 255, 204 / 255, 1 }
@@ -1066,6 +1069,13 @@ function AuraUtil.ensureAuraButton(container, icons, index, ac)
 			btn.overlay:SetFrameLevel(btn.cd:GetFrameLevel() + 5)
 		end
 	end
+
+	if MSQ then MSQgroup:AddButton(btn, {
+		Icon = btn.icon,
+		Cooldown = btn.cd,
+		Border = btn.border,
+	}) end
+
 	return btn, icons
 end
 

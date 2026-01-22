@@ -15,12 +15,15 @@ local EditMode = addon.EditMode
 local SettingType = EditMode and EditMode.lib and EditMode.lib.SettingType
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_Aura")
 local LSM = LibStub("LibSharedMedia-3.0", true)
+local Masque
 
 CooldownPanels.ENTRY_TYPE = {
 	SPELL = "SPELL",
 	ITEM = "ITEM",
 	SLOT = "SLOT",
 }
+
+_G["BINDING_NAME_EQOL_TOGGLE_COOLDOWN_PANELS"] = L["CooldownPanelBindingToggle"] or "Toggle Cooldown Panel Editor"
 
 CooldownPanels.runtime = CooldownPanels.runtime or {}
 
@@ -189,6 +192,40 @@ end
 
 local function refreshEditModeSettingValues()
 	if addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RefreshSettingValues then addon.EditModeLib.internal:RefreshSettingValues() end
+end
+
+local function getMasqueGroup()
+	if not Masque and LibStub then Masque = LibStub("Masque", true) end
+	if not Masque then return nil end
+	CooldownPanels.runtime = CooldownPanels.runtime or {}
+	if not CooldownPanels.runtime.masqueGroup then CooldownPanels.runtime.masqueGroup = Masque:Group(parentAddonName, "Cooldown Panels", "CooldownPanels") end
+	return CooldownPanels.runtime.masqueGroup
+end
+
+function CooldownPanels:RegisterMasqueButtons()
+	local group = getMasqueGroup()
+	if not group then return end
+	for _, runtime in pairs(self.runtime or {}) do
+		local frame = runtime and runtime.frame
+		if frame and frame._eqolPanelFrame and frame.icons then
+			for _, icon in ipairs(frame.icons) do
+				if icon and not icon._eqolMasqueAdded then
+					local regions = {
+						Icon = icon.texture,
+						Cooldown = icon.cooldown,
+						Normal = icon.msqNormal,
+					}
+					group:AddButton(icon, regions, "Action", true)
+					icon._eqolMasqueAdded = true
+				end
+			end
+		end
+	end
+end
+
+function CooldownPanels:ReskinMasque()
+	local group = getMasqueGroup()
+	if group and group.ReSkin then group:ReSkin() end
 end
 
 local getEditor
@@ -818,9 +855,46 @@ function CooldownPanels:SelectEntry(entryId)
 	self:RefreshEditor()
 end
 
+local function showIconTooltip(self)
+	if not self or not self._eqolTooltipEnabled then return end
+	local entry = self._eqolTooltipEntry
+	if not entry or not GameTooltip then return end
+
+	GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+	if entry.type == "SPELL" and entry.spellID and GameTooltip.SetSpellByID then
+		GameTooltip:SetSpellByID(entry.spellID)
+	elseif entry.type == "ITEM" and entry.itemID and GameTooltip.SetItemByID then
+		GameTooltip:SetItemByID(entry.itemID)
+	elseif entry.type == "SLOT" and entry.slotID then
+		local shown = false
+		if GameTooltip.SetInventoryItem then shown = GameTooltip:SetInventoryItem("player", entry.slotID) end
+		if not shown then GameTooltip:SetText(getSlotLabel(entry.slotID)) end
+	else
+		return
+	end
+	GameTooltip:Show()
+end
+
+local function hideIconTooltip()
+	if GameTooltip then GameTooltip:Hide() end
+end
+
+local function applyIconTooltip(icon, entry, enabled)
+	if not icon then return end
+	icon._eqolTooltipEntry = entry
+	local allow = enabled and entry ~= nil
+	if icon._eqolTooltipEnabled ~= allow then
+		icon._eqolTooltipEnabled = allow
+		if icon.EnableMouse then icon:EnableMouse(allow) end
+	end
+end
+
 local function createIconFrame(parent)
 	local icon = CreateFrame("Frame", nil, parent)
 	icon:Hide()
+	icon:EnableMouse(false)
+	icon:SetScript("OnEnter", showIconTooltip)
+	icon:SetScript("OnLeave", hideIconTooltip)
 
 	icon.texture = icon:CreateTexture(nil, "ARTWORK")
 	icon.texture:SetAllPoints(icon)
@@ -842,6 +916,11 @@ local function createIconFrame(parent)
 	icon.charges = icon.overlay:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
 	icon.charges:SetPoint("TOP", icon.overlay, "TOP", 0, -1)
 	icon.charges:Hide()
+
+	icon.msqNormal = icon:CreateTexture(nil, "OVERLAY")
+	icon.msqNormal:SetAllPoints(icon)
+	icon.msqNormal:SetTexture("Interface\\Buttons\\UI-Quickslot2")
+	icon.msqNormal:Hide()
 
 	icon.previewGlow = icon:CreateTexture(nil, "OVERLAY")
 	icon.previewGlow:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
@@ -873,6 +952,19 @@ local function createIconFrame(parent)
 	icon.previewSound:SetSize(12, 12)
 	icon.previewSound:SetPoint("CENTER", icon.previewSoundBorder, "CENTER", 0, 0)
 	icon.previewSound:SetAlpha(0.95)
+
+	if not (parent and parent._eqolIsPreview) then
+		local group = getMasqueGroup()
+		if group then
+			local regions = {
+				Icon = icon.texture,
+				Cooldown = icon.cooldown,
+				Normal = icon.msqNormal,
+			}
+			group:AddButton(icon, regions, "Action", true)
+			icon._eqolMasqueAdded = true
+		end
+	end
 
 	return icon
 end
@@ -981,6 +1073,7 @@ local function createPanelFrame(panelId, panel)
 	frame:EnableMouse(false)
 	frame.panelId = panelId
 	frame.icons = {}
+	frame._eqolPanelFrame = true
 
 	local bg = frame:CreateTexture(nil, "BACKGROUND")
 	bg:SetAllPoints(frame)
@@ -1393,6 +1486,25 @@ getEditor = function()
 	return runtime and runtime.editor or nil
 end
 
+local function applyEditorPosition(frame)
+	if not frame or not addon or not addon.db then return end
+	local point = addon.db.cooldownPanelsEditorPoint
+	local x = addon.db.cooldownPanelsEditorX
+	local y = addon.db.cooldownPanelsEditorY
+	if not point or x == nil or y == nil then return end
+	frame:ClearAllPoints()
+	frame:SetPoint(point, UIParent, point, x, y)
+end
+
+local function saveEditorPosition(frame)
+	if not frame or not addon or not addon.db then return end
+	local point, _, _, x, y = frame:GetPoint()
+	if not point or x == nil or y == nil then return end
+	addon.db.cooldownPanelsEditorPoint = point
+	addon.db.cooldownPanelsEditorX = x
+	addon.db.cooldownPanelsEditorY = y
+end
+
 local ensureDeletePopup
 
 local function ensureEditor()
@@ -1402,13 +1514,17 @@ local function ensureEditor()
 	local frame = CreateFrame("Frame", "EQOL_CooldownPanelsEditor", UIParent, "BackdropTemplate")
 	frame:SetSize(980, 560)
 	frame:SetPoint("CENTER")
+	applyEditorPosition(frame)
 	frame:SetClampedToScreen(true)
 	frame:SetMovable(true)
 	frame:EnableMouse(true)
 	frame:RegisterForDrag("LeftButton")
 	frame:SetFrameStrata("DIALOG")
 	frame:SetScript("OnDragStart", frame.StartMoving)
-	frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
+	frame:SetScript("OnDragStop", function(self)
+		self:StopMovingOrSizing()
+		saveEditorPosition(self)
+	end)
 	frame:Hide()
 
 	frame.bg = frame:CreateTexture(nil, "BACKGROUND")
@@ -1423,8 +1539,14 @@ local function ensureEditor()
 	frame.title:SetText(L["CooldownPanelEditor"] or "Cooldown Panel Editor")
 	frame.title:SetFont((addon.variables and addon.variables.defaultFont) or frame.title:GetFont(), 16, "OUTLINE")
 
+	frame.subtitle = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	frame.subtitle:SetPoint("TOP", frame, "TOP", 0, -12)
+	frame.subtitle:SetJustifyH("CENTER")
+	frame.subtitle:SetText(L["CooldownPanelEditModeHeader"] or "Configure the Panels in Edit Mode")
+	frame.subtitle:SetTextColor(0.8, 0.8, 0.8, 1)
+
 	frame.close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
-	frame.close:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 8, 8)
+	frame.close:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 20, 13)
 
 	local left = CreateFrame("Frame", nil, frame, "BackdropTemplate")
 	left:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, -44)
@@ -1557,6 +1679,7 @@ local function ensureEditor()
 	applyInsetBorder(previewFrame, -6)
 
 	local previewCanvas = CreateFrame("Frame", nil, previewFrame)
+	previewCanvas._eqolIsPreview = true
 	previewCanvas:SetPoint("CENTER", previewFrame, "CENTER")
 	previewFrame.canvas = previewCanvas
 
@@ -1619,17 +1742,45 @@ local function ensureEditor()
 	addItemBox:SetPoint("LEFT", addItemLabel, "RIGHT", 6, 0)
 	addItemBox:SetNumeric(true)
 
-	local slotButton = createButton(middle, L["CooldownPanelAddSlot"] or "Add Slot", 120, 20)
-	slotButton:SetPoint("BOTTOMRIGHT", middle, "BOTTOMRIGHT", -12, 20)
+	local editModeButton = createButton(middle, _G.HUD_EDIT_MODE_MENU or L["CooldownPanelEditModeButton"] or "Edit Mode", 110, 20)
+	editModeButton:SetPoint("LEFT", addItemBox, "RIGHT", 12, 0)
 
-	frame:SetScript("OnShow", function() CooldownPanels:RefreshEditor() end)
+	local slotButton = createButton(middle, L["CooldownPanelAddSlot"] or "Add Slot", 120, 20)
+	slotButton:SetPoint("LEFT", editModeButton, "RIGHT", 12, 0)
+
+	local function updateEditModeButton()
+		if not editModeButton then return end
+		if InCombatLockdown and InCombatLockdown() then
+			editModeButton:Disable()
+		else
+			editModeButton:Enable()
+		end
+	end
+
+	editModeButton:SetScript("OnClick", function()
+		if InCombatLockdown and InCombatLockdown() then return end
+		if EditModeManagerFrame and ShowUIPanel then ShowUIPanel(EditModeManagerFrame) end
+	end)
+
+	frame:SetScript("OnShow", function()
+		frame:RegisterEvent("PLAYER_REGEN_DISABLED")
+		frame:RegisterEvent("PLAYER_REGEN_ENABLED")
+		updateEditModeButton()
+		CooldownPanels:RefreshEditor()
+	end)
 	frame:SetScript("OnHide", function()
+		frame:UnregisterEvent("PLAYER_REGEN_DISABLED")
+		frame:UnregisterEvent("PLAYER_REGEN_ENABLED")
+		saveEditorPosition(frame)
 		if runtime and runtime.editor then
 			hideEditorDragIcon(runtime.editor)
 			runtime.editor.draggingEntry = nil
 			runtime.editor.dragEntryId = nil
 			runtime.editor.dragTargetId = nil
 		end
+	end)
+	frame:SetScript("OnEvent", function(_, event)
+		if event == "PLAYER_REGEN_DISABLED" or event == "PLAYER_REGEN_ENABLED" then updateEditModeButton() end
 	end)
 
 	runtime.editor = {
@@ -2377,6 +2528,7 @@ function CooldownPanels:UpdatePreviewIcons(panelId, countOverride)
 	if not frame then return end
 	panel.layout = panel.layout or Helper.CopyTableShallow(Helper.PANEL_LAYOUT_DEFAULTS)
 	local layout = panel.layout
+	local showTooltips = layout.showTooltips == true
 	local count = countOverride or getPreviewCount(panel)
 	ensureIconCount(frame, count)
 
@@ -2424,6 +2576,7 @@ function CooldownPanels:UpdatePreviewIcons(panelId, countOverride)
 			end
 			icon.count:Show()
 		end
+		applyIconTooltip(icon, entry, showTooltips)
 	end
 end
 
@@ -2435,6 +2588,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 	if not frame then return end
 	panel.layout = panel.layout or Helper.CopyTableShallow(Helper.PANEL_LAYOUT_DEFAULTS)
 	local layout = panel.layout
+	local showTooltips = layout.showTooltips == true
 	local drawEdge = layout.cooldownDrawEdge ~= false
 	local drawBling = layout.cooldownDrawBling ~= false
 	local drawSwipe = layout.cooldownDrawSwipe ~= false
@@ -2594,6 +2748,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 				data.showCharges = showCharges
 				data.showStacks = showStacks
 				data.showItemCount = showItemCount
+				data.entry = entry
 				data.glowReady = glowReady
 				data.glowDuration = glowDuration
 				data.soundReady = soundReady
@@ -2631,6 +2786,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 		local data = visible[i]
 		local icon = frame.icons[i]
 		icon.texture:SetTexture(data.icon or PREVIEW_ICON)
+		applyIconTooltip(icon, data.entry, showTooltips)
 		icon.cooldown:SetHideCountdownNumbers(not data.showCooldownText)
 		icon.cooldown._eqolSoundReady = data.soundReady
 		icon.cooldown._eqolSoundName = data.soundName
@@ -2926,7 +3082,11 @@ local function applyEditLayout(panelId, field, value, skipRefresh)
 		layout.cooldownGcdDrawBling = value == true
 	elseif field == "cooldownGcdDrawSwipe" then
 		layout.cooldownGcdDrawSwipe = value == true
+	elseif field == "showTooltips" then
+		layout.showTooltips = value == true
 	end
+
+	if field == "iconSize" then CooldownPanels:ReskinMasque() end
 
 	syncEditModeValue(panelId, field, layout[field])
 
@@ -2966,6 +3126,7 @@ function CooldownPanels:ApplyEditMode(panelId, data)
 	applyEditLayout(panelId, "cooldownGcdDrawEdge", data.cooldownGcdDrawEdge, true)
 	applyEditLayout(panelId, "cooldownGcdDrawBling", data.cooldownGcdDrawBling, true)
 	applyEditLayout(panelId, "cooldownGcdDrawSwipe", data.cooldownGcdDrawSwipe, true)
+	applyEditLayout(panelId, "showTooltips", data.showTooltips, true)
 
 	runtime.applyingFromEditMode = nil
 	self:ApplyLayout(panelId)
@@ -3357,6 +3518,14 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				end,
 			},
 			{
+				name = L["CooldownPanelShowTooltips"] or "Show tooltips",
+				kind = SettingType.Checkbox,
+				field = "showTooltips",
+				default = layout.showTooltips == true,
+				get = function() return layout.showTooltips == true end,
+				set = function(_, value) applyEditLayout(panelId, "showTooltips", value) end,
+			},
+			{
 				name = L["CooldownPanelStacksHeader"] or "Stacks / Item Count",
 				kind = SettingType.Collapsible,
 				id = "cooldownPanelStacks",
@@ -3645,6 +3814,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 			cooldownGcdDrawEdge = layout.cooldownGcdDrawEdge == true,
 			cooldownGcdDrawBling = layout.cooldownGcdDrawBling == true,
 			cooldownGcdDrawSwipe = layout.cooldownGcdDrawSwipe == true,
+			showTooltips = layout.showTooltips == true,
 		},
 		onApply = function(_, _, data)
 			local a = ensureAnchorTable()
@@ -3716,6 +3886,10 @@ local function ensureUpdateFrame()
 			local name = ...
 			local anchorHelper = CooldownPanels.AnchorHelper
 			if anchorHelper and anchorHelper.HandleAddonLoaded then anchorHelper:HandleAddonLoaded(name) end
+			if name == "Masque" then
+				CooldownPanels:RegisterMasqueButtons()
+				CooldownPanels:ReskinMasque()
+			end
 			return
 		end
 		if event == "PLAYER_LOGIN" then

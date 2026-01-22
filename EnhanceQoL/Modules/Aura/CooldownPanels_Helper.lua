@@ -36,6 +36,7 @@ Helper.PANEL_LAYOUT_DEFAULTS = {
 	cooldownGcdDrawEdge = false,
 	cooldownGcdDrawBling = false,
 	cooldownGcdDrawSwipe = false,
+	showTooltips = false,
 }
 
 Helper.ENTRY_DEFAULTS = {
@@ -50,6 +51,16 @@ Helper.ENTRY_DEFAULTS = {
 	soundReady = false,
 	soundReadyFile = "None",
 }
+
+local function spellHasCharges(spellId)
+	if not spellId then return false end
+	if not (C_Spell and C_Spell.GetSpellCharges) then return false end
+	local info = C_Spell.GetSpellCharges(spellId)
+	if info == nil then return false end
+	local issecretvalue = _G.issecretvalue
+	if issecretvalue and issecretvalue(info) then return false end
+	return true
+end
 
 function Helper.CopyTableShallow(source)
 	local result = {}
@@ -113,6 +124,8 @@ function Helper.NormalizeRoot(root)
 	root.defaults.entry.alwaysShow = Helper.ENTRY_DEFAULTS.alwaysShow
 	root.defaults.entry.showCooldown = Helper.ENTRY_DEFAULTS.showCooldown
 	root.defaults.entry.showCooldownText = Helper.ENTRY_DEFAULTS.showCooldownText
+	root.defaults.entry.showCharges = Helper.ENTRY_DEFAULTS.showCharges
+	root.defaults.entry.showStacks = Helper.ENTRY_DEFAULTS.showStacks
 	root.defaults.entry.glowReady = Helper.ENTRY_DEFAULTS.glowReady
 	root.defaults.entry.glowDuration = Helper.ENTRY_DEFAULTS.glowDuration
 	root.defaults.entry.soundReady = Helper.ENTRY_DEFAULTS.soundReady
@@ -149,6 +162,8 @@ end
 
 function Helper.NormalizeEntry(entry, defaults)
 	if type(entry) ~= "table" then return end
+	local hadShowCharges = entry.showCharges ~= nil
+	local hadShowStacks = entry.showStacks ~= nil
 	defaults = defaults or {}
 	local entryDefaults = defaults.entry or {}
 	for key, value in pairs(entryDefaults) do
@@ -160,6 +175,10 @@ function Helper.NormalizeEntry(entry, defaults)
 	entry.alwaysShow = true
 	entry.showCooldown = true
 	if entry.type == "ITEM" and entry.showItemCount == nil then entry.showItemCount = true end
+	if entry.type == "SPELL" then
+		if not hadShowCharges then entry.showCharges = spellHasCharges(entry.spellID) end
+		if not hadShowStacks then entry.showStacks = false end
+	end
 	local duration = tonumber(entry.glowDuration)
 	if duration == nil then duration = defaults.entry and defaults.entry.glowDuration or Helper.ENTRY_DEFAULTS.glowDuration or 0 end
 	if duration < 0 then duration = 0 end
@@ -222,6 +241,8 @@ function Helper.CreateEntry(entryType, idValue, defaults)
 	entry.type = entryType
 	if entryType == "SPELL" then
 		entry.spellID = tonumber(idValue)
+		entry.showCharges = spellHasCharges(entry.spellID)
+		entry.showStacks = false
 	elseif entryType == "ITEM" then
 		entry.itemID = tonumber(idValue)
 		if entry.showItemCount == nil then entry.showItemCount = true end

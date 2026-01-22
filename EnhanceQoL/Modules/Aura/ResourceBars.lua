@@ -1978,11 +1978,7 @@ function updateHealthBar(evt)
 			healthBar._smoothTarget = nil
 			healthBar._smoothDeadzone = settings.smoothDeadzone or healthBar._smoothDeadzone or RB.DEFAULT_SMOOTH_DEADZONE
 			healthBar._smoothSpeed = RB.SMOOTH_SPEED
-			if not addon.variables.isMidnight and healthBar._lastVal ~= curHealth then
-				healthBar:SetValue(curHealth)
-			else
-				healthBar:SetValue(curHealth)
-			end
+			healthBar:SetValue(curHealth)
 			healthBar._smoothInitialized = nil
 			healthBar._smoothEnabled = false
 			stopSmoothUpdater(healthBar)
@@ -2123,10 +2119,8 @@ function updateHealthBar(evt)
 						absorbBar:SetMinMaxValues(0, maxHealth)
 						absorbBar._lastMax = maxHealth
 					end
-					if absorbBar._lastVal ~= abs then
-						absorbBar:SetValue(abs)
-						absorbBar._lastVal = abs
-					end
+					absorbBar:SetValue(abs)
+					absorbBar._lastVal = abs
 				end
 			end
 		end
@@ -3055,11 +3049,7 @@ function updatePowerBar(type, runeSlot)
 		bar._smoothTarget = nil
 		bar._smoothDeadzone = cfg.smoothDeadzone or bar._smoothDeadzone or RB.DEFAULT_SMOOTH_DEADZONE
 		bar._smoothSpeed = RB.SMOOTH_SPEED
-		if (not addon.variables.isMidnight and bar._lastVal ~= curPower) or (issecretvalue and not issecretvalue(curPower) and bar._lastVal ~= curPower) then
-			bar:SetValue(curPower)
-		else
-			bar:SetValue(curPower)
-		end
+		bar:SetValue(curPower)
 		bar._smoothInitialized = nil
 		bar._smoothEnabled = false
 		stopSmoothUpdater(bar)
