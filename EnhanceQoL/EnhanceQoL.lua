@@ -3416,6 +3416,8 @@ end
 local function initMap()
 	addon.functions.InitDBValue("enableWayCommand", false)
 	if addon.db["enableWayCommand"] then addon.functions.registerWayCommand() end
+	addon.functions.InitDBValue("enableCooldownManagerSlashCommand", false)
+	if addon.db["enableCooldownManagerSlashCommand"] then addon.functions.registerCooldownManagerSlashCommand() end
 end
 
 local function initSocial()

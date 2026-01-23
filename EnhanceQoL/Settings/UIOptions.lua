@@ -1151,6 +1151,21 @@ local function createCastbarCategory()
 		default = false,
 		parentSection = expandable,
 	})
+	addon.functions.SettingsCreateCheckbox(category, {
+		var = "enableCooldownManagerSlashCommand",
+		text = L["enableCooldownManagerSlashCommand"],
+		desc = L["enableCooldownManagerSlashCommandDesc"],
+		func = function(value)
+			addon.db["enableCooldownManagerSlashCommand"] = value
+			if value then
+				addon.functions.registerCooldownManagerSlashCommand()
+			else
+				addon.variables.requireReload = true
+			end
+		end,
+		default = false,
+		parentSection = expandable,
+	})
 
 	createCooldownViewerDropdowns(category, expandable)
 end

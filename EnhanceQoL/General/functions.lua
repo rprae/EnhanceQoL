@@ -1379,6 +1379,66 @@ function addon.functions.registerWayCommand()
 	SlashCmdList["EQOLWAY"] = handleWayCommand
 end
 
+local function isSlashCommandRegistered(command)
+	if not command then return false end
+	command = command:lower()
+	for key, value in pairs(_G) do
+		if type(key) == "string" and key:match("^SLASH_") and type(value) == "string" then
+			if value:lower() == command then return true end
+		end
+	end
+	return false
+end
+
+local function isSlashCommandOwnedByEQOL(command)
+	if not SlashCmdList or not SlashCmdList["EQOLCDMSC"] then return false end
+	local cmd = command and command:lower()
+	if not cmd then return false end
+	local c1 = _G.SLASH_EQOLCDMSC1
+	local c2 = _G.SLASH_EQOLCDMSC2
+	return (type(c1) == "string" and c1:lower() == cmd) or (type(c2) == "string" and c2:lower() == cmd)
+end
+
+local function toggleCooldownViewerSettings()
+	if InCombatLockdown and InCombatLockdown() then return end
+	local frame = _G.CooldownViewerSettings
+	if not frame then
+		local loader = (C_AddOns and C_AddOns.LoadAddOn) or _G.UIParentLoadAddOn
+		if loader then
+			loader("Blizzard_CooldownViewer")
+			frame = _G.CooldownViewerSettings
+		end
+	end
+	if not frame then return end
+	if frame.TogglePanel then
+		frame:TogglePanel()
+	elseif frame.ShowUIPanel then
+		if frame:IsShown() then
+			frame:Hide()
+		else
+			frame:ShowUIPanel()
+		end
+	else
+		frame:SetShown(not frame:IsShown())
+	end
+end
+
+function addon.functions.registerCooldownManagerSlashCommand()
+	if not SlashCmdList then return end
+	local isLoaded = (C_AddOns and C_AddOns.IsAddOnLoaded) or _G.IsAddOnLoaded
+	local waLoaded = isLoaded and isLoaded("WeakAuras") or false
+
+	local commands = {}
+	local function canClaim(command) return isSlashCommandOwnedByEQOL(command) or not isSlashCommandRegistered(command) end
+	if canClaim("/cdm") then commands[#commands + 1] = "/cdm" end
+	if not waLoaded and canClaim("/wa") then commands[#commands + 1] = "/wa" end
+
+	if #commands == 0 then return end
+	_G.SLASH_EQOLCDMSC1 = commands[1]
+	_G.SLASH_EQOLCDMSC2 = commands[2]
+	SlashCmdList["EQOLCDMSC"] = function() toggleCooldownViewerSettings() end
+end
+
 function addon.functions.catalystChecks()
 	-- No catalyst charges exist for Timerunners; ensure hidden
 	if addon.functions.IsTimerunner() then
