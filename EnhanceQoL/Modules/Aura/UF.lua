@@ -1183,20 +1183,14 @@ function AuraUtil.applyAuraToButton(btn, aura, ac, isDebuff, unitToken)
 				btn.border:SetAllPoints(btn)
 			end
 			local r, g, b = 1, 0.25, 0.25
-			if issecretAura then
+			if C_UnitAuras and C_UnitAuras.GetAuraDispelTypeColor and colorcurve then
 				local color = C_UnitAuras.GetAuraDispelTypeColor(unitToken, aura.auraInstanceID, colorcurve)
 				if color then
-					r, g, b = color.r, color.g, color.b
-				end
-			elseif _G.DebuffTypeColor then
-				local color
-				if aura.dispelName then
-					color = DebuffTypeColor[aura.dispelName]
-				else
-					color = DebuffTypeColor["none"]
-				end
-				if color then
-					r, g, b = color.r, color.g, color.b
+					if color.GetRGBA then
+						r, g, b = color:GetRGBA()
+					elseif color.r then
+						r, g, b = color.r, color.g, color.b
+					end
 				end
 			end
 			btn.border:SetVertexColor(r, g, b, 1)
