@@ -507,6 +507,29 @@ local function registerEditModeBars()
 						queueRefresh()
 					end,
 				},
+				{
+					name = "Use 10-stack bar",
+					kind = settingType.Checkbox,
+					field = "useMaelstromTenStacks",
+					default = false,
+					parentId = "frame",
+					isVisible = function() return barType == "MAELSTROM_WEAPON" end,
+					get = function()
+						local c = curSpecCfg()
+						return c and c.useMaelstromTenStacks == true
+					end,
+					set = function(_, value)
+						local c = curSpecCfg()
+						if not c then return end
+						c.useMaelstromTenStacks = value and true or false
+						if c.useMaelstromTenStacks then
+							c.visualSegments = 10
+						elseif c.visualSegments == 10 or c.visualSegments == nil then
+							c.visualSegments = 5
+						end
+						queueRefresh()
+					end,
+				},
 			}
 
 			do -- Anchoring

@@ -115,6 +115,7 @@ local COSMETIC_BAR_KEYS = {
 	"useMaxColor",
 	"maxColor",
 	"useMaelstromFiveColor",
+	"useMaelstromTenStacks",
 	"maelstromFiveColor",
 	"useHolyThreeColor",
 	"holyThreeColor",
@@ -557,9 +558,15 @@ end
 local function ensureMaelstromWeaponDefaults(cfg)
 	if not cfg then return end
 	if cfg.useMaelstromFiveColor == nil then cfg.useMaelstromFiveColor = true end
+	if cfg.useMaelstromTenStacks == nil then cfg.useMaelstromTenStacks = cfg.visualSegments == RB.MAELSTROM_WEAPON_MAX_STACKS end
 	if cfg.useMaxColor == nil then cfg.useMaxColor = true end
 	if not cfg.maxColor then cfg.maxColor = { 0, 1, 0, 1 } end
 	if not cfg.maelstromFiveColor then cfg.maelstromFiveColor = CopyTable(ResourcebarVars.DEFAULT_MAELSTROM_WEAPON_FIVE_COLOR) end
+	if cfg.useMaelstromTenStacks then
+		cfg.visualSegments = RB.MAELSTROM_WEAPON_MAX_STACKS
+	elseif cfg.visualSegments == nil or cfg.visualSegments == RB.MAELSTROM_WEAPON_MAX_STACKS then
+		cfg.visualSegments = RB.MAELSTROM_WEAPON_SEGMENTS
+	end
 	if cfg.showSeparator == nil then cfg.showSeparator = true end
 	if not cfg.separatorThickness then cfg.separatorThickness = RB.SEPARATOR_THICKNESS end
 	if not cfg.separatorColor then cfg.separatorColor = CopyTable(RB.SEP_DEFAULT) end
@@ -2423,6 +2430,7 @@ ResourceBars.separatorEligible = {
 	CHI = true,
 	COMBO_POINTS = true,
 	VOID_METAMORPHOSIS = true,
+	MAELSTROM_WEAPON = true,
 	RUNES = true,
 }
 
@@ -2907,6 +2915,15 @@ function updatePowerBar(type, runeSlot)
 		local cfgDef = RB.AURA_POWER_CONFIG[type] or {}
 		logicalMax = logicalMax > 0 and logicalMax or cfgDef.maxStacks or visualMax
 		visualMax = visualMax > 0 and visualMax or logicalMax
+		if type == "MAELSTROM_WEAPON" then
+			local desiredSegments
+			if cfg.useMaelstromTenStacks then
+				desiredSegments = logicalMax > 0 and logicalMax or RB.MAELSTROM_WEAPON_MAX_STACKS
+			else
+				desiredSegments = cfg.visualSegments or RB.MAELSTROM_WEAPON_SEGMENTS
+			end
+			if desiredSegments and desiredSegments > 0 then visualMax = desiredSegments end
+		end
 		if bar._lastMax ~= visualMax then
 			bar:SetMinMaxValues(0, visualMax)
 			bar._lastMax = visualMax
@@ -2996,7 +3013,7 @@ function updatePowerBar(type, runeSlot)
 			local maxCol = cfg.maxColor or RB.WHITE
 			targetR, targetG, targetB, targetA = maxCol[1] or targetR, maxCol[2] or targetG, maxCol[3] or targetB, maxCol[4] or targetA
 			flag = "max"
-		elseif type == "MAELSTROM_WEAPON" and cfg.useMaelstromFiveColor ~= false and visualMax and visualMax > 0 and stacks >= visualMax then
+		elseif type == "MAELSTROM_WEAPON" and cfg.useMaelstromFiveColor ~= false and stacks >= RB.MAELSTROM_WEAPON_SEGMENTS then
 			local mid = cfg.maelstromFiveColor or ResourcebarVars.DEFAULT_MAELSTROM_WEAPON_FIVE_COLOR
 			targetR, targetG, targetB, targetA = mid[1] or targetR, mid[2] or targetG, mid[3] or targetB, mid[4] or targetA
 			flag = "mid"
