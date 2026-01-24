@@ -3902,6 +3902,12 @@ local function ensureFrames(unit)
 	st.frame:HookScript("OnHide", function()
 		st._hovered = false
 		UFHelper.updateHighlight(st, unit, UNIT.PLAYER)
+		if unit == UNIT.TARGET then
+			local targetLoose = IsTargetLoose and IsTargetLoose()
+			if not targetLoose and UnitExists and not UnitExists(UNIT.TARGET) then
+				if PlaySound and SOUNDKIT and SOUNDKIT.INTERFACE_SOUND_LOST_TARGET_UNIT then PlaySound(SOUNDKIT.INTERFACE_SOUND_LOST_TARGET_UNIT, nil, true) end
+			end
+		end
 	end)
 	st.frame:RegisterForClicks("AnyUp")
 	st.frame:Hide()
@@ -4988,6 +4994,16 @@ local function onEvent(self, event, unit, ...)
 			return
 		end
 		if UnitExists(unitToken) then
+			if not C_PlayerInteractionManager.IsReplacingUnit() then
+				if UnitIsEnemy(unitToken, "player") then
+					PlaySound(SOUNDKIT.IG_CREATURE_AGGRO_SELECT)
+				elseif UnitIsFriend("player", unitToken) then
+					PlaySound(SOUNDKIT.IG_CHARACTER_NPC_SELECT)
+				else
+					PlaySound(SOUNDKIT.IG_CREATURE_NEUTRAL_SELECT)
+				end
+			end
+
 			refreshMainPower(unitToken)
 			AuraUtil.fullScanTargetAuras()
 			local pcfg = targetCfg.power or {}
