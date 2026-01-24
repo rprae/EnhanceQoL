@@ -994,7 +994,10 @@ local function setGlow(frame, enabled)
 end
 
 local function onCooldownDone(self)
-	if self and self._eqolSoundReady then playReadySound(self._eqolSoundName) end
+	if self and self._eqolSoundReady then
+		playReadySound(self._eqolSoundName)
+		self._eqolSoundReady = nil
+	end
 	if CooldownPanels and CooldownPanels.RequestUpdate then CooldownPanels:RequestUpdate() end
 end
 
@@ -2674,7 +2677,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 						end
 					end
 					if (showCooldown or (showCharges and chargesInfo)) and not cooldownDurationObject then
-						cooldownStart, cooldownDuration, cooldownEnabled, cooldownRate = getSpellCooldownInfo(entry.spellID)
+						cooldownStart, cooldownDuration, cooldownEnabled, cooldownRate, cooldownGCD = getSpellCooldownInfo(entry.spellID)
 					elseif cooldownDurationObject then
 						_, _, _, _, cooldownGCD = getSpellCooldownInfo(entry.spellID)
 					end
@@ -2692,7 +2695,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 							readyNow = isSafeGreaterThan(chargesInfo.currentCharges, 0)
 						end
 					else
-						readyNow = showCooldown and not cooldownActive
+						readyNow = showCooldown and (cooldownGCD == true or not cooldownActive)
 					end
 					show = alwaysShow
 					if not show and showCooldown and ((cooldownDurationObject ~= nil) or (cooldownEnabledOk and isCooldownActive(cooldownStart, cooldownDuration))) then show = true end
@@ -2813,7 +2816,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 		icon.texture:SetTexture(data.icon or PREVIEW_ICON)
 		applyIconTooltip(icon, data.entry, showTooltips)
 		icon.cooldown:SetHideCountdownNumbers(not data.showCooldownText)
-		icon.cooldown._eqolSoundReady = data.soundReady
+		icon.cooldown._eqolSoundReady = data.soundReady and not data.cooldownGCD
 		icon.cooldown._eqolSoundName = data.soundName
 		if icon.cooldown.Resume then icon.cooldown:Resume() end
 		if icon.previewGlow then icon.previewGlow:Hide() end
@@ -2919,7 +2922,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 				if data.showCharges and data.chargesInfo and data.chargesInfo.currentCharges then
 					ready = isSafeGreaterThan(data.chargesInfo.currentCharges, 0)
 				elseif data.showCooldown then
-					ready = not cooldownActive
+					ready = (not cooldownActive) or data.cooldownGCD == true
 				end
 			end
 			setGlow(icon, ready)
