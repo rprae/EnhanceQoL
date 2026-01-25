@@ -1200,14 +1200,13 @@ local function registerEditModeBars()
 
 			-- Druid: Show in (forms), exclude Health and enforced Cat-only Combo Points
 			if addon.variables.unitClass == "DRUID" and barType ~= "HEALTH" and barType ~= "COMBO_POINTS" then
-				local forms = { "HUMANOID", "BEAR", "CAT", "TRAVEL", "MOONKIN", "TREANT", "STAG" }
+				local forms = { "HUMANOID", "BEAR", "CAT", "TRAVEL", "MOONKIN", "STAG" }
 				local formLabels = {
 					HUMANOID = L["Humanoid"] or "Humanoid",
 					BEAR = L["Bear"] or "Bear",
 					CAT = L["Cat"] or "Cat",
 					TRAVEL = L["Travel"] or "Travel",
 					MOONKIN = L["Moonkin"] or "Moonkin",
-					TREANT = L["Treant"] or "Treant",
 					STAG = L["Stag"] or "Stag",
 				}
 
@@ -1222,7 +1221,6 @@ local function registerEditModeBars()
 						if sf.BEAR == nil then sf.BEAR = false end
 						if sf.TRAVEL == nil then sf.TRAVEL = false end
 						if sf.MOONKIN == nil then sf.MOONKIN = false end
-						if sf.TREANT == nil then sf.TREANT = false end
 						if sf.STAG == nil then sf.STAG = false end
 					else
 						local specInfo = currentSpecInfo()
@@ -1234,7 +1232,6 @@ local function registerEditModeBars()
 							if sf.CAT == nil then sf.CAT = false end
 							if sf.TRAVEL == nil then sf.TRAVEL = false end
 							if sf.MOONKIN == nil then sf.MOONKIN = false end
-							if sf.TREANT == nil then sf.TREANT = false end
 							if sf.STAG == nil then sf.STAG = false end
 						elseif isSecondaryEnergy then
 							if sf.HUMANOID == nil then sf.HUMANOID = false end
@@ -1242,7 +1239,6 @@ local function registerEditModeBars()
 							if sf.CAT == nil then sf.CAT = true end
 							if sf.TRAVEL == nil then sf.TRAVEL = false end
 							if sf.MOONKIN == nil then sf.MOONKIN = false end
-							if sf.TREANT == nil then sf.TREANT = false end
 							if sf.STAG == nil then sf.STAG = false end
 						else
 							if sf.HUMANOID == nil then sf.HUMANOID = true end
@@ -1250,7 +1246,6 @@ local function registerEditModeBars()
 							if sf.CAT == nil then sf.CAT = true end
 							if sf.TRAVEL == nil then sf.TRAVEL = true end
 							if sf.MOONKIN == nil then sf.MOONKIN = true end
-							if sf.TREANT == nil then sf.TREANT = true end
 							if sf.STAG == nil then sf.STAG = true end
 						end
 					end

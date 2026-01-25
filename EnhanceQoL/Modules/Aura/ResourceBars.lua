@@ -1893,7 +1893,6 @@ local formIndexToKey = {
 	[2] = "CAT",
 	[3] = "TRAVEL",
 	[4] = "MOONKIN",
-	[5] = "TREANT",
 	[6] = "STAG",
 }
 local formIDToKey = {}
@@ -1907,7 +1906,7 @@ mapFormID("BEAR", DRUID_BEAR_FORM)
 mapFormID("CAT", DRUID_CAT_FORM)
 mapFormID("TRAVEL", DRUID_TRAVEL_FORM, DRUID_ACQUATIC_FORM, DRUID_FLIGHT_FORM, DRUID_SWIFT_FLIGHT_FORM)
 mapFormID("MOONKIN", DRUID_MOONKIN_FORM_1, DRUID_MOONKIN_FORM_2)
-mapFormID("TREANT", DRUID_TREE_FORM)
+mapFormID("HUMANOID", DRUID_TREE_FORM)
 local formKeyToIndex = {}
 local druidStanceOrder = {}
 for idx, key in pairs(formIndexToKey) do
@@ -1917,7 +1916,7 @@ end
 tsort(druidStanceOrder)
 local druidStanceString = table.concat(druidStanceOrder, "/")
 local DRUID_HUMANOID_VISIBILITY_CLAUSE = (druidStanceString and druidStanceString ~= "") and ("[combat,nostance:%s] show"):format(druidStanceString) or "[combat] show"
-local DRUID_FORM_SEQUENCE = { "HUMANOID", "BEAR", "CAT", "TRAVEL", "MOONKIN", "TREANT", "STAG" }
+local DRUID_FORM_SEQUENCE = { "HUMANOID", "BEAR", "CAT", "TRAVEL", "MOONKIN", "STAG" }
 local function shouldUseDruidFormDriver(cfg)
 	if addon.variables.unitClass ~= "DRUID" then return false end
 	if type(cfg) ~= "table" then return false end
@@ -1936,7 +1935,7 @@ local function mapFormNameToKey(name)
 	if name:find("cat") then return "CAT" end
 	if name:find("travel") or name:find("aquatic") or name:find("flight") or name:find("flight form") then return "TRAVEL" end
 	if name:find("moonkin") or name:find("owl") then return "MOONKIN" end
-	if name:find("treant") then return "TREANT" end
+	if name:find("treant") then return "HUMANOID" end
 	if name:find("tree of life") or name:find("tree form") or name:find("treeform") then return "HUMANOID" end
 	if name:find("stag") then return "STAG" end
 	return nil
@@ -1955,7 +1954,6 @@ local function ensureDruidShowFormsDefaults(cfg, pType, specInfo)
 			CAT = true,
 			TRAVEL = false,
 			MOONKIN = false,
-			TREANT = false,
 			STAG = false,
 		}
 		return
@@ -1972,7 +1970,6 @@ local function ensureDruidShowFormsDefaults(cfg, pType, specInfo)
 		sf.CAT = false
 		sf.TRAVEL = false
 		sf.MOONKIN = false
-		sf.TREANT = false
 		sf.STAG = false
 	elseif isSecondaryEnergy then
 		sf.HUMANOID = false
@@ -1980,7 +1977,6 @@ local function ensureDruidShowFormsDefaults(cfg, pType, specInfo)
 		sf.CAT = true
 		sf.TRAVEL = false
 		sf.MOONKIN = false
-		sf.TREANT = false
 		sf.STAG = false
 	else
 		sf.HUMANOID = true
@@ -1988,7 +1984,6 @@ local function ensureDruidShowFormsDefaults(cfg, pType, specInfo)
 		sf.CAT = true
 		sf.TRAVEL = true
 		sf.MOONKIN = true
-		sf.TREANT = true
 		sf.STAG = true
 	end
 	cfg.showForms = sf

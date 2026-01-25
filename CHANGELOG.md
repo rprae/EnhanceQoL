@@ -29,6 +29,10 @@
 - Shared Media: 2 new voices for crafting orders (Crafting Order - New, Crafting Order - Canceled).
 - Visibility: Added player casting/mounted/in-group rules plus skyriding show/hide and player health < 100% support for action bars/cooldown viewer.
 
+### 🔁 Changed
+
+- Resource Bars: Druid Treant form no longer listed in form filters (mapped to Humanoid)
+
 ### 🐛 Fixed
 
 - Cooldown Panel glow wasn't working correctly in restricted environment
