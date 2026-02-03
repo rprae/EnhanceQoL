@@ -319,6 +319,7 @@ local defaults = {
 				font = nil,
 				fontOutline = nil,
 				showGroup = true,
+				groupFormat = "GROUP",
 				groupFontSize = nil,
 				groupOffset = { x = 0, y = 0 },
 				offset = { x = 0, y = 0 },
@@ -329,6 +330,33 @@ local defaults = {
 				offset = { x = -8, y = 0 },
 				texture = "Interface\\CharacterFrame\\UI-StateIcon",
 				texCoords = { 0.5, 1, 0, 0.5 }, -- combat icon region
+			},
+		},
+		combatFeedback = {
+			enabled = false,
+			font = nil,
+			fontSize = 30,
+			anchor = "CENTER",
+			location = "STATUS",
+			offset = { x = 0, y = 0 },
+			sample = false,
+			sampleAmount = 12345,
+			sampleEvent = "WOUND",
+			events = {
+				WOUND = true,
+				HEAL = true,
+				ENERGIZE = true,
+				MISS = true,
+				DODGE = true,
+				PARRY = true,
+				BLOCK = true,
+				RESIST = true,
+				ABSORB = true,
+				IMMUNE = true,
+				DEFLECT = true,
+				REFLECT = true,
+				EVADE = true,
+				INTERRUPT = true,
 			},
 		},
 		cast = {
@@ -400,6 +428,11 @@ local defaults = {
 	target = {
 		enabled = false,
 		showTooltip = false,
+		rangeFade = {
+			enabled = true,
+			alpha = 0.5,
+			ignoreUnlimitedSpells = true,
+		},
 		auraIcons = {
 			enabled = true,
 			size = 24,
@@ -415,6 +448,7 @@ local defaults = {
 			blizzardDispelBorder = false,
 			blizzardDispelBorderAlpha = 1,
 			blizzardDispelBorderAlphaNot = 0,
+			borderTexture = "DEFAULT",
 			showTooltip = true,
 			hidePermanentAuras = false,
 			anchor = "BOTTOM",
@@ -631,6 +665,49 @@ local function ensureDB(unit)
 		end
 	end
 	return udb
+end
+
+local function getVisibilityConfigFromCfg(cfg)
+	if not cfg then return nil end
+	local raw = cfg.visibility
+	if NormalizeUnitFrameVisibilityConfig then return NormalizeUnitFrameVisibilityConfig(nil, raw, { skipSave = true, ignoreOverride = true }) end
+	if type(raw) == "table" then return raw end
+	return nil
+end
+
+local function hasVisibilityRules(cfg)
+	local config = getVisibilityConfigFromCfg(cfg)
+	return config ~= nil and next(config) ~= nil
+end
+
+if UFHelper and UFHelper.RangeFadeRegister then
+	UFHelper.RangeFadeRegister(function()
+		local cfg = ensureDB(UNIT.TARGET)
+		local def = defaultsFor(UNIT.TARGET)
+		local rcfg = (cfg and cfg.rangeFade) or (def and def.rangeFade) or {}
+		local enabled = (cfg and cfg.enabled ~= false) and rcfg.enabled == true
+		if addon.EditModeLib and addon.EditModeLib:IsInEditMode() then enabled = false end
+		if hasVisibilityRules(cfg) then enabled = false end
+		local alpha = rcfg.alpha
+		if type(alpha) ~= "number" then alpha = 0.5 end
+		if alpha < 0 then alpha = 0 end
+		if alpha > 1 then alpha = 1 end
+		local ignoreUnlimited = rcfg.ignoreUnlimitedSpells
+		if ignoreUnlimited == nil then ignoreUnlimited = true end
+		return enabled, alpha, ignoreUnlimited
+	end, function(targetAlpha, force)
+		local st = states[UNIT.TARGET]
+		if not st or not st.frame or not st.frame.SetAlpha then return end
+		local cfg = ensureDB(UNIT.TARGET)
+		if hasVisibilityRules(cfg) then
+			st._rangeFadeAlpha = nil
+			return
+		end
+		if force or st._rangeFadeAlpha ~= targetAlpha then
+			st._rangeFadeAlpha = targetAlpha
+			st.frame:SetAlpha(targetAlpha)
+		end
+	end)
 end
 
 local function copySettings(fromUnit, toUnit, opts)
@@ -1346,7 +1423,7 @@ function AuraUtil.updateAuraCacheFromEvent(cache, unit, updateInfo, opts)
 	if updateInfo.addedAuras then
 		for _, aura in ipairs(updateInfo.addedAuras) do
 			if aura and aura.auraInstanceID then
-				if hidePermanent and AuraUtil.isPermanentAura(aura, unit) then
+				if hidePermanent and not C_Secrets.ShouldAurasBeSecret() and AuraUtil.isPermanentAura(aura, unit) then
 					if auras[aura.auraInstanceID] then
 						auras[aura.auraInstanceID] = nil
 						local idx = AuraUtil.removeAuraFromOrder(cache, aura.auraInstanceID)
@@ -1672,11 +1749,6 @@ function AuraUtil.applyAuraToButton(btn, aura, ac, isDebuff, unitToken)
 	if btn.border then
 		local useMasqueBorder = btn._eqolMasqueType ~= nil
 		if isDebuff then
-			if not useMasqueBorder then
-				btn.border:SetTexture("Interface\\Buttons\\UI-Debuff-Overlays")
-				btn.border:SetTexCoord(0.296875, 0.5703125, 0, 0.515625)
-				btn.border:SetAllPoints(btn)
-			end
 			local r, g, b = 1, 0.25, 0.25
 			local usedApiColor
 			if not aura.isSample and aura.auraInstanceID and aura.auraInstanceID > 0 and C_UnitAuras and C_UnitAuras.GetAuraDispelTypeColor and colorcurve then
@@ -1697,9 +1769,55 @@ function AuraUtil.applyAuraToButton(btn, aura, ac, isDebuff, unitToken)
 				end
 			end
 			dispelR, dispelG, dispelB = r, g, b
-			btn.border:SetVertexColor(r, g, b, 1)
-			btn.border:Show()
+			if useMasqueBorder then
+				if UFHelper and UFHelper.hideAuraBorderFrame then UFHelper.hideAuraBorderFrame(btn) end
+				btn.border:SetVertexColor(r, g, b, 1)
+				btn.border:Show()
+			else
+				local borderKey = ac and ac.borderTexture
+				local borderTex, borderCoords, borderIsEdge
+				if UFHelper and UFHelper.resolveAuraBorderTexture then
+					borderTex, borderCoords, borderIsEdge = UFHelper.resolveAuraBorderTexture(borderKey)
+				else
+					borderTex = "Interface\\Buttons\\UI-Debuff-Overlays"
+					borderCoords = { 0.296875, 0.5703125, 0, 0.515625 }
+					borderIsEdge = false
+				end
+				if borderIsEdge and borderTex and borderTex ~= "" then
+					local borderFrame = UFHelper and UFHelper.ensureAuraBorderFrame and UFHelper.ensureAuraBorderFrame(btn)
+					if borderFrame then
+						local edgeSize = (UFHelper and UFHelper.calcAuraBorderSize and UFHelper.calcAuraBorderSize(btn, ac)) or 1
+						local insetVal = edgeSize
+						local key = tostring(borderTex) .. "|" .. tostring(edgeSize)
+						if borderFrame._eqolAuraBorderKey ~= key then
+							borderFrame:SetBackdrop({
+								bgFile = "Interface\\Buttons\\WHITE8x8",
+								edgeFile = borderTex,
+								edgeSize = edgeSize,
+								insets = { left = insetVal, right = insetVal, top = insetVal, bottom = insetVal },
+							})
+							borderFrame:SetBackdropColor(0, 0, 0, 0)
+							borderFrame._eqolAuraBorderKey = key
+						end
+						borderFrame:SetBackdropBorderColor(r, g, b, 1)
+						borderFrame:Show()
+					end
+					btn.border:Hide()
+				else
+					if UFHelper and UFHelper.hideAuraBorderFrame then UFHelper.hideAuraBorderFrame(btn) end
+					btn.border:SetTexture(borderTex or "")
+					if borderCoords then
+						btn.border:SetTexCoord(borderCoords[1], borderCoords[2], borderCoords[3], borderCoords[4])
+					else
+						btn.border:SetTexCoord(0, 1, 0, 1)
+					end
+					btn.border:SetAllPoints(btn)
+					btn.border:SetVertexColor(r, g, b, 1)
+					btn.border:Show()
+				end
+			end
 		else
+			if UFHelper and UFHelper.hideAuraBorderFrame then UFHelper.hideAuraBorderFrame(btn) end
 			if not useMasqueBorder then btn.border:SetTexture(nil) end
 			btn.border:Hide()
 		end
@@ -1861,8 +1979,16 @@ function AuraUtil.updateAuraContainerSize(container, shown, ac, perRow, primary)
 	else
 		rows = math.ceil(shown / perRow)
 	end
-	container:SetHeight(rows > 0 and (rows * (ac.size + ac.padding) - ac.padding) or 0.001)
-	container:SetShown(shown > 0)
+	local height = rows > 0 and (rows * (ac.size + ac.padding) - ac.padding) or 0.001
+	if container._eqolAuraHeight ~= height then
+		container:SetHeight(height)
+		container._eqolAuraHeight = height
+	end
+	local shownFlag = shown > 0
+	if container._eqolAuraShown ~= shownFlag then
+		container:SetShown(shownFlag)
+		container._eqolAuraShown = shownFlag
+	end
 end
 
 function UF._auraLayout.calcPerRow(st, ac, width, primary)
@@ -2057,7 +2183,10 @@ function AuraUtil.updateTargetAuraIcons(startIndex, unit)
 		local icons = st.auraButtons or {}
 		st.auraButtons = icons
 		local shown = #visible
-		for i = 1, shown do
+		startIndex = startIndex or 1
+		if startIndex < 1 then startIndex = 1 end
+
+		for i = startIndex, shown do
 			local entry = visible[i]
 			local auraId = entry and entry.id
 			local aura = auraId and auras[auraId]
@@ -2225,25 +2354,6 @@ local function getMainPower(unit)
 	if not mainPowerEnum or not mainPowerToken then return refreshMainPower(UNIT.PLAYER) end
 	return mainPowerEnum, mainPowerToken
 end
-local function findTreeNode(path)
-	if not addon.treeGroupData or type(path) ~= "string" then return nil end
-	local segments = {}
-	for seg in string.gmatch(path, "[^\001]+") do
-		segments[#segments + 1] = seg
-	end
-	local function search(children, idx)
-		if not children then return nil end
-		for _, node in ipairs(children) do
-			if node.value == segments[idx] then
-				if idx == #segments then return node end
-				return search(node.children, idx + 1)
-			end
-		end
-		return nil
-	end
-	return search(addon.treeGroupData, 1)
-end
-
 local function getFrameInfo(frameName)
 	if not addon.variables or not addon.variables.unitFrameNames then return nil end
 	for _, info in ipairs(addon.variables.unitFrameNames) do
@@ -2374,42 +2484,6 @@ local function applyVisibilityRulesAll()
 	applyVisibilityRules("boss")
 end
 
-local function addTreeNode(path, node, parentPath)
-	if not addon.functions or not addon.functions.addToTree then return end
-	if findTreeNode(path) then return end
-	addon.functions.addToTree(parentPath, node, true)
-end
-
-local function removeTreeNode(path)
-	if not addon.treeGroupData or not addon.treeGroup then return end
-	local segments = {}
-	for seg in string.gmatch(path, "[^\001]+") do
-		segments[#segments + 1] = seg
-	end
-	if #segments == 0 then return end
-	local function remove(children, idx)
-		if not children then return false end
-		for i, node in ipairs(children) do
-			if node.value == segments[idx] then
-				if idx == #segments then
-					table.remove(children, i)
-					if addon.treeGroup.SetTree then addon.treeGroup:SetTree(addon.treeGroupData) end
-					if addon.treeGroup.RefreshTree then addon.treeGroup:RefreshTree() end
-					return true
-				elseif node.children then
-					local removed = remove(node.children, idx + 1)
-					if removed and #node.children == 0 then node.children = nil end
-					return removed
-				end
-			end
-		end
-		return false
-	end
-	remove(addon.treeGroupData, 1)
-end
-
-local function ensureRootNode() addTreeNode("ufplus", { value = "ufplus", text = L["UFPlusRoot"] or "UF Plus" }, nil) end
-
 local function hideBlizzardPlayerFrame()
 	if not _G.PlayerFrame then return end
 	if not InCombatLockdown() and ensureDB("player").enabled then _G.PlayerFrame:Hide() end
@@ -2475,6 +2549,7 @@ do
 		blizzardDispelBorder = false,
 		blizzardDispelBorderAlpha = 1,
 		blizzardDispelBorderAlphaNot = 0,
+		borderTexture = "DEFAULT",
 		anchor = "BOTTOM",
 		offset = { x = 0, y = -5 },
 		growth = nil,
@@ -3124,6 +3199,7 @@ local function setCastInfoFromUnit(unit)
 		end
 		return
 	end
+	applyCastLayout(cfg, unit)
 
 	local isEmpoweredCast = isChannel and (issecretvalue and not issecretvalue(isEmpowered)) and isEmpowered and numEmpowerStages and numEmpowerStages > 0
 	if isEmpoweredCast and startTimeMS and endTimeMS and (not issecretvalue or (not issecretvalue(startTimeMS) and not issecretvalue(endTimeMS))) then
@@ -3258,7 +3334,6 @@ local function setCastInfoFromUnit(unit)
 		castGUID = castGUID,
 		spellId = spellId,
 	}
-	applyCastLayout(cfg, unit)
 	configureCastStatic(unit, resolvedCfg, defc)
 	if isEmpowered then
 		UFHelper.setupEmpowerStages(st, unit, numEmpowerStages)
@@ -3392,8 +3467,13 @@ local function updateHealth(cfg, unit)
 		elseif hc.color then
 			hr, hg, hb, ha = hc.color[1], hc.color[2], hc.color[3], hc.color[4] or 1
 		end
-	elseif hc.useClassColor and isPlayerUnit then
-		local class = select(2, UnitClass(unit))
+	elseif hc.useClassColor then
+		local class
+		if isPlayerUnit then
+			class = select(2, UnitClass(unit))
+		elseif unit == UNIT.PET then
+			class = select(2, UnitClass(UNIT.PLAYER))
+		end
 		local cr, cg, cb, ca = getClassColor(class)
 		if cr then
 			hr, hg, hb, ha = cr, cg, cb, ca
@@ -3637,6 +3717,22 @@ local function getPlayerSubGroup()
 	return subgroup
 end
 
+local function formatGroupNumber(subgroup, format)
+	local num = tonumber(subgroup)
+	if not num then return nil end
+	local fmt = format or "GROUP"
+	if fmt == "NUMBER" then return tostring(num) end
+	if fmt == "PARENS" then return "(" .. num .. ")" end
+	if fmt == "BRACKETS" then return "[" .. num .. "]" end
+	if fmt == "BRACES" then return "{" .. num .. "}" end
+	if fmt == "PIPE" then return "|| " .. num .. " ||" end
+	if fmt == "ANGLE" then return "<" .. num .. ">" end
+	if fmt == "G" then return "G" .. num end
+	if fmt == "G_SPACE" then return "G " .. num end
+	if fmt == "HASH" then return "#" .. num end
+	return string.format(GROUP_NUMBER or "Group %d", num)
+end
+
 local function updateUnitStatusIndicator(cfg, unit)
 	cfg = cfg or (states[unit] and states[unit].cfg) or ensureDB(unit)
 	local st = states[unit]
@@ -3704,10 +3800,11 @@ local function updateUnitStatusIndicator(cfg, unit)
 	local groupTag
 	if unit == UNIT.PLAYER and usCfg.showGroup == true then
 		local subgroup = getPlayerSubGroup()
+		local groupFormat = usCfg.groupFormat or usDef.groupFormat or "GROUP"
 		if subgroup then
-			groupTag = string.format(GROUP_NUMBER or "Group %d", subgroup)
+			groupTag = formatGroupNumber(subgroup, groupFormat)
 		elseif addon.EditModeLib and addon.EditModeLib:IsInEditMode() then
-			groupTag = string.format(GROUP_NUMBER or "Group %d", 1)
+			groupTag = formatGroupNumber(1, groupFormat)
 		end
 	end
 	if st.unitGroupText then
@@ -4644,6 +4741,7 @@ local function applyConfig(unit)
 			st._hovered = false
 		end
 		if st then st._highlightCfg = nil end
+		if UFHelper and UFHelper.updateCombatFeedback then UFHelper.updateCombatFeedback(st, unit, cfg, def) end
 		applyVisibilityDriver(unit, false)
 		if unit == UNIT.PLAYER then applyFrameRuleOverride(BLIZZ_FRAME_NAMES.player, false) end
 		if unit == UNIT.TARGET then applyFrameRuleOverride(BLIZZ_FRAME_NAMES.target, false) end
@@ -4657,6 +4755,7 @@ local function applyConfig(unit)
 		if unit == UNIT.PLAYER or unit == "target" or unit == UNIT.FOCUS or isBossUnit(unit) then AuraUtil.resetTargetAuras(unit) end
 		if unit == UNIT.PLAYER then updateRestingIndicator(cfg) end
 		if not isBossUnit(unit) then applyVisibilityRules(unit) end
+		if unit == UNIT.TARGET and UFHelper and UFHelper.RangeFadeReset then UFHelper.RangeFadeReset() end
 		if unit == UNIT.PLAYER and addon.functions and addon.functions.ApplyCastBarVisibility then addon.functions.ApplyCastBarVisibility() end
 		return
 	end
@@ -4677,6 +4776,7 @@ local function applyConfig(unit)
 		UFHelper.applyHighlightStyle(st, st._highlightCfg)
 	end
 	updateStatus(cfg, unit)
+	if UFHelper and UFHelper.updateCombatFeedback then UFHelper.updateCombatFeedback(st, unit, cfg, def) end
 	updateNameAndLevel(cfg, unit)
 	updateHealth(cfg, unit)
 	updatePower(cfg, unit)
@@ -4733,6 +4833,7 @@ local function applyConfig(unit)
 		AuraUtil.fullScanTargetAuras(unit)
 	end
 	if not isBossUnit(unit) then applyVisibilityRules(unit) end
+	if unit == UNIT.TARGET and UFHelper and UFHelper.RangeFadeApplyCurrent then UFHelper.RangeFadeApplyCurrent(true) end
 end
 
 local function layoutBossFrames(cfg)
@@ -5069,6 +5170,10 @@ local generalEvents = {
 	"PLAYER_ALIVE",
 	"PLAYER_TARGET_CHANGED",
 	"PLAYER_LOGIN",
+	"SPELLS_CHANGED",
+	"PLAYER_TALENT_UPDATE",
+	"ACTIVE_PLAYER_SPECIALIZATION_CHANGED",
+	"TRAIT_CONFIG_UPDATED",
 	"PLAYER_REGEN_DISABLED",
 	"PLAYER_REGEN_ENABLED",
 	"PLAYER_FLAGS_CHANGED",
@@ -5080,6 +5185,7 @@ local generalEvents = {
 	"ENCOUNTER_START",
 	"ENCOUNTER_END",
 	"RAID_TARGET_UPDATE",
+	"SPELL_RANGE_CHECK_UPDATE",
 }
 
 local eventFrame
@@ -5355,6 +5461,16 @@ local function onEvent(self, event, unit, ...)
 	local arg1 = ...
 	if (unitEventsMap[event] or portraitEventsMap[event]) and unit and not allowedEventUnit[unit] and event ~= "UNIT_THREAT_SITUATION_UPDATE" and event ~= "UNIT_THREAT_LIST_UPDATE" then return end
 	if (unitEventsMap[event] or portraitEventsMap[event]) and unit and isBossUnit(unit) and not isBossFrameSettingEnabled() then return end
+	if event == "SPELL_RANGE_CHECK_UPDATE" then
+		local spellIdentifier = unit
+		local isInRange, checksRange = ...
+		if UFHelper and UFHelper.RangeFadeUpdateFromEvent then UFHelper.RangeFadeUpdateFromEvent(spellIdentifier, isInRange, checksRange) end
+		return
+	end
+	if event == "SPELLS_CHANGED" or event == "PLAYER_TALENT_UPDATE" or event == "ACTIVE_PLAYER_SPECIALIZATION_CHANGED" or event == "TRAIT_CONFIG_UPDATED" then
+		if UFHelper and UFHelper.RangeFadeUpdateSpells then UFHelper.RangeFadeUpdateSpells() end
+		return
+	end
 	if event == "PLAYER_ENTERING_WORLD" then
 		local playerCfg = getCfg(UNIT.PLAYER)
 		local targetCfg = getCfg(UNIT.TARGET)
@@ -5362,6 +5478,7 @@ local function onEvent(self, event, unit, ...)
 		local petCfg = getCfg(UNIT.PET)
 		local focusCfg = getCfg(UNIT.FOCUS)
 		local bossCfg = getCfg("boss")
+		if UFHelper and UFHelper.RangeFadeUpdateSpells then UFHelper.RangeFadeUpdateSpells() end
 		refreshMainPower(UNIT.PLAYER)
 		applyConfig("player")
 		applyConfig("target")
@@ -5414,6 +5531,7 @@ local function onEvent(self, event, unit, ...)
 			bossLayoutDirty, bossHidePending, bossShowPending, bossInitPending = nil, nil, nil, nil
 		end
 	elseif event == "PLAYER_TARGET_CHANGED" then
+		if UFHelper and UFHelper.RangeFadeReset then UFHelper.RangeFadeReset() end
 		local targetCfg = getCfg(UNIT.TARGET)
 		local totCfg = getCfg(UNIT.TARGET_TARGET)
 		local focusCfg = getCfg(UNIT.FOCUS)
@@ -5812,6 +5930,8 @@ local function ensureEventHandling()
 	rebuildAllowedEventUnits()
 	if not anyUFEnabled() then
 		hideBossFrames()
+		if UFHelper and UFHelper.RangeFadeUpdateSpells then UFHelper.RangeFadeUpdateSpells() end
+		if UFHelper and UFHelper.disableCombatFeedbackAll then UFHelper.disableCombatFeedbackAll(states) end
 		if eventFrame and eventFrame.UnregisterAllEvents then eventFrame:UnregisterAllEvents() end
 		if eventFrame then eventFrame:SetScript("OnEvent", nil) end
 		eventFrame = nil
@@ -5842,6 +5962,7 @@ local function ensureEventHandling()
 				if states[UNIT.PLAYER] and states[UNIT.PLAYER].castBar then setCastInfoFromUnit(UNIT.PLAYER) end
 				if states[UNIT.TARGET] and states[UNIT.TARGET].castBar then setCastInfoFromUnit(UNIT.TARGET) end
 				if states[UNIT.FOCUS] and states[UNIT.FOCUS].castBar then setCastInfoFromUnit(UNIT.FOCUS) end
+				if UFHelper and UFHelper.RangeFadeUpdateSpells then UFHelper.RangeFadeUpdateSpells() end
 			end)
 
 			addon.EditModeLib:RegisterCallback("exit", function()
@@ -5858,10 +5979,12 @@ local function ensureEventHandling()
 				if states[UNIT.PLAYER] and states[UNIT.PLAYER].castBar then setCastInfoFromUnit(UNIT.PLAYER) end
 				if states[UNIT.TARGET] and states[UNIT.TARGET].castBar then setCastInfoFromUnit(UNIT.TARGET) end
 				if states[UNIT.FOCUS] and states[UNIT.FOCUS].castBar then setCastInfoFromUnit(UNIT.FOCUS) end
+				if UFHelper and UFHelper.RangeFadeUpdateSpells then UFHelper.RangeFadeUpdateSpells() end
 			end)
 		end
 	end
 	updatePortraitEventRegistration()
+	if UFHelper and UFHelper.RangeFadeUpdateSpells then UFHelper.RangeFadeUpdateSpells() end
 end
 
 function UF.Enable()

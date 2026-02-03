@@ -1172,6 +1172,35 @@ local function buildUnitSettings(unit)
 	portraitSeparatorColor.isEnabled = function() return isPortraitEnabled() and isPortraitSeparatorEnabled() end
 	list[#list + 1] = portraitSeparatorColor
 
+	if unit == "target" then
+		local rangeDef = def.rangeFade or {}
+		local function isRangeFadeEnabled() return getValue(unit, { "rangeFade", "enabled" }, rangeDef.enabled == true) == true end
+
+		list[#list + 1] = { name = L["UFRangeFade"] or "Range fade", kind = settingType.Collapsible, id = "rangeFade", defaultCollapsed = true }
+
+		list[#list + 1] = checkbox(L["UFRangeFadeEnable"] or "Enable range fade", isRangeFadeEnabled, function(val)
+			setValue(unit, { "rangeFade", "enabled" }, val and true or false)
+			refreshSelf()
+			if UFHelper and UFHelper.RangeFadeUpdateSpells then UFHelper.RangeFadeUpdateSpells() end
+		end, rangeDef.enabled == true, "rangeFade")
+
+		local rangeFadeAlpha = slider(L["UFRangeFadeAlpha"] or "Out of range opacity", 0, 100, 1, function()
+			local alpha = getValue(unit, { "rangeFade", "alpha" }, rangeDef.alpha or 0.5)
+			if type(alpha) ~= "number" then alpha = 0.5 end
+			if alpha < 0 then alpha = 0 end
+			if alpha > 1 then alpha = 1 end
+			return math.floor((alpha * 100) + 0.5)
+		end, function(val)
+			local pct = tonumber(val) or 0
+			if pct < 0 then pct = 0 end
+			if pct > 100 then pct = 100 end
+			setValue(unit, { "rangeFade", "alpha" }, pct / 100)
+			refreshSelf()
+		end, math.floor(((rangeDef.alpha or 0.5) * 100) + 0.5), "rangeFade", true, function(v) return tostring(v) .. "%" end)
+		rangeFadeAlpha.isEnabled = isRangeFadeEnabled
+		list[#list + 1] = rangeFadeAlpha
+	end
+
 	list[#list + 1] = { name = L["HealthBar"] or "Health Bar", kind = settingType.Collapsible, id = "health", defaultCollapsed = true }
 
 	list[#list + 1] = slider(L["UFHealthHeight"] or "Health height", 8, 80, 1, function() return getValue(unit, { "healthHeight" }, def.healthHeight or 24) end, function(val)
@@ -3336,6 +3365,33 @@ local function buildUnitSettings(unit)
 		)
 		list[#list].isEnabled = isUnitStatusEnabled
 
+		local groupNumberFormatOptions = {
+			{ value = "GROUP", label = "Group 1" },
+			{ value = "G", label = "G1" },
+			{ value = "G_SPACE", label = "G 1" },
+			{ value = "NUMBER", label = "1" },
+			{ value = "PARENS", label = "(1)" },
+			{ value = "BRACKETS", label = "[1]" },
+			{ value = "BRACES", label = "{1}" },
+			{ value = "ANGLE", label = "<1>" },
+			{ value = "PIPE", label = "|| 1 ||" },
+			{ value = "HASH", label = "#1" },
+		}
+
+		local groupFormatSetting = checkboxDropdown(
+			L["UFUnitStatusGroupFormat"] or "Group number format",
+			groupNumberFormatOptions,
+			function() return getValue(unit, { "status", "unitStatus", "groupFormat" }, usDef.groupFormat or "GROUP") end,
+			function(val)
+				setValue(unit, { "status", "unitStatus", "groupFormat" }, val or "GROUP")
+				refresh()
+			end,
+			usDef.groupFormat or "GROUP",
+			"unitStatus"
+		)
+		groupFormatSetting.isEnabled = isGroupEnabled
+		list[#list + 1] = groupFormatSetting
+
 		list[#list + 1] = slider(
 			L["UFUnitStatusGroupSize"] or "Group number size",
 			8,
@@ -3513,6 +3569,232 @@ local function buildUnitSettings(unit)
 		list[#list + 1] = combatIndicatorOffsetY
 	end
 
+	list[#list + 1] = { name = L["UFCombatFeedback"] or "Combat feedback", kind = settingType.Collapsible, id = "combatFeedback", defaultCollapsed = true }
+	local combatDef = def.combatFeedback or {}
+	local function isCombatFeedbackEnabled() return getValue(unit, { "combatFeedback", "enabled" }, combatDef.enabled == true) == true end
+
+	list[#list + 1] = checkbox(L["UFCombatFeedbackEnable"] or "Enable combat feedback", isCombatFeedbackEnabled, function(val)
+		setValue(unit, { "combatFeedback", "enabled" }, val and true or false)
+		refresh()
+		refreshSettingsUI()
+	end, combatDef.enabled == true, "combatFeedback")
+
+	local function isCombatEventSelected(key)
+		local events = getValue(unit, { "combatFeedback", "events" })
+		if type(events) ~= "table" then events = combatDef.events end
+		if type(events) ~= "table" then return true end
+		local val = events[key]
+		if val == nil and type(combatDef.events) == "table" then val = combatDef.events[key] end
+		if val == nil then return true end
+		return val == true
+	end
+
+	local function setCombatEventSelected(key, selected)
+		local events = getValue(unit, { "combatFeedback", "events" })
+		if type(events) ~= "table" then
+			events = combatDef.events and CopyTable(combatDef.events) or {}
+		else
+			events = CopyTable(events)
+		end
+		events[key] = selected and true or false
+		setValue(unit, { "combatFeedback", "events" }, events)
+		refresh()
+	end
+
+	local combatFeedbackLocationOptions = {
+		{ value = "FRAME", label = L["Frame"] or "Frame" },
+		{ value = "STATUS", label = L["UFStatusLine"] or "Status line" },
+		{ value = "HEALTH", label = L["Health"] or HEALTH or "Health" },
+		{ value = "POWER", label = L["Power"] or _G.POWER or "Power" },
+	}
+
+	local combatFeedbackAnchorOptions = {
+		{ value = "TOPLEFT", label = L["Top left"] or "Top left" },
+		{ value = "TOP", label = L["Top"] or "Top" },
+		{ value = "TOPRIGHT", label = L["Top right"] or "Top right" },
+		{ value = "LEFT", label = L["Left"] or "Left" },
+		{ value = "CENTER", label = L["Center"] or "Center" },
+		{ value = "RIGHT", label = L["Right"] or "Right" },
+		{ value = "BOTTOMLEFT", label = L["Bottom left"] or "Bottom left" },
+		{ value = "BOTTOM", label = L["Bottom"] or "Bottom" },
+		{ value = "BOTTOMRIGHT", label = L["Bottom right"] or "Bottom right" },
+	}
+
+	local combatFeedbackEventOptions = {
+		{ value = "WOUND", label = L["Combat feedback damage"] or "Damage" },
+		{ value = "HEAL", label = L["Combat feedback heal"] or "Heal" },
+		{ value = "ENERGIZE", label = L["Combat feedback energize"] or "Energize" },
+		{ value = "MISS", label = MISS or "Miss" },
+		{ value = "DODGE", label = DODGE or "Dodge" },
+		{ value = "PARRY", label = PARRY or "Parry" },
+		{ value = "BLOCK", label = BLOCK or "Block" },
+		{ value = "RESIST", label = RESIST or "Resist" },
+		{ value = "ABSORB", label = ABSORB or "Absorb" },
+		{ value = "IMMUNE", label = IMMUNE or "Immune" },
+		{ value = "DEFLECT", label = DEFLECT or "Deflect" },
+		{ value = "REFLECT", label = REFLECT or "Reflect" },
+		{ value = "EVADE", label = EVADE or "Evade" },
+		{ value = "INTERRUPT", label = INTERRUPT or "Interrupt" },
+	}
+
+	local combatFeedbackSampleOptions = {
+		{ value = "WOUND", label = L["Combat feedback damage"] or "Damage" },
+		{ value = "HEAL", label = L["Combat feedback heal"] or "Heal" },
+		{ value = "ENERGIZE", label = L["Combat feedback energize"] or "Energize" },
+	}
+
+	list[#list + 1] = multiDropdown(
+		L["UFCombatFeedbackEvents"] or "Combat feedback events",
+		combatFeedbackEventOptions,
+		isCombatEventSelected,
+		setCombatEventSelected,
+		combatDef.events,
+		"combatFeedback",
+		isCombatFeedbackEnabled
+	)
+
+	if #fontOptions() > 0 then
+		local combatFontSetting = checkboxDropdown(
+			L["UFCombatFeedbackFont"] or "Combat feedback font",
+			fontOptions,
+			function() return getValue(unit, { "combatFeedback", "font" }, combatDef.font or defaultFontPath()) end,
+			function(val)
+				setValue(unit, { "combatFeedback", "font" }, val)
+				refreshSelf()
+			end,
+			combatDef.font or defaultFontPath(),
+			"combatFeedback"
+		)
+		combatFontSetting.isEnabled = isCombatFeedbackEnabled
+		list[#list + 1] = combatFontSetting
+	end
+
+	local combatFontSizeSetting = slider(
+		L["UFCombatFeedbackSize"] or "Combat feedback size",
+		8,
+		64,
+		1,
+		function() return getValue(unit, { "combatFeedback", "fontSize" }, combatDef.fontSize or 30) end,
+		function(val)
+			debounced(unit .. "_combatFeedbackSize", function()
+				setValue(unit, { "combatFeedback", "fontSize" }, val or 30)
+				refreshSelf()
+			end)
+		end,
+		combatDef.fontSize or 30,
+		"combatFeedback",
+		true
+	)
+	combatFontSizeSetting.isEnabled = isCombatFeedbackEnabled
+	list[#list + 1] = combatFontSizeSetting
+
+	local combatLocationSetting = radioDropdown(
+		L["UFCombatFeedbackLocation"] or "Combat feedback location",
+		combatFeedbackLocationOptions,
+		function() return getValue(unit, { "combatFeedback", "location" }, combatDef.location or "STATUS") end,
+		function(val)
+			setValue(unit, { "combatFeedback", "location" }, val or "STATUS")
+			refreshSelf()
+		end,
+		combatDef.location or "STATUS",
+		"combatFeedback"
+	)
+	combatLocationSetting.isEnabled = isCombatFeedbackEnabled
+	list[#list + 1] = combatLocationSetting
+
+	local combatAnchorSetting = radioDropdown(
+		L["UFCombatFeedbackAnchor"] or "Combat feedback anchor",
+		combatFeedbackAnchorOptions,
+		function() return getValue(unit, { "combatFeedback", "anchor" }, combatDef.anchor or "CENTER") end,
+		function(val)
+			setValue(unit, { "combatFeedback", "anchor" }, val or "CENTER")
+			refreshSelf()
+		end,
+		combatDef.anchor or "CENTER",
+		"combatFeedback"
+	)
+	combatAnchorSetting.isEnabled = isCombatFeedbackEnabled
+	list[#list + 1] = combatAnchorSetting
+
+	local combatOffsetX = slider(
+		L["UFCombatFeedbackOffsetX"] or "Combat feedback offset X",
+		-OFFSET_RANGE,
+		OFFSET_RANGE,
+		1,
+		function() return getValue(unit, { "combatFeedback", "offset", "x" }, (combatDef.offset and combatDef.offset.x) or 0) end,
+		function(val)
+			local off = getValue(unit, { "combatFeedback", "offset" }, { x = 0, y = 0 }) or {}
+			off.x = val or 0
+			setValue(unit, { "combatFeedback", "offset" }, off)
+			refreshSelf()
+		end,
+		(combatDef.offset and combatDef.offset.x) or 0,
+		"combatFeedback",
+		true
+	)
+	combatOffsetX.isEnabled = isCombatFeedbackEnabled
+	list[#list + 1] = combatOffsetX
+
+	local combatOffsetY = slider(
+		L["UFCombatFeedbackOffsetY"] or "Combat feedback offset Y",
+		-OFFSET_RANGE,
+		OFFSET_RANGE,
+		1,
+		function() return getValue(unit, { "combatFeedback", "offset", "y" }, (combatDef.offset and combatDef.offset.y) or 0) end,
+		function(val)
+			local off = getValue(unit, { "combatFeedback", "offset" }, { x = 0, y = 0 }) or {}
+			off.y = val or 0
+			setValue(unit, { "combatFeedback", "offset" }, off)
+			refreshSelf()
+		end,
+		(combatDef.offset and combatDef.offset.y) or 0,
+		"combatFeedback",
+		true
+	)
+	combatOffsetY.isEnabled = isCombatFeedbackEnabled
+	list[#list + 1] = combatOffsetY
+
+	local function isCombatFeedbackSampleEnabled() return isCombatFeedbackEnabled() and getValue(unit, { "combatFeedback", "sample" }, combatDef.sample == true) == true end
+
+	list[#list + 1] = checkbox(L["UFCombatFeedbackSample"] or "Show sample", function() return getValue(unit, { "combatFeedback", "sample" }, combatDef.sample == true) == true end, function(val)
+		setValue(unit, { "combatFeedback", "sample" }, val and true or false)
+		refreshSelf()
+	end, combatDef.sample == true, "combatFeedback")
+	list[#list].isEnabled = isCombatFeedbackEnabled
+
+	local sampleTypeSetting = radioDropdown(
+		L["UFCombatFeedbackSampleType"] or "Sample type",
+		combatFeedbackSampleOptions,
+		function() return getValue(unit, { "combatFeedback", "sampleEvent" }, combatDef.sampleEvent or "WOUND") end,
+		function(val)
+			setValue(unit, { "combatFeedback", "sampleEvent" }, val or "WOUND")
+			refreshSelf()
+		end,
+		combatDef.sampleEvent or "WOUND",
+		"combatFeedback"
+	)
+	sampleTypeSetting.isEnabled = isCombatFeedbackSampleEnabled
+	list[#list + 1] = sampleTypeSetting
+
+	local sampleAmountSetting = slider(
+		L["UFCombatFeedbackSampleAmount"] or "Sample amount",
+		0,
+		200000,
+		1,
+		function() return getValue(unit, { "combatFeedback", "sampleAmount" }, combatDef.sampleAmount or 12345) end,
+		function(val)
+			local amt = tonumber(val) or 0
+			if amt < 0 then amt = 0 end
+			setValue(unit, { "combatFeedback", "sampleAmount" }, amt)
+			refreshSelf()
+		end,
+		combatDef.sampleAmount or 12345,
+		"combatFeedback",
+		true
+	)
+	sampleAmountSetting.isEnabled = isCombatFeedbackSampleEnabled
+	list[#list + 1] = sampleAmountSetting
+
 	if unit == "player" or unit == "target" or unit == "focus" or isBossUnit(unit) then
 		list[#list + 1] = { name = L["Auras"] or "Auras", kind = settingType.Collapsible, id = "auras", defaultCollapsed = true }
 		local auraDef = def.auraIcons or { enabled = true, size = 24, padding = 2, max = 16, showCooldown = true }
@@ -3651,6 +3933,20 @@ local function buildUnitSettings(unit)
 				refreshAuras()
 			end,
 			auraDef.blizzardDispelBorder == true,
+			"auras"
+		)
+		list[#list].isEnabled = isAuraEnabled
+
+		list[#list + 1] = checkboxDropdown(
+			L["Aura border texture"] or "Aura border texture",
+			borderOptions,
+			function() return getValue(unit, { "auraIcons", "borderTexture" }, auraDef.borderTexture or "DEFAULT") end,
+			function(val)
+				setValue(unit, { "auraIcons", "borderTexture" }, val or "DEFAULT")
+				refresh()
+				refreshAuras()
+			end,
+			auraDef.borderTexture or "DEFAULT",
 			"auras"
 		)
 		list[#list].isEnabled = isAuraEnabled

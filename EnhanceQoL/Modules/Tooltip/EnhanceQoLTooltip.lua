@@ -16,6 +16,28 @@ local InspectCache = {} -- [guid] = { ilvl, specName, score, last }
 local CACHE_TTL = 30 -- seconds
 local function now() return GetTime() end
 
+local function isSecret(value)
+	return issecretvalue and issecretvalue(value)
+end
+
+local function safeEquals(a, b)
+	if a == nil or b == nil then return false end
+	if isSecret(a) or isSecret(b) then return false end
+	return a == b
+end
+
+local function safeFind(text, pattern, plain)
+	if not text or isSecret(text) then return nil end
+	if pattern == nil then return nil end
+	return text:find(pattern, 1, plain)
+end
+
+local function safeMatch(text, pattern)
+	if not text or isSecret(text) then return nil end
+	if pattern == nil then return nil end
+	return text:match(pattern)
+end
+
 local function GetUnitTokenFromTooltip(tt)
 	if addon.variables.isMidnight then return "mouseover" end
 	local owner = tt and tt:GetOwner()
@@ -87,7 +109,7 @@ local function FindLineIndexByLabel(tt, label)
 	for i = 1, tt:NumLines() do
 		local left = _G[name .. "TextLeft" .. i]
 		local text = left and left:GetText()
-		if text and text:find(label, 1, true) then return i end
+		if safeFind(text, label, true) then return i end
 	end
 	return nil
 end
@@ -98,7 +120,7 @@ local function RefreshTooltipForGUID(guid)
 	local unit = GetUnitTokenFromTooltip(tt)
 	if not unit then return end
 	local uGuid = UnitGUID(unit)
-	if uGuid ~= guid then return end
+	if not safeEquals(uGuid, guid) then return end
 	local c = InspectCache[guid]
 	if not c then return end
 
@@ -143,9 +165,14 @@ end
 fInspect:SetScript("OnEvent", function(_, ev, arg1, arg2)
 	if ev == "INSPECT_READY" then
 		local guid = arg1
-		if issecretvalue(guid) or issecretvalue(arg1) or issecretvalue(arg2) or issecretvalue(pendingGUID) then return end
-		if not guid or guid ~= pendingGUID then return end
-		local unit = (pendingUnit and UnitGUID(pendingUnit) == guid) and pendingUnit or nil
+		if isSecret(guid) or isSecret(arg1) or isSecret(arg2) or isSecret(pendingGUID) then return end
+		if not safeEquals(guid, pendingGUID) then return end
+		local unitGuid = pendingUnit and UnitGUID(pendingUnit)
+		if isSecret(unitGuid) or isSecret(pendingUnit) then
+			pendingGUID, pendingUnit = nil, nil
+			return
+		end
+		local unit = (unitGuid == guid) and pendingUnit or nil
 		pendingGUID, pendingUnit = nil, nil
 		if not unit or not UnitExists(unit) then return end
 
@@ -219,7 +246,14 @@ EnsureUnitData = function(unit)
 
 	-- Others: request inspect if possible
 	if CanInspect and CanInspect(unit) and not InCombatLockdown() and not issecretvalue(unit) then
-		if pendingGUID and pendingUnit and UnitGUID(pendingUnit) == pendingGUID and pendingGUID == guid then return end
+		if pendingGUID and pendingUnit then
+			local pendingUnitGuid = UnitGUID(pendingUnit)
+			if issecretvalue(pendingUnitGuid) or issecretvalue(pendingGUID) or issecretvalue(guid) then
+				pendingGUID, pendingUnit = nil, nil
+			elseif pendingUnitGuid == pendingGUID and pendingGUID == guid then
+				return
+			end
+		end
 		pendingGUID = guid
 		pendingUnit = unit
 		if NotifyInspect then NotifyInspect(unit) end
@@ -235,8 +269,12 @@ local function GetNPCIDFromGUID(guid)
 end
 
 local function FormatUnitName(unit)
-	if not unit then return nil end
-	if UnitIsUnit and UnitIsUnit(unit, "player") then return "<YOU>" end
+	if not unit or (issecretvalue and issecretvalue(unit)) then return nil end
+	if UnitIsUnit then
+		local same = UnitIsUnit(unit, "player")
+		if issecretvalue and issecretvalue(same) then return nil end
+		if same then return "<YOU>" end
+	end
 	local name, realm = UnitName(unit)
 	if not name then return nil end
 	if issecretvalue and issecretvalue(name) then return nil end
@@ -317,7 +355,8 @@ local function checkCurrency(tooltip, id)
 		for i = tooltip:NumLines(), 1, -1 do
 			local left = _G[tooltip:GetName() .. "TextLeft" .. i]
 			local right = _G[tooltip:GetName() .. "TextRight" .. i]
-			if left and left:GetText() and left:GetText():match("^" .. TOTAL .. ":") then
+				local text = left and left:GetText()
+				if text and safeMatch(text, "^" .. TOTAL .. ":") then
 				-- wipe both columns and break; there is only one such line
 				left:SetText("")
 				if right then right:SetText("") end
@@ -358,13 +397,13 @@ local function checkSpell(tooltip, id, name, isSpell)
 		local spellInfo = C_Spell.GetSpellInfo(id)
 		if spellInfo and spellInfo.iconID then
 			local line = tooltip and _G[tooltip:GetName() .. "TextLeft1"]
-			if line then
-				local current = line:GetText()
-				if ((issecretvalue and not issecretvalue(current)) or not issecretvalue) and current and not current:find("|T", 1, true) then
-					local size = addon.db and addon.db["TooltipItemIconSize"] or 16
-					if size < 10 then
-						size = 10
-					elseif size > 30 then
+				if line then
+					local current = line:GetText()
+					if current and not isSecret(current) and not safeFind(current, "|T", true) then
+						local size = addon.db and addon.db["TooltipItemIconSize"] or 16
+						if size < 10 then
+							size = 10
+						elseif size > 30 then
 						size = 30
 					end
 					local tex = string.format("|T%d:%d:%d:0:0|t ", spellInfo.iconID, size, size)
@@ -438,7 +477,7 @@ local function checkAdditionalTooltip(tooltip)
 			for i = 1, tooltip:NumLines() do
 				local line = _G[tooltip:GetName() .. "TextLeft" .. i]
 				local text = line and line:GetText()
-				if text and (not issecretvalue or not issecretvalue(text)) and text:find(classDisplayName) then
+				if safeFind(text, classDisplayName, true) then
 					line:SetTextColor(r, g, b)
 					break
 				end
@@ -455,10 +494,10 @@ local function checkAdditionalTooltip(tooltip)
 				local line = _G[ttName .. "TextLeft" .. i]
 				local text = line and line:GetText()
 				if text then
-					if factionName and text == factionName then
+					if factionName and safeEquals(text, factionName) then
 						line:SetText("")
 						line:Hide()
-					elseif pvpText and text == pvpText then
+					elseif pvpText and safeEquals(text, pvpText) then
 						line:SetText("")
 						line:Hide()
 					end
@@ -472,7 +511,7 @@ local function checkAdditionalTooltip(tooltip)
 			for i = 1, tooltip:NumLines() do
 				local line = _G[ttName .. "TextLeft" .. i]
 				local text = line and line:GetText()
-				if text and (not issecretvalue or not issecretvalue(text)) and text:find(guildName, 1, true) then
+				if safeFind(text, guildName, true) then
 					guildLine = line
 					guildLineText = text
 					break
@@ -492,10 +531,12 @@ local function checkAdditionalTooltip(tooltip)
 				rankText = string.format("|cff%02x%02x%02x%s|r", (col.r or 1) * 255, (col.g or 1) * 255, (col.b or 1) * 255, guildRank)
 			end
 
-			if guildLine then
-				newText = nameText
-				if rankText and guildLineText and not guildLineText:find(guildRank or "", 1, true) then newText = newText .. " - " .. rankText end
-				guildLine:SetText(newText)
+				if guildLine then
+					newText = nameText
+					if rankText and guildLineText and not isSecret(guildLineText) and not safeFind(guildLineText, guildRank or "", true) then
+						newText = newText .. " - " .. rankText
+					end
+					guildLine:SetText(newText)
 			else
 				if rankText then
 					tooltip:AddLine(" ")
@@ -824,14 +865,14 @@ local function checkItem(tooltip, id, name, guid)
 		local icon = nil
 		if id then icon = select(5, GetItemInfoInstant(id)) end
 		local line = tooltip and _G[tooltip:GetName() .. "TextLeft1"]
-		if line then
-			local current = line:GetText()
+			if line then
+				local current = line:GetText()
 
-			if current and icon and not current:find("|T", 1, true) then
-				local size = addon.db and addon.db["TooltipItemIconSize"] or 16
-				if size < 10 then
-					size = 10
-				elseif size > 30 then
+				if current and icon and not isSecret(current) and not safeFind(current, "|T", true) then
+					local size = addon.db and addon.db["TooltipItemIconSize"] or 16
+					if size < 10 then
+						size = 10
+					elseif size > 30 then
 					size = 30
 				end
 				local tex = string.format("|T%d:%d:%d:0:0|t ", icon, size, size)
@@ -919,16 +960,13 @@ local function checkAura(tooltip, id, name)
 		local spellInfo = C_Spell.GetSpellInfo(id)
 		if spellInfo and spellInfo.iconID then --and (not issecretvalue or (issecretvalue and not issecretvalue(spellInfo.iconID))) then
 			local line = tooltip and _G[tooltip:GetName() .. "TextLeft1"]
-			if line then
-				local current = line:GetText()
-				if
-					current
-					--and not current:find("|T", 1, true)
-				then
-					local size = addon.db and addon.db["TooltipItemIconSize"] or 16
-					if size < 10 then
-						size = 10
-					elseif size > 30 then
+				if line then
+					local current = line:GetText()
+					if current and not isSecret(current) then
+						local size = addon.db and addon.db["TooltipItemIconSize"] or 16
+						if size < 10 then
+							size = 10
+						elseif size > 30 then
 						size = 30
 					end
 					local tex = string.format("|T%d:%d:%d:0:0|t ", spellInfo.iconID, size, size)
@@ -1170,20 +1208,21 @@ local function registerTooltipHooks()
 		if text ~= UNIT_POPUP_RIGHT_CLICK then return end
 		if not IsUnitTooltip(tt) then return end
 
-		local i = tt:NumLines()
-		local line = _G[tt:GetName() .. "TextLeft" .. i]
-		if line then
-			local tmpText = line:GetText()
-			if issecretvalue and issecretvalue(tmpText) then return end
-			if line:GetText() == text then
-				line:SetText("")
-				line:Hide()
+			local i = tt:NumLines()
+			local line = _G[tt:GetName() .. "TextLeft" .. i]
+			if line then
+				local tmpText = line:GetText()
+				if isSecret(tmpText) then return end
+				if safeEquals(tmpText, text) then
+					line:SetText("")
+					line:Hide()
 
-				local mLine = _G[tt:GetName() .. "TextLeft" .. (i - 1)]
-				if mLine and mLine.GetText and mLine:GetText() == " " then mLine:Hide() end
-				tt:Show()
+					local mLine = _G[tt:GetName() .. "TextLeft" .. (i - 1)]
+					local mText = mLine and mLine.GetText and mLine:GetText()
+					if safeEquals(mText, " ") then mLine:Hide() end
+					tt:Show()
+				end
 			end
-		end
 	end)
 
 	if addon.Tooltip and addon.Tooltip.functions and addon.Tooltip.functions.UpdateQuestIDInQuestLog then addon.Tooltip.functions.UpdateQuestIDInQuestLog() end

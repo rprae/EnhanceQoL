@@ -35,6 +35,7 @@ addon.general.variables.autoOpen = {
 
 local AceLocale = LibStub("AceLocale-3.0")
 addon.L = AceLocale:GetLocale(addonName)
+_G["BINDING_NAME_EQOL_TOGGLE_FRIENDLY_NPCS"] = _G.UNIT_NAMEPLATES_SHOW_FRIENDLY_NPCS
 addon.elements = {}
 addon.itemBagFilters = {}
 addon.itemBagFiltersQuality = {}
@@ -840,7 +841,7 @@ if (GAME_LOCALE or GetLocale()) == "ruRU" then
 elseif (GAME_LOCALE or GetLocale()) == "koKR" then
 	addon.variables.defaultFont = "Fonts\\2002.ttf"
 elseif (GAME_LOCALE or GetLocale()) == "zhTW" then
-	addon.variables.defaultFont = "Fonts\\ARKai_T.ttf"
+	addon.variables.defaultFont = "Fonts\\bLEI00D.TTF"
 elseif (GAME_LOCALE or GetLocale()) == "zhCN" then
 	addon.variables.defaultFont = "Fonts\\ARKai_T.ttf"
 end
@@ -889,6 +890,12 @@ addon.variables.cvarOptions = {
 		description = addon.L["ShowClassColorInNameplate"],
 		category = "cvarCategoryDisplay",
 	},
+	["nameplateUseClassColorForFriendlyPlayerUnitNames"] = {
+		trueValue = "1",
+		falseValue = "0",
+		description = addon.L["ShowClassColorInNameplate"],
+		category = "cvarCategoryDisplay",
+	},
 	["ShowTargetCastbar"] = {
 		trueValue = "1",
 		falseValue = "0",
@@ -921,6 +928,18 @@ addon.variables.cvarOptions = {
 		description = addon.L["UnitNamePlayerPVPTitle"],
 		category = "cvarCategoryDisplay",
 	},
+	["floatingCombatTextCombatDamage_v2"] = {
+		trueValue = "1",
+		falseValue = "0",
+		description = addon.L["floatingCombatTextCombatDamage_v2"],
+		category = "cvarCategoryDisplay",
+	},
+	["floatingCombatTextCombatHealing_v2"] = {
+		trueValue = "1",
+		falseValue = "0",
+		description = addon.L["floatingCombatTextCombatHealing_v2"],
+		category = "cvarCategoryDisplay",
+	},
 	["ffxDeath"] = {
 		trueValue = "0",
 		falseValue = "1",
@@ -944,13 +963,6 @@ addon.variables.cvarOptions = {
 		falseValue = "0",
 		description = addon.L["UberTooltips"],
 		category = "cvarCategorySystem",
-	},
-	["NameplatePersonalShowInCombat"] = {
-		trueValue = "1",
-		falseValue = "0",
-		description = addon.L["NameplatePersonalShowInCombat"],
-		persistent = true,
-		category = "cvarCategoryUtility",
 	},
 	["AutoPushSpellToActionBar"] = {
 		trueValue = "1",

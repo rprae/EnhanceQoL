@@ -34,6 +34,11 @@ curveDesat:SetType(Enum.LuaCurveType.Step)
 curveDesat:AddPoint(0, 0)
 curveDesat:AddPoint(0.1, 1)
 
+local curveAlpha = C_CurveUtil.CreateCurve()
+curveAlpha:SetType(Enum.LuaCurveType.Step)
+curveAlpha:AddPoint(0, 1)
+curveAlpha:AddPoint(0.1, 0)
+
 local GetItemInfoInstantFn = (C_Item and C_Item.GetItemInfoInstant) or GetItemInfoInstant
 local GetItemIconByID = C_Item and C_Item.GetItemIconByID
 local GetItemCooldownFn = (C_Item and C_Item.GetItemCooldown) or GetItemCooldown
@@ -72,6 +77,10 @@ local directionOptions = {
 	{ value = "RIGHT", label = _G.HUD_EDIT_MODE_SETTING_BAGS_DIRECTION_RIGHT or _G.RIGHT or "Right" },
 	{ value = "UP", label = _G.HUD_EDIT_MODE_SETTING_BAGS_DIRECTION_UP or _G.UP or "Up" },
 	{ value = "DOWN", label = _G.HUD_EDIT_MODE_SETTING_BAGS_DIRECTION_DOWN or _G.DOWN or "Down" },
+}
+local layoutModeOptions = {
+	{ value = "GRID", label = L["CooldownPanelLayoutModeGrid"] or "Grid" },
+	{ value = "RADIAL", label = L["CooldownPanelLayoutModeRadial"] or "Radial" },
 }
 local anchorOptions = {
 	{ value = "TOPLEFT", label = L["Top Left"] or "Top Left" },
@@ -232,9 +241,193 @@ end
 local updatePowerEventRegistration
 local updateRangeCheckSpells
 local updateItemCountCacheForItem
+local ensureRoot
+local ensurePanelAnchor
+local panelAllowsSpec
+local getPlayerSpecId
 
 local function refreshEditModeSettingValues()
 	if addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RefreshSettingValues then addon.EditModeLib.internal:RefreshSettingValues() end
+end
+
+local function refreshEditModeSettings()
+	local lib = addon.EditModeLib
+	if not (lib and lib.internal) then return end
+	if lib.internal.RequestRefreshSettings then
+		lib.internal:RequestRefreshSettings()
+	elseif lib.internal.RefreshSettings then
+		lib.internal:RefreshSettings()
+	end
+	if lib.internal.RefreshSettingValues then lib.internal:RefreshSettingValues() end
+end
+
+local FAKE_CURSOR_FRAME_NAME = "EQOL_CooldownPanelsFakeCursor"
+local FAKE_CURSOR_ATLAS = "Cursor_Point_32"
+local FAKE_CURSOR_DEFAULT_X = 0
+local FAKE_CURSOR_DEFAULT_Y = 100
+local fakeCursorFrame
+local fakeCursorResetOnShow = true
+local fakeCursorMode
+local cursorFollowRunner
+local cursorSpecRetryPending
+
+local function ensureFakeCursorFrame()
+	if fakeCursorFrame then return fakeCursorFrame end
+	local frame = CreateFrame("Frame", FAKE_CURSOR_FRAME_NAME, UIParent)
+	frame:SetSize(32, 32)
+	frame:SetFrameStrata("TOOLTIP")
+	frame:SetClampedToScreen(true)
+	frame:EnableMouse(true)
+	frame:SetMovable(true)
+	frame:RegisterForDrag("LeftButton")
+	frame:SetScript("OnDragStart", frame.StartMoving)
+	frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
+
+	local tex = frame:CreateTexture(nil, "OVERLAY")
+	tex:SetAtlas(FAKE_CURSOR_ATLAS, true)
+	tex:SetAllPoints(frame)
+	frame.texture = tex
+
+	frame:Hide()
+	fakeCursorFrame = frame
+	return frame
+end
+
+local function showFakeCursorFrame()
+	local frame = ensureFakeCursorFrame()
+	if fakeCursorResetOnShow or not frame._eqolHasPosition then
+		frame:ClearAllPoints()
+		frame:SetPoint("CENTER", UIParent, "CENTER", FAKE_CURSOR_DEFAULT_X, FAKE_CURSOR_DEFAULT_Y)
+		frame._eqolHasPosition = true
+		fakeCursorResetOnShow = false
+	end
+	frame:Show()
+	return frame
+end
+
+local function hideFakeCursorFrame()
+	if fakeCursorFrame then fakeCursorFrame:Hide() end
+end
+
+local function resetFakeCursorFrame()
+	fakeCursorResetOnShow = true
+	if fakeCursorFrame then fakeCursorFrame._eqolHasPosition = nil end
+end
+
+local function setFakeCursorMode(mode)
+	if fakeCursorMode == mode then return end
+	fakeCursorMode = mode
+	if mode == "hidden" then
+		hideFakeCursorFrame()
+		return
+	end
+	local frame = ensureFakeCursorFrame()
+	if mode == "edit" then
+		showFakeCursorFrame()
+		frame:SetAlpha(1)
+		if frame.texture then frame.texture:Show() end
+		frame:EnableMouse(true)
+		frame:Show()
+	elseif mode == "follow" then
+		fakeCursorResetOnShow = false
+		frame:SetAlpha(0)
+		if frame.texture then frame.texture:Hide() end
+		frame:EnableMouse(false)
+		frame:Show()
+	end
+end
+
+local function updateFakeCursorToMouse()
+	local frame = ensureFakeCursorFrame()
+	local x, y = GetCursorPosition()
+	if not x or not y then return end
+	local scale = UIParent:GetEffectiveScale()
+	frame:ClearAllPoints()
+	frame:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x / scale, y / scale)
+end
+
+local function startCursorFollow()
+	if cursorFollowRunner and cursorFollowRunner:GetScript("OnUpdate") then return end
+	local runner = cursorFollowRunner
+	if not runner then
+		runner = CreateFrame("Frame")
+		cursorFollowRunner = runner
+	end
+	updateFakeCursorToMouse()
+	runner:SetScript("OnUpdate", function(self)
+		if CooldownPanels:IsInEditMode() then return end
+		updateFakeCursorToMouse()
+	end)
+end
+
+local function stopCursorFollow()
+	if cursorFollowRunner then cursorFollowRunner:SetScript("OnUpdate", nil) end
+end
+
+local function panelUsesFakeCursor(panel)
+	local anchor = ensurePanelAnchor(panel)
+	local rel = anchor and anchor.relativeFrame
+	return rel == FAKE_CURSOR_FRAME_NAME
+end
+
+local function hasSpecFilteredCursorPanels()
+	local root = ensureRoot()
+	if not root or not root.panels then return false end
+	for _, panel in pairs(root.panels) do
+		if panel and panelUsesFakeCursor(panel) and panel.enabled ~= false then
+			local filter = panel.specFilter
+			if type(filter) == "table" then
+				for _, enabled in pairs(filter) do
+					if enabled then return true end
+				end
+			end
+		end
+	end
+	return false
+end
+
+local function scheduleCursorSpecRetry()
+	if cursorSpecRetryPending then return end
+	if not C_Timer or not C_Timer.After then return end
+	cursorSpecRetryPending = true
+	C_Timer.After(0.5, function()
+		cursorSpecRetryPending = false
+		if not hasSpecFilteredCursorPanels() then return end
+		if getPlayerSpecId and getPlayerSpecId() then
+			CooldownPanels:UpdateCursorAnchorState()
+			return
+		end
+		scheduleCursorSpecRetry()
+	end)
+end
+
+local function hasFakeCursorPanels()
+	local root = ensureRoot()
+	if not root or not root.panels then return false end
+	for _, panel in pairs(root.panels) do
+		if panel and panelUsesFakeCursor(panel) then
+			if panel.enabled ~= false and panelAllowsSpec(panel) then return true end
+		end
+	end
+	return false
+end
+
+function CooldownPanels:UpdateCursorAnchorState()
+	local wantsCursor = hasFakeCursorPanels()
+	if wantsCursor then
+		if self:IsInEditMode() then
+			stopCursorFollow()
+			setFakeCursorMode("edit")
+		else
+			setFakeCursorMode("follow")
+			startCursorFollow()
+		end
+		cursorSpecRetryPending = false
+	else
+		stopCursorFollow()
+		setFakeCursorMode("hidden")
+		if hasSpecFilteredCursorPanels() and getPlayerSpecId and not getPlayerSpecId() then scheduleCursorSpecRetry() end
+	end
 end
 
 local function getMasqueGroup()
@@ -281,10 +474,13 @@ local function getLayoutKey(layout)
 	return table.concat({
 		tostring(layout.iconSize or ""),
 		tostring(layout.spacing or ""),
+		tostring(layout.layoutMode or ""),
 		tostring(layout.direction or ""),
 		tostring(layout.wrapCount or ""),
 		tostring(layout.wrapDirection or ""),
 		tostring(layout.growthPoint or ""),
+		tostring(layout.radialRadius or ""),
+		tostring(layout.radialRotation or ""),
 		tostring(rowSizes and rowSizes[1] or ""),
 		tostring(rowSizes and rowSizes[2] or ""),
 		tostring(rowSizes and rowSizes[3] or ""),
@@ -294,7 +490,7 @@ local function getLayoutKey(layout)
 	}, "|")
 end
 
-local function ensurePanelAnchor(panel)
+ensurePanelAnchor = function(panel)
 	if not panel then return nil end
 	panel.anchor = panel.anchor or {}
 	local anchor = panel.anchor
@@ -314,6 +510,7 @@ local function anchorUsesUIParent(anchor) return not anchor or (anchor.relativeF
 local function resolveAnchorFrame(anchor)
 	local relativeName = Helper.NormalizeRelativeFrameName(anchor and anchor.relativeFrame)
 	if relativeName == "UIParent" then return UIParent end
+	if relativeName == FAKE_CURSOR_FRAME_NAME then return ensureFakeCursorFrame() end
 	local generic = Helper.GENERIC_ANCHORS[relativeName]
 	if generic then
 		local ufCfg = addon.db and addon.db.ufFrames
@@ -451,6 +648,9 @@ local function getEditorPreviewCount(panel, previewFrame, baseLayout, entries)
 		if count <= 0 then return Helper.DEFAULT_PREVIEW_COUNT end
 	end
 	if not previewFrame then return count end
+
+	local layoutMode = Helper.NormalizeLayoutMode(baseLayout and baseLayout.layoutMode, Helper.PANEL_LAYOUT_DEFAULTS.layoutMode)
+	if layoutMode == "RADIAL" then return count end
 
 	local spacing = Helper.ClampInt((baseLayout and baseLayout.spacing) or 0, 0, 50, Helper.PANEL_LAYOUT_DEFAULTS.spacing)
 	local step = Helper.PREVIEW_ICON_SIZE + spacing
@@ -618,7 +818,7 @@ local function getEntryTypeLabel(entryType)
 	return entryType or ""
 end
 
-local function getPlayerSpecId()
+getPlayerSpecId = function()
 	if not GetSpecialization then return nil end
 	local specIndex = GetSpecialization()
 	if not specIndex then return nil end
@@ -658,7 +858,7 @@ local function panelHasSpecFilter(panel)
 	return false
 end
 
-local function panelAllowsSpec(panel)
+panelAllowsSpec = function(panel)
 	if not panelHasSpecFilter(panel) then return true end
 	local specId = getPlayerSpecId()
 	if not specId then return false end
@@ -704,7 +904,7 @@ local function showErrorMessage(msg)
 	if UIErrorsFrame and msg then UIErrorsFrame:AddMessage(msg, 1, 0.2, 0.2, 1) end
 end
 
-local function ensureRoot()
+ensureRoot = function()
 	if not addon.db then return nil end
 	if type(addon.db.cooldownPanels) ~= "table" then
 		addon.db.cooldownPanels = Helper.CreateRoot()
@@ -806,6 +1006,7 @@ function CooldownPanels:DeletePanel(panelId)
 		CooldownPanels.runtime[panelId] = nil
 	end
 	self:RebuildSpellIndex()
+	self:UpdateCursorAnchorState()
 end
 
 function CooldownPanels:AddEntry(panelId, entryType, idValue, overrides)
@@ -905,6 +1106,7 @@ function CooldownPanels:RebuildSpellIndex()
 	if updateRangeCheckSpells then updateRangeCheckSpells(rangeCheckSpells) end
 	self:RebuildPowerIndex()
 	self:RebuildChargesIndex()
+	if self.UpdateEventRegistration then self:UpdateEventRegistration() end
 	return index
 end
 
@@ -1460,6 +1662,7 @@ local function applyIconLayout(frame, count, layout)
 	if not frame then return end
 	local iconSize = Helper.ClampInt(layout.iconSize, 12, 128, Helper.PANEL_LAYOUT_DEFAULTS.iconSize)
 	local spacing = Helper.ClampInt(layout.spacing, 0, 50, Helper.PANEL_LAYOUT_DEFAULTS.spacing)
+	local layoutMode = Helper.NormalizeLayoutMode(layout.layoutMode, Helper.PANEL_LAYOUT_DEFAULTS.layoutMode)
 	local direction = Helper.NormalizeDirection(layout.direction, Helper.PANEL_LAYOUT_DEFAULTS.direction)
 	local wrapCount = Helper.ClampInt(layout.wrapCount, 0, 40, Helper.PANEL_LAYOUT_DEFAULTS.wrapCount or 0)
 	local wrapDirection = Helper.NormalizeDirection(layout.wrapDirection, Helper.PANEL_LAYOUT_DEFAULTS.wrapDirection or "DOWN")
@@ -1477,46 +1680,65 @@ local function applyIconLayout(frame, count, layout)
 	local drawEdge = layout.cooldownDrawEdge ~= false
 	local drawBling = layout.cooldownDrawBling ~= false
 	local drawSwipe = layout.cooldownDrawSwipe ~= false
+	local cooldownTextFont = layout.cooldownTextFont
+	local cooldownTextSize = layout.cooldownTextSize
+	local cooldownTextStyle = layout.cooldownTextStyle
+	local cooldownTextX = Helper.ClampInt(layout.cooldownTextX, -Helper.OFFSET_RANGE, Helper.OFFSET_RANGE, 0)
+	local cooldownTextY = Helper.ClampInt(layout.cooldownTextY, -Helper.OFFSET_RANGE, Helper.OFFSET_RANGE, 0)
 
-	local cols, rows = getGridDimensions(count, wrapCount, primaryHorizontal)
+	local cols, rows = 1, 1
 	local baseIconSize = iconSize
 	local rowSizes = {}
 	local rowOffsets = {}
 	local rowWidths = {}
 	local width = 0
 	local height = 0
+	local radialRadius = nil
+	local radialRotation = nil
+	local radialStep = nil
+	local radialBaseAngle = nil
 
-	if primaryHorizontal then
-		local totalHeight = 0
-		for rowIndex = 1, rows do
-			local rowSize = baseIconSize
-			if type(layout.rowSizes) == "table" then
-				local override = tonumber(layout.rowSizes[rowIndex])
-				if override then rowSize = Helper.ClampInt(override, 12, 128, baseIconSize) end
-			end
-			rowSizes[rowIndex] = rowSize
-			rowOffsets[rowIndex] = totalHeight
-			local rowCols = cols
-			if wrapCount and wrapCount > 0 then
-				local fillIndex = rowIndex
-				if wrapDirection == "UP" then fillIndex = rows - rowIndex + 1 end
-				rowCols = math.min(wrapCount, count - ((fillIndex - 1) * wrapCount))
-				if rowCols < 1 then rowCols = 1 end
-			end
-			local rowWidth = (rowCols * rowSize) + ((rowCols - 1) * spacing)
-			rowWidths[rowIndex] = rowWidth
-			if rowWidth > width then width = rowWidth end
-			totalHeight = totalHeight + rowSize + spacing
-		end
-		if rows > 0 then height = totalHeight - spacing end
+	if layoutMode == "RADIAL" then
+		radialRadius = Helper.ClampInt(layout.radialRadius, 0, Helper.RADIAL_RADIUS_RANGE or 600, Helper.PANEL_LAYOUT_DEFAULTS.radialRadius)
+		radialRotation = Helper.ClampNumber(layout.radialRotation, -Helper.RADIAL_ROTATION_RANGE, Helper.RADIAL_ROTATION_RANGE, Helper.PANEL_LAYOUT_DEFAULTS.radialRotation)
+		radialStep = count > 0 and ((2 * math.pi) / count) or 0
+		radialBaseAngle = (math.pi / 2) - math.rad(radialRotation or 0)
+		width = math.max(baseIconSize, radialRadius * 2)
+		height = width
 	else
-		local step = baseIconSize + spacing
-		width = (cols * baseIconSize) + ((cols - 1) * spacing)
-		height = (rows * baseIconSize) + ((rows - 1) * spacing)
-		for rowIndex = 1, rows do
-			rowSizes[rowIndex] = baseIconSize
-			rowOffsets[rowIndex] = (rowIndex - 1) * step
-			rowWidths[rowIndex] = width
+		cols, rows = getGridDimensions(count, wrapCount, primaryHorizontal)
+		if primaryHorizontal then
+			local totalHeight = 0
+			for rowIndex = 1, rows do
+				local rowSize = baseIconSize
+				if type(layout.rowSizes) == "table" then
+					local override = tonumber(layout.rowSizes[rowIndex])
+					if override then rowSize = Helper.ClampInt(override, 12, 128, baseIconSize) end
+				end
+				rowSizes[rowIndex] = rowSize
+				rowOffsets[rowIndex] = totalHeight
+				local rowCols = cols
+				if wrapCount and wrapCount > 0 then
+					local fillIndex = rowIndex
+					if wrapDirection == "UP" then fillIndex = rows - rowIndex + 1 end
+					rowCols = math.min(wrapCount, count - ((fillIndex - 1) * wrapCount))
+					if rowCols < 1 then rowCols = 1 end
+				end
+				local rowWidth = (rowCols * rowSize) + ((rowCols - 1) * spacing)
+				rowWidths[rowIndex] = rowWidth
+				if rowWidth > width then width = rowWidth end
+				totalHeight = totalHeight + rowSize + spacing
+			end
+			if rows > 0 then height = totalHeight - spacing end
+		else
+			local step = baseIconSize + spacing
+			width = (cols * baseIconSize) + ((cols - 1) * spacing)
+			height = (rows * baseIconSize) + ((rows - 1) * spacing)
+			for rowIndex = 1, rows do
+				rowSizes[rowIndex] = baseIconSize
+				rowOffsets[rowIndex] = (rowIndex - 1) * step
+				rowWidths[rowIndex] = width
+			end
 		end
 	end
 
@@ -1566,6 +1788,84 @@ local function applyIconLayout(frame, count, layout)
 		return x, y, h, v
 	end
 	local growthOffsetX, growthOffsetY, anchorH, anchorV = getGrowthOffset(growthPoint, width, height)
+
+	local function applyIconCommon(icon, rowSize)
+		icon:SetSize(rowSize, rowSize)
+		if icon._eqolMasqueNeedsReskin then
+			local group = getMasqueGroup()
+			if group and group.ReSkin then group:ReSkin(icon) end
+			icon._eqolMasqueNeedsReskin = nil
+		end
+		if icon.count then
+			icon.count:ClearAllPoints()
+			icon.count:SetPoint(stackAnchor, icon, stackAnchor, stackX, stackY)
+			icon.count:SetFont(countFontPath, countFontSize, countFontStyle)
+		end
+		if icon.charges then
+			icon.charges:ClearAllPoints()
+			icon.charges:SetPoint(chargesAnchor, icon, chargesAnchor, chargesX, chargesY)
+			icon.charges:SetFont(chargesPath, chargesSize, chargesStyle)
+		end
+		if icon.keybind then
+			icon.keybind:ClearAllPoints()
+			icon.keybind:SetPoint(keybindAnchor, icon, keybindAnchor, keybindX, keybindY)
+			icon.keybind:SetFont(keybindFontPath, keybindFontSize, keybindFontStyle)
+		end
+		setCooldownDrawState(icon.cooldown, drawEdge, drawBling, drawSwipe)
+		if icon.cooldown and icon.cooldown.GetCountdownFontString then
+			local fontString = icon.cooldown:GetCountdownFontString()
+			if fontString then
+				if not icon.cooldown._eqolCooldownTextDefaults then
+					local fontPath, fontSize, fontStyle = fontString:GetFont()
+					local point, _, relPoint, x, y = fontString:GetPoint()
+					icon.cooldown._eqolCooldownTextDefaults = {
+						font = fontPath,
+						size = fontSize,
+						style = fontStyle,
+						point = point,
+						relPoint = relPoint,
+						x = x,
+						y = y,
+					}
+				end
+				local defaults = icon.cooldown._eqolCooldownTextDefaults
+				local fontPath = Helper.ResolveFontPath(cooldownTextFont, defaults and defaults.font)
+				local fontSize = Helper.ClampInt(cooldownTextSize, 6, 64, defaults and defaults.size or 12)
+				local fontStyle = Helper.NormalizeFontStyle(cooldownTextStyle, defaults and defaults.style) or ""
+				fontString:SetFont(fontPath, fontSize, fontStyle)
+				fontString:ClearAllPoints()
+				fontString:SetPoint("CENTER", icon.cooldown, "CENTER", cooldownTextX, cooldownTextY)
+			end
+		end
+		if icon.previewGlow then
+			icon.previewGlow:ClearAllPoints()
+			icon.previewGlow:SetPoint("CENTER", icon, "CENTER", 0, 0)
+			icon.previewGlow:SetSize(rowSize * 1.8, rowSize * 1.8)
+		end
+		if icon.previewBling then
+			icon.previewBling:ClearAllPoints()
+			icon.previewBling:SetPoint("CENTER", icon, "CENTER", 0, 0)
+			icon.previewBling:SetSize(rowSize * 1.5, rowSize * 1.5)
+		end
+	end
+
+	if layoutMode == "RADIAL" then
+		local centerRadius = (radialRadius or 0) - (baseIconSize / 2)
+		if centerRadius < 0 then centerRadius = 0 end
+		for i = 1, count do
+			local icon = frame.icons[i]
+			applyIconCommon(icon, baseIconSize)
+			local x, y = 0, 0
+			if count > 1 then
+				local angle = radialBaseAngle - ((i - 1) * (radialStep or 0))
+				x = math.cos(angle) * centerRadius
+				y = math.sin(angle) * centerRadius
+			end
+			icon:ClearAllPoints()
+			icon:SetPoint("CENTER", frame, "CENTER", x, y)
+		end
+		return
+	end
 
 	for i = 1, count do
 		local icon = frame.icons[i]
@@ -1625,38 +1925,7 @@ local function applyIconLayout(frame, count, layout)
 		end
 		local stepX = primaryHorizontal and (rowSize + spacing) or (baseIconSize + spacing)
 
-		icon:SetSize(rowSize, rowSize)
-		if icon._eqolMasqueNeedsReskin then
-			local group = getMasqueGroup()
-			if group and group.ReSkin then group:ReSkin(icon) end
-			icon._eqolMasqueNeedsReskin = nil
-		end
-		if icon.count then
-			icon.count:ClearAllPoints()
-			icon.count:SetPoint(stackAnchor, icon, stackAnchor, stackX, stackY)
-			icon.count:SetFont(countFontPath, countFontSize, countFontStyle)
-		end
-		if icon.charges then
-			icon.charges:ClearAllPoints()
-			icon.charges:SetPoint(chargesAnchor, icon, chargesAnchor, chargesX, chargesY)
-			icon.charges:SetFont(chargesPath, chargesSize, chargesStyle)
-		end
-		if icon.keybind then
-			icon.keybind:ClearAllPoints()
-			icon.keybind:SetPoint(keybindAnchor, icon, keybindAnchor, keybindX, keybindY)
-			icon.keybind:SetFont(keybindFontPath, keybindFontSize, keybindFontStyle)
-		end
-		setCooldownDrawState(icon.cooldown, drawEdge, drawBling, drawSwipe)
-		if icon.previewGlow then
-			icon.previewGlow:ClearAllPoints()
-			icon.previewGlow:SetPoint("CENTER", icon, "CENTER", 0, 0)
-			icon.previewGlow:SetSize(rowSize * 1.8, rowSize * 1.8)
-		end
-		if icon.previewBling then
-			icon.previewBling:ClearAllPoints()
-			icon.previewBling:SetPoint("CENTER", icon, "CENTER", 0, 0)
-			icon.previewBling:SetSize(rowSize * 1.5, rowSize * 1.5)
-		end
+		applyIconCommon(icon, rowSize)
 		icon:ClearAllPoints()
 		icon:SetPoint(growthPoint, frame, growthPoint, growthOffsetX + anchorXAdjust + rowAlignOffset + (col * stepX), growthOffsetY + anchorYAdjust - rowOffset)
 	end
@@ -2002,6 +2271,13 @@ local function copyPanelSettings(targetPanelId, sourcePanelId)
 			data.opacityOutOfCombat = Helper.NormalizeOpacity(layout.opacityOutOfCombat, Helper.PANEL_LAYOUT_DEFAULTS.opacityOutOfCombat)
 			data.opacityInCombat = Helper.NormalizeOpacity(layout.opacityInCombat, Helper.PANEL_LAYOUT_DEFAULTS.opacityInCombat)
 			data.showTooltips = layout.showTooltips == true
+			data.hideOnCooldown = layout.hideOnCooldown == true
+			data.showOnCooldown = layout.showOnCooldown == true
+			data.cooldownTextFont = layout.cooldownTextFont or data.cooldownTextFont
+			data.cooldownTextSize = layout.cooldownTextSize or data.cooldownTextSize
+			data.cooldownTextStyle = Helper.NormalizeFontStyleChoice(layout.cooldownTextStyle, data.cooldownTextStyle)
+			data.cooldownTextX = layout.cooldownTextX or 0
+			data.cooldownTextY = layout.cooldownTextY or 0
 		end
 	end
 	if runtime and runtime.editModeId and EditMode and EditMode.RefreshFrame then EditMode:RefreshFrame(runtime.editModeId) end
@@ -2157,6 +2433,16 @@ local function ensureEditor()
 	local entryHeader = Helper.CreateLabel(rightContent, L["CooldownPanelEntry"] or "Entry", 12, "OUTLINE")
 	entryHeader:SetPoint("TOPLEFT", panelSpecButton, "BOTTOMLEFT", 2, -16)
 	entryHeader:SetTextColor(0.9, 0.9, 0.9, 1)
+
+	local entryEmptyHint = rightContent:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+	entryEmptyHint:SetPoint("TOPLEFT", entryHeader, "BOTTOMLEFT", 2, -8)
+	entryEmptyHint:SetWidth(200)
+	entryEmptyHint:SetJustifyH("LEFT")
+	entryEmptyHint:SetJustifyV("TOP")
+	if entryEmptyHint.SetWordWrap then entryEmptyHint:SetWordWrap(true) end
+	entryEmptyHint:SetText(L["CooldownPanelSelectEntryHint"] or "Click a spell/item/slot to modify")
+	entryEmptyHint:SetTextColor(0.75, 0.75, 0.75, 1)
+	entryEmptyHint:Hide()
 
 	local entryIcon = rightContent:CreateTexture(nil, "ARTWORK")
 	entryIcon:SetSize(36, 36)
@@ -2365,6 +2651,8 @@ local function ensureEditor()
 			panelEnabled = panelEnabled,
 			panelSpecLabel = panelSpecLabel,
 			panelSpecButton = panelSpecButton,
+			entryHeader = entryHeader,
+			entryEmptyHint = entryEmptyHint,
 			entryIcon = entryIcon,
 			entryName = entryName,
 			entryType = entryType,
@@ -2446,6 +2734,7 @@ local function ensureEditor()
 			CooldownPanels:RebuildSpellIndex()
 			Keybinds.MarkPanelsDirty()
 			CooldownPanels:RefreshPanel(panelId)
+			CooldownPanels:UpdateCursorAnchorState()
 			CooldownPanels:RefreshEditor()
 		end
 	end)
@@ -2848,16 +3137,19 @@ end
 local function getPreviewLayout(panel, previewFrame, count)
 	local baseLayout = (panel and panel.layout) or Helper.PANEL_LAYOUT_DEFAULTS
 	local previewLayout = Helper.CopyTableShallow(baseLayout)
+	local layoutMode = Helper.NormalizeLayoutMode(baseLayout.layoutMode, Helper.PANEL_LAYOUT_DEFAULTS.layoutMode)
 	local baseIconSize = Helper.ClampInt(baseLayout.iconSize, 12, 128, Helper.PANEL_LAYOUT_DEFAULTS.iconSize)
+	local scale = baseIconSize > 0 and (Helper.PREVIEW_ICON_SIZE / baseIconSize) or 1
 	previewLayout.iconSize = Helper.PREVIEW_ICON_SIZE
 	if type(baseLayout.rowSizes) == "table" then
-		local scale = baseIconSize > 0 and (Helper.PREVIEW_ICON_SIZE / baseIconSize) or 1
 		previewLayout.rowSizes = {}
 		for index, size in pairs(baseLayout.rowSizes) do
 			local num = tonumber(size)
 			if num then previewLayout.rowSizes[index] = Helper.ClampInt(num * scale, 12, 128, Helper.PREVIEW_ICON_SIZE) end
 		end
 	end
+	local baseRadius = Helper.ClampInt(baseLayout.radialRadius, 0, Helper.RADIAL_RADIUS_RANGE or 600, Helper.PANEL_LAYOUT_DEFAULTS.radialRadius)
+	previewLayout.radialRadius = Helper.ClampInt(baseRadius * scale, 0, Helper.RADIAL_RADIUS_RANGE or 600, baseRadius)
 	local stackSize = tonumber(previewLayout.stackFontSize or Helper.PANEL_LAYOUT_DEFAULTS.stackFontSize) or Helper.PANEL_LAYOUT_DEFAULTS.stackFontSize
 	previewLayout.stackFontSize = math.max(stackSize, Helper.PREVIEW_COUNT_FONT_MIN)
 	local chargesSize = tonumber(previewLayout.chargesFontSize or Helper.PANEL_LAYOUT_DEFAULTS.chargesFontSize) or Helper.PANEL_LAYOUT_DEFAULTS.chargesFontSize
@@ -2869,13 +3161,22 @@ local function getPreviewLayout(panel, previewFrame, count)
 
 	local iconSize = Helper.PREVIEW_ICON_SIZE
 	local spacing = Helper.ClampInt(baseLayout.spacing, 0, 50, Helper.PANEL_LAYOUT_DEFAULTS.spacing)
-	local direction = Helper.NormalizeDirection(baseLayout.direction, Helper.PANEL_LAYOUT_DEFAULTS.direction)
-	local wrapCount = Helper.ClampInt(baseLayout.wrapCount, 0, 40, Helper.PANEL_LAYOUT_DEFAULTS.wrapCount or 0)
 
 	local width = previewFrame:GetWidth() or 0
 	local height = previewFrame:GetHeight() or 0
 	local step = iconSize + spacing
 	if width <= 0 or height <= 0 or step <= 0 then return previewLayout end
+
+	if layoutMode == "RADIAL" then
+		local padding = 8
+		local maxRadius = math.floor((math.min(width, height) - padding) / 2)
+		if maxRadius < 0 then maxRadius = 0 end
+		previewLayout.radialRadius = Helper.ClampInt(previewLayout.radialRadius, 0, maxRadius, previewLayout.radialRadius)
+		return previewLayout
+	end
+
+	local direction = Helper.NormalizeDirection(baseLayout.direction, Helper.PANEL_LAYOUT_DEFAULTS.direction)
+	local wrapCount = Helper.ClampInt(baseLayout.wrapCount, 0, 40, Helper.PANEL_LAYOUT_DEFAULTS.wrapCount or 0)
 
 	local primaryHorizontal = direction == "LEFT" or direction == "RIGHT"
 	local available = primaryHorizontal and width or height
@@ -3138,6 +3439,13 @@ local function refreshInspector(editor, panel, entry)
 	end
 
 	if entry then
+		if inspector.entryHeader then inspector.entryHeader:Show() end
+		if inspector.entryEmptyHint then inspector.entryEmptyHint:Hide() end
+		if inspector.entryIcon then inspector.entryIcon:Show() end
+		if inspector.entryName then inspector.entryName:Show() end
+		if inspector.entryType then inspector.entryType:Show() end
+		if inspector.entryId then inspector.entryId:Show() end
+
 		inspector.entryIcon:SetTexture(getEntryIcon(entry))
 		inspector.entryName:SetText(getEntryName(entry))
 		inspector.entryType:SetText(getEntryTypeLabel(entry.type))
@@ -3167,13 +3475,22 @@ local function refreshInspector(editor, panel, entry)
 		inspector.removeEntry:Enable()
 		layoutInspectorToggles(inspector, entry)
 	else
-		inspector.entryIcon:SetTexture(Helper.PREVIEW_ICON)
-		inspector.entryName:SetText(L["CooldownPanelSelectEntry"] or "Select an entry.")
-		inspector.entryType:SetText("")
-		inspector.entryId:SetText("")
+		if inspector.entryHeader then inspector.entryHeader:Hide() end
+		if inspector.entryEmptyHint then
+			inspector.entryEmptyHint:SetText(L["CooldownPanelSelectEntryHint"] or "Click a spell/item/slot to modify")
+			inspector.entryEmptyHint:Show()
+		end
+		if inspector.entryIcon then inspector.entryIcon:Hide() end
+		if inspector.entryName then inspector.entryName:Hide() end
+		if inspector.entryType then inspector.entryType:Hide() end
+		if inspector.entryId then
+			inspector.entryId:SetText("")
+			inspector.entryId:Hide()
+		end
 
 		inspector.entryId:Disable()
 		inspector.removeEntry:Disable()
+		if inspector.removeEntry then inspector.removeEntry:Hide() end
 		if inspector.soundButton then inspector.soundButton:SetText(getSoundButtonText(nil)) end
 		layoutInspectorToggles(inspector, nil)
 	end
@@ -3322,6 +3639,7 @@ function CooldownPanels:UpdatePreviewIcons(panelId, countOverride)
 	local layout = panel.layout
 	local showTooltips = layout.showTooltips == true
 	local showKeybinds = layout.keybindsEnabled == true
+	local showIconTexture = layout.showIconTexture ~= false
 	local previewEntryIds = getPreviewEntryIds and getPreviewEntryIds(panel) or nil
 	local count = countOverride or getPreviewCount(panel)
 	ensureIconCount(frame, count)
@@ -3338,6 +3656,7 @@ function CooldownPanels:UpdatePreviewIcons(panelId, countOverride)
 		local showItemUses = entry and entry.type == "ITEM" and entry.showItemUses == true
 		icon.texture:SetTexture(getEntryIcon(entry))
 		icon.texture:SetVertexColor(1, 1, 1)
+		icon.texture:SetShown(showIconTexture)
 		icon.cooldown:SetHideCountdownNumbers(not showCooldownText)
 		icon.cooldown:Clear()
 		if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", nil) end
@@ -3463,6 +3782,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 	local layout = panel.layout
 	local showTooltips = layout.showTooltips == true
 	local showKeybinds = layout.keybindsEnabled == true
+	local showIconTexture = layout.showIconTexture ~= false
 	local checkPower = layout.checkPower == true
 	local powerTintR, powerTintG, powerTintB = Helper.ResolveColor(layout.powerTintColor, Helper.PANEL_LAYOUT_DEFAULTS.powerTintColor)
 	local unusableTintR, unusableTintG, unusableTintB = Helper.ResolveColor(layout.unusableTintColor, Helper.PANEL_LAYOUT_DEFAULTS.unusableTintColor)
@@ -3471,6 +3791,9 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 	local drawEdge = layout.cooldownDrawEdge ~= false
 	local drawBling = layout.cooldownDrawBling ~= false
 	local drawSwipe = layout.cooldownDrawSwipe ~= false
+	local hideOnCooldown = layout.hideOnCooldown == true
+	local showOnCooldown = layout.showOnCooldown == true
+	if showOnCooldown then hideOnCooldown = false end
 	local gcdDrawEdge = layout.cooldownGcdDrawEdge == true
 	local gcdDrawBling = layout.cooldownGcdDrawBling == true
 	local gcdDrawSwipe = layout.cooldownGcdDrawSwipe == true
@@ -3716,9 +4039,15 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 	for i = 1, count do
 		local data = visible[i]
 		local icon = frame.icons[i]
+		if showOnCooldown then
+			icon:SetAlpha(0)
+		elseif not hideOnCooldown then
+			icon:SetAlpha(1)
+		end
 		clearPreviewCooldown(icon.cooldown)
 		entryToIcon[data.entryId] = icon
 		icon.texture:SetTexture(data.icon or Helper.PREVIEW_ICON)
+		icon.texture:SetShown(showIconTexture)
 		applyIconTooltip(icon, data.entry, showTooltips)
 		icon.cooldown:SetHideCountdownNumbers(not data.showCooldownText)
 
@@ -3744,6 +4073,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 		local cooldownActive = data.showCooldown and (durationActive or (cooldownEnabledOk and isCooldownActive(cooldownStart, cooldownDuration)))
 		local usingCooldown = false
 		local desaturate = false
+		local hidden = false
 
 		if data.showCharges and data.chargesInfo and data.chargesInfo.maxCharges ~= nil then
 			if data.chargesInfo.currentCharges ~= nil then
@@ -3765,6 +4095,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			if usingCooldown then
 				if isSafeNumber(data.chargesInfo.currentCharges) then
 					desaturate = data.chargesInfo.currentCharges == 0
+					if hideOnCooldown or showOnCooldown then hidden = desaturate end
 				else
 					-- local CCD = C_Spell.GetSpellChargeDuration(data.entry.spellID)
 					-- local SCD = C_Spell.GetSpellCooldownDuration(data.entry.spellID)
@@ -3794,6 +4125,11 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 
 		if not isSafeNumber(cooldownRate) then cooldownRate = 1 end
 		icon.texture:SetDesaturated(desaturate)
+		if hideOnCooldown then
+			icon:SetAlphaFromBoolean(hidden, 0, 1)
+		elseif showOnCooldown then
+			icon:SetAlphaFromBoolean(hidden, 1, 0)
+		end
 		if data.showCooldown then
 			if usingCooldown then
 				-- if data.entry.spellID == 204019 then print(cooldownDurationObject:GetRemainingDuration(), cooldownStart, cooldownRate)end
@@ -3837,6 +4173,11 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 						if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", onCooldownDone) end
 						setCooldownDrawState(icon.cooldown, drawEdge, drawBling, drawSwipe)
 						icon.texture:SetDesaturation(cooldownDurationObject:EvaluateRemainingDuration(curveDesat))
+						if hideOnCooldown then
+							icon:SetAlpha(cooldownDurationObject:EvaluateRemainingDuration(curveAlpha))
+						elseif showOnCooldown then
+							icon:SetAlpha(cooldownDurationObject:EvaluateRemainingDuration(curveDesat))
+						end
 						if data.showChargesCooldown then
 							local entrySpellId = data.entry and data.entry.spellID
 							local effectiveId = entrySpellId and getEffectiveSpellId(entrySpellId) or entrySpellId
@@ -3851,13 +4192,24 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 				icon.cooldown:SetCooldownFromDurationObject(cooldownDurationObject)
 				if data.cooldownGCD then
 					icon.texture:SetDesaturation(0)
+					if hideOnCooldown then
+						icon:SetAlpha(1)
+					elseif showOnCooldown then
+						icon:SetAlpha(0)
+					end
 					desaturate = false
+					hidden = false
 					setCooldownDrawState(icon.cooldown, gcdDrawEdge, gcdDrawBling, gcdDrawSwipe)
 				else
 					setCooldownDrawState(icon.cooldown, drawEdge, drawBling, drawSwipe)
 
 					local desat = cooldownDurationObject:EvaluateRemainingDuration(curveDesat)
 					icon.texture:SetDesaturation(desat)
+					if hideOnCooldown then
+						icon:SetAlpha(cooldownDurationObject:EvaluateRemainingDuration(curveAlpha))
+					elseif showOnCooldown then
+						icon:SetAlpha(cooldownDurationObject:EvaluateRemainingDuration(curveDesat))
+					end
 				end
 				if data.cooldownGCD then
 				else
@@ -3867,6 +4219,11 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 				icon.cooldown:SetCooldown(cooldownStart, cooldownDuration, cooldownRate)
 				desaturate = true
 				icon.texture:SetDesaturated(desaturate)
+				if hideOnCooldown then
+					icon:SetAlpha(0)
+				elseif showOnCooldown then
+					icon:SetAlpha(1)
+				end
 				setCooldownDrawState(icon.cooldown, drawEdge, drawBling, drawSwipe)
 				if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", onCooldownDone) end
 			else
@@ -3879,7 +4236,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			icon.cooldown:Clear()
 			if icon.cooldown.SetScript then icon.cooldown:SetScript("OnCooldownDone", nil) end
 		end
-		icon.texture:SetAlphaFromBoolean(desaturate, 0.5, 1)
+		if not hidden then icon.texture:SetAlphaFromBoolean(desaturate, 0.5, 1) end
 		if data.spellUnusable then
 			icon.texture:SetVertexColor(unusableTintR or 0.6, unusableTintG or 0.6, unusableTintB or 0.6)
 		elseif data.powerInsufficient then
@@ -4030,7 +4387,12 @@ function CooldownPanels:UpdateVisibility(panelId)
 	local runtime = getRuntime(panelId)
 	local frame = runtime.frame
 	if not frame then return end
-	frame:SetShown(self:ShouldShowPanel(panelId))
+	local shouldShow = self:ShouldShowPanel(panelId)
+	if frame:IsShown() ~= shouldShow then
+		local inCombat = (InCombatLockdown and InCombatLockdown()) or false
+		local isProtected = frame.IsProtected and frame:IsProtected()
+		if not (inCombat and isProtected) then frame:SetShown(shouldShow) end
+	end
 	self:UpdatePanelOpacity(panelId)
 	self:UpdatePanelMouseState(panelId)
 end
@@ -4060,7 +4422,14 @@ function CooldownPanels:ShowEditModeHint(panelId, show)
 end
 
 function CooldownPanels:RefreshPanel(panelId)
-	if not self:GetPanel(panelId) then return end
+	local panel = self:GetPanel(panelId)
+	if not panel then return end
+	if panel.enabled == false and not self:IsInEditMode() then
+		local runtime = self.runtime and self.runtime[panelId]
+		local frame = runtime and runtime.frame
+		if frame then frame:Hide() end
+		return
+	end
 	self:EnsurePanelFrame(panelId)
 	local runtime = getRuntime(panelId)
 	if self:IsInEditMode() then
@@ -4077,6 +4446,10 @@ end
 function CooldownPanels:RefreshAllPanels()
 	local root = ensureRoot()
 	if not root then return end
+	if self:IsInEditMode() ~= true then
+		local enabledPanels = self.runtime and self.runtime.enabledPanels
+		if not enabledPanels or not next(enabledPanels) then return end
+	end
 	syncRootOrderIfDirty(root)
 	for _, panelId in ipairs(root.order) do
 		self:RefreshPanel(panelId)
@@ -4084,6 +4457,7 @@ function CooldownPanels:RefreshAllPanels()
 	for panelId in pairs(root.panels) do
 		if not containsId(root.order, panelId) then self:RefreshPanel(panelId) end
 	end
+	self:UpdateCursorAnchorState()
 end
 
 local function syncEditModeValue(panelId, field, value)
@@ -4103,6 +4477,8 @@ local function applyEditLayout(panelId, field, value, skipRefresh)
 		layout.iconSize = Helper.ClampInt(value, 12, 128, layout.iconSize)
 	elseif field == "spacing" then
 		layout.spacing = Helper.ClampInt(value, 0, 50, layout.spacing)
+	elseif field == "layoutMode" then
+		layout.layoutMode = Helper.NormalizeLayoutMode(value, layout.layoutMode or Helper.PANEL_LAYOUT_DEFAULTS.layoutMode)
 	elseif field == "direction" then
 		layout.direction = Helper.NormalizeDirection(value, layout.direction)
 	elseif field == "wrapCount" then
@@ -4111,6 +4487,11 @@ local function applyEditLayout(panelId, field, value, skipRefresh)
 		layout.wrapDirection = Helper.NormalizeDirection(value, layout.wrapDirection)
 	elseif field == "growthPoint" then
 		layout.growthPoint = Helper.NormalizeGrowthPoint(value, layout.growthPoint or Helper.PANEL_LAYOUT_DEFAULTS.growthPoint)
+	elseif field == "radialRadius" then
+		layout.radialRadius = Helper.ClampInt(value, 0, Helper.RADIAL_RADIUS_RANGE or 600, layout.radialRadius or Helper.PANEL_LAYOUT_DEFAULTS.radialRadius)
+	elseif field == "radialRotation" then
+		layout.radialRotation =
+			Helper.ClampNumber(value, -(Helper.RADIAL_ROTATION_RANGE or 360), Helper.RADIAL_ROTATION_RANGE or 360, layout.radialRotation or Helper.PANEL_LAYOUT_DEFAULTS.radialRotation)
 	elseif field == "rangeOverlayEnabled" then
 		layout.rangeOverlayEnabled = value == true
 		if updateRangeCheckSpells then updateRangeCheckSpells() end
@@ -4180,6 +4561,24 @@ local function applyEditLayout(panelId, field, value, skipRefresh)
 		layout.cooldownGcdDrawSwipe = value == true
 	elseif field == "showTooltips" then
 		layout.showTooltips = value == true
+	elseif field == "showIconTexture" then
+		layout.showIconTexture = value ~= false
+	elseif field == "hideOnCooldown" then
+		layout.hideOnCooldown = value == true
+		if layout.hideOnCooldown then layout.showOnCooldown = false end
+	elseif field == "showOnCooldown" then
+		layout.showOnCooldown = value == true
+		if layout.showOnCooldown then layout.hideOnCooldown = false end
+	elseif field == "cooldownTextFont" then
+		if type(value) == "string" and value ~= "" then layout.cooldownTextFont = value end
+	elseif field == "cooldownTextSize" then
+		layout.cooldownTextSize = Helper.ClampInt(value, 6, 64, layout.cooldownTextSize or 12)
+	elseif field == "cooldownTextStyle" then
+		layout.cooldownTextStyle = Helper.NormalizeFontStyleChoice(value, layout.cooldownTextStyle or Helper.PANEL_LAYOUT_DEFAULTS.cooldownTextStyle)
+	elseif field == "cooldownTextX" then
+		layout.cooldownTextX = Helper.ClampInt(value, -Helper.OFFSET_RANGE, Helper.OFFSET_RANGE, layout.cooldownTextX or 0)
+	elseif field == "cooldownTextY" then
+		layout.cooldownTextY = Helper.ClampInt(value, -Helper.OFFSET_RANGE, Helper.OFFSET_RANGE, layout.cooldownTextY or 0)
 	elseif field == "opacityOutOfCombat" then
 		layout.opacityOutOfCombat = Helper.NormalizeOpacity(value, layout.opacityOutOfCombat or Helper.PANEL_LAYOUT_DEFAULTS.opacityOutOfCombat)
 	elseif field == "opacityInCombat" then
@@ -4206,6 +4605,11 @@ local function applyEditLayout(panelId, field, value, skipRefresh)
 		syncValue = (layout.rowSizes and layout.rowSizes[idx]) or base
 	end
 	syncEditModeValue(panelId, field, syncValue)
+	if field == "hideOnCooldown" and layout.hideOnCooldown then
+		syncEditModeValue(panelId, "showOnCooldown", layout.showOnCooldown)
+	elseif field == "showOnCooldown" and layout.showOnCooldown then
+		syncEditModeValue(panelId, "hideOnCooldown", layout.hideOnCooldown)
+	end
 	if field == "iconSize" then
 		local base = Helper.ClampInt(layout.iconSize, 12, 128, Helper.PANEL_LAYOUT_DEFAULTS.iconSize)
 		for i = 1, 6 do
@@ -4218,6 +4622,7 @@ local function applyEditLayout(panelId, field, value, skipRefresh)
 		CooldownPanels:UpdatePreviewIcons(panelId)
 		CooldownPanels:UpdateVisibility(panelId)
 	end
+	if field == "layoutMode" and not skipRefresh then refreshEditModeSettings() end
 end
 
 function CooldownPanels:ApplyEditMode(panelId, data)
@@ -4228,6 +4633,7 @@ function CooldownPanels:ApplyEditMode(panelId, data)
 
 	applyEditLayout(panelId, "iconSize", data.iconSize, true)
 	applyEditLayout(panelId, "spacing", data.spacing, true)
+	applyEditLayout(panelId, "layoutMode", data.layoutMode, true)
 	applyEditLayout(panelId, "direction", data.direction, true)
 	applyEditLayout(panelId, "wrapCount", data.wrapCount, true)
 	applyEditLayout(panelId, "wrapDirection", data.wrapDirection, true)
@@ -4236,6 +4642,8 @@ function CooldownPanels:ApplyEditMode(panelId, data)
 		if data[key] ~= nil then applyEditLayout(panelId, key, data[key], true) end
 	end
 	applyEditLayout(panelId, "growthPoint", data.growthPoint, true)
+	applyEditLayout(panelId, "radialRadius", data.radialRadius, true)
+	applyEditLayout(panelId, "radialRotation", data.radialRotation, true)
 	applyEditLayout(panelId, "rangeOverlayEnabled", data.rangeOverlayEnabled, true)
 	applyEditLayout(panelId, "rangeOverlayColor", data.rangeOverlayColor, true)
 	applyEditLayout(panelId, "checkPower", data.checkPower, true)
@@ -4269,6 +4677,14 @@ function CooldownPanels:ApplyEditMode(panelId, data)
 	applyEditLayout(panelId, "cooldownGcdDrawBling", data.cooldownGcdDrawBling, true)
 	applyEditLayout(panelId, "cooldownGcdDrawSwipe", data.cooldownGcdDrawSwipe, true)
 	applyEditLayout(panelId, "showTooltips", data.showTooltips, true)
+	applyEditLayout(panelId, "showIconTexture", data.showIconTexture, true)
+	applyEditLayout(panelId, "hideOnCooldown", data.hideOnCooldown, true)
+	applyEditLayout(panelId, "showOnCooldown", data.showOnCooldown, true)
+	applyEditLayout(panelId, "cooldownTextFont", data.cooldownTextFont, true)
+	applyEditLayout(panelId, "cooldownTextSize", data.cooldownTextSize, true)
+	applyEditLayout(panelId, "cooldownTextStyle", data.cooldownTextStyle, true)
+	applyEditLayout(panelId, "cooldownTextX", data.cooldownTextX, true)
+	applyEditLayout(panelId, "cooldownTextY", data.cooldownTextY, true)
 	applyEditLayout(panelId, "opacityOutOfCombat", data.opacityOutOfCombat, true)
 	applyEditLayout(panelId, "opacityInCombat", data.opacityInCombat, true)
 
@@ -4398,7 +4814,9 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 		local value = rowSizes and tonumber(rowSizes[index]) or nil
 		return Helper.ClampInt(value, 12, 128, base)
 	end
+	local function isRadialLayout() return Helper.NormalizeLayoutMode(layout.layoutMode, Helper.PANEL_LAYOUT_DEFAULTS.layoutMode) == "RADIAL" end
 	local function shouldShowRowSize(index)
+		if isRadialLayout() then return false end
 		local rows, primaryHorizontal = getPanelRowCount(panel, layout)
 		return primaryHorizontal and rows >= index
 	end
@@ -4415,6 +4833,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 			end
 
 			add("UIParent", "UIParent")
+			add(FAKE_CURSOR_FRAME_NAME, _G.CURSOR or "Cursor")
 			for _, key in ipairs(Helper.GENERIC_ANCHOR_ORDER) do
 				local info = Helper.GENERIC_ANCHORS[key]
 				if info then add(key, info.label) end
@@ -4506,9 +4925,15 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 					if not a then return end
 					local target = Helper.NormalizeRelativeFrameName(value)
 					if wouldCauseLoop(target) then target = "UIParent" end
+					if target == FAKE_CURSOR_FRAME_NAME then
+						CooldownPanels:AttachFakeCursor(panelId)
+						applyAnchorPosition()
+						return
+					end
 					a.relativeFrame = target
 					applyAnchorDefaults(a, target)
 					applyAnchorPosition()
+					CooldownPanels:UpdateCursorAnchorState()
 					local anchorHelper = CooldownPanels.AnchorHelper
 					if anchorHelper and anchorHelper.MaybeScheduleRefresh then anchorHelper:MaybeScheduleRefresh(target) end
 				end,
@@ -4523,9 +4948,15 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 							if not a then return end
 							local target = entry.key
 							if wouldCauseLoop(target) then target = "UIParent" end
+							if target == FAKE_CURSOR_FRAME_NAME then
+								CooldownPanels:AttachFakeCursor(panelId)
+								applyAnchorPosition()
+								return
+							end
 							a.relativeFrame = target
 							applyAnchorDefaults(a, target)
 							applyAnchorPosition()
+							CooldownPanels:UpdateCursorAnchorState()
 							local anchorHelper = CooldownPanels.AnchorHelper
 							if anchorHelper and anchorHelper.MaybeScheduleRefresh then anchorHelper:MaybeScheduleRefresh(target) end
 						end)
@@ -4648,6 +5079,24 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				defaultCollapsed = false,
 			},
 			{
+				name = L["CooldownPanelLayoutMode"] or "Layout mode",
+				kind = SettingType.Dropdown,
+				field = "layoutMode",
+				parentId = "cooldownPanelLayout",
+				height = 80,
+				get = function() return Helper.NormalizeLayoutMode(layout.layoutMode, Helper.PANEL_LAYOUT_DEFAULTS.layoutMode) end,
+				set = function(_, value) applyEditLayout(panelId, "layoutMode", value) end,
+				generator = function(_, root)
+					for _, option in ipairs(layoutModeOptions) do
+						root:CreateRadio(
+							option.label,
+							function() return Helper.NormalizeLayoutMode(layout.layoutMode, Helper.PANEL_LAYOUT_DEFAULTS.layoutMode) == option.value end,
+							function() applyEditLayout(panelId, "layoutMode", option.value) end
+						)
+					end
+				end,
+			},
+			{
 				name = "Icon size",
 				kind = SettingType.Slider,
 				field = "iconSize",
@@ -4669,6 +5118,8 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				minValue = 0,
 				maxValue = 50,
 				valueStep = 1,
+				isShown = function() return not isRadialLayout() end,
+				disabled = function() return isRadialLayout() end,
 				get = function() return layout.spacing end,
 				set = function(_, value) applyEditLayout(panelId, "spacing", value) end,
 				formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
@@ -4679,6 +5130,8 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				field = "direction",
 				parentId = "cooldownPanelLayout",
 				height = 120,
+				isShown = function() return not isRadialLayout() end,
+				disabled = function() return isRadialLayout() end,
 				get = function() return Helper.NormalizeDirection(layout.direction, Helper.PANEL_LAYOUT_DEFAULTS.direction) end,
 				set = function(_, value) applyEditLayout(panelId, "direction", value) end,
 				generator = function(_, root)
@@ -4700,6 +5153,8 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				minValue = 0,
 				maxValue = 40,
 				valueStep = 1,
+				isShown = function() return not isRadialLayout() end,
+				disabled = function() return isRadialLayout() end,
 				get = function() return layout.wrapCount or 0 end,
 				set = function(_, value) applyEditLayout(panelId, "wrapCount", value) end,
 				formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
@@ -4710,7 +5165,8 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				field = "wrapDirection",
 				parentId = "cooldownPanelLayout",
 				height = 120,
-				disabled = function() return (layout.wrapCount or 0) == 0 end,
+				isShown = function() return not isRadialLayout() end,
+				disabled = function() return isRadialLayout() or (layout.wrapCount or 0) == 0 end,
 				get = function() return Helper.NormalizeDirection(layout.wrapDirection, Helper.PANEL_LAYOUT_DEFAULTS.wrapDirection or "DOWN") end,
 				set = function(_, value) applyEditLayout(panelId, "wrapDirection", value) end,
 				generator = function(_, root)
@@ -4729,7 +5185,8 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				field = "growthPoint",
 				parentId = "cooldownPanelLayout",
 				height = 90,
-				disabled = function() return (layout.wrapCount or 0) == 0 end,
+				isShown = function() return not isRadialLayout() end,
+				disabled = function() return isRadialLayout() or (layout.wrapCount or 0) == 0 end,
 				get = function() return Helper.NormalizeGrowthPoint(layout.growthPoint, Helper.PANEL_LAYOUT_DEFAULTS.growthPoint) end,
 				set = function(_, value) applyEditLayout(panelId, "growthPoint", value) end,
 				generator = function(_, root)
@@ -4741,6 +5198,38 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 						)
 					end
 				end,
+			},
+			{
+				name = L["CooldownPanelRadialRadius"] or "Radius",
+				kind = SettingType.Slider,
+				field = "radialRadius",
+				parentId = "cooldownPanelLayout",
+				default = layout.radialRadius or Helper.PANEL_LAYOUT_DEFAULTS.radialRadius,
+				minValue = 0,
+				maxValue = Helper.RADIAL_RADIUS_RANGE or 600,
+				valueStep = 1,
+				allowInput = true,
+				isShown = function() return isRadialLayout() end,
+				disabled = function() return not isRadialLayout() end,
+				get = function() return layout.radialRadius or Helper.PANEL_LAYOUT_DEFAULTS.radialRadius end,
+				set = function(_, value) applyEditLayout(panelId, "radialRadius", value) end,
+				formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
+			},
+			{
+				name = L["CooldownPanelRadialRotation"] or "Rotation",
+				kind = SettingType.Slider,
+				field = "radialRotation",
+				parentId = "cooldownPanelLayout",
+				default = layout.radialRotation or Helper.PANEL_LAYOUT_DEFAULTS.radialRotation,
+				minValue = -(Helper.RADIAL_ROTATION_RANGE or 360),
+				maxValue = Helper.RADIAL_ROTATION_RANGE or 360,
+				valueStep = 1,
+				allowInput = true,
+				isShown = function() return isRadialLayout() end,
+				disabled = function() return not isRadialLayout() end,
+				get = function() return layout.radialRotation or Helper.PANEL_LAYOUT_DEFAULTS.radialRotation end,
+				set = function(_, value) applyEditLayout(panelId, "radialRotation", value) end,
+				formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
 			},
 			{
 				name = "Strata",
@@ -4766,6 +5255,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				id = "cooldownPanelRowSizes",
 				parentId = "cooldownPanelLayout",
 				defaultCollapsed = true,
+				isShown = function() return not isRadialLayout() end,
 			},
 			{
 				name = (L["CooldownPanelRowSize"] or "Row %d size"):format(1),
@@ -4873,6 +5363,33 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				set = function(_, value) applyEditLayout(panelId, "showTooltips", value) end,
 			},
 			{
+				name = L["CooldownPanelShowIconTexture"] or "Show icon texture",
+				kind = SettingType.Checkbox,
+				field = "showIconTexture",
+				parentId = "cooldownPanelDisplay",
+				default = layout.showIconTexture ~= false,
+				get = function() return layout.showIconTexture ~= false end,
+				set = function(_, value) applyEditLayout(panelId, "showIconTexture", value) end,
+			},
+			{
+				name = L["CooldownPanelHideOnCooldown"] or "Hide on cooldown",
+				kind = SettingType.Checkbox,
+				field = "hideOnCooldown",
+				parentId = "cooldownPanelDisplay",
+				default = layout.hideOnCooldown == true,
+				get = function() return layout.hideOnCooldown == true end,
+				set = function(_, value) applyEditLayout(panelId, "hideOnCooldown", value) end,
+			},
+			{
+				name = L["CooldownPanelShowOnCooldown"] or "Show on cooldown",
+				kind = SettingType.Checkbox,
+				field = "showOnCooldown",
+				parentId = "cooldownPanelDisplay",
+				default = layout.showOnCooldown == true,
+				get = function() return layout.showOnCooldown == true end,
+				set = function(_, value) applyEditLayout(panelId, "showOnCooldown", value) end,
+			},
+			{
 				name = L["CooldownPanelOpacityOutOfCombat"] or "Opacity (out of combat)",
 				kind = SettingType.Slider,
 				field = "opacityOutOfCombat",
@@ -4905,6 +5422,90 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 					local num = tonumber(value) or 0
 					return tostring(math.floor((num * 100) + 0.5)) .. "%"
 				end,
+			},
+			{
+				name = L["CooldownPanelCooldownTextHeader"] or "Cooldown text",
+				kind = SettingType.Collapsible,
+				id = "cooldownPanelCooldownText",
+				defaultCollapsed = true,
+			},
+			{
+				name = L["CooldownPanelCooldownTextFont"] or "Cooldown text font",
+				kind = SettingType.Dropdown,
+				field = "cooldownTextFont",
+				parentId = "cooldownPanelCooldownText",
+				height = 160,
+				default = layout.cooldownTextFont or countFontPath,
+				get = function() return layout.cooldownTextFont or countFontPath end,
+				set = function(_, value) applyEditLayout(panelId, "cooldownTextFont", value) end,
+				generator = function(_, root)
+					for _, option in ipairs(fontOptions) do
+						root:CreateRadio(
+							option.label,
+							function() return (layout.cooldownTextFont or countFontPath) == option.value end,
+							function() applyEditLayout(panelId, "cooldownTextFont", option.value) end
+						)
+					end
+				end,
+			},
+			{
+				name = L["CooldownPanelCooldownTextSize"] or "Cooldown text size",
+				kind = SettingType.Slider,
+				field = "cooldownTextSize",
+				parentId = "cooldownPanelCooldownText",
+				default = layout.cooldownTextSize or countFontSize or 12,
+				minValue = 6,
+				maxValue = 64,
+				valueStep = 1,
+				allowInput = true,
+				get = function() return layout.cooldownTextSize or countFontSize or 12 end,
+				set = function(_, value) applyEditLayout(panelId, "cooldownTextSize", value) end,
+				formatter = function(value) return tostring(math.floor((tonumber(value) or 0) + 0.5)) end,
+			},
+			{
+				name = L["CooldownPanelCooldownTextStyle"] or "Cooldown text outline",
+				kind = SettingType.Dropdown,
+				field = "cooldownTextStyle",
+				parentId = "cooldownPanelCooldownText",
+				height = 120,
+				default = Helper.NormalizeFontStyleChoice(layout.cooldownTextStyle, "NONE"),
+				get = function() return Helper.NormalizeFontStyleChoice(layout.cooldownTextStyle, "NONE") end,
+				set = function(_, value) applyEditLayout(panelId, "cooldownTextStyle", value) end,
+				generator = function(_, root)
+					for _, option in ipairs(fontStyleOptions) do
+						root:CreateRadio(
+							option.label,
+							function() return Helper.NormalizeFontStyleChoice(layout.cooldownTextStyle, "NONE") == option.value end,
+							function() applyEditLayout(panelId, "cooldownTextStyle", option.value) end
+						)
+					end
+				end,
+			},
+			{
+				name = L["CooldownPanelCooldownTextOffsetX"] or "Cooldown text offset X",
+				kind = SettingType.Slider,
+				field = "cooldownTextX",
+				parentId = "cooldownPanelCooldownText",
+				default = layout.cooldownTextX or 0,
+				minValue = -Helper.OFFSET_RANGE,
+				maxValue = Helper.OFFSET_RANGE,
+				valueStep = 1,
+				allowInput = true,
+				get = function() return layout.cooldownTextX or 0 end,
+				set = function(_, value) applyEditLayout(panelId, "cooldownTextX", value) end,
+			},
+			{
+				name = L["CooldownPanelCooldownTextOffsetY"] or "Cooldown text offset Y",
+				kind = SettingType.Slider,
+				field = "cooldownTextY",
+				parentId = "cooldownPanelCooldownText",
+				default = layout.cooldownTextY or 0,
+				minValue = -Helper.OFFSET_RANGE,
+				maxValue = Helper.OFFSET_RANGE,
+				valueStep = 1,
+				allowInput = true,
+				get = function() return layout.cooldownTextY or 0 end,
+				set = function(_, value) applyEditLayout(panelId, "cooldownTextY", value) end,
 			},
 			{
 				name = L["CooldownPanelOverlaysHeader"] or "Overlays",
@@ -5328,6 +5929,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 			y = (anchor and anchor.y) or panel.y or 0,
 			iconSize = layout.iconSize,
 			spacing = layout.spacing,
+			layoutMode = Helper.NormalizeLayoutMode(layout.layoutMode, Helper.PANEL_LAYOUT_DEFAULTS.layoutMode),
 			direction = Helper.NormalizeDirection(layout.direction, Helper.PANEL_LAYOUT_DEFAULTS.direction),
 			wrapCount = layout.wrapCount or 0,
 			wrapDirection = Helper.NormalizeDirection(layout.wrapDirection, Helper.PANEL_LAYOUT_DEFAULTS.wrapDirection or "DOWN"),
@@ -5338,6 +5940,8 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 			rowSize5 = (layout.rowSizes and layout.rowSizes[5]) or baseIconSize,
 			rowSize6 = (layout.rowSizes and layout.rowSizes[6]) or baseIconSize,
 			growthPoint = Helper.NormalizeGrowthPoint(layout.growthPoint, Helper.PANEL_LAYOUT_DEFAULTS.growthPoint),
+			radialRadius = layout.radialRadius or Helper.PANEL_LAYOUT_DEFAULTS.radialRadius,
+			radialRotation = layout.radialRotation or Helper.PANEL_LAYOUT_DEFAULTS.radialRotation,
 			rangeOverlayEnabled = layout.rangeOverlayEnabled == true,
 			rangeOverlayColor = layout.rangeOverlayColor or Helper.PANEL_LAYOUT_DEFAULTS.rangeOverlayColor,
 			checkPower = layout.checkPower == true,
@@ -5373,6 +5977,14 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 			opacityOutOfCombat = Helper.NormalizeOpacity(layout.opacityOutOfCombat, Helper.PANEL_LAYOUT_DEFAULTS.opacityOutOfCombat),
 			opacityInCombat = Helper.NormalizeOpacity(layout.opacityInCombat, Helper.PANEL_LAYOUT_DEFAULTS.opacityInCombat),
 			showTooltips = layout.showTooltips == true,
+			showIconTexture = layout.showIconTexture ~= false,
+			hideOnCooldown = layout.hideOnCooldown == true,
+			showOnCooldown = layout.showOnCooldown == true,
+			cooldownTextFont = layout.cooldownTextFont,
+			cooldownTextSize = layout.cooldownTextSize or 12,
+			cooldownTextStyle = Helper.NormalizeFontStyleChoice(layout.cooldownTextStyle, "NONE"),
+			cooldownTextX = layout.cooldownTextX or 0,
+			cooldownTextY = layout.cooldownTextY or 0,
 		},
 		onApply = function(_, _, data)
 			local a = ensureAnchorTable()
@@ -5416,14 +6028,45 @@ function CooldownPanels:EnsureEditMode()
 	end
 end
 
+function CooldownPanels:AttachFakeCursor(panelId)
+	if not panelId then return end
+	local panel = self:GetPanel(panelId)
+	if not panel then return end
+	local anchor = ensurePanelAnchor(panel)
+	if not anchor then return end
+
+	local runtime = getRuntime(panelId)
+
+	anchor.point = "CENTER"
+	anchor.relativePoint = "CENTER"
+	anchor.relativeFrame = FAKE_CURSOR_FRAME_NAME
+	anchor.x = 0
+	anchor.y = 0
+	panel.point = anchor.point or panel.point or "CENTER"
+	panel.x = anchor.x or panel.x or 0
+	panel.y = anchor.y or panel.y or 0
+	self:ApplyPanelPosition(panelId)
+	if runtime.editModeId and EditMode and EditMode.RefreshFrame then EditMode:RefreshFrame(runtime.editModeId) end
+	refreshEditModeSettingValues()
+	resetFakeCursorFrame()
+	self:UpdateCursorAnchorState()
+end
+
 local editModeCallbacksRegistered = false
 local function registerEditModeCallbacks()
 	if editModeCallbacksRegistered then return end
 	if addon.EditModeLib and addon.EditModeLib.RegisterCallback then
-		addon.EditModeLib:RegisterCallback("enter", function() CooldownPanels:RefreshAllPanels() end)
+		addon.EditModeLib:RegisterCallback("enter", function()
+			CooldownPanels:RefreshAllPanels()
+			resetFakeCursorFrame()
+			CooldownPanels:UpdateCursorAnchorState()
+			if CooldownPanels.UpdateEventRegistration then CooldownPanels:UpdateEventRegistration() end
+		end)
 		addon.EditModeLib:RegisterCallback("exit", function()
+			CooldownPanels:UpdateCursorAnchorState()
 			CooldownPanels:RefreshAllPanels()
 			refreshPanelsForCharges()
+			if CooldownPanels.UpdateEventRegistration then CooldownPanels:UpdateEventRegistration() end
 		end)
 	end
 	editModeCallbacksRegistered = true
@@ -5833,6 +6476,65 @@ local function setRangeOverlayForSpell(spellIdentifier, isInRange, checksRange)
 	return true
 end
 
+local UPDATE_FRAME_EVENTS = {
+	"PLAYER_ENTERING_WORLD",
+	"PLAYER_LOGIN",
+	"ADDON_LOADED",
+	"SPELL_UPDATE_COOLDOWN",
+	"SPELL_UPDATE_ICON",
+	"SPELL_UPDATE_CHARGES",
+	"SPELL_UPDATE_USES",
+	"SPELLS_CHANGED",
+	"ACTIVE_PLAYER_SPECIALIZATION_CHANGED",
+	"PLAYER_TALENT_UPDATE",
+	"PLAYER_EQUIPMENT_CHANGED",
+	"BAG_UPDATE_DELAYED",
+	"BAG_UPDATE_COOLDOWN",
+	"UPDATE_BINDINGS",
+	"UPDATE_MACROS",
+	"ACTIONBAR_PAGE_CHANGED",
+	"ACTIONBAR_HIDEGRID",
+	"SPELL_ACTIVATION_OVERLAY_GLOW_SHOW",
+	"SPELL_ACTIVATION_OVERLAY_GLOW_HIDE",
+	"SPELL_RANGE_CHECK_UPDATE",
+	"PLAYER_REGEN_DISABLED",
+	"PLAYER_REGEN_ENABLED",
+}
+
+local function hasEnabledPanels()
+	local runtime = CooldownPanels and CooldownPanels.runtime
+	local enabledPanels = runtime and runtime.enabledPanels
+	return enabledPanels and next(enabledPanels) ~= nil
+end
+
+local function shouldEnableUpdateFrame()
+	if CooldownPanels and CooldownPanels.IsInEditMode and CooldownPanels:IsInEditMode() then return true end
+	return hasEnabledPanels()
+end
+
+local function setUpdateFrameEnabled(frame, enabled)
+	if not frame then return end
+	if enabled then
+		if frame._eqolEventsRegistered then return end
+		for _, event in ipairs(UPDATE_FRAME_EVENTS) do
+			frame:RegisterEvent(event)
+		end
+		frame:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
+		frame._eqolEventsRegistered = true
+		if updatePowerEventRegistration then updatePowerEventRegistration() end
+	else
+		if not frame._eqolEventsRegistered then return end
+		frame:UnregisterAllEvents()
+		frame._eqolEventsRegistered = false
+	end
+end
+
+function CooldownPanels:UpdateEventRegistration()
+	local frame = self.runtime and self.runtime.updateFrame
+	if not frame then return end
+	setUpdateFrameEnabled(frame, shouldEnableUpdateFrame())
+end
+
 local function ensureUpdateFrame()
 	if CooldownPanels.runtime and CooldownPanels.runtime.updateFrame then return end
 	local frame = CreateFrame("Frame")
@@ -5944,36 +6646,17 @@ local function ensureUpdateFrame()
 		if event == "BAG_UPDATE_DELAYED" or event == "PLAYER_EQUIPMENT_CHANGED" or event == "PLAYER_ENTERING_WORLD" then updateItemCountCache() end
 		CooldownPanels:RequestUpdate("Event:" .. event)
 	end)
-	frame:RegisterEvent("PLAYER_ENTERING_WORLD")
-	frame:RegisterEvent("PLAYER_LOGIN")
-	frame:RegisterEvent("ADDON_LOADED")
-	frame:RegisterEvent("SPELL_UPDATE_COOLDOWN")
-	frame:RegisterEvent("SPELL_UPDATE_ICON")
-	frame:RegisterEvent("SPELL_UPDATE_CHARGES")
-	frame:RegisterEvent("SPELL_UPDATE_USES")
-	frame:RegisterEvent("SPELLS_CHANGED")
-	frame:RegisterEvent("ACTIVE_PLAYER_SPECIALIZATION_CHANGED")
-	frame:RegisterEvent("PLAYER_TALENT_UPDATE")
-	frame:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
-	frame:RegisterEvent("BAG_UPDATE_DELAYED")
-	frame:RegisterEvent("BAG_UPDATE_COOLDOWN")
-	frame:RegisterEvent("UPDATE_BINDINGS")
-	frame:RegisterEvent("UPDATE_MACROS")
-	frame:RegisterEvent("ACTIONBAR_PAGE_CHANGED")
-	frame:RegisterEvent("ACTIONBAR_HIDEGRID")
-	frame:RegisterEvent("SPELL_ACTIVATION_OVERLAY_GLOW_SHOW")
-	frame:RegisterEvent("SPELL_ACTIVATION_OVERLAY_GLOW_HIDE")
-	frame:RegisterEvent("SPELL_RANGE_CHECK_UPDATE")
-	frame:RegisterEvent("PLAYER_REGEN_DISABLED")
-	frame:RegisterEvent("PLAYER_REGEN_ENABLED")
-	frame:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
 	CooldownPanels.runtime = CooldownPanels.runtime or {}
 	CooldownPanels.runtime.updateFrame = frame
-	updatePowerEventRegistration()
+	if CooldownPanels.UpdateEventRegistration then CooldownPanels:UpdateEventRegistration() end
 end
 
 function CooldownPanels:RequestUpdate(cause)
 	self.runtime = self.runtime or {}
+	if self:IsInEditMode() ~= true then
+		local enabledPanels = self.runtime.enabledPanels
+		if not enabledPanels or not next(enabledPanels) then return end
+	end
 	if self.runtime.updatePending then
 		if cause then self.runtime.updateCause = cause end
 		return
@@ -5993,6 +6676,7 @@ function CooldownPanels:Init()
 	updateItemCountCache()
 	Keybinds.RebuildPanels()
 	self:RefreshAllPanels()
+	self:UpdateCursorAnchorState()
 	ensureUpdateFrame()
 	registerEditModeCallbacks()
 	registerCooldownPanelsSlashCommand()

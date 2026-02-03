@@ -1,5 +1,66 @@
 # Changelog
 
+## [7.10.0] - 2026-02-02
+
+### ✨ Added
+
+- Unit Frames: Aura icons can use custom border textures (boss frames included)
+- Cooldown Panels: Optional radial layout with radius/rotation controls (layout fields auto-hide on switch)
+- Cooldown Panels: Cursor anchor mode with Edit Mode preview and live cursor follow
+- Cooldown Panels: Hide on CD option for cooldown icons
+- Cooldown Panels: Show on CD option for cooldown icons
+- Unit Frames: Combat feedback text with configurable font/anchor/events
+
+### ⚡ Performance
+
+- Unit Frames: Cache aura container height/visibility updates to reduce UI calls
+
+### ❌ Removed
+
+- Aura Tracker (BuffTracker module + settings/UI)
+- Legacy AceGUI options window (tree-based settings UI)
+- Mover: Individual bag frame entries (Bag 1–6)
+
+### 🐛 Fixed
+
+- Tooltips: Guard secret values when resolving unit names (prevents secret boolean test errors)
+- Group Frames: Guard missing Edit Mode registration IDs on disable
+- Unit Frames: Boss cast bar interrupt texture now resets on new casts
+- ChatIM: Disabling instant messenger restores whispers in normal chat
+- Vendor: Disable destroy-queue Add button when the feature is off
+
+---
+
+## [7.9.1] - 2026-02-02
+
+### 🐛 Fixed
+
+- Wrong default font for zhTW
+
+---
+
+## [7.9.0] - 2026-02-02
+
+### ✨ Added
+
+- Keybinding: Toggle friendly NPC nameplates (nameplateShowFriendlyNpcs)
+- UF Plus: Unit status group number format options (e.g., Group 1, (1), | 1 |, G1)
+- UF Plus: Target range fade via spell range events (configurable opacity)
+
+### 🔁 Changed
+
+- Resource Bars: Bar width min value changed to 10
+
+### 🐛 Fixed
+
+- Secret error: LFG List sorting by mythic+ score is now ignored in restricted content
+- Questing: Guard UnitGUID secret values when checking ignored quest NPCs (prevents secret conversion errors)
+- Health Text: Text was shown when unit is dead
+- Nameplates: Class colors on nameplates now work in 12.0.1 (updated CVar)
+- Cooldown Panels: Guarding against a protection state produced by anchoring protected frames to CDPanels
+
+---
+
 ## [7.8.1] - 2026-01-31
 
 ### 🐛 Fixed

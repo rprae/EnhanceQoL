@@ -4,8 +4,6 @@ local L = LibStub("AceLocale-3.0"):NewLocale("EnhanceQoL", "enUS", true) -- “t
 
 L["Quick signup"] = "Quick signup"
 L["interruptWithShift"] = "Hold shift to interrupt that feature"
-L["SettingsLegacyNotice"] =
-	'Legacy settings (old UI)\n\nRight-click the minimap button and choose "Legacy Settings" to open them.\n\nWarning: These old settings are unlikely to work in Midnight anymore.'
 
 L["Persist LFG signup note"] = "Persist LFG signup note"
 L["Hide Minimap Button"] = "Hide Minimap Button"
@@ -312,7 +310,6 @@ L["durabilityUseTextColor"] = "Use custom text color"
 
 L["Hide Raid Tools"] = "Hide Raid Tools in Party"
 L["hideRaidTools"] = "Hide Raid Tools in Party"
-L["optionsFrameScale"] = "Options window scale"
 L["microMenuHeader"] = "Micro menu"
 L["hideMicroMenuNotificationOverlay"] = "Hide micro menu notification diamonds"
 L["hideMicroMenuNotificationOverlayDesc"] = "Removes the small diamond notification overlay on the Blizzard micro menu buttons."
@@ -450,6 +447,8 @@ L["showDurabilityOnCharframe"] = "Display Durability on Character Equipment Fram
 L["MissingEnchant"] = "Enchant"
 L["hideHitIndicatorPlayer"] = "Hide floating combat text (damage and healing) over your character"
 L["hideHitIndicatorPet"] = "Hide floating combat text (damage and healing) over your pet"
+L["floatingCombatTextCombatDamage_v2"] = "Show floating combat text: combat damage"
+L["floatingCombatTextCombatHealing_v2"] = "Show floating combat text: combat healing"
 L["SellJunkIgnoredBag"] = "You have ignored junk on %d bags.\nThis may prevent selling all junk items automatically."
 L["enableGemHelper"] = "Enable Gem-Socket Helper"
 L["gemHelperHideTracker"] = "Hide socketed gem tracker"
@@ -744,7 +743,6 @@ L["ShowClassColorInNameplate"] = "Show class colors on nameplates"
 L["ShowTargetCastbar"] = "Show the Castbar of your Target"
 L["showTutorials"] = "Disable tutorials"
 L["UberTooltips"] = "Enable enhanced tooltips"
-L["NameplatePersonalShowInCombat"] = "Show your personal nameplate during combat"
 L["AutoPushSpellToActionBar"] = "Automatically place new spells on your action bars"
 L["raidFramesDisplayClassColor"] = "Show class colors on raid-style frames"
 L["pvpFramesDisplayClassColor"] = "Show class colors on PvP frames"

@@ -21,50 +21,6 @@ local ActionBarLabels = addon.ActionBarLabels
 
 addon.constants = addon.constants or {}
 
-addon.optionsPages = addon.optionsPages or {}
-
-function addon.functions.RegisterOptionsPage(path, builder)
-	if type(path) ~= "string" or path == "" then return end
-	if type(builder) ~= "function" then return end
-	addon.optionsPages[path] = builder
-end
-
-function addon.functions.HasOptionsPage(path)
-	local pages = addon.optionsPages
-	if type(pages) ~= "table" or type(path) ~= "string" then return false end
-	return type(pages[path]) == "function"
-end
-
-function addon.functions.ShowOptionsPage(container, path)
-	local pages = addon.optionsPages
-	if type(pages) ~= "table" then return false end
-	local fn = pages[path]
-	if type(fn) ~= "function" then return false end
-	fn(container, path)
-	return true
-end
-
-local OPTIONS_FRAME_MIN_SCALE = 0.5
-local OPTIONS_FRAME_MAX_SCALE = 2
-
-addon.constants.OPTIONS_FRAME_MIN_SCALE = OPTIONS_FRAME_MIN_SCALE
-addon.constants.OPTIONS_FRAME_MAX_SCALE = OPTIONS_FRAME_MAX_SCALE
-
-function addon.functions.applyOptionsFrameScale(scale)
-	local db = addon.db
-	local desired = tonumber(scale)
-	if not desired then desired = (db and db["optionsFrameScale"]) or 1.0 end
-	if desired < OPTIONS_FRAME_MIN_SCALE then desired = OPTIONS_FRAME_MIN_SCALE end
-	if desired > OPTIONS_FRAME_MAX_SCALE then desired = OPTIONS_FRAME_MAX_SCALE end
-
-	desired = math.floor(desired * 100 + 0.5) / 100
-
-	if db then db["optionsFrameScale"] = desired end
-
-	if addon.aceFrame and addon.aceFrame.SetScale then addon.aceFrame:SetScale(desired) end
-	return desired
-end
-
 local LFGListFrame = _G.LFGListFrame
 local GetContainerItemInfo = C_Container.GetContainerItemInfo
 local StaticPopup_Visible = StaticPopup_Visible
@@ -1288,9 +1244,13 @@ addon.functions.ApplyUnitFrameSettingByVar = ApplyUnitFrameSettingByVar
 
 local function IsCooldownViewerEnabled()
 	if not C_CVar or not C_CVar.GetCVar then return false end
+	addon.variables = addon.variables or {}
+	if addon.variables.cooldownViewerEnabledCache ~= nil and not addon.variables.cooldownViewerEnabledDirty then return addon.variables.cooldownViewerEnabledCache end
 	local ok, value = pcall(C_CVar.GetCVar, "cooldownViewerEnabled")
-	if not ok then return false end
-	return tonumber(value) == 1
+	local enabled = ok and tonumber(value) == 1
+	addon.variables.cooldownViewerEnabledCache = enabled
+	addon.variables.cooldownViewerEnabledDirty = nil
+	return enabled
 end
 addon.functions.IsCooldownViewerEnabled = IsCooldownViewerEnabled
 
@@ -1321,6 +1281,16 @@ local function sanitizeCooldownViewerConfig(cfg)
 	end
 	if type(cfg) == "string" then return normalizeCooldownViewerConfigValue(cfg, {}) end
 	return nil
+end
+
+local function HasCooldownViewerVisibilityConfig()
+	local db = addon.db and addon.db.cooldownViewerVisibility
+	if type(db) ~= "table" then return false end
+	for _, cfg in pairs(db) do
+		local sanitized = sanitizeCooldownViewerConfig(cfg)
+		if sanitized and next(sanitized) then return true end
+	end
+	return false
 end
 
 local DRUID_TRAVEL_FORM_SPELL_IDS = {
@@ -1577,6 +1547,7 @@ function addon.functions.SetCooldownViewerVisibility(frameName, key, shouldSelec
 	else
 		db[frameName] = nil
 	end
+	if addon.functions.EnsureCooldownViewerWatcher then addon.functions.EnsureCooldownViewerWatcher() end
 	if addon.functions.ApplyCooldownViewerVisibility then addon.functions.ApplyCooldownViewerVisibility() end
 end
 
@@ -1615,35 +1586,67 @@ function addon.functions.ApplyCooldownViewerVisibility()
 	end
 end
 
+local COOLDOWN_VIEWER_EVENTS = {
+	"PLAYER_ENTERING_WORLD",
+	"COOLDOWN_VIEWER_DATA_LOADED",
+	"CVAR_UPDATE",
+	"PLAYER_REGEN_ENABLED",
+	"PLAYER_REGEN_DISABLED",
+	"PLAYER_MOUNT_DISPLAY_CHANGED",
+	"UPDATE_SHAPESHIFT_FORM",
+	"PLAYER_TARGET_CHANGED",
+	"GROUP_ROSTER_UPDATE",
+}
+
+local function setCooldownViewerWatcherEnabled(watcher, enabled)
+	if not watcher then return end
+	if enabled then
+		if watcher._eqolEventsRegistered then return end
+		for _, event in ipairs(COOLDOWN_VIEWER_EVENTS) do
+			watcher:RegisterEvent(event)
+		end
+		SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_START", "player")
+		SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_STOP", "player")
+		SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_FAILED", "player")
+		SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_INTERRUPTED", "player")
+		SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_CHANNEL_START", "player")
+		SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_CHANNEL_STOP", "player")
+		watcher._eqolEventsRegistered = true
+	else
+		if not watcher._eqolEventsRegistered then return end
+		watcher:UnregisterAllEvents()
+		watcher._eqolEventsRegistered = false
+	end
+end
+
 local function EnsureCooldownViewerWatcher()
 	addon.variables = addon.variables or {}
-	if addon.variables.cooldownViewerWatcher then return end
+	local enable = HasCooldownViewerVisibilityConfig()
+	local watcher = addon.variables.cooldownViewerWatcher
+
+	if not watcher then
+		if not enable then return false end
+		EnsureSkyridingStateDriver()
+		watcher = CreateFrame("Frame")
+		watcher:SetScript("OnEvent", function(_, event, name)
+			if event == "CVAR_UPDATE" and name ~= "cooldownViewerEnabled" then return end
+			if addon.variables then
+				addon.variables.cooldownViewerRetryCount = nil
+				if event == "CVAR_UPDATE" and name == "cooldownViewerEnabled" then addon.variables.cooldownViewerEnabledDirty = true end
+			end
+			if addon.functions.ApplyCooldownViewerVisibility then addon.functions.ApplyCooldownViewerVisibility() end
+		end)
+		addon.variables.cooldownViewerWatcher = watcher
+	end
+
+	if not enable then
+		setCooldownViewerWatcherEnabled(watcher, false)
+		return false
+	end
 
 	EnsureSkyridingStateDriver()
-	local watcher = CreateFrame("Frame")
-	watcher:RegisterEvent("PLAYER_ENTERING_WORLD")
-	watcher:RegisterEvent("COOLDOWN_VIEWER_DATA_LOADED")
-	watcher:RegisterEvent("CVAR_UPDATE")
-	watcher:RegisterEvent("PLAYER_REGEN_ENABLED")
-	watcher:RegisterEvent("PLAYER_REGEN_DISABLED")
-	watcher:RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED")
-	watcher:RegisterEvent("UPDATE_SHAPESHIFT_FORM")
-	watcher:RegisterEvent("PLAYER_TARGET_CHANGED")
-	watcher:RegisterEvent("GROUP_ROSTER_UPDATE")
-	SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_START", "player")
-	SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_STOP", "player")
-	SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_FAILED", "player")
-	SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_INTERRUPTED", "player")
-	SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_CHANNEL_START", "player")
-	SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_CHANNEL_STOP", "player")
-	SafeRegisterUnitEvent(watcher, "UNIT_HEALTH", "player")
-	SafeRegisterUnitEvent(watcher, "UNIT_MAXHEALTH", "player")
-	watcher:SetScript("OnEvent", function(_, event, name)
-		if event == "CVAR_UPDATE" and name ~= "cooldownViewerEnabled" then return end
-		if addon.variables then addon.variables.cooldownViewerRetryCount = nil end
-		if addon.functions.ApplyCooldownViewerVisibility then addon.functions.ApplyCooldownViewerVisibility() end
-	end)
-	addon.variables.cooldownViewerWatcher = watcher
+	setCooldownViewerWatcherEnabled(watcher, true)
+	return true
 end
 addon.functions.EnsureCooldownViewerWatcher = EnsureCooldownViewerWatcher
 
@@ -2027,6 +2030,15 @@ local function IsActionBarMouseoverEnabled(variable)
 	return cfg and cfg.MOUSEOVER == true
 end
 
+local function HasActionBarVisibilityConfig()
+	local list = addon.variables and addon.variables.actionBarNames
+	if not list then return false end
+	for _, info in ipairs(list) do
+		if info.var and GetActionBarVisibilityConfig(info.var) then return true end
+	end
+	return false
+end
+
 local function GetActionBarFadeStrength()
 	if not addon.db then return 1 end
 	local strength = tonumber(addon.db.actionBarFadeStrength)
@@ -2291,6 +2303,7 @@ local function UpdateActionBarMouseover(barName, config, variable)
 	if cfg.MOUSEOVER then C_Timer.After(0, EQOL_HookSpellFlyout) end
 
 	ApplyActionBarAlpha(bar, variable, cfg)
+	if EnsureActionBarVisibilityWatcher then EnsureActionBarVisibilityWatcher() end
 end
 addon.functions.UpdateActionBarMouseover = UpdateActionBarMouseover
 
@@ -2413,6 +2426,12 @@ local function RefreshAllActionBarVisibilityAlpha(skipFade, event)
 	end
 	addon.variables = addon.variables or {}
 	local vars = addon.variables
+	if EnsureActionBarVisibilityWatcher and not EnsureActionBarVisibilityWatcher() then
+		vars._eqolActionBarRefreshSkipFade = nil
+		vars._eqolActionBarRefreshEvent = nil
+		vars._eqolActionBarRefreshPending = nil
+		return
+	end
 	if skipFade then vars._eqolActionBarRefreshSkipFade = true end
 	if event then vars._eqolActionBarRefreshEvent = event end
 	if vars._eqolActionBarRefreshPending then return end
@@ -2480,43 +2499,85 @@ EnsureSkyridingStateDriver = function()
 	addon.variables.skyridingDriver = driver
 end
 
+local ACTIONBAR_VISIBILITY_EVENTS = {
+	"PLAYER_REGEN_DISABLED",
+	"PLAYER_REGEN_ENABLED",
+	"PLAYER_ENTERING_WORLD",
+	"PLAYER_MOUNT_DISPLAY_CHANGED",
+	"UPDATE_SHAPESHIFT_FORM",
+	"GROUP_ROSTER_UPDATE",
+	"ACTIONBAR_SHOWGRID",
+	"ACTIONBAR_HIDEGRID",
+}
+
+local function setActionBarVisibilityWatcherEnabled(watcher, enabled)
+	if not watcher then return end
+	if enabled then
+		if watcher._eqolEventsRegistered then return end
+		for _, event in ipairs(ACTIONBAR_VISIBILITY_EVENTS) do
+			watcher:RegisterEvent(event)
+		end
+		SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_START", "player")
+		SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_STOP", "player")
+		SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_FAILED", "player")
+		SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_INTERRUPTED", "player")
+		SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_CHANNEL_START", "player")
+		SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_CHANNEL_STOP", "player")
+		SafeRegisterUnitEvent(watcher, "UNIT_HEALTH", "player")
+		SafeRegisterUnitEvent(watcher, "UNIT_MAXHEALTH", "player")
+		watcher._eqolEventsRegistered = true
+	else
+		if not watcher._eqolEventsRegistered then return end
+		watcher:UnregisterAllEvents()
+		watcher._eqolEventsRegistered = false
+	end
+end
+
 local function EnsureActionBarVisibilityWatcher()
 	addon.variables = addon.variables or {}
-	if addon.variables.actionBarVisibilityWatcher then return end
+	local enable = HasActionBarVisibilityConfig()
+	local watcher = addon.variables.actionBarVisibilityWatcher
+	if not watcher then
+		if not enable then
+			addon.variables.actionBarShowGrid = nil
+			addon.variables._eqolActionBarGroupHoverActive = nil
+			addon.variables._eqolActionBarHoverFrames = nil
+			addon.variables._eqolActionBarHoverUpdatePending = nil
+			return false
+		end
+		EnsureSkyridingStateDriver()
+		watcher = CreateFrame("Frame")
+		watcher:SetScript("OnEvent", function(_, event)
+			if event == "ACTIONBAR_SHOWGRID" then
+				addon.variables = addon.variables or {}
+				addon.variables.actionBarShowGrid = true
+				RefreshAllActionBarVisibilityAlpha(true, event)
+				return
+			end
+			if event == "ACTIONBAR_HIDEGRID" then
+				if addon.variables then addon.variables.actionBarShowGrid = nil end
+				RefreshAllActionBarVisibilityAlpha(true, event)
+				return
+			end
+			RefreshAllActionBarVisibilityAlpha(nil, event)
+		end)
+		addon.variables.actionBarVisibilityWatcher = watcher
+	end
+
+	if not enable then
+		setActionBarVisibilityWatcherEnabled(watcher, false)
+		addon.variables.actionBarShowGrid = nil
+		addon.variables._eqolActionBarGroupHoverActive = nil
+		addon.variables._eqolActionBarHoverFrames = nil
+		addon.variables._eqolActionBarHoverUpdatePending = nil
+		return false
+	end
+
 	EnsureSkyridingStateDriver()
-	local watcher = CreateFrame("Frame")
-	watcher:RegisterEvent("PLAYER_REGEN_DISABLED")
-	watcher:RegisterEvent("PLAYER_REGEN_ENABLED")
-	watcher:RegisterEvent("PLAYER_ENTERING_WORLD")
-	watcher:RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED")
-	watcher:RegisterEvent("UPDATE_SHAPESHIFT_FORM")
-	watcher:RegisterEvent("GROUP_ROSTER_UPDATE")
-	watcher:RegisterEvent("ACTIONBAR_SHOWGRID")
-	watcher:RegisterEvent("ACTIONBAR_HIDEGRID")
-	SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_START", "player")
-	SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_STOP", "player")
-	SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_FAILED", "player")
-	SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_INTERRUPTED", "player")
-	SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_CHANNEL_START", "player")
-	SafeRegisterUnitEvent(watcher, "UNIT_SPELLCAST_CHANNEL_STOP", "player")
-	SafeRegisterUnitEvent(watcher, "UNIT_HEALTH", "player")
-	SafeRegisterUnitEvent(watcher, "UNIT_MAXHEALTH", "player")
-	watcher:SetScript("OnEvent", function(_, event)
-		if event == "ACTIONBAR_SHOWGRID" then
-			addon.variables = addon.variables or {}
-			addon.variables.actionBarShowGrid = true
-			RefreshAllActionBarVisibilityAlpha(true, event)
-			return
-		end
-		if event == "ACTIONBAR_HIDEGRID" then
-			if addon.variables then addon.variables.actionBarShowGrid = nil end
-			RefreshAllActionBarVisibilityAlpha(true, event)
-			return
-		end
-		RefreshAllActionBarVisibilityAlpha(nil, event)
-	end)
-	addon.variables.actionBarVisibilityWatcher = watcher
+	setActionBarVisibilityWatcherEnabled(watcher, true)
+	return true
 end
+addon.functions.UpdateActionBarVisibilityWatcher = EnsureActionBarVisibilityWatcher
 
 local DEFAULT_CHAT_BUBBLE_FONT_SIZE = 13
 local CHAT_BUBBLE_FONT_MIN = 1
@@ -3882,9 +3943,6 @@ local function initUI()
 	addon.functions.InitDBValue("dungeonJournalLootSpecIconPadding", 0)
 	addon.functions.InitDBValue("dungeonJournalLootSpecShowAll", false)
 
-	addon.functions.InitDBValue("optionsFrameScale", 1.0)
-	addon.functions.applyOptionsFrameScale(addon.db["optionsFrameScale"])
-
 	-- Mailbox address book
 	addon.functions.InitDBValue("enableMailboxAddressBook", false)
 	addon.functions.InitDBValue("mailboxContacts", {})
@@ -5010,14 +5068,6 @@ end
 
 local function initCharacter() addon.functions.initItemInventory() end
 
--- Frame-Position wiederherstellen
-local function RestorePosition(frame)
-	if addon.db.point and addon.db.x and addon.db.y then
-		frame:ClearAllPoints()
-		frame:SetPoint(addon.db.point, UIParent, addon.db.point, addon.db.x, addon.db.y)
-	end
-end
-
 local function OpenSettingsRoot()
 	if not (Settings and Settings.OpenToCategory) then return end
 	if not (addon.SettingsLayout and addon.SettingsLayout.rootCategory) then return end
@@ -5075,51 +5125,6 @@ function addon.functions.checkReloadFrame()
 end
 
 local function CreateUI()
-	-- Create the main frame
-	local frame = AceGUI:Create("Frame")
-	addon.aceFrame = frame.frame
-	addon.functions.applyOptionsFrameScale()
-	frame:SetTitle("EnhanceQoL")
-	frame:SetWidth(800)
-	frame:SetHeight(600)
-	frame:SetLayout("Fill")
-
-	-- Frame wiederherstellen und überprfen, wenn das Addon geladen wird
-	frame.frame:Hide()
-	frame.frame:SetScript("OnShow", function(self)
-		addon.functions.applyOptionsFrameScale()
-		RestorePosition(self)
-	end)
-	frame.frame:SetScript("OnHide", function(self)
-		local point, _, _, xOfs, yOfs = self:GetPoint()
-		addon.db.point = point
-		addon.db.x = xOfs
-		addon.db.y = yOfs
-		addon.functions.checkReloadFrame()
-	end)
-	addon.treeGroupData = {}
-
-	-- Create the TreeGroup with new top-level navigation
-	addon.treeGroup = AceGUI:Create("TreeGroup")
-	addon.treeGroup.enabletooltips = false
-
-	-- Top-level tree nodes are registered by modules (e.g., Aura).
-
-	addon.treeGroup:SetLayout("Fill")
-	addon.treeGroup:SetTree(addon.treeGroupData)
-	addon.treeGroup:SetCallback("OnGroupSelected", function(container, _, group)
-		container:ReleaseChildren() -- Entfernt vorherige Inhalte
-		-- Prüfen, welche Gruppe ausgewählt wurde
-		if addon.functions.ShowOptionsPage and addon.functions.ShowOptionsPage(container, group) then return end
-
-		if type(group) ~= "string" then return end
-		if group == "bufftracker" or group == "cooldownpanels" or group == "combat" or group:sub(1, #"combat\001") == "combat\001" or group:sub(1, #"aura\001") == "aura\001" then
-			if addon.Aura and addon.Aura.functions and addon.Aura.functions.treeCallback then addon.Aura.functions.treeCallback(container, group) end
-		end
-	end)
-	addon.treeGroup:SetStatusTable(addon.variables.statusTable)
-	frame:AddChild(addon.treeGroup)
-
 	local function QuickMenuGenerator(_, root)
 		local first = true
 		local function DoDevider()
@@ -5153,15 +5158,6 @@ local function CreateUI()
 		end)
 		root:CreateButton(L["VisibilityEditor"] or "Visibility Configurator", function()
 			if addon.Visibility and addon.Visibility.OpenEditor then addon.Visibility:OpenEditor() end
-		end)
-
-		DoDevider()
-		root:CreateButton(LFG_LIST_LEGACY .. " " .. SETTINGS, function()
-			if frame:IsShown() then
-				frame:Hide()
-			else
-				frame:Show()
-			end
 		end)
 	end
 
@@ -5358,6 +5354,7 @@ local function setAllHooks()
 	end
 
 	local function SortApplicants(applicants)
+		if addon.functions.isRestrictedContent() then return end
 		if addon.db.lfgSortByRio then
 			local function SortApplicantsCB(applicantID1, applicantID2)
 				local applicantInfo1 = C_LFGList.GetApplicantInfo(applicantID1)
@@ -5454,7 +5451,6 @@ local function setAllHooks()
 				lsmSoundDirty = true
 				C_Timer.After(1, function()
 					lsmSoundDirty = false
-					if addon.Aura and addon.Aura.functions and addon.Aura.functions.BuildSoundTable then addon.Aura.functions.BuildSoundTable() end
 					if addon.ChatIM and addon.ChatIM.BuildSoundTable then addon.ChatIM:BuildSoundTable() end
 				end)
 			end
@@ -5472,8 +5468,6 @@ local function setAllHooks()
 	-- Init modules
 	if addon.Aura and addon.Aura.functions then
 		if addon.Aura.functions.InitDB then addon.Aura.functions.InitDB() end
-		if addon.Aura.functions.init then addon.Aura.functions.init() end
-		if addon.Aura.functions.InitBuffTracker then addon.Aura.functions.InitBuffTracker() end
 		if addon.Aura.functions.InitCooldownPanels then addon.Aura.functions.InitCooldownPanels() end
 		if addon.Aura.functions.InitResourceBars then addon.Aura.functions.InitResourceBars() end
 		if addon.Aura.functions.InitUnitFrames then addon.Aura.functions.InitUnitFrames() end
@@ -5491,6 +5485,9 @@ local function setAllHooks()
 		if addon.Mover.functions.InitDB then addon.Mover.functions.InitDB() end
 		if addon.Mover.functions.InitRegistry then addon.Mover.functions.InitRegistry() end
 		if addon.Mover.functions.InitSettings then addon.Mover.functions.InitSettings() end
+	end
+	if addon.Skinner and addon.Skinner.functions then
+		if addon.Skinner.functions.InitDB then addon.Skinner.functions.InitDB() end
 	end
 	if addon.MythicPlus and addon.MythicPlus.functions then
 		if addon.MythicPlus.functions.InitDB then addon.MythicPlus.functions.InitDB() end
@@ -5529,15 +5526,7 @@ function loadMain()
 	-- Slash-Command hinzufügen
 	SLASH_ENHANCEQOL1 = "/eqol"
 	SlashCmdList["ENHANCEQOL"] = function(msg)
-		if msg == "resetframe" then
-			-- Frame zurücksetzen
-			addon.aceFrame:ClearAllPoints()
-			addon.aceFrame:SetPoint("CENTER", UIParent, "CENTER")
-			addon.db.point = "CENTER"
-			addon.db.x = 0
-			addon.db.y = 0
-			print(addonName .. " frame has been reset to the center.")
-		elseif msg:match("^aag%s*(%d+)$") then
+		if msg:match("^aag%s*(%d+)$") then
 			local id = tonumber(msg:match("^aag%s*(%d+)$")) -- Extrahiere die ID
 			if id then
 				addon.db["autogossipID"][id] = true
@@ -5569,39 +5558,10 @@ function loadMain()
 			end
 		elseif msg == "rq" then
 			if addon.Query and addon.Query.frame then addon.Query.frame:Show() end
-		elseif msg == "combat" or msg == "legacy" then
-			if addon.aceFrame:IsShown() then
-				addon.aceFrame:Hide()
-			else
-				addon.aceFrame:Show()
-			end
 		else
 			OpenSettingsRoot()
 		end
 	end
-
-	-- Frame für die Optionen
-	local configFrame = CreateFrame("Frame", addonName .. "ConfigFrame", InterfaceOptionsFramePanelContainer)
-	configFrame.name = addonName
-
-	-- Button fr die Optionen
-	local configButton = CreateFrame("Button", nil, configFrame, "UIPanelButtonTemplate")
-	configButton:SetSize(140, 40)
-	configButton:SetPoint("TOPLEFT", 10, -10)
-	configButton:SetText("Config")
-	configButton:SetScript("OnClick", function()
-		if addon.aceFrame:IsShown() then
-			addon.aceFrame:Hide()
-		else
-			addon.aceFrame:Show()
-		end
-	end)
-
-	-- Frame zu den Interface-Optionen hinzufügen
-	-- InterfaceOptions_AddCategory(configFrame)
-	-- local category, layout = Settings.RegisterCanvasLayoutCategory(configFrame, configFrame.name)
-	-- Settings.RegisterAddOnCategory(category)
-	-- addon.settingsCategory = category
 end
 
 -- Erstelle ein Frame f��r Events
@@ -5750,7 +5710,9 @@ local eventHandlers = {
 	end,
 	["GOSSIP_SHOW"] = function()
 		if shouldAutoChooseQuest() then
-			if nil ~= UnitGUID("npc") and nil ~= addon.db["ignoredQuestNPC"][addon.functions.getIDFromGUID(UnitGUID("npc"))] then return end
+			local ignored = addon.db and addon.db["ignoredQuestNPC"]
+			local npcId = addon.functions.getIDFromGUID(UnitGUID("npc"))
+			if npcId and ignored and ignored[npcId] then return end
 
 			local options = C_GossipInfo.GetOptions()
 
@@ -6010,7 +5972,9 @@ local eventHandlers = {
 	end,
 	["QUEST_DATA_LOAD_RESULT"] = function(arg1)
 		if arg1 and addon.variables.acceptQuestID[arg1] and addon.db["autoChooseQuest"] then
-			if nil ~= UnitGUID("npc") and nil ~= addon.db["ignoredQuestNPC"][addon.functions.getIDFromGUID(UnitGUID("npc"))] then return end
+			local ignored = addon.db and addon.db["ignoredQuestNPC"]
+			local npcId = addon.functions.getIDFromGUID(UnitGUID("npc"))
+			if npcId and ignored and ignored[npcId] then return end
 			if addon.db["ignoreDailyQuests"] and addon.functions.IsQuestRepeatableType(arg1) then return end
 			if addon.db["ignoreTrivialQuests"] and C_QuestLog.IsQuestTrivial(arg1) then return end
 			if addon.db["ignoreWarbandCompleted"] and C_QuestLog.IsQuestFlaggedCompletedOnAccount(arg1) then return end
@@ -6021,7 +5985,9 @@ local eventHandlers = {
 	end,
 	["QUEST_DETAIL"] = function()
 		if shouldAutoChooseQuest() then
-			if nil ~= UnitGUID("npc") and nil ~= addon.db["ignoredQuestNPC"][addon.functions.getIDFromGUID(UnitGUID("npc"))] then return end
+			local ignored = addon.db and addon.db["ignoredQuestNPC"]
+			local npcId = addon.functions.getIDFromGUID(UnitGUID("npc"))
+			if npcId and ignored and ignored[npcId] then return end
 
 			local id = GetQuestID()
 			addon.variables.acceptQuestID[id] = true
@@ -6030,7 +5996,9 @@ local eventHandlers = {
 	end,
 	["QUEST_GREETING"] = function()
 		if shouldAutoChooseQuest() then
-			if nil ~= UnitGUID("npc") and nil ~= addon.db["ignoredQuestNPC"][addon.functions.getIDFromGUID(UnitGUID("npc"))] then return end
+			local ignored = addon.db and addon.db["ignoredQuestNPC"]
+			local npcId = addon.functions.getIDFromGUID(UnitGUID("npc"))
+			if npcId and ignored and ignored[npcId] then return end
 			for i = 1, GetNumAvailableQuests() do
 				if addon.db["ignoreTrivialQuests"] and IsAvailableQuestTrivial(i) then
 				else

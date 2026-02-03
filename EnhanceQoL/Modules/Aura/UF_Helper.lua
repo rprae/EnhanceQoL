@@ -18,6 +18,14 @@ local LSM = LibStub("LibSharedMedia-3.0")
 local CASTING_BAR_TYPES = _G.CASTING_BAR_TYPES
 local EnumPowerType = Enum and Enum.PowerType
 local BLIZZARD_TEX = "Interface\\TargetingFrame\\UI-StatusBar"
+local DEFAULT_AURA_BORDER_TEX = "Interface\\Buttons\\UI-Debuff-Overlays"
+local DEFAULT_AURA_BORDER_COORDS = { 0.296875, 0.5703125, 0, 0.515625 }
+local CombatFeedback_Initialize = _G.CombatFeedback_Initialize
+local CombatFeedback_OnCombatEvent = _G.CombatFeedback_OnCombatEvent
+local CombatFeedback_OnUpdate = _G.CombatFeedback_OnUpdate
+local NewTicker = C_Timer and C_Timer.NewTicker
+local GetTime = _G.GetTime
+local COMBAT_FEEDBACK_THROTTLE = 0.1
 local abs = math.abs
 local floor = math.floor
 local UnitThreatSituation = UnitThreatSituation
@@ -44,6 +52,41 @@ local npcColorDefaults = {
 
 local nameWidthCache = {}
 local DROP_SHADOW_FLAG = "DROPSHADOW"
+
+local function utf8Iter(str) return (str or ""):gmatch("[%z\1-\127\194-\244][\128-\191]*") end
+
+local function utf8Len(str)
+	local len = 0
+	for _ in utf8Iter(str) do
+		len = len + 1
+	end
+	return len
+end
+
+local function utf8Sub(str, i, j)
+	str = str or ""
+	if str == "" then return "" end
+	i = i or 1
+	j = j or -1
+	if i < 1 then i = 1 end
+	local len = utf8Len(str)
+	if j < 0 then j = len + j + 1 end
+	if j > len then j = len end
+	if i > j then return "" end
+	local pos = 1
+	local startByte, endByte
+	local idx = 0
+	for char in utf8Iter(str) do
+		idx = idx + 1
+		if idx == i then startByte = pos end
+		if idx == j then
+			endByte = pos + #char - 1
+			break
+		end
+		pos = pos + #char
+	end
+	return str:sub(startByte or 1, endByte or #str)
+end
 
 local function normalizeFontOutline(outline)
 	if outline == nil then return "OUTLINE" end
@@ -133,6 +176,47 @@ function H.resolveBorderTexture(key)
 		if tex and tex ~= "" then return tex end
 	end
 	return key
+end
+
+function H.resolveAuraBorderTexture(key)
+	if not key or key == "" or key == "DEFAULT" then return DEFAULT_AURA_BORDER_TEX, DEFAULT_AURA_BORDER_COORDS, false end
+	if LSM then
+		local tex = LSM:Fetch("border", key)
+		if tex and tex ~= "" then return tex, nil, true end
+	end
+	return key, nil, false
+end
+
+function H.ensureAuraBorderFrame(btn)
+	if not btn then return nil end
+	local border = btn._eqolAuraBorder
+	if not border then
+		border = CreateFrame("Frame", nil, btn.overlay or btn, "BackdropTemplate")
+		border:EnableMouse(false)
+		btn._eqolAuraBorder = border
+	end
+	local parent = btn.overlay or btn
+	border:SetParent(parent)
+	border:SetFrameStrata(parent:GetFrameStrata() or btn:GetFrameStrata())
+	local baseLevel = parent:GetFrameLevel() or btn:GetFrameLevel() or 0
+	border:SetFrameLevel(baseLevel + 1)
+	border:ClearAllPoints()
+	border:SetPoint("TOPLEFT", btn, "TOPLEFT", 0, 0)
+	border:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", 0, 0)
+	return border
+end
+
+function H.hideAuraBorderFrame(btn)
+	local border = btn and btn._eqolAuraBorder
+	if border then border:Hide() end
+end
+
+function H.calcAuraBorderSize(btn, ac)
+	local baseSize = (btn and btn.GetWidth and btn:GetWidth()) or (ac and ac.size) or 24
+	local size = floor((baseSize or 24) * 0.08 + 0.5)
+	if size < 1 then size = 1 end
+	if size > 6 then size = 6 end
+	return size
 end
 
 local function ensureHighlightFrame(frame)
@@ -1233,6 +1317,37 @@ function H.applyNameCharLimit(st, scfg, defStatus)
 	if width and width > 0 then st.nameText:SetWidth(width) end
 end
 
+function H.truncateTextToWidth(fontPath, fontSize, fontOutline, text, maxWidth)
+	if not text or text == "" or maxWidth <= 0 then return text or "" end
+	if not nameWidthCache._measure and UIParent and UIParent.CreateFontString then
+		nameWidthCache._measure = UIParent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+		if nameWidthCache._measure then nameWidthCache._measure:Hide() end
+	end
+	local measure = nameWidthCache._measure
+	if not measure then return text end
+	local size = fontSize or 14
+	local outline = fontOutline or "OUTLINE"
+	local ok = measure.SetFont and measure:SetFont(H.getFont(fontPath), size, outline)
+	if ok == false then measure:SetFont(H.getFont(nil), size, outline) end
+	measure:SetText(text)
+	if measure:GetStringWidth() <= maxWidth then return text end
+	local length = utf8Len(text)
+	local low, high = 1, length
+	local best = ""
+	while low <= high do
+		local mid = math.floor((low + high) / 2)
+		local candidate = utf8Sub(text, 1, mid)
+		measure:SetText(candidate)
+		if measure:GetStringWidth() <= maxWidth then
+			best = candidate
+			low = mid + 1
+		else
+			high = mid - 1
+		end
+	end
+	return best
+end
+
 function H.getTextDelimiter(cfg, def)
 	local defaultDelim = (def and def.textDelimiter) or " "
 	local delimiter = cfg and cfg.textDelimiter
@@ -1417,6 +1532,212 @@ function H.updateClassificationIndicator(st, unit, cfg, def, skipDisabled)
 	end
 end
 
+local function getCombatFeedbackConfig(cfg, def)
+	local c = (cfg and cfg.combatFeedback) or {}
+	local d = (def and def.combatFeedback) or {}
+	return c, d
+end
+
+local function resolveCombatFeedbackParent(st, location)
+	if not st then return nil end
+	if location == "HEALTH" then return st.health or st.barGroup or st.frame end
+	if location == "POWER" then return st.power or st.barGroup or st.frame end
+	if location == "STATUS" then return st.status or st.frame end
+	return st.frame
+end
+
+local function combatFeedbackHasEvents(events)
+	if type(events) ~= "table" then return true end
+	for _, enabled in pairs(events) do
+		if enabled then return true end
+	end
+	return false
+end
+
+local function combatFeedbackJustify(anchor)
+	if type(anchor) ~= "string" then return "CENTER" end
+	local upper = anchor:upper()
+	if upper:find("LEFT", 1, true) then return "LEFT" end
+	if upper:find("RIGHT", 1, true) then return "RIGHT" end
+	return "CENTER"
+end
+
+function H.combatFeedbackIsEnabled(cfg, def)
+	if cfg and cfg.enabled == false then return false end
+	if not CombatFeedback_OnCombatEvent then return false end
+	local c, d = getCombatFeedbackConfig(cfg, def)
+	local enabled = c.enabled
+	if enabled == nil then enabled = d.enabled end
+	if enabled ~= true then return false end
+	local events = c.events
+	if events == nil then events = d.events end
+	return combatFeedbackHasEvents(events)
+end
+
+function H.combatFeedbackShouldShowEvent(cfg, def, event)
+	if not event then return false end
+	local c, d = getCombatFeedbackConfig(cfg, def)
+	local events = c.events
+	if events == nil then events = d.events end
+	if type(events) ~= "table" then return true end
+	local val = events[event]
+	if val == nil and type(d.events) == "table" then val = d.events[event] end
+	if val == nil then return true end
+	return val == true
+end
+
+local function getCombatFeedbackSampleConfig(cfg, def)
+	local c, d = getCombatFeedbackConfig(cfg, def)
+	local sampleEnabled = c.sample
+	if sampleEnabled == nil then sampleEnabled = d.sample end
+	sampleEnabled = sampleEnabled == true
+	local sampleEvent = c.sampleEvent or d.sampleEvent or "WOUND"
+	local sampleAmount = tonumber(c.sampleAmount or d.sampleAmount) or 12345
+	if sampleAmount < 0 then sampleAmount = 0 end
+	if sampleAmount == 0 then sampleAmount = 1 end
+	return sampleEnabled, sampleEvent, sampleAmount
+end
+
+function H.ensureCombatFeedbackElements(st)
+	if not st or not st.frame then return nil end
+	if not st.combatFeedback then st.combatFeedback = CreateFrame("Frame", nil, st.frame) end
+	if not st.combatFeedbackText then
+		local parent = st.statusTextLayer or st.status or st.frame
+		st.combatFeedbackText = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+		st.combatFeedbackText:Hide()
+	end
+	st.combatFeedback.feedbackText = st.combatFeedbackText
+	return st.combatFeedback, st.combatFeedbackText
+end
+
+local function stopCombatFeedbackSample(st)
+	if not st then return end
+	local ticker = st._combatFeedbackSampleTicker
+	if ticker and ticker.Cancel then ticker:Cancel() end
+	st._combatFeedbackSampleTicker = nil
+end
+
+function H.applyCombatFeedbackStyle(st, cfg, def)
+	if not st then return end
+	local c, d = getCombatFeedbackConfig(cfg, def)
+	local font = c.font or d.font
+	local fontSize = tonumber(c.fontSize or d.fontSize) or 30
+	if fontSize <= 0 then fontSize = 30 end
+	local anchor = c.anchor or d.anchor or "CENTER"
+	local location = c.location or d.location or "STATUS"
+	local off = c.offset or d.offset or {}
+	local ox = off.x or 0
+	local oy = off.y or 0
+	local key = tostring(font) .. "|" .. tostring(fontSize) .. "|" .. tostring(anchor) .. "|" .. tostring(location) .. "|" .. tostring(ox) .. "|" .. tostring(oy)
+	if st._combatFeedbackStyleKey == key then return end
+	st._combatFeedbackStyleKey = key
+
+	local frame, text = H.ensureCombatFeedbackElements(st)
+	if not frame or not text then return end
+	H.applyFont(text, font, fontSize, nil)
+	text:ClearAllPoints()
+	local parent = resolveCombatFeedbackParent(st, location) or st.frame
+	text:SetPoint(anchor, parent, anchor, ox, oy)
+	if text.SetJustifyH then text:SetJustifyH(combatFeedbackJustify(anchor)) end
+	if text.SetWordWrap then text:SetWordWrap(false) end
+	if text.SetMaxLines then text:SetMaxLines(1) end
+
+	if CombatFeedback_Initialize then
+		CombatFeedback_Initialize(frame, text, fontSize)
+	else
+		frame.feedbackText = text
+		frame.feedbackFontHeight = fontSize
+	end
+end
+
+function H.showCombatFeedbackSample(st, cfg, def)
+	if not st or not CombatFeedback_OnCombatEvent then return end
+	local enabled, sampleEvent, sampleAmount = getCombatFeedbackSampleConfig(cfg, def)
+	if not enabled then return end
+	local frame, text = H.ensureCombatFeedbackElements(st)
+	if not frame or not text then return end
+	H.applyCombatFeedbackStyle(st, cfg, def)
+	if CombatFeedback_OnUpdate and frame.GetScript and frame:GetScript("OnUpdate") == nil then frame:SetScript("OnUpdate", CombatFeedback_OnUpdate) end
+	CombatFeedback_OnCombatEvent(frame, sampleEvent, "", sampleAmount, 1)
+end
+
+function H.handleCombatFeedbackEvent(st, cfg, def, event, flags, amount, schoolMask)
+	if not st or not CombatFeedback_OnCombatEvent then return end
+	if not H.combatFeedbackIsEnabled(cfg, def) then return end
+	if not H.combatFeedbackShouldShowEvent(cfg, def, event) then return end
+	if issecretvalue and (issecretvalue(event) or issecretvalue(flags) or issecretvalue(amount) or issecretvalue(schoolMask)) then return end
+	if GetTime then
+		local now = GetTime()
+		local last = st._combatFeedbackLastAt
+		if last and (now - last) < COMBAT_FEEDBACK_THROTTLE then return end
+		st._combatFeedbackLastAt = now
+	end
+	local frame, text = H.ensureCombatFeedbackElements(st)
+	if not frame or not text then return end
+	H.applyCombatFeedbackStyle(st, cfg, def)
+	if CombatFeedback_OnUpdate and frame.GetScript and frame:GetScript("OnUpdate") == nil then frame:SetScript("OnUpdate", CombatFeedback_OnUpdate) end
+	CombatFeedback_OnCombatEvent(frame, event, flags, amount, schoolMask)
+end
+
+function H.updateCombatFeedback(st, unit, cfg, def)
+	if not st then return end
+	st._combatFeedbackDef = def
+	if not H.combatFeedbackIsEnabled(cfg, def) then
+		if st._combatFeedbackEventFrame and st._combatFeedbackEventFrame.UnregisterEvent then st._combatFeedbackEventFrame:UnregisterEvent("UNIT_COMBAT") end
+		if st.combatFeedback and st.combatFeedback.SetScript then st.combatFeedback:SetScript("OnUpdate", nil) end
+		if st.combatFeedback then st.combatFeedback:Hide() end
+		if st.combatFeedbackText then st.combatFeedbackText:Hide() end
+		stopCombatFeedbackSample(st)
+		return
+	end
+	if not unit then return end
+	H.applyCombatFeedbackStyle(st, cfg, def)
+	local frame = st.combatFeedback
+	if frame then frame:Show() end
+	if frame and CombatFeedback_OnUpdate and frame.GetScript and frame:GetScript("OnUpdate") == nil then frame:SetScript("OnUpdate", CombatFeedback_OnUpdate) end
+	local evt = st._combatFeedbackEventFrame
+	if not evt then
+		evt = CreateFrame("Frame")
+		st._combatFeedbackEventFrame = evt
+		evt:SetScript("OnEvent", function(_, _, unitTarget, eventName, flagText, amount, schoolMask)
+			if unitTarget ~= unit then return end
+			local activeCfg = st.cfg or cfg
+			local activeDef = st._combatFeedbackDef or def
+			H.handleCombatFeedbackEvent(st, activeCfg, activeDef, eventName, flagText, amount, schoolMask)
+		end)
+	end
+	if evt.UnregisterEvent then evt:UnregisterEvent("UNIT_COMBAT") end
+	if evt.RegisterUnitEvent then
+		evt:RegisterUnitEvent("UNIT_COMBAT", unit)
+	elseif evt.RegisterEvent then
+		evt:RegisterEvent("UNIT_COMBAT")
+	end
+
+	stopCombatFeedbackSample(st)
+	local sampleEnabled = getCombatFeedbackSampleConfig(cfg, def)
+	if sampleEnabled then
+		H.showCombatFeedbackSample(st, cfg, def)
+		if NewTicker then
+			st._combatFeedbackSampleTicker = NewTicker(1.2, function()
+				local activeCfg = st.cfg or cfg
+				local activeDef = st._combatFeedbackDef or def
+				H.showCombatFeedbackSample(st, activeCfg, activeDef)
+			end)
+		end
+	end
+end
+
+function H.disableCombatFeedbackAll(states)
+	if type(states) ~= "table" then return end
+	for _, st in pairs(states) do
+		if st and st._combatFeedbackEventFrame and st._combatFeedbackEventFrame.UnregisterEvent then st._combatFeedbackEventFrame:UnregisterEvent("UNIT_COMBAT") end
+		if st and st.combatFeedback and st.combatFeedback.SetScript then st.combatFeedback:SetScript("OnUpdate", nil) end
+		if st and st.combatFeedback then st.combatFeedback:Hide() end
+		if st and st.combatFeedbackText then st.combatFeedbackText:Hide() end
+		stopCombatFeedbackSample(st)
+	end
+end
+
 function H.getPowerColor(pToken)
 	if not pToken then pToken = EnumPowerType.MANA end
 	local overrides = addon.db and addon.db.ufPowerColorOverrides
@@ -1472,4 +1793,150 @@ function H.getNPCColor(key)
 		if override[1] then return override[1], override[2], override[3], override[4] or 1 end
 	end
 	return H.getNPCColorDefault(key)
+end
+
+local EnableSpellRangeCheck = C_Spell and C_Spell.EnableSpellRangeCheck
+local GetSpellIDForSpellIdentifier = C_Spell and C_Spell.GetSpellIDForSpellIdentifier
+local SpellBook = _G.C_SpellBook
+local SpellBookItemType = Enum and Enum.SpellBookItemType
+local SpellBookSpellBank = Enum and Enum.SpellBookSpellBank
+local wipeTable = wipe or (table and table.wipe)
+
+local rangeFadeHandlers = {}
+local rangeFadeState = {
+	activeSpells = {},
+	spellStates = {},
+	inRange = true,
+}
+local rangeFadeIgnoredSpells = {
+	[2096] = true, -- Mind Vision (unlimited range)
+}
+
+local function isRangeFadeIgnored(spellId, actionId)
+	local fn = rangeFadeHandlers.getConfig
+	if fn then
+		local _, _, ignoreUnlimited = fn()
+		if ignoreUnlimited == false then return false end
+	end
+	if spellId and rangeFadeIgnoredSpells[spellId] then return true end
+	if actionId and rangeFadeIgnoredSpells[actionId] then return true end
+	return false
+end
+
+local function clearTable(tbl)
+	if not tbl then return end
+	if wipeTable then
+		wipeTable(tbl)
+	else
+		for k in pairs(tbl) do
+			tbl[k] = nil
+		end
+	end
+end
+
+local function getRangeFadeConfig()
+	local fn = rangeFadeHandlers.getConfig
+	if not fn then return false, 1, true end
+	return fn()
+end
+
+local function applyRangeFadeAlpha(inRange, force)
+	local applyFn = rangeFadeHandlers.applyAlpha
+	if not applyFn then return end
+	local enabled, alpha = getRangeFadeConfig()
+	local targetAlpha = (enabled and not inRange) and alpha or 1
+	applyFn(targetAlpha, force)
+end
+
+local function recomputeRangeFade()
+	local anyChecked = false
+	local anyInRange = false
+	for _, inRange in pairs(rangeFadeState.spellStates) do
+		anyChecked = true
+		if inRange == true then
+			anyInRange = true
+			break
+		end
+	end
+	rangeFadeState.inRange = (not anyChecked) or anyInRange
+	applyRangeFadeAlpha(rangeFadeState.inRange)
+end
+
+local function buildRangeFadeSpellList()
+	local list = {}
+	if not (EnableSpellRangeCheck and SpellBook and SpellBook.GetNumSpellBookSkillLines and SpellBook.GetSpellBookSkillLineInfo and SpellBook.GetSpellBookItemInfo) then return list end
+	local bank = SpellBookSpellBank and SpellBookSpellBank.Player or 0
+	local spellType = (SpellBookItemType and SpellBookItemType.Spell) or 1
+	local numLines = SpellBook.GetNumSpellBookSkillLines() or 0
+	for line = 1, numLines do
+		local lineInfo = SpellBook.GetSpellBookSkillLineInfo(line)
+		local offset = lineInfo and lineInfo.itemIndexOffset or 0
+		local count = lineInfo and lineInfo.numSpellBookItems or 0
+		for slot = offset + 1, offset + count do
+			local info = SpellBook.GetSpellBookItemInfo(slot, bank)
+			if info and info.itemType == spellType and info.isPassive ~= true then
+				if not isRangeFadeIgnored(info.spellID, info.actionID) then
+					local spellId = info.spellID or info.actionID
+					if spellId then list[spellId] = true end
+				end
+			end
+		end
+	end
+	return list
+end
+
+function H.RangeFadeRegister(getConfigFn, applyAlphaFn)
+	rangeFadeHandlers.getConfig = getConfigFn
+	rangeFadeHandlers.applyAlpha = applyAlphaFn
+end
+
+function H.RangeFadeReset()
+	clearTable(rangeFadeState.spellStates)
+	rangeFadeState.inRange = true
+	applyRangeFadeAlpha(true, true)
+end
+
+function H.RangeFadeApplyCurrent(force) applyRangeFadeAlpha(rangeFadeState.inRange, force) end
+
+function H.RangeFadeUpdateFromEvent(spellIdentifier, isInRange, checksRange)
+	local enabled = getRangeFadeConfig()
+	if not enabled then return end
+	local id = tonumber(spellIdentifier)
+	if not id and GetSpellIDForSpellIdentifier then id = GetSpellIDForSpellIdentifier(spellIdentifier) end
+	if isRangeFadeIgnored(id) then return end
+	if not id or not rangeFadeState.activeSpells[id] then return end
+	if checksRange then
+		rangeFadeState.spellStates[id] = (isInRange == true)
+	else
+		rangeFadeState.spellStates[id] = nil
+	end
+	recomputeRangeFade()
+end
+
+function H.RangeFadeUpdateSpells()
+	if not EnableSpellRangeCheck then return end
+	local enabled = getRangeFadeConfig()
+	if not enabled then
+		for spellId in pairs(rangeFadeState.activeSpells) do
+			EnableSpellRangeCheck(spellId, false)
+		end
+		clearTable(rangeFadeState.activeSpells)
+		H.RangeFadeReset()
+		return
+	end
+	local wanted = buildRangeFadeSpellList()
+	for spellId in pairs(rangeFadeState.activeSpells) do
+		if not wanted[spellId] then
+			EnableSpellRangeCheck(spellId, false)
+			rangeFadeState.activeSpells[spellId] = nil
+			rangeFadeState.spellStates[spellId] = nil
+		end
+	end
+	for spellId in pairs(wanted) do
+		if not rangeFadeState.activeSpells[spellId] then
+			EnableSpellRangeCheck(spellId, true)
+			rangeFadeState.activeSpells[spellId] = true
+		end
+	end
+	recomputeRangeFade()
 end
