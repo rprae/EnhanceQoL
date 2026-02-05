@@ -1012,7 +1012,30 @@ function f:UpdateCooldowns()
 end
 
 -- Events to build/refresh --------------------------------------------------
+local function setWorldMapTeleportEventsEnabled(enabled)
+	if not f then return end
+	if enabled then
+		if f._eqolEventsRegistered then return end
+		f:RegisterEvent("ADDON_LOADED")
+		f:RegisterEvent("PLAYER_REGEN_DISABLED")
+		f:RegisterEvent("PLAYER_REGEN_ENABLED")
+		f:RegisterEvent("SPELLS_CHANGED")
+		f:RegisterEvent("BAG_UPDATE_DELAYED")
+		f:RegisterEvent("TOYS_UPDATED")
+		f:RegisterEvent("SPELL_UPDATE_COOLDOWN")
+		f:RegisterEvent("BAG_UPDATE_COOLDOWN")
+		f._eqolEventsRegistered = true
+	else
+		if not f._eqolEventsRegistered then return end
+		f:UnregisterAllEvents()
+		f._eqolEventsRegistered = false
+	end
+end
+
 local function worldMapEventHandler(self, event, arg1)
+	if not addon.db or not addon.db["teleportsWorldMapEnabled"] then
+		return
+	end
 	if event == "PLAYER_REGEN_DISABLED" then
 		SetCombatScrolling(false)
 		SetButtonsInteractable(false)
@@ -1094,14 +1117,7 @@ function addon.MythicPlus.functions.InitWorldMapTeleportPanel()
 	addon.MythicPlus.variables.worldMapTeleportInitialized = true
 
 	f:SetScript("OnEvent", worldMapEventHandler)
-	f:RegisterEvent("ADDON_LOADED")
-	f:RegisterEvent("PLAYER_REGEN_DISABLED")
-	f:RegisterEvent("PLAYER_REGEN_ENABLED")
-	f:RegisterEvent("SPELLS_CHANGED")
-	f:RegisterEvent("BAG_UPDATE_DELAYED")
-	f:RegisterEvent("TOYS_UPDATED")
-	f:RegisterEvent("SPELL_UPDATE_COOLDOWN")
-	f:RegisterEvent("BAG_UPDATE_COOLDOWN")
+	setWorldMapTeleportEventsEnabled(addon.db["teleportsWorldMapEnabled"])
 
 	-- make sure we also initialize when the WorldMap opens
 	if WorldMapFrame and not WorldMapFrame._eqolTeleportHook then
@@ -1126,6 +1142,7 @@ end
 -- Export a small helper so options code can trigger a live refresh
 function addon.MythicPlus.functions.RefreshWorldMapTeleportPanel()
 	if not addon or not addon.db then return end
+	setWorldMapTeleportEventsEnabled(addon.db["teleportsWorldMapEnabled"])
 
 	-- Proactively load the World Map addon so our hooks exist
 	if not WorldMapFrame then pcall(UIParentLoadAddOn, "Blizzard_WorldMap") end

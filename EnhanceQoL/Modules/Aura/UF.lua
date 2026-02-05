@@ -1520,7 +1520,6 @@ function AuraUtil.ensureAuraButton(container, icons, index, ac)
 		btn.border = btn.overlay:CreateTexture(nil, "OVERLAY")
 		btn.border:SetAllPoints(btn)
 		btn.border:SetDrawLayer("OVERLAY", 1)
-		btn.border:SetTexCoord(0.296875, 0.5703125, 0, 0.515625) -- debuff overlay segment
 		btn.dispelIcon = btn.overlay:CreateTexture(nil, "OVERLAY")
 		btn.dispelIcon:SetTexture("Interface\\Icons\\Spell_Holy_DispelMagic")
 		btn.dispelIcon:SetTexCoord(0.07, 0.93, 0.07, 0.93)

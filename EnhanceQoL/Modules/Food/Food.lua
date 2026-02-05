@@ -21,6 +21,10 @@ end
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_DrinkMacro")
 local LSM = LibStub("LibSharedMedia-3.0")
 
+local function isDrinkMacroEnabled() return addon.db and addon.db.drinkMacroEnabled == true end
+
+local function shouldUpdateRecuperateForDrinks() return isDrinkMacroEnabled() and addon.db.allowRecuperate == true end
+
 local function createMacroIfMissing()
 	-- Respect enable toggle and guard against protected calls while in combat lockdown
 	if not addon.db.drinkMacroEnabled then return end
@@ -128,6 +132,18 @@ frameLoad:RegisterEvent("PLAYER_TALENT_UPDATE")
 -- Funktion zum Umgang mit Events
 local pendingUpdate = false
 local function eventHandler(self, event, arg1, arg2, arg3, arg4)
+	if event == "PLAYER_LOGIN" then
+		if shouldUpdateRecuperateForDrinks() and addon.Recuperate and addon.Recuperate.Update then addon.Recuperate.Update() end
+		if isDrinkMacroEnabled() then
+			-- on login always load the macro
+			addon.functions.updateAllowedDrinks()
+			addon.functions.updateAvailableDrinks(false)
+		end
+		return
+	end
+
+	if not isDrinkMacroEnabled() then return end
+
 	if event == "BAG_UPDATE_DELAYED" then
 		if not pendingUpdate then
 			pendingUpdate = true
@@ -136,11 +152,6 @@ local function eventHandler(self, event, arg1, arg2, arg3, arg4)
 				pendingUpdate = false
 			end)
 		end
-	elseif event == "PLAYER_LOGIN" then
-		if addon.Recuperate and addon.Recuperate.Update then addon.Recuperate.Update() end
-		-- on login always load the macro
-		addon.functions.updateAllowedDrinks()
-		addon.functions.updateAvailableDrinks(false)
 	elseif event == "PLAYER_REGEN_ENABLED" then
 		-- PLAYER_REGEN_ENABLED always load, because we don't know if something changed in Combat
 		addon.functions.updateAvailableDrinks(true)
@@ -149,7 +160,7 @@ local function eventHandler(self, event, arg1, arg2, arg3, arg4)
 		addon.functions.updateAllowedDrinks()
 		addon.functions.updateAvailableDrinks(true)
 	elseif event == "SPELLS_CHANGED" or event == "PLAYER_TALENT_UPDATE" then
-		if addon.Recuperate and addon.Recuperate.Update then addon.Recuperate.Update() end
+		if addon.db.allowRecuperate and addon.Recuperate and addon.Recuperate.Update then addon.Recuperate.Update() end
 		addon.functions.updateAvailableDrinks(false)
 	end
 end

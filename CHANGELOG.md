@@ -11,10 +11,20 @@
 - Cooldown Panels: Show on CD option for cooldown icons
 - Unit Frames: Combat feedback text with configurable font/anchor/events
 - Skinner: Character Frame flat skin (buttons, dropdowns, title pane hover/selection)
+- Data Panels: Background and border textures/colors are now configurable via SharedMedia.
+
+### 🔄 Changed
+
+- Data Panels: **Hide Border** now hides only the border. Migration sets background alpha to 0 if Hide Border was previously enabled, so you may need to re-adjust background alpha.
 
 ### ⚡ Performance
 
 - Unit Frames: Cache aura container height/visibility updates to reduce UI calls
+- Tooltips: Skip unit tooltip processing and health bar updates when all tooltip options are disabled
+- MythicPlus: World Map teleport panel events now register only when the feature is enabled
+- Food: Drink/health macro updates and Recuperate checks now run only when the macros are enabled
+- Unit Frames: Truncate-name hooks now register only when the feature is enabled
+- Action Bars: Visibility watcher now disables when no bar visibility rules are active
 
 ### ❌ Removed
 

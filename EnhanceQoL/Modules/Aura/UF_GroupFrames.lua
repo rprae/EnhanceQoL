@@ -15,6 +15,7 @@ local UF = addon.Aura.UF
 UF.GroupFrames = UF.GroupFrames or {}
 local GF = UF.GroupFrames
 local EMPTY = {}
+local getCfg
 
 local UFHelper = addon.Aura.UFHelper
 local AuraUtil = UF.AuraUtil
@@ -167,6 +168,7 @@ local function applyDispelTint(st, r, g, b, alpha, fr, fg, fb, bgAlpha)
 	if st.dispelTint.SetAlpha then st.dispelTint:SetAlpha(1) end
 	st.dispelTint:Show()
 end
+
 
 local function resolveBorderTexture(key)
 	if UFHelper and UFHelper.resolveBorderTexture then return UFHelper.resolveBorderTexture(key) end
@@ -937,6 +939,11 @@ local DEFAULTS = {
 		groupBy = "GROUP",
 		groupingOrder = GFH.GROUP_ORDER,
 		groupFilter = nil,
+		customSort = {
+			enabled = false,
+			roleOrder = GFH.ROLE_TOKENS or { "TANK", "HEALER", "DAMAGER" },
+			classOrder = GFH.CLASS_TOKENS,
+		},
 		sortMethod = "INDEX",
 		sortDir = "ASC",
 		unitsPerColumn = 5,
@@ -1269,7 +1276,7 @@ local function ensureDB()
 	return db
 end
 
-local function getCfg(kind)
+getCfg = function(kind)
 	local db = DB or ensureDB()
 	return db[kind] or DEFAULTS[kind]
 end
@@ -3168,8 +3175,16 @@ function GF:UpdateStatusText(self)
 	local connected = unit and UnitIsConnected and GFH.UnsecretBool(UnitIsConnected(unit)) or nil
 	local isAFK = unit and UnitIsAFK and GFH.UnsecretBool(UnitIsAFK(unit)) or nil
 	local isDND = unit and UnitIsDND and GFH.UnsecretBool(UnitIsDND(unit)) or nil
+	local isDead = unit and UnitIsDeadOrGhost and GFH.UnsecretBool(UnitIsDeadOrGhost(unit)) or nil
+	local isGhost = unit and UnitIsGhost and GFH.UnsecretBool(UnitIsGhost(unit)) or nil
 	if connected == false then
 		if showOffline then statusTag = PLAYER_OFFLINE or "Offline" end
+	elseif isDead == true then
+		if isGhost == true then
+			statusTag = GHOST or "Ghost"
+		else
+			statusTag = DEAD or "Dead"
+		end
 	elseif isAFK == true then
 		if showAFK then statusTag = DEFAULT_AFK_MESSAGE or "AFK" end
 	elseif isDND == true then
@@ -3573,7 +3588,15 @@ function GF:UpdateHealthValue(self, unit, st)
 	local us = scfg.unitStatus or {}
 	local hideTextOffline = us.hideHealthTextWhenOffline == true
 	local connected = unit and UnitIsConnected and GFH.UnsecretBool(UnitIsConnected(unit)) or nil
+	local isDead = unit and UnitIsDeadOrGhost and GFH.UnsecretBool(UnitIsDeadOrGhost(unit)) or nil
 	if hideTextOffline and connected == false then
+		if st.healthTextLeft then st.healthTextLeft:SetText("") end
+		if st.healthTextCenter then st.healthTextCenter:SetText("") end
+		if st.healthTextRight then st.healthTextRight:SetText("") end
+		st._lastHealthTextLeft, st._lastHealthTextCenter, st._lastHealthTextRight = nil, nil, nil
+		return
+	end
+	if isDead == true then
 		if st.healthTextLeft then st.healthTextLeft:SetText("") end
 		if st.healthTextCenter then st.healthTextCenter:SetText("") end
 		if st.healthTextRight then st.healthTextRight:SetText("") end
@@ -4077,6 +4100,7 @@ end
 local function dispatchUnitHealth(btn, unit)
 	local st = getState(btn)
 	GF:UpdateHealthValue(btn, unit, st)
+	GF:UpdateStatusText(btn, unit, st)
 end
 local function dispatchUnitAbsorb(btn, unit)
 	local st = getState(btn)
@@ -4181,6 +4205,17 @@ local function setPointFromCfg(frame, cfg)
 	frame:SetPoint(p, rel, rp, tonumber(cfg.x) or 0, tonumber(cfg.y) or 0)
 end
 
+local function nudgeHeaderLayout(header)
+	if not header or not header.SetAttribute then return end
+	if InCombatLockdown and InCombatLockdown() then
+		header._eqolPendingLayout = true
+		return
+	end
+	local nonce = (header:GetAttribute("eqolLayoutNonce") or 0) + 1
+	header:SetAttribute("eqolLayoutNonce", nonce)
+	header._eqolPendingLayout = nil
+end
+
 local function getGrowthStartPoint(growth)
 	local g = (growth or "DOWN"):upper()
 	if g == "LEFT" then return "TOPRIGHT" end
@@ -4234,17 +4269,17 @@ function GF:UpdateAnchorSize(kind)
 	local anchor = GF.anchors and GF.anchors[kind]
 	if not (cfg and anchor) then return end
 
-	local w = floor((tonumber(cfg.width) or 100) + 0.5)
-	local h = floor((tonumber(cfg.height) or 24) + 0.5)
-	local spacing = tonumber(cfg.spacing) or 0
-	local columnSpacing = tonumber(cfg.columnSpacing) or spacing
+	local w = floor(clampNumber(tonumber(cfg.width) or 100, 40, 600, 100) + 0.5)
+	local h = floor(clampNumber(tonumber(cfg.height) or 24, 10, 200, 24) + 0.5)
+	local spacing = clampNumber(tonumber(cfg.spacing) or 0, 0, 40, 0)
+	local columnSpacing = clampNumber(tonumber(cfg.columnSpacing) or spacing, 0, 40, spacing)
 	local growth = (cfg.growth or "DOWN"):upper()
 
 	local unitsPer = 5
 	local columns = 1
 	if kind == "raid" then
-		unitsPer = max(1, floor((tonumber(cfg.unitsPerColumn) or 5) + 0.5))
-		columns = max(1, floor((tonumber(cfg.maxColumns) or 8) + 0.5))
+		unitsPer = max(1, floor(clampNumber(tonumber(cfg.unitsPerColumn) or 5, 1, 10, 5) + 0.5))
+		columns = max(1, floor(clampNumber(tonumber(cfg.maxColumns) or 8, 1, 10, 8) + 0.5))
 	end
 
 	local totalW, totalH
@@ -4343,9 +4378,9 @@ function GF:UpdatePreviewLayout(kind)
 	GF._previewSampleCount = GF._previewSampleCount or {}
 	GF._previewSampleCount[kind] = #samples
 
-	local w = floor((tonumber(cfg.width) or 100) + 0.5)
-	local h = floor((tonumber(cfg.height) or 24) + 0.5)
-	local spacing = tonumber(cfg.spacing) or 0
+	local w = floor(clampNumber(tonumber(cfg.width) or 100, 40, 600, 100) + 0.5)
+	local h = floor(clampNumber(tonumber(cfg.height) or 24, 10, 200, 24) + 0.5)
+	local spacing = clampNumber(tonumber(cfg.spacing) or 0, 0, 40, 0)
 	local growth = (cfg.growth or "DOWN"):upper()
 
 	local startPoint = getGrowthStartPoint(growth)
@@ -4356,9 +4391,9 @@ function GF:UpdatePreviewLayout(kind)
 	local maxColumns = 1
 	local columnSpacing = spacing
 	if kind == "raid" then
-		unitsPerColumn = max(1, floor((tonumber(cfg.unitsPerColumn) or 5) + 0.5))
-		maxColumns = max(1, floor((tonumber(cfg.maxColumns) or 8) + 0.5))
-		columnSpacing = tonumber(cfg.columnSpacing) or spacing
+		unitsPerColumn = max(1, floor(clampNumber(tonumber(cfg.unitsPerColumn) or 5, 1, 10, 5) + 0.5))
+		maxColumns = max(1, floor(clampNumber(tonumber(cfg.maxColumns) or 8, 1, 10, 8) + 0.5))
+		columnSpacing = clampNumber(tonumber(cfg.columnSpacing) or spacing, 0, 40, spacing)
 	end
 	local total = #frames
 	if total > unitsPerColumn and maxColumns > 0 then
@@ -4452,6 +4487,59 @@ function GF:ShowPreviewFrames(kind, show)
 				btn:Hide()
 			end
 		end
+	end
+end
+
+local function getCustomSortEditor()
+	if GF._customSortEditor then return GF._customSortEditor end
+	if not (GFH and GFH.CreateCustomSortEditor) then return nil end
+	GF._customSortEditor = GFH.CreateCustomSortEditor({
+		roleTokens = GFH.ROLE_TOKENS,
+		classTokens = GFH.CLASS_TOKENS,
+		getOrders = function()
+			local cfg = getCfg("raid")
+			local custom = GFH.EnsureCustomSortConfig(cfg)
+			return custom and custom.roleOrder, custom and custom.classOrder
+		end,
+		onReorder = function(listKey, order)
+			local cfg = getCfg("raid")
+			local custom = GFH.EnsureCustomSortConfig(cfg)
+			if not custom then return end
+			if listKey == "role" then
+				custom.roleOrder = order
+			else
+				custom.classOrder = order
+			end
+			GF:ApplyHeaderAttributes("raid")
+			if GF._previewActive and GF._previewActive.raid then GF:UpdatePreviewLayout("raid") end
+		end,
+	})
+	return GF._customSortEditor
+end
+
+function GF:ToggleCustomSortEditor()
+	-- Button exists only in Edit Mode, so don't hard-block if lib state is stale.
+	if not isEditModeActive() and not (EditMode and EditMode.IsAvailable and EditMode:IsAvailable()) then return end
+	local cfg = getCfg("raid")
+	if not cfg then return end
+	local custom = GFH.EnsureCustomSortConfig(cfg)
+	if custom and custom.enabled ~= true then
+		custom.enabled = true
+		if EditMode and EditMode.SetValue then EditMode:SetValue("EQOL_UF_GROUP_RAID", "customSortEnabled", true, nil, true) end
+		GF:ApplyHeaderAttributes("raid")
+		if GF._previewActive and GF._previewActive.raid then GF:UpdatePreviewLayout("raid") end
+		if addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RequestRefreshSettings then
+			addon.EditModeLib.internal:RequestRefreshSettings()
+		end
+	end
+
+	local editor = getCustomSortEditor()
+	if not editor then return end
+	if editor:IsShown() then
+		editor:Hide()
+	else
+		editor:Refresh()
+		editor:Show()
 	end
 end
 
@@ -4763,6 +4851,20 @@ function GF:UpdateHealthColorMode(kind)
 	end
 end
 
+function GF:RefreshCustomSortNameList()
+	if not isFeatureEnabled() then return end
+	local cfg = getCfg("raid")
+	local custom = cfg and GFH.EnsureCustomSortConfig(cfg)
+	if not (custom and custom.enabled == true) then return end
+	local header = GF.headers and GF.headers.raid
+	if not header then return end
+	if InCombatLockdown and InCombatLockdown() then
+		GF._pendingRefresh = true
+		return
+	end
+	header:SetAttribute("nameList", GFH.BuildCustomSortNameList(cfg))
+end
+
 function GF:ApplyHeaderAttributes(kind)
 	local cfg = getCfg(kind)
 	local header = GF.headers[kind]
@@ -4773,7 +4875,7 @@ function GF:ApplyHeaderAttributes(kind)
 		return
 	end
 
-	local spacing = tonumber(cfg.spacing) or 0
+	local spacing = clampNumber(tonumber(cfg.spacing) or 0, 0, 40, 0)
 	local growth = (cfg.growth or "DOWN"):upper()
 
 	-- Core header settings
@@ -4791,15 +4893,34 @@ function GF:ApplyHeaderAttributes(kind)
 		header:SetAttribute("showRaid", true)
 		header:SetAttribute("showPlayer", true) -- most raid layouts include player
 		header:SetAttribute("showSolo", false)
-		header:SetAttribute("groupBy", cfg.groupBy or "GROUP")
-		header:SetAttribute("groupingOrder", cfg.groupingOrder or GFH.GROUP_ORDER)
-		local groupFilter = cfg.groupFilter
-		if groupFilter == "" then groupFilter = nil end
-		header:SetAttribute("groupFilter", groupFilter)
-		header:SetAttribute("sortMethod", cfg.sortMethod or "INDEX")
-		header:SetAttribute("sortDir", cfg.sortDir or "ASC")
-		header:SetAttribute("unitsPerColumn", tonumber(cfg.unitsPerColumn) or 5)
-		header:SetAttribute("maxColumns", tonumber(cfg.maxColumns) or 8)
+		local custom = GFH.EnsureCustomSortConfig(cfg)
+		if custom and custom.enabled == true then
+			header:SetAttribute("groupBy", nil)
+			header:SetAttribute("groupingOrder", nil)
+			header:SetAttribute("groupFilter", nil)
+			header:SetAttribute("roleFilter", nil)
+			header:SetAttribute("strictFiltering", nil)
+			header:SetAttribute("sortMethod", "NAMELIST")
+			header:SetAttribute("sortDir", cfg.sortDir or "ASC")
+			header:SetAttribute("nameList", GFH.BuildCustomSortNameList(cfg))
+		else
+			header:SetAttribute("nameList", nil)
+			local groupingOrder = cfg.groupingOrder
+			if groupingOrder == "" then groupingOrder = nil end
+			header:SetAttribute("groupingOrder", groupingOrder or GFH.GROUP_ORDER)
+			local groupFilter = cfg.groupFilter
+			if groupFilter == "" then groupFilter = nil end
+			header:SetAttribute("groupFilter", groupFilter)
+			local roleFilter = cfg.roleFilter
+			if roleFilter == "" then roleFilter = nil end
+			header:SetAttribute("roleFilter", roleFilter)
+			header:SetAttribute("strictFiltering", cfg.strictFiltering == true)
+			header:SetAttribute("sortMethod", cfg.sortMethod or "INDEX")
+			header:SetAttribute("sortDir", cfg.sortDir or "ASC")
+			header:SetAttribute("groupBy", cfg.groupBy or "GROUP")
+		end
+		header:SetAttribute("unitsPerColumn", clampNumber(tonumber(cfg.unitsPerColumn) or 5, 1, 10, 5))
+		header:SetAttribute("maxColumns", clampNumber(tonumber(cfg.maxColumns) or 8, 1, 10, 8))
 	end
 
 	-- Edit mode preview override: keep the header visible for positioning.
@@ -4820,7 +4941,7 @@ function GF:ApplyHeaderAttributes(kind)
 		if kind == "party" then
 			header:SetAttribute("columnSpacing", spacing)
 		else
-			header:SetAttribute("columnSpacing", tonumber(cfg.columnSpacing) or spacing)
+			header:SetAttribute("columnSpacing", clampNumber(tonumber(cfg.columnSpacing) or spacing, 0, 40, spacing))
 		end
 		-- For horizontal growth, columns should stack vertically (rows).
 		header:SetAttribute("columnAnchorPoint", "TOP")
@@ -4830,7 +4951,7 @@ function GF:ApplyHeaderAttributes(kind)
 		header:SetAttribute("point", point)
 		header:SetAttribute("xOffset", 0)
 		header:SetAttribute("yOffset", yOff)
-		header:SetAttribute("columnSpacing", tonumber(cfg.columnSpacing) or spacing)
+		header:SetAttribute("columnSpacing", clampNumber(tonumber(cfg.columnSpacing) or spacing, 0, 40, spacing))
 		header:SetAttribute("columnAnchorPoint", "LEFT")
 	end
 
@@ -4838,8 +4959,8 @@ function GF:ApplyHeaderAttributes(kind)
 	-- NOTE: initialConfigFunction runs only when a button is created.
 	-- If you change size later, also resize existing children (below).
 	header:SetAttribute("template", "EQOLUFGroupUnitButtonTemplate")
-	local w = tonumber(cfg.width) or 100
-	local h = tonumber(cfg.height) or 24
+	local w = clampNumber(tonumber(cfg.width) or 100, 40, 600, 100)
+	local h = clampNumber(tonumber(cfg.height) or 24, 10, 200, 24)
 	w = floor(w + 0.5)
 	h = floor(h + 0.5)
 	header:SetAttribute(
@@ -4883,6 +5004,13 @@ function GF:ApplyHeaderAttributes(kind)
 	end
 	applyVisibility(header, kind, cfg)
 	if GF._previewActive and GF._previewActive[kind] then GF:UpdatePreviewLayout(kind) end
+
+	-- Nudge layout once after all attributes apply.
+	if header.IsShown and header:IsShown() then
+		nudgeHeaderLayout(header)
+	else
+		header._eqolPendingLayout = true
+	end
 end
 
 function GF:EnsureHeaders()
@@ -4910,6 +5038,14 @@ function GF:EnsureHeaders()
 
 	-- Anchor headers to their movers (so we can drag the mover in edit mode)
 	for kind, header in pairs(GF.headers) do
+		if header and not header._eqolLayoutHooked then
+			header._eqolLayoutHooked = true
+			header:HookScript("OnShow", function(self)
+				if self._eqolPendingLayout then
+					nudgeHeaderLayout(self)
+				end
+			end)
+		end
 		local a = GF.anchors and GF.anchors[kind]
 		if header and a then
 			header:ClearAllPoints()
@@ -5074,8 +5210,7 @@ local function buildEditModeSettings(kind, editModeId)
 	local sortGroupOptions = {
 		{ value = "GROUP", label = "Group" },
 		{ value = "CLASS", label = "Class" },
-		{ value = "ROLE", label = "Role" },
-		{ value = "ASSIGNEDROLE", label = "Assigned role" },
+		{ value = "ASSIGNEDROLE", label = "Role" },
 	}
 	local sortMethodOptions = {
 		{ value = "INDEX", label = "Index" },
@@ -5088,12 +5223,19 @@ local function buildEditModeSettings(kind, editModeId)
 	local function normalizeGroupBy(value)
 		if value == nil then return nil end
 		local v = tostring(value):upper()
-		if v == "GROUP" or v == "CLASS" or v == "ROLE" or v == "ASSIGNEDROLE" then return v end
+		if v == "ROLE" then v = "ASSIGNEDROLE" end
+		if v == "GROUP" or v == "CLASS" or v == "ASSIGNEDROLE" then return v end
 		return nil
 	end
 	local function getGroupByValue()
 		local cfg = getCfg(kind)
 		return normalizeGroupBy(cfg and cfg.groupBy) or (DEFAULTS[kind] and DEFAULTS[kind].groupBy) or "GROUP"
+	end
+	local function isCustomSortingEnabled()
+		if kind ~= "raid" then return false end
+		local cfg = getCfg(kind)
+		local custom = cfg and GFH.EnsureCustomSortConfig(cfg)
+		return custom and custom.enabled == true
 	end
 	local function getGroupByLabel()
 		local mode = getGroupByValue()
@@ -5111,7 +5253,7 @@ local function buildEditModeSettings(kind, editModeId)
 			cfg.groupingOrder = GFH.CLASS_ORDER
 			cfg.groupFilter = GFH.CLASS_ORDER
 			if not cfg.sortMethod or cfg.sortMethod == "INDEX" then cfg.sortMethod = "NAME" end
-		elseif groupBy == "ROLE" or groupBy == "ASSIGNEDROLE" then
+		elseif groupBy == "ASSIGNEDROLE" then
 			cfg.groupingOrder = GFH.ROLE_ORDER
 			cfg.groupFilter = nil
 		else
@@ -11974,6 +12116,7 @@ local function buildEditModeSettings(kind, editModeId)
 				if not value then return end
 				applyGroupByPreset(value)
 			end,
+			isEnabled = function() return not isCustomSortingEnabled() end,
 			generator = function(_, root, data)
 				for _, option in ipairs(sortGroupOptions) do
 					root:CreateRadio(option.label, function() return getGroupByValue() == option.value end, function()
@@ -11999,6 +12142,7 @@ local function buildEditModeSettings(kind, editModeId)
 				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "sortMethod", cfg.sortMethod, nil, true) end
 				GF:ApplyHeaderAttributes(kind)
 			end,
+			isEnabled = function() return not isCustomSortingEnabled() end,
 			generator = function(_, root, data)
 				for _, option in ipairs(sortMethodOptions) do
 					root:CreateRadio(option.label, function() return getSortMethodValue() == option.value end, function()
@@ -12039,6 +12183,29 @@ local function buildEditModeSettings(kind, editModeId)
 						data.customDefaultText = option.label
 						if addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RequestRefreshSettings then addon.EditModeLib.internal:RequestRefreshSettings() end
 					end)
+				end
+			end,
+		}
+		settings[#settings + 1] = {
+			name = "Custom sorting",
+			kind = SettingType.Checkbox,
+			field = "customSortEnabled",
+			parentId = "raid",
+			default = false,
+			get = function()
+				return isCustomSortingEnabled()
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				local custom = GFH.EnsureCustomSortConfig(cfg)
+				custom.enabled = value and true or false
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "customSortEnabled", custom.enabled, nil, true) end
+				if not custom.enabled and GF._customSortEditor then GF._customSortEditor:Hide() end
+				GF:ApplyHeaderAttributes(kind)
+				if GF._previewActive and GF._previewActive[kind] then GF:UpdatePreviewLayout(kind) end
+				if addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RequestRefreshSettings then
+					addon.EditModeLib.internal:RequestRefreshSettings()
 				end
 			end,
 		}
@@ -12681,6 +12848,12 @@ local function applyEditModeData(kind, data)
 		if data.showPlayer ~= nil then cfg.showPlayer = data.showPlayer and true or false end
 		if data.showSolo ~= nil then cfg.showSolo = data.showSolo and true or false end
 	elseif kind == "raid" then
+		local custom = GFH.EnsureCustomSortConfig(cfg)
+		if data.customSortEnabled ~= nil then
+			custom.enabled = data.customSortEnabled and true or false
+		elseif EditMode and EditMode.SetValue then
+			EditMode:SetValue(EDITMODE_IDS[kind], "customSortEnabled", custom and custom.enabled == true, nil, true)
+		end
 		if data.unitsPerColumn ~= nil then
 			local v = clampNumber(data.unitsPerColumn, 1, 10, cfg.unitsPerColumn or 5)
 			cfg.unitsPerColumn = floor(v + 0.5)
@@ -12790,6 +12963,7 @@ function GF:EnsureEditMode()
 				unitsPerColumn = cfg.unitsPerColumn or (DEFAULTS.raid and DEFAULTS.raid.unitsPerColumn) or 5,
 				maxColumns = cfg.maxColumns or (DEFAULTS.raid and DEFAULTS.raid.maxColumns) or 8,
 				columnSpacing = cfg.columnSpacing or (DEFAULTS.raid and DEFAULTS.raid.columnSpacing) or 0,
+				customSortEnabled = (cfg.customSort and cfg.customSort.enabled) == true,
 				showName = (cfg.text and cfg.text.showName) ~= false,
 				nameClassColor = (cfg.text and cfg.text.useClassColor) ~= false,
 				nameAnchor = (cfg.text and cfg.text.nameAnchor) or (DEFAULTS[kind] and DEFAULTS[kind].text and DEFAULTS[kind].text.nameAnchor) or "LEFT",
@@ -13051,6 +13225,10 @@ function GF:EnsureEditMode()
 					},
 				}
 				if kind == "raid" then
+					table.insert(buttons, 1, {
+						text = "Edit custom sort order",
+						click = function() GF:ToggleCustomSortEditor() end,
+					})
 					table.insert(buttons, 2, {
 						text = "Cycle sample size (10/20/30/40)",
 						click = function() GF:CycleEditModeSampleSize(kind) end,
@@ -13103,6 +13281,9 @@ function GF:OnExitEditMode(kind)
 	GF:ShowPreviewFrames(kind, false)
 	header._eqolForceHide = nil
 	header._eqolForceShow = nil
+	if GF._customSortEditor and GF._customSortEditor.IsShown and GF._customSortEditor:IsShown() then
+		GF._customSortEditor:Hide()
+	end
 	GF:ApplyHeaderAttributes(kind)
 end
 
@@ -13169,6 +13350,7 @@ do
 		elseif event == "GROUP_ROSTER_UPDATE" or event == "PLAYER_ROLES_ASSIGNED" or event == "PARTY_LEADER_CHANGED" then
 			GF:RefreshRoleIcons()
 			GF:RefreshGroupIcons()
+			GF:RefreshCustomSortNameList()
 			if event == "GROUP_ROSTER_UPDATE" then GF:RefreshStatusText() end
 		elseif event == "PLAYER_SPECIALIZATION_CHANGED" then
 			GF:RefreshPowerVisibility()

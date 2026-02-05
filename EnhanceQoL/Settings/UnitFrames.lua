@@ -199,6 +199,7 @@ data = {
 		text = L["unitFrameTruncateNames"],
 		func = function(v)
 			addon.db["unitFrameTruncateNames"] = v
+			if v and addon.functions.EnsureUnitFrameNameHooks then addon.functions.EnsureUnitFrameNameHooks() end
 			addon.functions.updateUnitFrameNames()
 		end,
 		parentSection = expandable,

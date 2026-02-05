@@ -2227,6 +2227,7 @@ local function UpdateActionBarMouseover(barName, config, variable)
 			if EQOL_LastMouseoverBar == bar then EQOL_LastMouseoverBar = nil end
 			EQOL_LastMouseoverVar = nil
 		end
+		if EnsureActionBarVisibilityWatcher then EnsureActionBarVisibilityWatcher() end
 		return
 	end
 
@@ -3334,12 +3335,18 @@ local function initUnitFrame()
 
 	local function ApplyFrameSettings(cuf) TruncateFrameName(cuf) end
 
-	if CompactUnitFrame_UpdateName then hooksecurefunc("CompactUnitFrame_UpdateName", TruncateFrameName) end
-
-	if DefaultCompactUnitFrameSetup then hooksecurefunc("DefaultCompactUnitFrameSetup", ApplyFrameSettings) end
+	local function EnsureUnitFrameNameHooks()
+		addon.variables = addon.variables or {}
+		if addon.variables._eqolUnitFrameNameHooks then return end
+		if CompactUnitFrame_UpdateName then hooksecurefunc("CompactUnitFrame_UpdateName", TruncateFrameName) end
+		if DefaultCompactUnitFrameSetup then hooksecurefunc("DefaultCompactUnitFrameSetup", ApplyFrameSettings) end
+		addon.variables._eqolUnitFrameNameHooks = true
+	end
+	addon.functions.EnsureUnitFrameNameHooks = EnsureUnitFrameNameHooks
 
 	function addon.functions.updateUnitFrameNames()
 		if not addon.db["unitFrameTruncateNames"] then return end
+		if addon.functions.EnsureUnitFrameNameHooks then addon.functions.EnsureUnitFrameNameHooks() end
 		for i = 1, 5 do
 			local f = _G["CompactPartyFrameMember" .. i]
 			TruncateFrameName(f)

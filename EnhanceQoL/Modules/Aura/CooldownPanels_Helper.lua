@@ -15,6 +15,78 @@ local Helper = CooldownPanels.helper
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_Aura")
 local LSM = LibStub("LibSharedMedia-3.0", true)
 
+Helper.Api = Helper.Api or {}
+local Api = Helper.Api
+
+Api.GetItemInfoInstantFn = (C_Item and C_Item.GetItemInfoInstant) or GetItemInfoInstant
+Api.GetItemIconByID = C_Item and C_Item.GetItemIconByID
+Api.GetItemCooldownFn = (C_Item and C_Item.GetItemCooldown) or GetItemCooldown
+Api.GetItemSpell = C_Item and C_Item.GetItemSpell
+Api.GetInventoryItemID = GetInventoryItemID
+Api.GetInventoryItemCooldown = GetInventoryItemCooldown
+Api.GetInventorySlotInfo = GetInventorySlotInfo
+Api.GetActionInfo = GetActionInfo
+Api.GetCursorInfo = GetCursorInfo
+Api.GetCursorPosition = GetCursorPosition
+Api.ClearCursor = ClearCursor
+Api.DoesSpellExist = C_Spell and C_Spell.DoesSpellExist
+Api.GetSpellInfoFn = GetSpellInfo
+Api.GetSpellCooldownInfo = C_Spell and C_Spell.GetSpellCooldown or GetSpellCooldown
+Api.GetSpellCooldownDuration = C_Spell and C_Spell.GetSpellCooldownDuration
+Api.GetSpellChargesInfo = C_Spell and C_Spell.GetSpellCharges
+Api.GetBaseSpell = C_Spell and C_Spell.GetBaseSpell
+Api.GetOverrideSpell = C_Spell and C_Spell.GetOverrideSpell
+Api.GetSpellPowerCost = C_Spell and C_Spell.GetSpellPowerCost
+Api.EnableSpellRangeCheck = C_Spell and C_Spell.EnableSpellRangeCheck
+Api.IsSpellUsableFn = C_Spell and C_Spell.IsSpellUsable or IsUsableSpell
+Api.IsSpellPassiveFn = C_Spell and C_Spell.IsSpellPassive or IsPassiveSpell
+Api.IsSpellKnown = C_SpellBook.IsSpellInSpellBook
+Api.IsEquippedItem = C_Item.IsEquippedItem
+Api.GetTime = GetTime
+Api.MenuUtil = MenuUtil
+Api.issecretvalue = _G.issecretvalue
+Api.DurationModifierRealTime = Enum and Enum.DurationTimeModifier and Enum.DurationTimeModifier.RealTime
+
+function Api.GetItemCount(itemID, includeBank, includeUses, includeReagentBank, includeAccountBank)
+	if not itemID then return 0 end
+	if C_Item and C_Item.GetItemCount then return C_Item.GetItemCount(itemID, includeBank, includeUses, includeReagentBank, includeAccountBank) end
+	if GetItemCount then return GetItemCount(itemID, includeBank) end
+	return 0
+end
+
+Helper.DirectionOptions = {
+	{ value = "LEFT", label = _G.HUD_EDIT_MODE_SETTING_BAGS_DIRECTION_LEFT or _G.LEFT or "Left" },
+	{ value = "RIGHT", label = _G.HUD_EDIT_MODE_SETTING_BAGS_DIRECTION_RIGHT or _G.RIGHT or "Right" },
+	{ value = "UP", label = _G.HUD_EDIT_MODE_SETTING_BAGS_DIRECTION_UP or _G.UP or "Up" },
+	{ value = "DOWN", label = _G.HUD_EDIT_MODE_SETTING_BAGS_DIRECTION_DOWN or _G.DOWN or "Down" },
+}
+Helper.LayoutModeOptions = {
+	{ value = "GRID", label = L["CooldownPanelLayoutModeGrid"] or "Grid" },
+	{ value = "RADIAL", label = L["CooldownPanelLayoutModeRadial"] or "Radial" },
+}
+Helper.AnchorOptions = {
+	{ value = "TOPLEFT", label = L["Top Left"] or "Top Left" },
+	{ value = "TOP", label = L["Top"] or "Top" },
+	{ value = "TOPRIGHT", label = L["Top Right"] or "Top Right" },
+	{ value = "LEFT", label = L["Left"] or "Left" },
+	{ value = "CENTER", label = L["Center"] or "Center" },
+	{ value = "RIGHT", label = L["Right"] or "Right" },
+	{ value = "BOTTOMLEFT", label = L["Bottom Left"] or "Bottom Left" },
+	{ value = "BOTTOM", label = L["Bottom"] or "Bottom" },
+	{ value = "BOTTOMRIGHT", label = L["Bottom Right"] or "Bottom Right" },
+}
+Helper.GrowthPointOptions = {
+	{ value = "TOPLEFT", label = L["Left"] or "Left" },
+	{ value = "TOP", label = L["Center"] or "Center" },
+	{ value = "TOPRIGHT", label = L["Right"] or "Right" },
+}
+Helper.FontStyleOptions = {
+	{ value = "NONE", label = L["None"] or "None" },
+	{ value = "OUTLINE", label = L["Outline"] or "Outline" },
+	{ value = "THICKOUTLINE", label = L["Thick Outline"] or "Thick Outline" },
+	{ value = "MONOCHROMEOUTLINE", label = L["Monochrome Outline"] or "Monochrome Outline" },
+}
+
 Helper.PANEL_LAYOUT_DEFAULTS = {
 	iconSize = 36,
 	spacing = 2,

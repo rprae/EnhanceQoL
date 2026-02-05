@@ -16,7 +16,21 @@ H.COLOR_HEALTH_DEFAULT = { 0, 0.8, 0, 1 }
 H.COLOR_YELLOW = { 1, 1, 0, 1 }
 
 H.GROUP_ORDER = "1,2,3,4,5,6,7,8"
-H.ROLE_ORDER = "TANK,HEALER,DAMAGER"
+H.ROLE_TOKENS = { "TANK", "HEALER", "DAMAGER" }
+H.ROLE_ORDER = table.concat(H.ROLE_TOKENS, ",")
+H.ROLE_LABELS = {
+	TANK = TANK or "Tank",
+	HEALER = HEALER or "Healer",
+	DAMAGER = DAMAGER or "DPS",
+}
+H.ROLE_COLORS = {
+	TANK = { 0.2, 0.6, 1.0 },
+	HEALER = { 0.2, 1.0, 0.4 },
+	DAMAGER = { 1.0, 0.2, 0.2 },
+}
+H.CUSTOM_SORT_ROW_HEIGHT = 22
+H.CUSTOM_SORT_ROW_WIDTH = 170
+H.CUSTOM_SORT_EDITOR_SIZE = { w = 420, h = 520 }
 H.CLASS_TOKENS = {
 	"DEATHKNIGHT",
 	"DEMONHUNTER",
@@ -45,6 +59,11 @@ local C_SpecializationInfo = C_SpecializationInfo
 local C_CreatureInfo = C_CreatureInfo
 local floor = math.floor
 local strlower = string.lower
+local CreateFrame = CreateFrame
+local UIParent = UIParent
+local LOCALIZED_CLASS_NAMES_MALE = LOCALIZED_CLASS_NAMES_MALE
+local LOCALIZED_CLASS_NAMES_FEMALE = LOCALIZED_CLASS_NAMES_FEMALE
+local RAID_CLASS_COLORS = RAID_CLASS_COLORS
 
 local function trim(value)
 	if value == nil then return "" end
@@ -85,7 +104,8 @@ end
 local function normalizeGroupBy(value)
 	local v = trim(value):upper()
 	if v == "" then return nil end
-	if v == "GROUP" or v == "CLASS" or v == "ROLE" or v == "ASSIGNEDROLE" then return v end
+	if v == "ROLE" then v = "ASSIGNEDROLE" end
+	if v == "GROUP" or v == "CLASS" or v == "ASSIGNEDROLE" then return v end
 	return nil
 end
 
@@ -100,6 +120,346 @@ local function normalizeSortDir(value)
 	local v = trim(value):upper()
 	if v == "DESC" then return "DESC" end
 	return "ASC"
+end
+
+function H.ParseCsvSet(value, upper)
+	local set = {}
+	if type(value) ~= "string" then return set end
+	for token in value:gmatch("[^,]+") do
+		local key = normalizeToken(token, upper == true)
+		if key ~= nil then set[key] = true end
+	end
+	return set
+end
+
+function H.BuildCsvFromSet(set, order)
+	if type(set) ~= "table" then return nil end
+	local list = {}
+	if type(order) == "table" then
+		for _, token in ipairs(order) do
+			if set[token] then list[#list + 1] = tostring(token) end
+		end
+	else
+		for token in pairs(set) do
+			if set[token] then list[#list + 1] = tostring(token) end
+		end
+		table.sort(list, function(a, b) return tostring(a) < tostring(b) end)
+	end
+	if #list == 0 then return nil end
+	return table.concat(list, ",")
+end
+
+function H.IsSetFull(set, order)
+	if type(set) ~= "table" or type(order) ~= "table" then return false end
+	for _, token in ipairs(order) do
+		if not set[token] then return false end
+	end
+	return true
+end
+
+function H.GetLocalizedClassName(token)
+	if not token then return "" end
+	if LOCALIZED_CLASS_NAMES_MALE and LOCALIZED_CLASS_NAMES_MALE[token] then
+		return LOCALIZED_CLASS_NAMES_MALE[token]
+	end
+	if LOCALIZED_CLASS_NAMES_FEMALE and LOCALIZED_CLASS_NAMES_FEMALE[token] then
+		return LOCALIZED_CLASS_NAMES_FEMALE[token]
+	end
+	return token
+end
+
+function H.GetClassColor(token)
+	local color = RAID_CLASS_COLORS and token and RAID_CLASS_COLORS[token]
+	if not color then return nil end
+	return { color.r, color.g, color.b }
+end
+
+function H.CreateCustomSortEditor(opts)
+	opts = opts or {}
+	local roleTokens = opts.roleTokens or H.ROLE_TOKENS or {}
+	local classTokens = opts.classTokens or H.CLASS_TOKENS or {}
+	local roleLabels = opts.roleLabels or H.ROLE_LABELS or {}
+	local roleColors = opts.roleColors or H.ROLE_COLORS or {}
+	local rowHeight = opts.rowHeight or H.CUSTOM_SORT_ROW_HEIGHT or 22
+	local rowWidth = opts.rowWidth or H.CUSTOM_SORT_ROW_WIDTH or 170
+	local size = opts.size or H.CUSTOM_SORT_EDITOR_SIZE or { w = 420, h = 520 }
+	local getOrders = opts.getOrders
+	local onReorder = opts.onReorder
+	local getClassLabel = opts.getClassLabel or H.GetLocalizedClassName
+	local getClassColor = opts.getClassColor or H.GetClassColor
+	local titleText = opts.title or "Custom Sort Order"
+	local subtitleText = opts.subtitle or "Drag entries to reorder. Applies to Raid custom sorting."
+
+	local frame = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+	frame:SetSize(size.w or 420, size.h or 520)
+	frame:SetBackdrop({
+		bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+		edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+		tile = true,
+		tileSize = 32,
+		edgeSize = 24,
+		insets = { left = 6, right = 6, top = 6, bottom = 6 },
+	})
+	frame:SetBackdropColor(0, 0, 0, 0.85)
+	frame:SetMovable(true)
+	frame:EnableMouse(true)
+	frame:RegisterForDrag("LeftButton")
+	frame:SetScript("OnDragStart", frame.StartMoving)
+	frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
+	frame:SetFrameStrata("DIALOG")
+	frame:SetClampedToScreen(true)
+	frame:SetPoint("CENTER")
+	frame:Hide()
+
+	local title = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
+	title:SetPoint("TOPLEFT", 16, -16)
+	title:SetText(titleText)
+	frame.Title = title
+
+	local subtitle = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	subtitle:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -6)
+	subtitle:SetText(subtitleText)
+	frame.Subtitle = subtitle
+
+	local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
+	close:SetPoint("TOPRIGHT", -6, -6)
+	close:SetScript("OnClick", function() frame:Hide() end)
+	frame.CloseButton = close
+
+	local roleHeader = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	roleHeader:SetPoint("TOPLEFT", subtitle, "BOTTOMLEFT", 0, -16)
+	roleHeader:SetText("Role Priority")
+	frame.RoleHeader = roleHeader
+
+	local roleContainer = CreateFrame("Frame", nil, frame)
+	roleContainer:SetPoint("TOPLEFT", roleHeader, "BOTTOMLEFT", 0, -6)
+	roleContainer:SetSize(rowWidth, rowHeight * #roleTokens)
+	frame.RoleContainer = roleContainer
+
+	local classHeader = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	classHeader:SetPoint("TOPLEFT", roleContainer, "BOTTOMLEFT", 0, -16)
+	classHeader:SetText("Class Priority")
+	frame.ClassHeader = classHeader
+
+	local classContainer = CreateFrame("Frame", nil, frame)
+	classContainer:SetPoint("TOPLEFT", classHeader, "BOTTOMLEFT", 0, -6)
+	classContainer:SetSize(rowWidth, rowHeight * #classTokens)
+	frame.ClassContainer = classContainer
+
+	frame.roleRows = {}
+	frame.classRows = {}
+	frame._dragList = nil
+	frame._dragIndex = nil
+
+	local function createRow(parent)
+		local row = CreateFrame("Button", nil, parent, "UIMenuButtonStretchTemplate")
+		row:SetSize(rowWidth, rowHeight)
+		row:RegisterForDrag("LeftButton")
+		row.Highlight = row:GetHighlightTexture()
+		if row.Highlight then row.Highlight:SetAlpha(0.2) end
+		row.Label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+		row.Label:SetPoint("LEFT", 6, 0)
+		row.Label:SetJustifyH("LEFT")
+		row.Label:SetWidth(rowWidth - 12)
+		return row
+	end
+
+	local function setRowColor(row, color)
+		if not row or not row.Label then return end
+		if color then
+			row.Label:SetTextColor(color[1] or 1, color[2] or 1, color[3] or 1)
+		else
+			row.Label:SetTextColor(1, 1, 1)
+		end
+	end
+
+	local function reorderList(list, from, to)
+		if not list or from == to then return end
+		local item = table.remove(list, from)
+		if item == nil then return end
+		table.insert(list, to, item)
+	end
+
+	function frame:RefreshList(listKey, container, rows, order, labelFunc, colorFunc)
+		local count = #order
+		for i = 1, count do
+			local row = rows[i]
+			if not row then
+				row = createRow(container)
+				rows[i] = row
+				row:SetScript("OnDragStart", function(self)
+					frame._dragList = self._listKey
+					frame._dragIndex = self._index
+					self:SetAlpha(0.6)
+				end)
+				row:SetScript("OnDragStop", function(self)
+					self:SetAlpha(1)
+					if frame._dragList ~= self._listKey then
+						frame._dragList = nil
+						frame._dragIndex = nil
+						return
+					end
+					local dropIndex
+					for idx, candidate in ipairs(rows) do
+						if candidate:IsShown() and candidate:IsMouseOver() then
+							dropIndex = idx
+							break
+						end
+					end
+					local dragIndex = frame._dragIndex
+					frame._dragList = nil
+					frame._dragIndex = nil
+					if not dropIndex or not dragIndex or dropIndex == dragIndex then return end
+					reorderList(order, dragIndex, dropIndex)
+					if onReorder then onReorder(listKey, order) end
+					frame:Refresh()
+				end)
+				row:SetScript("OnEnter", function(self)
+					if frame._dragList == self._listKey and self.Highlight then
+						self.Highlight:SetAlpha(0.35)
+						self.Highlight:Show()
+					end
+				end)
+				row:SetScript("OnLeave", function(self)
+					if self.Highlight then
+						self.Highlight:SetAlpha(0.2)
+						self.Highlight:Hide()
+					end
+				end)
+			end
+			row._listKey = listKey
+			row._index = i
+			row:SetPoint("TOPLEFT", container, "TOPLEFT", 0, -((i - 1) * (rowHeight + 2)))
+			local token = order[i]
+			row.Label:SetText(labelFunc(token))
+			setRowColor(row, colorFunc(token))
+			row:Show()
+		end
+		for i = count + 1, #rows do
+			rows[i]:Hide()
+		end
+	end
+
+	function frame:Refresh()
+		local roleOrder, classOrder = nil, nil
+		if getOrders then roleOrder, classOrder = getOrders() end
+		roleOrder = H.NormalizeOrderList(roleOrder, roleTokens)
+		classOrder = H.NormalizeOrderList(classOrder, classTokens)
+		self.roleOrder = roleOrder
+		self.classOrder = classOrder
+		self:RefreshList("role", self.RoleContainer, self.roleRows, roleOrder, function(token)
+			return roleLabels[token] or token or ""
+		end, function(token)
+			return roleColors[token]
+		end)
+		self:RefreshList("class", self.ClassContainer, self.classRows, classOrder, function(token)
+			return getClassLabel(token)
+		end, function(token)
+			return getClassColor(token)
+		end)
+	end
+
+	return frame
+end
+
+function H.NormalizeOrderList(list, fallback)
+	local out = {}
+	local seen = {}
+	if type(list) == "table" then
+		for _, token in ipairs(list) do
+			if token ~= nil and not seen[token] then
+				seen[token] = true
+				out[#out + 1] = token
+			end
+		end
+	end
+	if type(fallback) == "table" then
+		for _, token in ipairs(fallback) do
+			if token ~= nil and not seen[token] then
+				seen[token] = true
+				out[#out + 1] = token
+			end
+		end
+	end
+	return out
+end
+
+function H.BuildOrderMapFromList(list)
+	local map = {}
+	if type(list) ~= "table" then return map end
+	for i, token in ipairs(list) do
+		if token ~= nil and map[token] == nil then map[token] = i end
+	end
+	return map
+end
+
+function H.EnsureCustomSortConfig(cfg)
+	if not cfg then return nil end
+	cfg.customSort = cfg.customSort or {}
+	local custom = cfg.customSort
+	if custom.enabled == nil then custom.enabled = false end
+	custom.roleOrder = H.NormalizeOrderList(custom.roleOrder, H.ROLE_TOKENS)
+	custom.classOrder = H.NormalizeOrderList(custom.classOrder, H.CLASS_TOKENS)
+	return custom
+end
+
+local function getUnitFullName(unit)
+	if not unit or not UnitName then return nil end
+	local name, realm = UnitName(unit)
+	if not name or name == "" then return nil end
+	if realm and realm ~= "" then return name .. "-" .. realm end
+	return name
+end
+
+function H.BuildCustomSortNameList(cfg)
+	local custom = H.EnsureCustomSortConfig(cfg)
+	if not (custom and custom.enabled == true) then return "" end
+
+	local roleOrder = custom.roleOrder or H.ROLE_TOKENS
+	local classOrder = custom.classOrder or H.CLASS_TOKENS
+	local roleMap = H.BuildOrderMapFromList(roleOrder)
+	local classMap = H.BuildOrderMapFromList(classOrder)
+
+	local entries = {}
+	local num = (GetNumGroupMembers and GetNumGroupMembers()) or 0
+	for i = 1, num do
+		local unit = "raid" .. i
+		if UnitExists and UnitExists(unit) then
+			local name = getUnitFullName(unit)
+			if name then
+				local _, classToken = UnitClass(unit)
+				local role = UnitGroupRolesAssigned and UnitGroupRolesAssigned(unit) or nil
+				if role == "NONE" or role == nil then role = "DAMAGER" end
+				entries[#entries + 1] = {
+					name = name,
+					role = role,
+					class = classToken,
+				}
+			end
+		end
+	end
+
+	table.sort(entries, function(a, b)
+		local roleA = roleMap[a.role] or 999
+		local roleB = roleMap[b.role] or 999
+		if roleA ~= roleB then return roleA < roleB end
+		local classA = classMap[a.class] or 999
+		local classB = classMap[b.class] or 999
+		if classA ~= classB then return classA < classB end
+		return tostring(a.name or "") < tostring(b.name or "")
+	end)
+
+	local names = {}
+	local seen = {}
+	for _, entry in ipairs(entries) do
+		local name = entry.name
+		if name and not seen[name] then
+			seen[name] = true
+			names[#names + 1] = name
+		end
+	end
+	if #names == 0 then return "" end
+	return table.concat(names, ",")
 end
 
 local function applyRoleQuotaWithLimit(list, limit, maxTanks, maxHealers)
@@ -200,6 +560,42 @@ end
 function H.BuildPreviewSampleList(kind, cfg, baseSamples, limit, quotaTanks, quotaHealers)
 	local base = baseSamples or {}
 	if kind ~= "raid" then return base end
+
+	local customSort = cfg and cfg.customSort
+	if customSort and customSort.enabled == true then
+		local roleOrder = H.NormalizeOrderList(customSort.roleOrder, H.ROLE_TOKENS)
+		local classOrder = H.NormalizeOrderList(customSort.classOrder, H.CLASS_TOKENS)
+		local roleMap = buildOrderMap(table.concat(roleOrder, ","))
+		local classMap = buildOrderMap(table.concat(classOrder, ","))
+		local sortDir = normalizeSortDir(cfg and cfg.sortDir)
+		local list = {}
+		for i, sample in ipairs(base) do
+			list[#list + 1] = { sample = sample, index = i }
+		end
+		table.sort(list, function(a, b)
+			local roleA = a.sample and (a.sample.assignedRole or a.sample.role) or nil
+			local roleB = b.sample and (b.sample.assignedRole or b.sample.role) or nil
+			local orderA = roleMap[roleA] or 999
+			local orderB = roleMap[roleB] or 999
+			if orderA ~= orderB then return orderA < orderB end
+			local classA = a.sample and a.sample.class or nil
+			local classB = b.sample and b.sample.class or nil
+			local classOrderA = classMap[classA] or 999
+			local classOrderB = classMap[classB] or 999
+			if classOrderA ~= classOrderB then return classOrderA < classOrderB end
+			return (a.sample.name or "") < (b.sample.name or "")
+		end)
+		if sortDir == "DESC" then
+			for i = 1, floor(#list / 2) do
+				local j = #list - i + 1
+				list[i], list[j] = list[j], list[i]
+			end
+		end
+		list = applyRoleQuotaWithLimit(list, limit, quotaTanks or 0, quotaHealers or 0)
+		local result = {}
+		for _, entry in ipairs(list) do result[#result + 1] = entry.sample end
+		return result
+	end
 
 	local groupFilter = cfg and cfg.groupFilter
 	local roleFilter = cfg and cfg.roleFilter

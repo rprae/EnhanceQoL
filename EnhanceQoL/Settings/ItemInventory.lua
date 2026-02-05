@@ -715,8 +715,10 @@ end
 hooksecurefunc("PaperDollFrame_SetItemLevel", function(statFrame, unit) UpdateItemLevel() end)
 
 local function setCharFrame()
-	if addon.Skinner and addon.Skinner.functions and addon.Skinner.functions.ApplyCharacterFrameSkin then
-		addon.Skinner.functions.ApplyCharacterFrameSkin()
+	if InCombatLockdown and InCombatLockdown() then
+		addon.variables = addon.variables or {}
+		addon.variables.pendingCharFrameUpdate = true
+		return
 	end
 	UpdateItemLevel()
 	if not addon.general.iconFrame then addon.functions.catalystChecks() end
@@ -1598,7 +1600,6 @@ function addon.functions.initItemInventory()
 		end
 	end
 
-	PaperDollFrame:HookScript("OnShow", function(self) addon.functions.setCharFrame() end)
 end
 
 ---- END REGION
@@ -1910,7 +1911,30 @@ addon.functions.SettingsCreateDropdown(cInventory, {
 
 ---- REGION END
 
+local function ensureCharFrameOnShowHook()
+	if addon.variables and addon.variables.eqolCharFrameHooked then return end
+	if not _G.PaperDollFrame then return end
+	addon.variables = addon.variables or {}
+	addon.variables.eqolCharFrameHooked = true
+	_G.PaperDollFrame:HookScript("OnShow", function()
+		if InCombatLockdown and InCombatLockdown() then
+			addon.variables.pendingCharFrameUpdate = true
+			return
+		end
+		setCharFrame()
+	end)
+end
+
 local eventHandlers = {
+	["ADDON_LOADED"] = function(arg1)
+		if arg1 ~= "Blizzard_UIPanels_Game" then return end
+		ensureCharFrameOnShowHook()
+		if InCombatLockdown and InCombatLockdown() then
+			addon.variables.pendingCharFrameUpdate = true
+			return
+		end
+		setCharFrame()
+	end,
 	["CURRENCY_DISPLAY_UPDATE"] = function(arg1)
 		if arg1 == addon.variables.catalystID and addon.variables.catalystID then
 			local cataclystInfo = C_CurrencyInfo.GetCurrencyInfo(addon.variables.catalystID)
@@ -1951,6 +1975,10 @@ local eventHandlers = {
 	end,
 	["PLAYER_REGEN_ENABLED"] = function()
 		if addon.db["showDurabilityOnCharframe"] then calculateDurability() end
+		if addon.variables and addon.variables.pendingCharFrameUpdate and _G.PaperDollFrame and _G.PaperDollFrame:IsShown() then
+			addon.variables.pendingCharFrameUpdate = nil
+			setCharFrame()
+		end
 	end,
 	["PLAYER_UNGHOST"] = function()
 		if addon.db["showDurabilityOnCharframe"] then calculateDurability() end
@@ -1974,3 +2002,8 @@ local frameLoad = CreateFrame("Frame")
 
 registerEvents(frameLoad)
 frameLoad:SetScript("OnEvent", eventHandler)
+
+-- If Blizzard_UIPanels_Game is already loaded, wire up immediately.
+if _G.PaperDollFrame then
+	ensureCharFrameOnShowHook()
+end

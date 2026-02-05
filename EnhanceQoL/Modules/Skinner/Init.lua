@@ -13,6 +13,12 @@ addon.Skinner.variables = addon.Skinner.variables or {}
 
 local function isCharacterFrameSkinEnabled() return addon.db and addon.db.skinnerCharacterFrameEnabled == true end
 
+local function isCharacterFrameAddonLoaded()
+	if C_AddOns and C_AddOns.IsAddOnLoaded then return C_AddOns.IsAddOnLoaded("Blizzard_UIPanels_Game") end
+	if IsAddOnLoaded then return IsAddOnLoaded("Blizzard_UIPanels_Game") end
+	return false
+end
+
 local characterSlotNames = {
 	"CharacterHeadSlot",
 	"CharacterNeckSlot",
@@ -387,10 +393,6 @@ local function applyCharacterTabFlatSkin(tab)
 		tab.eqolFlatBg:SetAllPoints(tab)
 		updateFlatTabState(tab, false)
 
-		tab.selectedTextY = 0
-		tab.deselectedTextY = 0
-		tab.selectedTextX = 0
-		tab.deselectedTextX = 0
 		if tab.Text then
 			tab.Text:ClearAllPoints()
 			tab.Text:SetPoint("CENTER", tab, "CENTER", 0, 0)
@@ -748,9 +750,47 @@ local function stripCharacterSlotNormalTextures()
 	applyCharacterFrameFlatSkin()
 end
 
+local function ensureCharacterFrameSkinWatcher()
+	addon.Skinner.variables = addon.Skinner.variables or {}
+	if addon.Skinner.variables.skinWatcher then return addon.Skinner.variables.skinWatcher end
+	local watcher = CreateFrame("Frame")
+	watcher:SetScript("OnEvent", function(_, event, arg1)
+		if event == "ADDON_LOADED" and arg1 == "Blizzard_UIPanels_Game" then
+			if addon.Skinner.variables.pendingSkinOnLoad then
+				addon.Skinner.variables.pendingSkinOnLoad = nil
+				if addon.Skinner.functions and addon.Skinner.functions.ApplyCharacterFrameSkin then addon.Skinner.functions.ApplyCharacterFrameSkin() end
+			end
+		elseif event == "PLAYER_REGEN_ENABLED" then
+			if addon.Skinner.variables.pendingSkinCombat then
+				addon.Skinner.variables.pendingSkinCombat = nil
+				if addon.Skinner.functions and addon.Skinner.functions.ApplyCharacterFrameSkin then addon.Skinner.functions.ApplyCharacterFrameSkin() end
+			end
+			if not addon.Skinner.variables.pendingSkinCombat then watcher:UnregisterEvent("PLAYER_REGEN_ENABLED") end
+		end
+	end)
+	addon.Skinner.variables.skinWatcher = watcher
+	return watcher
+end
+
+local function applyCharacterFrameSkinNow() stripCharacterSlotNormalTextures() end
+
 local function applyCharacterFrameSkin()
 	if not isCharacterFrameSkinEnabled() then return end
-	stripCharacterSlotNormalTextures()
+	if not isCharacterFrameAddonLoaded() then
+		addon.Skinner.variables = addon.Skinner.variables or {}
+		addon.Skinner.variables.pendingSkinOnLoad = true
+		local watcher = ensureCharacterFrameSkinWatcher()
+		watcher:RegisterEvent("ADDON_LOADED")
+		return
+	end
+	if InCombatLockdown and InCombatLockdown() then
+		addon.Skinner.variables = addon.Skinner.variables or {}
+		addon.Skinner.variables.pendingSkinCombat = true
+		local watcher = ensureCharacterFrameSkinWatcher()
+		watcher:RegisterEvent("PLAYER_REGEN_ENABLED")
+		return
+	end
+	applyCharacterFrameSkinNow()
 end
 
 addon.Skinner.functions.ApplyCharacterFrameSkin = applyCharacterFrameSkin
@@ -768,6 +808,7 @@ function addon.Skinner.functions.InitDB()
 			a = FLAT_BORDER_COLOR.a,
 		})
 	end
+	if isCharacterFrameSkinEnabled() and addon.Skinner and addon.Skinner.functions and addon.Skinner.functions.ApplyCharacterFrameSkin then addon.Skinner.functions.ApplyCharacterFrameSkin() end
 end
 
 function addon.Skinner.functions.InitSettings()

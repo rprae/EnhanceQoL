@@ -12,6 +12,7 @@ addon.Aura.CooldownPanels = addon.Aura.CooldownPanels or {}
 local CooldownPanels = addon.Aura.CooldownPanels
 local Helper = CooldownPanels.helper
 local Keybinds = Helper.Keybinds
+local Api = Helper.Api or {}
 local EditMode = addon.EditMode
 local SettingType = EditMode and EditMode.lib and EditMode.lib.SettingType
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_Aura")
@@ -38,72 +39,6 @@ local curveAlpha = C_CurveUtil.CreateCurve()
 curveAlpha:SetType(Enum.LuaCurveType.Step)
 curveAlpha:AddPoint(0, 1)
 curveAlpha:AddPoint(0.1, 0)
-
-local GetItemInfoInstantFn = (C_Item and C_Item.GetItemInfoInstant) or GetItemInfoInstant
-local GetItemIconByID = C_Item and C_Item.GetItemIconByID
-local GetItemCooldownFn = (C_Item and C_Item.GetItemCooldown) or GetItemCooldown
-local function getItemCount(itemID, includeBank, includeUses, includeReagentBank, includeAccountBank)
-	if not itemID then return 0 end
-	if C_Item and C_Item.GetItemCount then return C_Item.GetItemCount(itemID, includeBank, includeUses, includeReagentBank, includeAccountBank) end
-	if GetItemCount then return GetItemCount(itemID, includeBank) end
-	return 0
-end
-local GetItemSpell = C_Item and C_Item.GetItemSpell
-local GetInventoryItemID = GetInventoryItemID
-local GetInventoryItemCooldown = GetInventoryItemCooldown
-local GetInventorySlotInfo = GetInventorySlotInfo
-local GetActionInfo = GetActionInfo
-local GetCursorInfo = GetCursorInfo
-local GetCursorPosition = GetCursorPosition
-local ClearCursor = ClearCursor
-local GetSpellCooldownInfo = C_Spell and C_Spell.GetSpellCooldown or GetSpellCooldown
-local GetSpellCooldownDuration = C_Spell and C_Spell.GetSpellCooldownDuration
-local GetSpellChargesInfo = C_Spell and C_Spell.GetSpellCharges
-local GetBaseSpell = C_Spell and C_Spell.GetBaseSpell
-local GetOverrideSpell = C_Spell and C_Spell.GetOverrideSpell
-local GetSpellPowerCost = C_Spell and C_Spell.GetSpellPowerCost
-local EnableSpellRangeCheck = C_Spell and C_Spell.EnableSpellRangeCheck
-local IsSpellUsableFn = C_Spell and C_Spell.IsSpellUsable or IsUsableSpell
-local IsSpellPassiveFn = C_Spell and C_Spell.IsSpellPassive or IsPassiveSpell
-local IsSpellKnown = C_SpellBook.IsSpellInSpellBook
-local IsEquippedItem = C_Item.IsEquippedItem
-local GetTime = GetTime
-local MenuUtil = MenuUtil
-local issecretvalue = _G.issecretvalue
-local DurationModifierRealTime = Enum and Enum.DurationTimeModifier and Enum.DurationTimeModifier.RealTime
-
-local directionOptions = {
-	{ value = "LEFT", label = _G.HUD_EDIT_MODE_SETTING_BAGS_DIRECTION_LEFT or _G.LEFT or "Left" },
-	{ value = "RIGHT", label = _G.HUD_EDIT_MODE_SETTING_BAGS_DIRECTION_RIGHT or _G.RIGHT or "Right" },
-	{ value = "UP", label = _G.HUD_EDIT_MODE_SETTING_BAGS_DIRECTION_UP or _G.UP or "Up" },
-	{ value = "DOWN", label = _G.HUD_EDIT_MODE_SETTING_BAGS_DIRECTION_DOWN or _G.DOWN or "Down" },
-}
-local layoutModeOptions = {
-	{ value = "GRID", label = L["CooldownPanelLayoutModeGrid"] or "Grid" },
-	{ value = "RADIAL", label = L["CooldownPanelLayoutModeRadial"] or "Radial" },
-}
-local anchorOptions = {
-	{ value = "TOPLEFT", label = L["Top Left"] or "Top Left" },
-	{ value = "TOP", label = L["Top"] or "Top" },
-	{ value = "TOPRIGHT", label = L["Top Right"] or "Top Right" },
-	{ value = "LEFT", label = L["Left"] or "Left" },
-	{ value = "CENTER", label = L["Center"] or "Center" },
-	{ value = "RIGHT", label = L["Right"] or "Right" },
-	{ value = "BOTTOMLEFT", label = L["Bottom Left"] or "Bottom Left" },
-	{ value = "BOTTOM", label = L["Bottom"] or "Bottom" },
-	{ value = "BOTTOMRIGHT", label = L["Bottom Right"] or "Bottom Right" },
-}
-local growthPointOptions = {
-	{ value = "TOPLEFT", label = L["Left"] or "Left" },
-	{ value = "TOP", label = L["Center"] or "Center" },
-	{ value = "TOPRIGHT", label = L["Right"] or "Right" },
-}
-local fontStyleOptions = {
-	{ value = "NONE", label = L["None"] or "None" },
-	{ value = "OUTLINE", label = L["Outline"] or "Outline" },
-	{ value = "THICKOUTLINE", label = L["Thick Outline"] or "Thick Outline" },
-	{ value = "MONOCHROMEOUTLINE", label = L["Monochrome Outline"] or "Monochrome Outline" },
-}
 
 local function normalizeId(value)
 	local num = tonumber(value)
@@ -166,8 +101,8 @@ end
 local function getEffectiveSpellId(spellId)
 	local id = tonumber(spellId)
 	if not id then return nil end
-	if GetOverrideSpell then
-		local overrideId = GetOverrideSpell(id)
+	if Api.GetOverrideSpell then
+		local overrideId = Api.GetOverrideSpell(id)
 		if type(overrideId) == "number" and overrideId > 0 then return overrideId end
 	end
 	return id
@@ -176,18 +111,18 @@ end
 local function getBaseSpellId(spellId)
 	local id = tonumber(spellId)
 	if not id then return nil end
-	if GetBaseSpell then
-		local baseId = GetBaseSpell(id)
+	if Api.GetBaseSpell then
+		local baseId = Api.GetBaseSpell(id)
 		if type(baseId) == "number" and baseId > 0 then return baseId end
 	end
 	return id
 end
 
 local function isSpellPassiveSafe(spellId, effectiveId)
-	if not spellId or not IsSpellPassiveFn then return false end
+	if not spellId or not Api.IsSpellPassiveFn then return false end
 	local checkId = effectiveId or getEffectiveSpellId(spellId) or spellId
-	if IsSpellPassiveFn(checkId) then return true end
-	if checkId ~= spellId and IsSpellPassiveFn(spellId) then return true end
+	if Api.IsSpellPassiveFn(checkId) then return true end
+	if checkId ~= spellId and Api.IsSpellPassiveFn(spellId) then return true end
 	return false
 end
 
@@ -225,8 +160,8 @@ local function getSpellPowerCostNamesFromCosts(costs)
 end
 
 local function getSpellPowerCostNames(spellId)
-	if not spellId or not GetSpellPowerCost then return nil end
-	return getSpellPowerCostNamesFromCosts(GetSpellPowerCost(spellId))
+	if not spellId or not Api.GetSpellPowerCost then return nil end
+	return getSpellPowerCostNamesFromCosts(Api.GetSpellPowerCost(spellId))
 end
 
 local function getRuntime(panelId)
@@ -290,13 +225,7 @@ local function ensureFakeCursorFrame()
 	tex:SetAtlas(FAKE_CURSOR_ATLAS, true)
 	tex:ClearAllPoints()
 	tex:SetSize(FAKE_CURSOR_SIZE, FAKE_CURSOR_SIZE)
-	tex:SetPoint(
-		"CENTER",
-		frame,
-		"CENTER",
-		(FAKE_CURSOR_SIZE * 0.5) - FAKE_CURSOR_HOTSPOT_X,
-		FAKE_CURSOR_HOTSPOT_Y - (FAKE_CURSOR_SIZE * 0.5)
-	)
+	tex:SetPoint("CENTER", frame, "CENTER", (FAKE_CURSOR_SIZE * 0.5) - FAKE_CURSOR_HOTSPOT_X, FAKE_CURSOR_HOTSPOT_Y - (FAKE_CURSOR_SIZE * 0.5))
 	frame.texture = tex
 
 	frame:Hide()
@@ -350,7 +279,7 @@ end
 
 local function updateFakeCursorToMouse()
 	local frame = ensureFakeCursorFrame()
-	local x, y = GetCursorPosition()
+	local x, y = Api.GetCursorPosition()
 	if not x or not y then return end
 	local scale = UIParent:GetEffectiveScale()
 	frame:ClearAllPoints()
@@ -617,9 +546,9 @@ local function setExampleCooldown(cooldown)
 	local setAsPercent = _G.CooldownFrame_SetDisplayAsPercentage
 	if setAsPercent then
 		setAsPercent(cooldown, Helper.EXAMPLE_COOLDOWN_PERCENT)
-	elseif cooldown.SetCooldown and GetTime then
+	elseif cooldown.SetCooldown and Api.GetTime then
 		local duration = 100
-		cooldown:SetCooldown(GetTime() - (duration * Helper.EXAMPLE_COOLDOWN_PERCENT), duration, 1)
+		cooldown:SetCooldown(Api.GetTime() - (duration * Helper.EXAMPLE_COOLDOWN_PERCENT), duration, 1)
 	end
 	cooldown._eqolPreviewCooldown = true
 	if cooldown.Pause then cooldown:Pause() end
@@ -703,17 +632,17 @@ local function getEntryIcon(entry)
 		local cached = cache[entry.itemID]
 		if cached then return cached end
 		local icon
-		if GetItemIconByID then icon = GetItemIconByID(entry.itemID) end
-		if not icon and GetItemInfoInstantFn then
-			local _, _, _, _, instantIcon = GetItemInfoInstantFn(entry.itemID)
+		if Api.GetItemIconByID then icon = Api.GetItemIconByID(entry.itemID) end
+		if not icon and Api.GetItemInfoInstantFn then
+			local _, _, _, _, instantIcon = Api.GetItemInfoInstantFn(entry.itemID)
 			icon = instantIcon
 		end
 		icon = icon or Helper.PREVIEW_ICON
 		cache[entry.itemID] = icon
 		return icon
 	end
-	if entry.type == "SLOT" and entry.slotID and GetInventoryItemID then
-		local itemID = GetInventoryItemID("player", entry.slotID)
+	if entry.type == "SLOT" and entry.slotID and Api.GetInventoryItemID then
+		local itemID = Api.GetInventoryItemID("player", entry.slotID)
 		if itemID then
 			local runtime = CooldownPanels.runtime
 			runtime = runtime or {}
@@ -723,9 +652,9 @@ local function getEntryIcon(entry)
 			local cached = cache[itemID]
 			if cached then return cached end
 			local icon
-			if GetItemIconByID then icon = GetItemIconByID(itemID) end
-			if not icon and GetItemInfoInstantFn then
-				local _, _, _, _, instantIcon = GetItemInfoInstantFn(itemID)
+			if Api.GetItemIconByID then icon = Api.GetItemIconByID(itemID) end
+			if not icon and Api.GetItemInfoInstantFn then
+				local _, _, _, _, instantIcon = Api.GetItemInfoInstantFn(itemID)
 				icon = instantIcon
 			end
 			icon = icon or Helper.PREVIEW_ICON
@@ -763,9 +692,9 @@ local SLOT_DEFS = {
 local function getSlotMenuEntries()
 	if SLOT_MENU_ENTRIES then return SLOT_MENU_ENTRIES end
 	SLOT_MENU_ENTRIES = {}
-	if not GetInventorySlotInfo then return SLOT_MENU_ENTRIES end
+	if not Api.GetInventorySlotInfo then return SLOT_MENU_ENTRIES end
 	for _, def in ipairs(SLOT_DEFS) do
-		local ok, slotId = pcall(GetInventorySlotInfo, def.name)
+		local ok, slotId = pcall(Api.GetInventorySlotInfo, def.name)
 		if ok and slotId then
 			local label = def.label or def.name
 			SLOT_LABELS[slotId] = label
@@ -908,6 +837,14 @@ local function isSpellKnownSafe(spellId)
 		if overrideId and overrideId ~= spellId then return C_SpellBook.IsSpellInSpellBook(overrideId) and true or false end
 		return false
 	end
+	return true
+end
+
+local function spellExistsSafe(spellId)
+	if not spellId then return false end
+	if Api.DoesSpellExist then return Api.DoesSpellExist(spellId) and true or false end
+	if C_Spell and C_Spell.GetSpellInfo then return C_Spell.GetSpellInfo(spellId) ~= nil end
+	if Api.GetSpellInfoFn then return Api.GetSpellInfoFn(spellId) ~= nil end
 	return true
 end
 
@@ -1138,7 +1075,7 @@ function CooldownPanels:RebuildPowerIndex()
 						if baseId then
 							local effectiveId = getEffectiveSpellId(baseId) or baseId
 							if not isSpellPassiveSafe(baseId, effectiveId) then
-								local costs = GetSpellPowerCost and GetSpellPowerCost(effectiveId)
+								local costs = Api.GetSpellPowerCost and Api.GetSpellPowerCost(effectiveId)
 								if type(costs) == "table" then
 									powerCheckSpells[effectiveId] = true
 									local names = getSpellPowerCostNamesFromCosts(costs)
@@ -1172,10 +1109,10 @@ function CooldownPanels:RebuildPowerIndex()
 	runtime.spellUnusable = runtime.spellUnusable or {}
 	wipe(runtime.spellUnusable)
 	updatePowerEventRegistration()
-	if IsSpellUsableFn then
+	if Api.IsSpellUsableFn then
 		for spellId in pairs(powerCheckSpells) do
 			local checkId = getEffectiveSpellId(spellId) or spellId
-			local isUsable, insufficientPower = IsSpellUsableFn(checkId)
+			local isUsable, insufficientPower = Api.IsSpellUsableFn(checkId)
 			setPowerInsufficient(runtime, checkId, isUsable, insufficientPower)
 		end
 	end
@@ -1195,8 +1132,8 @@ function CooldownPanels:RebuildChargesIndex()
 							local effectiveId = getEffectiveSpellId(baseId) or baseId
 							if not isSpellPassiveSafe(baseId, effectiveId) then
 								chargesPanels[panelId] = true
-								if GetSpellChargesInfo then
-									local info = GetSpellChargesInfo(effectiveId)
+								if Api.GetSpellChargesInfo then
+									local info = Api.GetSpellChargesInfo(effectiveId)
 									if type(info) == "table" then
 										chargesIndex[effectiveId] = chargesIndex[effectiveId] or {}
 										chargesIndex[effectiveId][panelId] = true
@@ -1247,8 +1184,8 @@ function CooldownPanels:AddEntrySafe(panelId, entryType, idValue, overrides)
 	local baseValue = numericValue
 	if typeKey == "SPELL" and numericValue then
 		baseValue = getBaseSpellId(numericValue) or numericValue
-		if not isSpellKnownSafe(numericValue) and not isSpellKnownSafe(baseValue) then
-			showErrorMessage(SPELL_FAILED_NOT_KNOWN or "Spell not known.")
+		if not spellExistsSafe(numericValue) and not spellExistsSafe(baseValue) then
+			showErrorMessage(L["CooldownPanelSpellInvalid"] or "Spell does not exist.")
 			return nil
 		end
 	end
@@ -1262,7 +1199,7 @@ end
 function CooldownPanels:HandleCursorDrop(panelId)
 	panelId = normalizeId(panelId or self:GetSelectedPanel())
 	if not panelId then return false end
-	local cursorType, cursorId, _, cursorSpellId = GetCursorInfo()
+	local cursorType, cursorId, _, cursorSpellId = Api.GetCursorInfo()
 	if not cursorType then return false end
 
 	local added = false
@@ -1271,8 +1208,8 @@ function CooldownPanels:HandleCursorDrop(panelId)
 		if spellId then added = self:AddEntrySafe(panelId, "SPELL", spellId) ~= nil end
 	elseif cursorType == "item" then
 		if cursorId then added = self:AddEntrySafe(panelId, "ITEM", cursorId) ~= nil end
-	elseif cursorType == "action" and GetActionInfo then
-		local actionType, actionId = GetActionInfo(cursorId)
+	elseif cursorType == "action" and Api.GetActionInfo then
+		local actionType, actionId = Api.GetActionInfo(cursorId)
 		if actionType == "spell" then
 			added = self:AddEntrySafe(panelId, "SPELL", actionId) ~= nil
 		elseif actionType == "item" then
@@ -1280,7 +1217,7 @@ function CooldownPanels:HandleCursorDrop(panelId)
 		end
 	end
 
-	if added then ClearCursor() end
+	if added then Api.ClearCursor() end
 	return added
 end
 
@@ -1469,7 +1406,7 @@ local function triggerReadyGlow(panelId, entryId, glowDuration)
 	runtime.glowTimers = runtime.glowTimers or {}
 	local glowTimers = runtime.glowTimers
 
-	local now = GetTime and GetTime() or 0
+	local now = Api.GetTime and Api.GetTime() or 0
 	runtime.readyAt[entryId] = now
 
 	-- Cancel any existing timer for this entry.
@@ -1510,7 +1447,7 @@ local function onCooldownDone(self)
 	-- if CooldownPanels and CooldownPanels.RequestUpdate then CooldownPanels:RequestUpdate() end
 end
 
-local function isSafeNumber(value) return type(value) == "number" and (not issecretvalue or not issecretvalue(value)) end
+local function isSafeNumber(value) return type(value) == "number" and (not Api.issecretvalue or not Api.issecretvalue(value)) end
 
 local function isSafeGreaterThan(value, threshold)
 	if not isSafeNumber(value) or not isSafeNumber(threshold) then return false end
@@ -1523,57 +1460,57 @@ local function isSafeLessThan(a, b)
 end
 
 local function isSafeNotFalse(value)
-	if issecretvalue and issecretvalue(value) then return true end
+	if Api.issecretvalue and Api.issecretvalue(value) then return true end
 	return value ~= false
 end
 
 local function isCooldownActive(startTime, duration)
 	if not isSafeNumber(startTime) or not isSafeNumber(duration) then return false end
 	if duration <= 0 or startTime <= 0 then return false end
-	if not GetTime then return false end
-	return (startTime + duration) > GetTime()
+	if not Api.GetTime then return false end
+	return (startTime + duration) > Api.GetTime()
 end
 
 local function getDurationRemaining(duration)
 	if not duration then return nil end
-	local remaining = duration.GetRemainingDuration(duration, DurationModifierRealTime)
+	local remaining = duration.GetRemainingDuration(duration, Api.DurationModifierRealTime)
 	if isSafeNumber(remaining) then return remaining end
 	return nil
 end
 
 local function getSpellCooldownInfo(spellID)
-	if not spellID or not GetSpellCooldownInfo then return 0, 0, false, 1 end
-	local a, b, c, d = GetSpellCooldownInfo(spellID)
+	if not spellID or not Api.GetSpellCooldownInfo then return 0, 0, false, 1 end
+	local a, b, c, d = Api.GetSpellCooldownInfo(spellID)
 	if type(a) == "table" then return a.startTime or 0, a.duration or 0, a.isEnabled, a.modRate or 1, a.isOnGCD or nil end
 	return a or 0, b or 0, c, d or 1
 end
 
 local function getItemCooldownInfo(itemID, slotID)
-	if slotID and GetInventoryItemCooldown then
-		local start, duration, enabled = GetInventoryItemCooldown("player", slotID)
+	if slotID and Api.GetInventoryItemCooldown then
+		local start, duration, enabled = Api.GetInventoryItemCooldown("player", slotID)
 		if start and duration then return start, duration, enabled end
 	end
-	if not itemID or not GetItemCooldownFn then return 0, 0, false end
-	local start, duration, enabled = GetItemCooldownFn(itemID)
+	if not itemID or not Api.GetItemCooldownFn then return 0, 0, false end
+	local start, duration, enabled = Api.GetItemCooldownFn(itemID)
 	return start or 0, duration or 0, enabled
 end
 
 local function getSpellCooldownDurationObject(spellID)
-	if not spellID or not GetSpellCooldownDuration then return nil end
-	return GetSpellCooldownDuration(spellID)
+	if not spellID or not Api.GetSpellCooldownDuration then return nil end
+	return Api.GetSpellCooldownDuration(spellID)
 end
 
 local function hasItem(itemID)
 	if not itemID then return false end
-	if IsEquippedItem and IsEquippedItem(itemID) then return true end
-	local count = getItemCount(itemID, true, false)
+	if Api.IsEquippedItem and Api.IsEquippedItem(itemID) then return true end
+	local count = Api.GetItemCount(itemID, true, false)
 	if count and count > 0 then return true end
 	return false
 end
 
 local function itemHasUseSpell(itemID)
-	if not itemID or not GetItemSpell then return false end
-	local _, spellId = GetItemSpell(itemID)
+	if not itemID or not Api.GetItemSpell then return false end
+	local _, spellId = Api.GetItemSpell(itemID)
 	return spellId ~= nil
 end
 
@@ -2079,7 +2016,7 @@ local function showEditorDragIcon(editor, texture)
 	end
 	editor.dragIcon.texture:SetTexture(texture or Helper.PREVIEW_ICON)
 	editor.dragIcon:SetScript("OnUpdate", function(f)
-		local x, y = GetCursorPosition()
+		local x, y = Api.GetCursorPosition()
 		local scale = UIParent:GetEffectiveScale()
 		f:ClearAllPoints()
 		f:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x / scale, y / scale)
@@ -2094,10 +2031,10 @@ local function hideEditorDragIcon(editor)
 end
 
 local function showSlotMenu(owner, panelId)
-	if not panelId or not MenuUtil or not MenuUtil.CreateContextMenu then return end
+	if not panelId or not Api.MenuUtil or not Api.MenuUtil.CreateContextMenu then return end
 	local entries = getSlotMenuEntries()
 	if not entries or #entries == 0 then return end
-	MenuUtil.CreateContextMenu(owner, function(_, rootDescription)
+	Api.MenuUtil.CreateContextMenu(owner, function(_, rootDescription)
 		rootDescription:SetTag("MENU_EQOL_COOLDOWN_PANEL_SLOTS")
 		rootDescription:CreateTitle(L["CooldownPanelAddSlot"] or "Add Slot")
 		for _, slot in ipairs(entries) do
@@ -2110,10 +2047,10 @@ local function showSlotMenu(owner, panelId)
 end
 
 local function showSpecMenu(owner, panelId)
-	if not panelId or not MenuUtil or not MenuUtil.CreateContextMenu then return end
+	if not panelId or not Api.MenuUtil or not Api.MenuUtil.CreateContextMenu then return end
 	local panel = CooldownPanels:GetPanel(panelId)
 	if not panel then return end
-	MenuUtil.CreateContextMenu(owner, function(_, rootDescription)
+	Api.MenuUtil.CreateContextMenu(owner, function(_, rootDescription)
 		rootDescription:SetTag("MENU_EQOL_COOLDOWN_PANEL_SPECS")
 		rootDescription:CreateTitle(L["CooldownPanelSpecFilter"] or "Show only for spec")
 		rootDescription:CreateCheckbox(L["CooldownPanelSpecAny"] or "All specs", function() return not panelHasSpecFilter(panel) end, function()
@@ -2142,8 +2079,8 @@ local function showSpecMenu(owner, panelId)
 end
 
 local function showPanelFilterMenu(owner)
-	if not MenuUtil or not MenuUtil.CreateContextMenu then return end
-	MenuUtil.CreateContextMenu(owner, function(_, rootDescription)
+	if not Api.MenuUtil or not Api.MenuUtil.CreateContextMenu then return end
+	Api.MenuUtil.CreateContextMenu(owner, function(_, rootDescription)
 		rootDescription:SetTag("MENU_EQOL_COOLDOWN_PANEL_FILTERS")
 		rootDescription:CreateTitle(L["CooldownPanelPanelFilters"] or "Panel filters")
 		rootDescription:CreateCheckbox(L["CooldownPanelOnlyMyClass"] or "Only show Panels of my Class", function() return addon.db and addon.db.cooldownPanelsFilterClass == true end, function()
@@ -2154,13 +2091,13 @@ local function showPanelFilterMenu(owner)
 end
 
 local function showSoundMenu(owner, panelId, entryId)
-	if not panelId or not entryId or not MenuUtil or not MenuUtil.CreateContextMenu then return end
+	if not panelId or not entryId or not Api.MenuUtil or not Api.MenuUtil.CreateContextMenu then return end
 	local panel = CooldownPanels:GetPanel(panelId)
 	local entry = panel and panel.entries and panel.entries[entryId]
 	if not entry then return end
 	local options = getSoundOptions()
 	if not options or #options == 0 then return end
-	MenuUtil.CreateContextMenu(owner, function(_, rootDescription)
+	Api.MenuUtil.CreateContextMenu(owner, function(_, rootDescription)
 		rootDescription:SetTag("MENU_EQOL_COOLDOWN_PANEL_SOUND")
 		if rootDescription.SetScrollMode then rootDescription:SetScrollMode(260) end
 		rootDescription:CreateTitle(L["CooldownPanelSoundReady"] or "Sound when ready")
@@ -2766,8 +2703,8 @@ local function ensureEditor()
 		local newValue = value
 		if entry.type == "SPELL" then
 			local baseValue = getBaseSpellId(value) or value
-			if not isSpellKnownSafe(value) and not isSpellKnownSafe(baseValue) then
-				showErrorMessage(SPELL_FAILED_NOT_KNOWN or "Spell not known.")
+			if not spellExistsSafe(value) and not spellExistsSafe(baseValue) then
+				showErrorMessage(L["CooldownPanelSpellInvalid"] or "Spell does not exist.")
 				self:ClearFocus()
 				CooldownPanels:RefreshEditor()
 				return
@@ -3116,15 +3053,15 @@ local function entryIsAvailableForPreview(entry)
 	if not entry or type(entry) ~= "table" then return false end
 	if entry.type == "SPELL" then
 		if not entry.spellID then return false end
-		return isSpellKnownSafe(entry.spellID)
+		return true
 	elseif entry.type == "ITEM" then
 		if not entry.itemID then return false end
 		if itemHasUseSpell and not itemHasUseSpell(entry.itemID) then return false end
 		if entry.showWhenEmpty == true then return true end
 		return hasItem(entry.itemID)
 	elseif entry.type == "SLOT" then
-		if entry.slotID and GetInventoryItemID then
-			local itemId = GetInventoryItemID("player", entry.slotID)
+		if entry.slotID and Api.GetInventoryItemID then
+			local itemId = Api.GetInventoryItemID("player", entry.slotID)
 			if not itemId then return entry.showWhenNoCooldown == true end
 			if itemHasUseSpell and itemHasUseSpell(itemId) then return true end
 			return entry.showWhenNoCooldown == true
@@ -3209,17 +3146,14 @@ local function refreshPreview(editor, panel)
 	local canvas = preview.canvas or preview
 	if not panel then
 		if editor.previewHintLabel then editor.previewHintLabel:Hide() end
-		applyIconLayout(canvas, Helper.DEFAULT_PREVIEW_COUNT, Helper.PANEL_LAYOUT_DEFAULTS)
+		ensureIconCount(canvas, 0)
+		canvas:SetSize(1, 1)
 		canvas:ClearAllPoints()
 		canvas:SetPoint("CENTER", preview, "CENTER")
-		for i = 1, Helper.DEFAULT_PREVIEW_COUNT do
-			local icon = canvas.icons[i]
-			icon.texture:SetTexture(Helper.PREVIEW_ICON)
-			icon.entryId = nil
-			if icon.previewSoundBorder then icon.previewSoundBorder:Hide() end
-		end
 		if preview.dropHint then
-			preview.dropHint:SetText(L["CooldownPanelSelectPanel"] or "Select a panel to edit.")
+			local root = CooldownPanels:GetRoot()
+			local hasPanels = root and ((root.order and #root.order > 0) or (root.panels and next(root.panels)))
+			preview.dropHint:SetText(hasPanels and (L["CooldownPanelSelectPanel"] or "Select a panel to edit.") or (L["CooldownPanelCreatePanel"] or "Create a Panel"))
 			preview.dropHint:Show()
 		end
 		return
@@ -3692,7 +3626,7 @@ function CooldownPanels:UpdatePreviewIcons(panelId, countOverride)
 			icon.charges:Show()
 		elseif showItemUses then
 			local usesValue
-			if entry and entry.itemID then usesValue = getItemCount(entry.itemID, true, true) end
+			if entry and entry.itemID then usesValue = Api.GetItemCount(entry.itemID, true, true) end
 			if isSafeGreaterThan(usesValue, 0) then
 				icon.charges:SetText(usesValue)
 			else
@@ -3705,7 +3639,7 @@ function CooldownPanels:UpdatePreviewIcons(panelId, countOverride)
 			icon.count:Show()
 		elseif showItemCount then
 			local countValue
-			if entry and entry.itemID then countValue = getItemCount(entry.itemID, true, false) end
+			if entry and entry.itemID then countValue = Api.GetItemCount(entry.itemID, true, false) end
 			if isSafeGreaterThan(countValue, 0) then
 				icon.count:SetText(countValue)
 			else
@@ -3745,8 +3679,8 @@ local function updateItemCountCache()
 			if entry and entry.type == "ITEM" and entry.itemID then
 				local id = entry.itemID
 				seen[id] = true
-				local count = getItemCount(id, true, false) or 0
-				local uses = getItemCount(id, true, true) or 0
+				local count = Api.GetItemCount(id, true, false) or 0
+				local uses = Api.GetItemCount(id, true, true) or 0
 				cache[id] = { count = count, uses = uses }
 			end
 		end
@@ -3762,8 +3696,8 @@ updateItemCountCacheForItem = function(itemID)
 	CooldownPanels.runtime = CooldownPanels.runtime or {}
 	local runtime = CooldownPanels.runtime
 	runtime.itemCountCache = runtime.itemCountCache or {}
-	local count = getItemCount(itemID, true, false) or 0
-	local uses = getItemCount(itemID, true, true) or 0
+	local count = Api.GetItemCount(itemID, true, false) or 0
+	local uses = Api.GetItemCount(itemID, true, true) or 0
 	runtime.itemCountCache[itemID] = { count = count, uses = uses }
 end
 
@@ -3852,10 +3786,10 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			local powerInsufficient = checkPower and entry.type == "SPELL" and isSpellFlagged(shared.powerInsufficient, baseSpellId, effectiveSpellId)
 			local spellUnusable = checkPower and entry.type == "SPELL" and isSpellFlagged(shared.spellUnusable, baseSpellId, effectiveSpellId)
 			local rangeOverlay = rangeOverlayEnabled and entry.type == "SPELL" and isSpellFlagged(shared.rangeOverlaySpells, baseSpellId, effectiveSpellId)
-			if rangeOverlay and IsSpellUsableFn then
+			if rangeOverlay and Api.IsSpellUsableFn then
 				local checkId = effectiveSpellId or baseSpellId
 				if checkId then
-					local isUsable = IsSpellUsableFn(checkId)
+					local isUsable = Api.IsSpellUsableFn(checkId)
 					if not isUsable then rangeOverlay = false end
 				end
 			end
@@ -3876,10 +3810,10 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 				local spellId = effectiveSpellId or baseSpellId
 				if spellPassive then
 					show = false
-				elseif IsSpellKnown and not IsSpellKnown(spellId) then
+				elseif Api.IsSpellKnown and not Api.IsSpellKnown(spellId) then
 					show = false
 				else
-					if showCharges and GetSpellChargesInfo then chargesInfo = GetSpellChargesInfo(spellId) end
+					if showCharges and Api.GetSpellChargesInfo then chargesInfo = Api.GetSpellChargesInfo(spellId) end
 					if showCooldown then
 						cooldownDurationObject = getSpellCooldownDurationObject(spellId)
 						cooldownRemaining = getDurationRemaining(cooldownDurationObject)
@@ -3911,7 +3845,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 				local cachedUses = cached and cached.uses
 				local ownsItem
 				if cachedCount ~= nil then
-					ownsItem = cachedCount > 0 or (IsEquippedItem and IsEquippedItem(entry.itemID))
+					ownsItem = cachedCount > 0 or (Api.IsEquippedItem and Api.IsEquippedItem(entry.itemID))
 				else
 					ownsItem = hasItem(entry.itemID)
 				end
@@ -3923,7 +3857,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 					if showItemCount then
 						local count = cachedCount
 						if count == nil then
-							count = getItemCount(entry.itemID, true, false) or 0
+							count = Api.GetItemCount(entry.itemID, true, false) or 0
 							if itemCache then
 								local slot = itemCache[entry.itemID] or {}
 								slot.count = count
@@ -3940,7 +3874,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 					if showItemUses then
 						local uses = cachedUses
 						if uses == nil then
-							uses = getItemCount(entry.itemID, true, true) or 0
+							uses = Api.GetItemCount(entry.itemID, true, true) or 0
 							if itemCache then
 								local slot = itemCache[entry.itemID] or {}
 								slot.uses = uses
@@ -3963,9 +3897,9 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 					if not show and showCooldown and cooldownEnabledOk and isCooldownActive(cooldownStart, cooldownDuration) then show = true end
 				end
 			elseif entry.type == "SLOT" and entry.slotID then
-				local itemId = GetInventoryItemID and GetInventoryItemID("player", entry.slotID) or nil
+				local itemId = Api.GetInventoryItemID and Api.GetInventoryItemID("player", entry.slotID) or nil
 				if itemId then
-					iconTexture = GetItemIconByID and GetItemIconByID(itemId) or iconTexture
+					iconTexture = Api.GetItemIconByID and Api.GetItemIconByID(itemId) or iconTexture
 					if itemHasUseSpell(itemId) then
 						if showCooldown then
 							cooldownStart, cooldownDuration, cooldownEnabled = getItemCooldownInfo(itemId, entry.slotID)
@@ -4094,7 +4028,7 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 				icon.charges:Hide()
 			end
 			if data.showCooldown then
-				local chargesSecret = issecretvalue and (issecretvalue(data.chargesInfo.currentCharges) or issecretvalue(data.chargesInfo.maxCharges))
+				local chargesSecret = Api.issecretvalue and (Api.issecretvalue(data.chargesInfo.currentCharges) or Api.issecretvalue(data.chargesInfo.maxCharges))
 				if chargesSecret or isSafeLessThan(data.chargesInfo.currentCharges, data.chargesInfo.maxCharges) then
 					cooldownStart = data.chargesInfo.cooldownStartTime or cooldownStart
 					cooldownDuration = data.chargesInfo.cooldownDuration or cooldownDuration
@@ -4287,9 +4221,9 @@ function CooldownPanels:UpdateRuntimeIcons(panelId)
 			local ready = false
 			local duration = tonumber(data.glowDuration) or 0
 
-			if data.readyAt and GetTime then
+			if data.readyAt and Api.GetTime then
 				if duration > 0 then
-					ready = (GetTime() - data.readyAt) <= duration
+					ready = (Api.GetTime() - data.readyAt) <= duration
 				else
 					ready = true
 				end
@@ -4993,7 +4927,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 					applyAnchorPosition()
 				end,
 				generator = function(_, root)
-					for _, option in ipairs(anchorOptions) do
+					for _, option in ipairs(Helper.AnchorOptions) do
 						root:CreateRadio(option.label, function()
 							local a = ensureAnchorTable()
 							return Helper.NormalizeAnchor(a and a.point, "CENTER") == option.value
@@ -5024,7 +4958,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 					applyAnchorPosition()
 				end,
 				generator = function(_, root)
-					for _, option in ipairs(anchorOptions) do
+					for _, option in ipairs(Helper.AnchorOptions) do
 						root:CreateRadio(option.label, function()
 							local a = ensureAnchorTable()
 							return Helper.NormalizeAnchor(a and a.relativePoint, a and a.point or "CENTER") == option.value
@@ -5098,7 +5032,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				get = function() return Helper.NormalizeLayoutMode(layout.layoutMode, Helper.PANEL_LAYOUT_DEFAULTS.layoutMode) end,
 				set = function(_, value) applyEditLayout(panelId, "layoutMode", value) end,
 				generator = function(_, root)
-					for _, option in ipairs(layoutModeOptions) do
+					for _, option in ipairs(Helper.LayoutModeOptions) do
 						root:CreateRadio(
 							option.label,
 							function() return Helper.NormalizeLayoutMode(layout.layoutMode, Helper.PANEL_LAYOUT_DEFAULTS.layoutMode) == option.value end,
@@ -5146,7 +5080,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				get = function() return Helper.NormalizeDirection(layout.direction, Helper.PANEL_LAYOUT_DEFAULTS.direction) end,
 				set = function(_, value) applyEditLayout(panelId, "direction", value) end,
 				generator = function(_, root)
-					for _, option in ipairs(directionOptions) do
+					for _, option in ipairs(Helper.DirectionOptions) do
 						root:CreateRadio(
 							option.label,
 							function() return Helper.NormalizeDirection(layout.direction, Helper.PANEL_LAYOUT_DEFAULTS.direction) == option.value end,
@@ -5181,7 +5115,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				get = function() return Helper.NormalizeDirection(layout.wrapDirection, Helper.PANEL_LAYOUT_DEFAULTS.wrapDirection or "DOWN") end,
 				set = function(_, value) applyEditLayout(panelId, "wrapDirection", value) end,
 				generator = function(_, root)
-					for _, option in ipairs(directionOptions) do
+					for _, option in ipairs(Helper.DirectionOptions) do
 						root:CreateRadio(
 							option.label,
 							function() return Helper.NormalizeDirection(layout.wrapDirection, Helper.PANEL_LAYOUT_DEFAULTS.wrapDirection or "DOWN") == option.value end,
@@ -5201,7 +5135,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				get = function() return Helper.NormalizeGrowthPoint(layout.growthPoint, Helper.PANEL_LAYOUT_DEFAULTS.growthPoint) end,
 				set = function(_, value) applyEditLayout(panelId, "growthPoint", value) end,
 				generator = function(_, root)
-					for _, option in ipairs(growthPointOptions) do
+					for _, option in ipairs(Helper.GrowthPointOptions) do
 						root:CreateRadio(
 							option.label,
 							function() return Helper.NormalizeGrowthPoint(layout.growthPoint, Helper.PANEL_LAYOUT_DEFAULTS.growthPoint) == option.value end,
@@ -5483,7 +5417,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				get = function() return Helper.NormalizeFontStyleChoice(layout.cooldownTextStyle, "NONE") end,
 				set = function(_, value) applyEditLayout(panelId, "cooldownTextStyle", value) end,
 				generator = function(_, root)
-					for _, option in ipairs(fontStyleOptions) do
+					for _, option in ipairs(Helper.FontStyleOptions) do
 						root:CreateRadio(
 							option.label,
 							function() return Helper.NormalizeFontStyleChoice(layout.cooldownTextStyle, "NONE") == option.value end,
@@ -5562,7 +5496,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				get = function() return Helper.NormalizeAnchor(layout.stackAnchor, Helper.PANEL_LAYOUT_DEFAULTS.stackAnchor) end,
 				set = function(_, value) applyEditLayout(panelId, "stackAnchor", value) end,
 				generator = function(_, root)
-					for _, option in ipairs(anchorOptions) do
+					for _, option in ipairs(Helper.AnchorOptions) do
 						root:CreateRadio(
 							option.label,
 							function() return Helper.NormalizeAnchor(layout.stackAnchor, Helper.PANEL_LAYOUT_DEFAULTS.stackAnchor) == option.value end,
@@ -5620,7 +5554,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				get = function() return Helper.NormalizeFontStyleChoice(layout.stackFontStyle, countFontStyle) end,
 				set = function(_, value) applyEditLayout(panelId, "stackFontStyle", value) end,
 				generator = function(_, root)
-					for _, option in ipairs(fontStyleOptions) do
+					for _, option in ipairs(Helper.FontStyleOptions) do
 						root:CreateRadio(
 							option.label,
 							function() return Helper.NormalizeFontStyleChoice(layout.stackFontStyle, countFontStyle) == option.value end,
@@ -5657,7 +5591,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				get = function() return Helper.NormalizeAnchor(layout.chargesAnchor, Helper.PANEL_LAYOUT_DEFAULTS.chargesAnchor) end,
 				set = function(_, value) applyEditLayout(panelId, "chargesAnchor", value) end,
 				generator = function(_, root)
-					for _, option in ipairs(anchorOptions) do
+					for _, option in ipairs(Helper.AnchorOptions) do
 						root:CreateRadio(
 							option.label,
 							function() return Helper.NormalizeAnchor(layout.chargesAnchor, Helper.PANEL_LAYOUT_DEFAULTS.chargesAnchor) == option.value end,
@@ -5719,7 +5653,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				get = function() return Helper.NormalizeFontStyleChoice(layout.chargesFontStyle, chargesFontStyle) end,
 				set = function(_, value) applyEditLayout(panelId, "chargesFontStyle", value) end,
 				generator = function(_, root)
-					for _, option in ipairs(fontStyleOptions) do
+					for _, option in ipairs(Helper.FontStyleOptions) do
 						root:CreateRadio(
 							option.label,
 							function() return Helper.NormalizeFontStyleChoice(layout.chargesFontStyle, chargesFontStyle) == option.value end,
@@ -5774,7 +5708,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				get = function() return Helper.NormalizeAnchor(layout.keybindAnchor, Helper.PANEL_LAYOUT_DEFAULTS.keybindAnchor) end,
 				set = function(_, value) applyEditLayout(panelId, "keybindAnchor", value) end,
 				generator = function(_, root)
-					for _, option in ipairs(anchorOptions) do
+					for _, option in ipairs(Helper.AnchorOptions) do
 						root:CreateRadio(
 							option.label,
 							function() return Helper.NormalizeAnchor(layout.keybindAnchor, Helper.PANEL_LAYOUT_DEFAULTS.keybindAnchor) == option.value end,
@@ -5836,7 +5770,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				get = function() return Helper.NormalizeFontStyleChoice(layout.keybindFontStyle, countFontStyle) end,
 				set = function(_, value) applyEditLayout(panelId, "keybindFontStyle", value) end,
 				generator = function(_, root)
-					for _, option in ipairs(fontStyleOptions) do
+					for _, option in ipairs(Helper.FontStyleOptions) do
 						root:CreateRadio(
 							option.label,
 							function() return Helper.NormalizeFontStyleChoice(layout.keybindFontStyle, countFontStyle) == option.value end,
@@ -6167,16 +6101,16 @@ end
 refreshPanelsForCharges = function()
 	local runtime = CooldownPanels.runtime
 	local chargesIndex = runtime and runtime.chargesIndex
-	if not chargesIndex or not GetSpellChargesInfo then return false end
+	if not chargesIndex or not Api.GetSpellChargesInfo then return false end
 	runtime.chargesState = runtime.chargesState or {}
 	local chargesState = runtime.chargesState
 	local panelsToRefresh
 
 	for spellId, panels in pairs(chargesIndex) do
-		local info = GetSpellChargesInfo(spellId)
+		local info = Api.GetSpellChargesInfo(spellId)
 		local secret = false
 		local function safeNumber(value)
-			if issecretvalue and issecretvalue(value) then
+			if Api.issecretvalue and Api.issecretvalue(value) then
 				secret = true
 				return nil
 			end
@@ -6228,7 +6162,7 @@ refreshPanelsForCharges = function()
 end
 
 local function updatePowerStatesVisible()
-	if not IsSpellUsableFn then return false end
+	if not Api.IsSpellUsableFn then return false end
 	local runtime = CooldownPanels.runtime
 	local powerCheckSpells = runtime and runtime.powerCheckSpells
 	local enabledPanels = runtime and runtime.enabledPanels
@@ -6250,7 +6184,7 @@ local function updatePowerStatesVisible()
 						if powerCheckSpells[effectiveId] then
 							if not checked[effectiveId] then
 								checked[effectiveId] = true
-								local isUsable, insufficientPower = IsSpellUsableFn(effectiveId)
+								local isUsable, insufficientPower = Api.IsSpellUsableFn(effectiveId)
 								setPowerInsufficient(runtime, effectiveId, isUsable, insufficientPower)
 							end
 							panelsToRefresh = panelsToRefresh or {}
@@ -6299,7 +6233,7 @@ updatePowerEventRegistration = function()
 end
 
 updateRangeCheckSpells = function(rangeCheckSpells)
-	if not EnableSpellRangeCheck then return end
+	if not Api.EnableSpellRangeCheck then return end
 	local wanted = rangeCheckSpells
 	if not wanted then
 		wanted = {}
@@ -6331,14 +6265,14 @@ updateRangeCheckSpells = function(rangeCheckSpells)
 
 	for spellId in pairs(active) do
 		if not wanted[spellId] then
-			EnableSpellRangeCheck(spellId, false)
+			Api.EnableSpellRangeCheck(spellId, false)
 			active[spellId] = nil
 			if runtime.rangeOverlaySpells then runtime.rangeOverlaySpells[spellId] = nil end
 		end
 	end
 	for spellId in pairs(wanted) do
 		if not active[spellId] then
-			EnableSpellRangeCheck(spellId, true)
+			Api.EnableSpellRangeCheck(spellId, true)
 			active[spellId] = true
 		end
 	end

@@ -16,9 +16,7 @@ local InspectCache = {} -- [guid] = { ilvl, specName, score, last }
 local CACHE_TTL = 30 -- seconds
 local function now() return GetTime() end
 
-local function isSecret(value)
-	return issecretvalue and issecretvalue(value)
-end
+local function isSecret(value) return issecretvalue and issecretvalue(value) end
 
 local function safeEquals(a, b)
 	if a == nil or b == nil then return false end
@@ -355,8 +353,8 @@ local function checkCurrency(tooltip, id)
 		for i = tooltip:NumLines(), 1, -1 do
 			local left = _G[tooltip:GetName() .. "TextLeft" .. i]
 			local right = _G[tooltip:GetName() .. "TextRight" .. i]
-				local text = left and left:GetText()
-				if text and safeMatch(text, "^" .. TOTAL .. ":") then
+			local text = left and left:GetText()
+			if text and safeMatch(text, "^" .. TOTAL .. ":") then
 				-- wipe both columns and break; there is only one such line
 				left:SetText("")
 				if right then right:SetText("") end
@@ -397,13 +395,13 @@ local function checkSpell(tooltip, id, name, isSpell)
 		local spellInfo = C_Spell.GetSpellInfo(id)
 		if spellInfo and spellInfo.iconID then
 			local line = tooltip and _G[tooltip:GetName() .. "TextLeft1"]
-				if line then
-					local current = line:GetText()
-					if current and not isSecret(current) and not safeFind(current, "|T", true) then
-						local size = addon.db and addon.db["TooltipItemIconSize"] or 16
-						if size < 10 then
-							size = 10
-						elseif size > 30 then
+			if line then
+				local current = line:GetText()
+				if current and not isSecret(current) and not safeFind(current, "|T", true) then
+					local size = addon.db and addon.db["TooltipItemIconSize"] or 16
+					if size < 10 then
+						size = 10
+					elseif size > 30 then
 						size = 30
 					end
 					local tex = string.format("|T%d:%d:%d:0:0|t ", spellInfo.iconID, size, size)
@@ -449,7 +447,39 @@ local function ResolveTooltipUnit(tooltip)
 	return nil
 end
 
+local function HasUnitTooltipOptions()
+	local db = addon.db
+	if not db then return false end
+	if db["TooltipUnitHideType"] and db["TooltipUnitHideType"] ~= 1 then return true end
+	if db["TooltipUnitHideInCombat"] or db["TooltipUnitHideInDungeon"] then return true end
+	if db["TooltipUnitHideHealthBar"] then return true end
+	if db["TooltipShowMythicScore"] then return true end
+	if db["TooltipShowClassColor"] then return true end
+	if db["TooltipShowNPCID"] then return true end
+	if db["TooltipHideFaction"] or db["TooltipHidePVP"] then return true end
+	if db["TooltipShowGuildRank"] or db["TooltipColorGuildName"] then return true end
+	if db["TooltipUnitShowTargetOfTarget"] then return true end
+	if db["TooltipUnitShowMount"] then return true end
+	if db["TooltipUnitShowSpec"] or db["TooltipUnitShowItemLevel"] then return true end
+	return false
+end
+
+local function ShouldRunAdditionalTooltip()
+	local db = addon.db
+	if not db then return false end
+	return db["TooltipShowNPCID"]
+		or db["TooltipShowClassColor"]
+		or db["TooltipHideFaction"]
+		or db["TooltipHidePVP"]
+		or db["TooltipShowGuildRank"]
+		or db["TooltipColorGuildName"]
+		or db["TooltipUnitShowTargetOfTarget"]
+		or db["TooltipUnitShowMount"]
+		or db["TooltipShowMythicScore"]
+end
+
 local function checkAdditionalTooltip(tooltip)
+	if not ShouldRunAdditionalTooltip() then return end
 	local unit = ResolveTooltipUnit(tooltip)
 	local function challengeLabel(mapId)
 		if addon.Tooltip and addon.Tooltip.variables and addon.Tooltip.variables.challengeMapID then
@@ -531,12 +561,10 @@ local function checkAdditionalTooltip(tooltip)
 				rankText = string.format("|cff%02x%02x%02x%s|r", (col.r or 1) * 255, (col.g or 1) * 255, (col.b or 1) * 255, guildRank)
 			end
 
-				if guildLine then
-					newText = nameText
-					if rankText and guildLineText and not isSecret(guildLineText) and not safeFind(guildLineText, guildRank or "", true) then
-						newText = newText .. " - " .. rankText
-					end
-					guildLine:SetText(newText)
+			if guildLine then
+				newText = nameText
+				if rankText and guildLineText and not isSecret(guildLineText) and not safeFind(guildLineText, guildRank or "", true) then newText = newText .. " - " .. rankText end
+				guildLine:SetText(newText)
 			else
 				if rankText then
 					tooltip:AddLine(" ")
@@ -718,6 +746,7 @@ end
 local function UpdateTooltipHealthBarVisibility(tooltip)
 	if not tooltip or not addon.db then return end
 	local hideBar = addon.db["TooltipUnitHideHealthBar"] and true or false
+	if not hideBar and not tooltip.__EnhanceQoLTooltipHealthBarTouched then return end
 
 	local function handleAlpha(obj)
 		if not obj or not obj.SetAlpha then return end
@@ -787,10 +816,12 @@ local function UpdateTooltipHealthBarVisibility(tooltip)
 		handleAlpha(GameTooltipStatusBarTexture)
 		handleAlpha(GameTooltipStatusBarBackground)
 	end
+	tooltip.__EnhanceQoLTooltipHealthBarTouched = hideBar or nil
 end
 
 local function checkUnit(tooltip)
 	UpdateTooltipHealthBarVisibility(tooltip)
+	if not HasUnitTooltipOptions() then return end
 	if addon.db["TooltipUnitHideInDungeon"] and select(1, IsInInstance()) == false then
 		checkAdditionalTooltip(tooltip)
 		return
@@ -865,14 +896,14 @@ local function checkItem(tooltip, id, name, guid)
 		local icon = nil
 		if id then icon = select(5, GetItemInfoInstant(id)) end
 		local line = tooltip and _G[tooltip:GetName() .. "TextLeft1"]
-			if line then
-				local current = line:GetText()
+		if line then
+			local current = line:GetText()
 
-				if current and icon and not isSecret(current) and not safeFind(current, "|T", true) then
-					local size = addon.db and addon.db["TooltipItemIconSize"] or 16
-					if size < 10 then
-						size = 10
-					elseif size > 30 then
+			if current and icon and not isSecret(current) and not safeFind(current, "|T", true) then
+				local size = addon.db and addon.db["TooltipItemIconSize"] or 16
+				if size < 10 then
+					size = 10
+				elseif size > 30 then
 					size = 30
 				end
 				local tex = string.format("|T%d:%d:%d:0:0|t ", icon, size, size)
@@ -960,13 +991,13 @@ local function checkAura(tooltip, id, name)
 		local spellInfo = C_Spell.GetSpellInfo(id)
 		if spellInfo and spellInfo.iconID then --and (not issecretvalue or (issecretvalue and not issecretvalue(spellInfo.iconID))) then
 			local line = tooltip and _G[tooltip:GetName() .. "TextLeft1"]
-				if line then
-					local current = line:GetText()
-					if current and not isSecret(current) then
-						local size = addon.db and addon.db["TooltipItemIconSize"] or 16
-						if size < 10 then
-							size = 10
-						elseif size > 30 then
+			if line then
+				local current = line:GetText()
+				if current and not isSecret(current) then
+					local size = addon.db and addon.db["TooltipItemIconSize"] or 16
+					if size < 10 then
+						size = 10
+					elseif size > 30 then
 						size = 30
 					end
 					local tex = string.format("|T%d:%d:%d:0:0|t ", spellInfo.iconID, size, size)
@@ -1025,7 +1056,7 @@ if TooltipDataProcessor then
 		if not addon.db then return end
 		if not data or not data.type then return end
 
-		local restricted = addon.functions.isRestrictedContent and addon.functions.isRestrictedContent()
+		local restricted = addon.functions.isRestrictedContent and addon.functions.isRestrictedContent(true)
 		local id, name, _, timeLimit, kind
 
 		if issecretvalue and issecretvalue(data.type) then
@@ -1208,21 +1239,21 @@ local function registerTooltipHooks()
 		if text ~= UNIT_POPUP_RIGHT_CLICK then return end
 		if not IsUnitTooltip(tt) then return end
 
-			local i = tt:NumLines()
-			local line = _G[tt:GetName() .. "TextLeft" .. i]
-			if line then
-				local tmpText = line:GetText()
-				if isSecret(tmpText) then return end
-				if safeEquals(tmpText, text) then
-					line:SetText("")
-					line:Hide()
+		local i = tt:NumLines()
+		local line = _G[tt:GetName() .. "TextLeft" .. i]
+		if line then
+			local tmpText = line:GetText()
+			if isSecret(tmpText) then return end
+			if safeEquals(tmpText, text) then
+				line:SetText("")
+				line:Hide()
 
-					local mLine = _G[tt:GetName() .. "TextLeft" .. (i - 1)]
-					local mText = mLine and mLine.GetText and mLine:GetText()
-					if safeEquals(mText, " ") then mLine:Hide() end
-					tt:Show()
-				end
+				local mLine = _G[tt:GetName() .. "TextLeft" .. (i - 1)]
+				local mText = mLine and mLine.GetText and mLine:GetText()
+				if safeEquals(mText, " ") then mLine:Hide() end
+				tt:Show()
 			end
+		end
 	end)
 
 	if addon.Tooltip and addon.Tooltip.functions and addon.Tooltip.functions.UpdateQuestIDInQuestLog then addon.Tooltip.functions.UpdateQuestIDInQuestLog() end
