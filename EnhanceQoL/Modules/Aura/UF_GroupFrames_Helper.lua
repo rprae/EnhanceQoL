@@ -304,12 +304,14 @@ local function normalizeGroupBy(value)
 	local v = trim(value):upper()
 	if v == "" then return nil end
 	if v == "ROLE" then v = "ASSIGNEDROLE" end
-	if v == "GROUP" or v == "CLASS" or v == "ASSIGNEDROLE" then return v end
+	if v == "CLASS" then v = "GROUP" end
+	if v == "GROUP" or v == "ASSIGNEDROLE" then return v end
 	return nil
 end
 
 function H.NormalizeSortMethod(value)
 	local v = trim(value):upper()
+	if v == "CUSTOM" then v = "NAMELIST" end
 	if v == "NAME" then return "NAME" end
 	if v == "NAMELIST" then return "NAMELIST" end
 	return "INDEX"
@@ -835,7 +837,7 @@ end
 
 function H.BuildCustomSortNameList(cfg)
 	local custom = H.EnsureCustomSortConfig(cfg)
-	if not (custom and custom.enabled == true) then return "" end
+	if not custom then return "" end
 
 	local separate = custom.separateMeleeRanged == true
 	local roleOrder = H.ExpandRoleOrder(custom.roleOrder, separate)
@@ -996,47 +998,6 @@ function H.BuildPreviewSampleList(kind, cfg, baseSamples, limit, quotaTanks, quo
 	local base = baseSamples or {}
 	if kind ~= "raid" then return base end
 
-	local customSort = cfg and cfg.customSort
-	if customSort and customSort.enabled == true then
-		local separate = customSort.separateMeleeRanged == true
-		local roleOrder = H.ExpandRoleOrder(customSort.roleOrder, separate)
-		local classOrder = H.NormalizeOrderList(customSort.classOrder, H.CLASS_TOKENS)
-		local roleMap = buildOrderMap(table.concat(roleOrder, ","))
-		local classMap = buildOrderMap(table.concat(classOrder, ","))
-		local sortDir = H.NormalizeSortDir(cfg and cfg.sortDir)
-		local list = {}
-		for i, sample in ipairs(base) do
-			list[#list + 1] = { sample = sample, index = i }
-		end
-		table.sort(list, function(a, b)
-			local roleA = a.sample and (a.sample.assignedRole or a.sample.role) or nil
-			local roleB = b.sample and (b.sample.assignedRole or b.sample.role) or nil
-			if separate and roleA == "DAMAGER" then roleA = H.GetDpsRangeRole(nil, a.sample and a.sample.class) end
-			if separate and roleB == "DAMAGER" then roleB = H.GetDpsRangeRole(nil, b.sample and b.sample.class) end
-			local orderA = roleMap[roleA] or 999
-			local orderB = roleMap[roleB] or 999
-			if orderA ~= orderB then return orderA < orderB end
-			local classA = a.sample and a.sample.class or nil
-			local classB = b.sample and b.sample.class or nil
-			local classOrderA = classMap[classA] or 999
-			local classOrderB = classMap[classB] or 999
-			if classOrderA ~= classOrderB then return classOrderA < classOrderB end
-			return (a.sample.name or "") < (b.sample.name or "")
-		end)
-		if sortDir == "DESC" then
-			for i = 1, floor(#list / 2) do
-				local j = #list - i + 1
-				list[i], list[j] = list[j], list[i]
-			end
-		end
-		list = applyRoleQuotaWithLimit(list, limit, quotaTanks or 0, quotaHealers or 0)
-		local result = {}
-		for _, entry in ipairs(list) do
-			result[#result + 1] = entry.sample
-		end
-		return result
-	end
-
 	local groupFilter = cfg and cfg.groupFilter
 	local roleFilter = cfg and cfg.roleFilter
 	local nameList = cfg and cfg.nameList
@@ -1050,6 +1011,44 @@ function H.BuildPreviewSampleList(kind, cfg, baseSamples, limit, quotaTanks, quo
 
 	local list = {}
 	local nameOrder = {}
+	local customComparator
+
+	if sortMethod == "NAMELIST" then
+		local customSort = (H.EnsureCustomSortConfig and H.EnsureCustomSortConfig(cfg)) or (cfg and cfg.customSort)
+		if customSort then
+			local separate = customSort.separateMeleeRanged == true
+			local roleOrder = H.ExpandRoleOrder(customSort.roleOrder, separate)
+			local classOrder = H.NormalizeOrderList(customSort.classOrder, H.CLASS_TOKENS)
+			local roleMap = buildOrderMap(table.concat(roleOrder, ","))
+			local classMap = buildOrderMap(table.concat(classOrder, ","))
+			customComparator = function(a, b)
+				local roleA = a.sample and (a.sample.assignedRole or a.sample.role) or nil
+				local roleB = b.sample and (b.sample.assignedRole or b.sample.role) or nil
+				if separate and roleA == "DAMAGER" then roleA = H.GetDpsRangeRole(nil, a.sample and a.sample.class) end
+				if separate and roleB == "DAMAGER" then roleB = H.GetDpsRangeRole(nil, b.sample and b.sample.class) end
+				local orderA = roleMap[roleA] or 999
+				local orderB = roleMap[roleB] or 999
+				if orderA ~= orderB then return orderA < orderB end
+				local classA = a.sample and a.sample.class or nil
+				local classB = b.sample and b.sample.class or nil
+				local classOrderA = classMap[classA] or 999
+				local classOrderB = classMap[classB] or 999
+				if classOrderA ~= classOrderB then return classOrderA < classOrderB end
+				return (a.sample.name or "") < (b.sample.name or "")
+			end
+		end
+	end
+
+	if nameList then
+		local idx = 0
+		for token in tostring(nameList):gmatch("[^,]+") do
+			local name = trim(token)
+			if name ~= "" then
+				idx = idx + 1
+				nameOrder[name] = idx
+			end
+		end
+	end
 
 	if groupFilter or roleFilter then
 		local tokenTable = {}
@@ -1083,19 +1082,15 @@ function H.BuildPreviewSampleList(kind, cfg, baseSamples, limit, quotaTanks, quo
 			if include then list[#list + 1] = { sample = sample, index = i } end
 		end
 	else
-		if nameList then
-			local idx = 0
-			for token in tostring(nameList):gmatch("[^,]+") do
-				local name = trim(token)
-				if name ~= "" then
-					idx = idx + 1
-					nameOrder[name] = idx
-				end
-			end
-		end
 		for i, sample in ipairs(base) do
 			if not nameList or nameOrder[sample.name or ""] then list[#list + 1] = { sample = sample, index = i } end
 		end
+	end
+
+	local function compareByIndex(a, b) return a.index < b.index end
+	local function compareByName(a, b) return (a.sample.name or "") < (b.sample.name or "") end
+	local function compareByNameOrder(a, b)
+		return (nameOrder[a.sample.name or ""] or 999) < (nameOrder[b.sample.name or ""] or 999)
 	end
 
 	if groupBy then
@@ -1123,37 +1118,42 @@ function H.BuildPreviewSampleList(kind, cfg, baseSamples, limit, quotaTanks, quo
 			return nil
 		end
 
-		if sortMethod == "NAME" then
+		local function sortWithGroup(compareWithin)
 			table.sort(list, function(a, b)
 				local order1 = orderMap[groupKey(a.sample)]
 				local order2 = orderMap[groupKey(b.sample)]
 				if order1 then
 					if not order2 then return true end
-					if order1 == order2 then return (a.sample.name or "") < (b.sample.name or "") end
+					if order1 == order2 then return compareWithin(a, b) end
 					return order1 < order2
 				else
 					if order2 then return false end
-					return (a.sample.name or "") < (b.sample.name or "")
-				end
-			end)
-		else
-			table.sort(list, function(a, b)
-				local order1 = orderMap[groupKey(a.sample)]
-				local order2 = orderMap[groupKey(b.sample)]
-				if order1 then
-					if not order2 then return true end
-					if order1 == order2 then return a.index < b.index end
-					return order1 < order2
-				else
-					if order2 then return false end
-					return a.index < b.index
+					return compareWithin(a, b)
 				end
 			end)
 		end
+
+		if sortMethod == "NAME" then
+			sortWithGroup(compareByName)
+		elseif sortMethod == "NAMELIST" then
+			if customComparator then
+				sortWithGroup(customComparator)
+			elseif next(nameOrder) then
+				sortWithGroup(compareByNameOrder)
+			else
+				sortWithGroup(compareByIndex)
+			end
+		else
+			sortWithGroup(compareByIndex)
+		end
 	elseif sortMethod == "NAME" then
-		table.sort(list, function(a, b) return (a.sample.name or "") < (b.sample.name or "") end)
-	elseif sortMethod == "NAMELIST" and next(nameOrder) then
-		table.sort(list, function(a, b) return (nameOrder[a.sample.name or ""] or 0) < (nameOrder[b.sample.name or ""] or 0) end)
+		table.sort(list, compareByName)
+	elseif sortMethod == "NAMELIST" then
+		if customComparator then
+			table.sort(list, customComparator)
+		elseif next(nameOrder) then
+			table.sort(list, compareByNameOrder)
+		end
 	end
 
 	if sortDir == "DESC" then

@@ -397,8 +397,27 @@ local function resolveGroupByValue(cfg, def)
 	local groupBy = (cfg and cfg.groupBy) or (def and def.groupBy)
 	local v = tostring(groupBy or "GROUP"):upper()
 	if v == "ROLE" then v = "ASSIGNEDROLE" end
-	if v == "GROUP" or v == "CLASS" or v == "ASSIGNEDROLE" then return v end
+	if v == "CLASS" then v = "GROUP" end
+	if v == "GROUP" or v == "ASSIGNEDROLE" then return v end
 	return nil
+end
+
+local function resolveSortMethod(cfg)
+	local raw = cfg and cfg.sortMethod
+	local v = tostring(raw or ""):upper()
+	if v == "CUSTOM" then v = "NAMELIST" end
+	if GFH and GFH.NormalizeSortMethod then
+		v = GFH.NormalizeSortMethod(v)
+	elseif v ~= "NAME" and v ~= "INDEX" and v ~= "NAMELIST" then
+		v = "INDEX"
+	end
+	local custom = cfg and GFH and GFH.EnsureCustomSortConfig and GFH.EnsureCustomSortConfig(cfg)
+	if v ~= "NAMELIST" and custom and custom.enabled == true then
+		if raw == nil or raw == "" or tostring(raw):upper() == "CUSTOM" then
+			v = "NAMELIST"
+		end
+	end
+	return v
 end
 
 local function isGroupByGroup(cfg, def) return resolveGroupByValue(cfg, def) == "GROUP" end
@@ -415,8 +434,11 @@ end
 local function resolveGroupNumberEnabled(cfg, def)
 	local enabled = resolveGroupNumberSettingEnabled(cfg, def)
 	if enabled == true and cfg and cfg.groupIndicator and cfg.groupIndicator.hidePerFrame == true and isGroupByGroup(cfg, def) then
-		local custom = cfg and GFH and GFH.EnsureCustomSortConfig and GFH.EnsureCustomSortConfig(cfg)
-		if not (custom and custom.enabled == true) then return false end
+		local gi = cfg.groupIndicator or {}
+		local defGI = def and def.groupIndicator or {}
+		local giEnabled = gi.enabled
+		if giEnabled == nil then giEnabled = defGI.enabled end
+		if giEnabled == true then return false end
 	end
 	return enabled == true
 end
@@ -490,8 +512,6 @@ end
 
 local function isGroupIndicatorAvailable(cfg, def)
 	if not isGroupByGroup(cfg, def) then return false end
-	local custom = cfg and GFH and GFH.EnsureCustomSortConfig and GFH.EnsureCustomSortConfig(cfg)
-	if custom and custom.enabled == true then return false end
 	return true
 end
 
@@ -3523,8 +3543,27 @@ local function updateGroupIndicatorsForFrames(container, frames, cfg, def, isPre
 		return
 	end
 
-	local sortMethod = (GFH and GFH.NormalizeSortMethod and GFH.NormalizeSortMethod(cfg.sortMethod)) or "INDEX"
+	local sortMethod = resolveSortMethod(cfg)
 	local sortDir = (GFH and GFH.NormalizeSortDir and GFH.NormalizeSortDir(cfg.sortDir)) or "ASC"
+	local nameOrder
+	if sortMethod == "NAMELIST" then
+		local nameList
+		if container and container.GetAttribute then nameList = container:GetAttribute("nameList") end
+		if not nameList or nameList == "" then nameList = cfg and cfg.nameList end
+		if type(nameList) == "string" and nameList ~= "" then
+			nameOrder = {}
+			local idx = 0
+			for token in nameList:gmatch("[^,]+") do
+				local name = strtrim and strtrim(token) or tostring(token):gsub("^%s+", ""):gsub("%s+$", "")
+				if name ~= "" then
+					idx = idx + 1
+					nameOrder[name] = idx
+				end
+			end
+			if not next(nameOrder) then nameOrder = nil end
+		end
+		if not nameOrder then sortMethod = "INDEX" end
+	end
 	local candidates = {}
 
 	for _, frame in ipairs(frames) do
@@ -3559,6 +3598,9 @@ local function updateGroupIndicatorsForFrames(container, frames, cfg, def, isPre
 					local base = name
 					if base == nil or base == "" then base = sortIndex and tostring(sortIndex) or "" end
 					key = tostring(base):upper()
+				elseif sortMethod == "NAMELIST" and nameOrder then
+					local order = nameOrder[name or ""]
+					key = order or (tonumber(sortIndex) or 0)
 				else
 					key = tonumber(sortIndex) or 0
 				end
@@ -4950,9 +4992,13 @@ function GF:ToggleCustomSortEditor()
 	local cfg = getCfg("raid")
 	if not cfg then return end
 	local custom = GFH.EnsureCustomSortConfig(cfg)
-	if custom and custom.enabled ~= true then
+	if custom and (custom.enabled ~= true or resolveSortMethod(cfg) ~= "NAMELIST") then
 		custom.enabled = true
-		if EditMode and EditMode.SetValue then EditMode:SetValue("EQOL_UF_GROUP_RAID", "customSortEnabled", true, nil, true) end
+		cfg.sortMethod = "NAMELIST"
+		if EditMode and EditMode.SetValue then
+			EditMode:SetValue("EQOL_UF_GROUP_RAID", "sortMethod", "CUSTOM", nil, true)
+			EditMode:SetValue("EQOL_UF_GROUP_RAID", "customSortEnabled", true, nil, true)
+		end
 		GF:ApplyHeaderAttributes("raid")
 		if GF._previewActive and GF._previewActive.raid then GF:UpdatePreviewLayout("raid") end
 		if addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RequestRefreshSettings then addon.EditModeLib.internal:RequestRefreshSettings() end
@@ -4966,6 +5012,7 @@ function GF:ToggleCustomSortEditor()
 		editor:Refresh()
 		editor:Show()
 	end
+	if addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RequestRefreshSettings then addon.EditModeLib.internal:RequestRefreshSettings() end
 end
 
 function GF:SetEditModeSampleFrames(kind, show)
@@ -5304,15 +5351,20 @@ end
 function GF:RefreshCustomSortNameList()
 	if not isFeatureEnabled() then return end
 	local cfg = getCfg("raid")
-	local custom = cfg and GFH.EnsureCustomSortConfig(cfg)
-	if not (custom and custom.enabled == true) then return end
 	local header = GF.headers and GF.headers.raid
 	if not header then return end
 	if InCombatLockdown and InCombatLockdown() then
 		GF._pendingRefresh = true
 		return
 	end
-	header:SetAttribute("nameList", GFH.BuildCustomSortNameList(cfg))
+	local sortMethod = resolveSortMethod(cfg)
+	if sortMethod ~= "NAMELIST" then
+		header:SetAttribute("nameList", nil)
+		return
+	end
+	local nameList = GFH.BuildCustomSortNameList(cfg)
+	if nameList == "" then nameList = nil end
+	header:SetAttribute("nameList", nameList)
 end
 
 function GF:ApplyHeaderAttributes(kind)
@@ -5344,32 +5396,35 @@ function GF:ApplyHeaderAttributes(kind)
 		header:SetAttribute("showRaid", true)
 		header:SetAttribute("showPlayer", true)
 		header:SetAttribute("showSolo", false)
-		local custom = GFH.EnsureCustomSortConfig(cfg)
-		if custom and custom.enabled == true then
-			header:SetAttribute("groupBy", nil)
-			header:SetAttribute("groupingOrder", nil)
-			header:SetAttribute("groupFilter", nil)
-			header:SetAttribute("roleFilter", nil)
-			header:SetAttribute("strictFiltering", nil)
-			header:SetAttribute("sortMethod", "NAMELIST")
-			header:SetAttribute("sortDir", cfg.sortDir or "ASC")
-			header:SetAttribute("nameList", GFH.BuildCustomSortNameList(cfg))
+		local groupingOrder = cfg.groupingOrder
+		if groupingOrder == "" then groupingOrder = nil end
+		local rawGroupBy = cfg.groupBy
+		local normalizedGroupBy = resolveGroupByValue(cfg, DEFAULTS.raid) or "GROUP"
+		if rawGroupBy and tostring(rawGroupBy):upper() == "CLASS" then
+			groupingOrder = nil
+		end
+		header:SetAttribute("groupingOrder", groupingOrder or GFH.GROUP_ORDER)
+		local groupFilter = cfg.groupFilter
+		if groupFilter == "" then groupFilter = nil end
+		if rawGroupBy and tostring(rawGroupBy):upper() == "CLASS" then
+			groupFilter = nil
+		end
+		header:SetAttribute("groupFilter", groupFilter)
+		local roleFilter = cfg.roleFilter
+		if roleFilter == "" then roleFilter = nil end
+		header:SetAttribute("roleFilter", roleFilter)
+		header:SetAttribute("strictFiltering", cfg.strictFiltering == true)
+		local sortMethod = resolveSortMethod(cfg)
+		header:SetAttribute("sortMethod", sortMethod)
+		header:SetAttribute("sortDir", cfg.sortDir or "ASC")
+		if sortMethod == "NAMELIST" then
+			local nameList = GFH.BuildCustomSortNameList(cfg)
+			if nameList == "" then nameList = nil end
+			header:SetAttribute("nameList", nameList)
 		else
 			header:SetAttribute("nameList", nil)
-			local groupingOrder = cfg.groupingOrder
-			if groupingOrder == "" then groupingOrder = nil end
-			header:SetAttribute("groupingOrder", groupingOrder or GFH.GROUP_ORDER)
-			local groupFilter = cfg.groupFilter
-			if groupFilter == "" then groupFilter = nil end
-			header:SetAttribute("groupFilter", groupFilter)
-			local roleFilter = cfg.roleFilter
-			if roleFilter == "" then roleFilter = nil end
-			header:SetAttribute("roleFilter", roleFilter)
-			header:SetAttribute("strictFiltering", cfg.strictFiltering == true)
-			header:SetAttribute("sortMethod", cfg.sortMethod or "INDEX")
-			header:SetAttribute("sortDir", cfg.sortDir or "ASC")
-			header:SetAttribute("groupBy", cfg.groupBy or "GROUP")
 		end
+		header:SetAttribute("groupBy", normalizedGroupBy)
 		header:SetAttribute("unitsPerColumn", clampNumber(tonumber(cfg.unitsPerColumn) or 5, 1, 10, 5))
 		header:SetAttribute("maxColumns", clampNumber(tonumber(cfg.maxColumns) or 8, 1, 10, 8))
 	end
@@ -5667,12 +5722,12 @@ local function buildEditModeSettings(kind, editModeId)
 	end
 	local sortGroupOptions = {
 		{ value = "GROUP", label = "Group" },
-		{ value = "CLASS", label = "Class" },
 		{ value = "ASSIGNEDROLE", label = "Role" },
 	}
 	local sortMethodOptions = {
 		{ value = "INDEX", label = "Index" },
 		{ value = "NAME", label = "Name" },
+		{ value = "CUSTOM", label = "Custom" },
 	}
 	local sortDirOptions = {
 		{ value = "ASC", label = "Ascending" },
@@ -5703,7 +5758,8 @@ local function buildEditModeSettings(kind, editModeId)
 		if value == nil then return nil end
 		local v = tostring(value):upper()
 		if v == "ROLE" then v = "ASSIGNEDROLE" end
-		if v == "GROUP" or v == "CLASS" or v == "ASSIGNEDROLE" then return v end
+		if v == "CLASS" then return "GROUP" end
+		if v == "GROUP" or v == "ASSIGNEDROLE" then return v end
 		return nil
 	end
 	local function getGroupByValue()
@@ -5713,8 +5769,10 @@ local function buildEditModeSettings(kind, editModeId)
 	local function isCustomSortingEnabled()
 		if kind ~= "raid" then return false end
 		local cfg = getCfg(kind)
-		local custom = cfg and GFH.EnsureCustomSortConfig(cfg)
-		return custom and custom.enabled == true
+		return resolveSortMethod(cfg) == "NAMELIST"
+	end
+	local function isCustomSortEditorOpen()
+		return GF._customSortEditor and GF._customSortEditor.IsShown and GF._customSortEditor:IsShown()
 	end
 	local function getGroupByLabel()
 		local mode = getGroupByValue()
@@ -5728,11 +5786,7 @@ local function buildEditModeSettings(kind, editModeId)
 		if not cfg then return end
 		local groupBy = normalizeGroupBy(value) or "GROUP"
 		cfg.groupBy = groupBy
-		if groupBy == "CLASS" then
-			cfg.groupingOrder = GFH.CLASS_ORDER
-			cfg.groupFilter = GFH.CLASS_ORDER
-			if not cfg.sortMethod or cfg.sortMethod == "INDEX" then cfg.sortMethod = "NAME" end
-		elseif groupBy == "ASSIGNEDROLE" then
+		if groupBy == "ASSIGNEDROLE" then
 			cfg.groupingOrder = GFH.ROLE_ORDER
 			cfg.groupFilter = nil
 		else
@@ -5743,13 +5797,18 @@ local function buildEditModeSettings(kind, editModeId)
 			EditMode:SetValue(editModeId, "groupBy", cfg.groupBy, nil, true)
 			EditMode:SetValue(editModeId, "groupingOrder", cfg.groupingOrder, nil, true)
 			EditMode:SetValue(editModeId, "groupFilter", cfg.groupFilter, nil, true)
-			if cfg.sortMethod then EditMode:SetValue(editModeId, "sortMethod", cfg.sortMethod, nil, true) end
+			EditMode:SetValue(editModeId, "sortMethod", getSortMethodValue(), nil, true)
 		end
 		GF:ApplyHeaderAttributes(kind)
+		if GF._previewActive and GF._previewActive[kind] then GF:UpdatePreviewLayout(kind) end
+		if kind == "raid" then GF:RefreshGroupIndicators() end
 	end
 	local function getSortMethodValue()
 		local cfg = getCfg(kind)
-		return (cfg and cfg.sortMethod) or (DEFAULTS[kind] and DEFAULTS[kind].sortMethod) or "INDEX"
+		local v = resolveSortMethod(cfg)
+		if v == "NAMELIST" then return "CUSTOM" end
+		if v == "NAME" or v == "INDEX" then return v end
+		return "INDEX"
 	end
 	local function getSortMethodLabel()
 		local mode = getSortMethodValue()
@@ -5792,7 +5851,6 @@ local function buildEditModeSettings(kind, editModeId)
 	local function isGroupNumberSettingsEnabled() return isStatusTextEnabled() and getGroupNumberEnabledValue() end
 	local function isGroupIndicatorShown()
 		if kind ~= "raid" then return false end
-		if isCustomSortingEnabled() then return false end
 		return getGroupByValue() == "GROUP"
 	end
 	local function getGroupIndicatorEnabledValue()
@@ -13214,7 +13272,7 @@ local function buildEditModeSettings(kind, editModeId)
 				if not value then return end
 				applyGroupByPreset(value)
 			end,
-			isEnabled = function() return not isCustomSortingEnabled() end,
+			isEnabled = function() return not isCustomSortEditorOpen() end,
 			generator = function(_, root, data)
 				for _, option in ipairs(sortGroupOptions) do
 					root:CreateRadio(option.label, function() return getGroupByValue() == option.value end, function()
@@ -13236,19 +13294,53 @@ local function buildEditModeSettings(kind, editModeId)
 			set = function(_, value)
 				local cfg = getCfg(kind)
 				if not cfg or not value then return end
-				cfg.sortMethod = tostring(value):upper()
-				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "sortMethod", cfg.sortMethod, nil, true) end
+				local v = tostring(value):upper()
+				local custom = GFH.EnsureCustomSortConfig(cfg)
+				if v == "CUSTOM" then
+					custom.enabled = true
+					cfg.sortMethod = "NAMELIST"
+					if EditMode and EditMode.SetValue then
+						EditMode:SetValue(editModeId, "sortMethod", "CUSTOM", nil, true)
+						EditMode:SetValue(editModeId, "customSortEnabled", true, nil, true)
+					end
+				else
+					custom.enabled = false
+					cfg.sortMethod = v
+					if EditMode and EditMode.SetValue then
+						EditMode:SetValue(editModeId, "sortMethod", cfg.sortMethod, nil, true)
+						EditMode:SetValue(editModeId, "customSortEnabled", false, nil, true)
+					end
+					if GF._customSortEditor and GF._customSortEditor.IsShown and GF._customSortEditor:IsShown() then GF._customSortEditor:Hide() end
+				end
 				GF:ApplyHeaderAttributes(kind)
+				if GF._previewActive and GF._previewActive[kind] then GF:UpdatePreviewLayout(kind) end
+				if addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RequestRefreshSettings then addon.EditModeLib.internal:RequestRefreshSettings() end
 			end,
-			isEnabled = function() return not isCustomSortingEnabled() end,
 			generator = function(_, root, data)
 				for _, option in ipairs(sortMethodOptions) do
 					root:CreateRadio(option.label, function() return getSortMethodValue() == option.value end, function()
 						local cfg = getCfg(kind)
 						if not cfg then return end
-						cfg.sortMethod = option.value
-						if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "sortMethod", cfg.sortMethod, nil, true) end
+						local v = tostring(option.value):upper()
+						local custom = GFH.EnsureCustomSortConfig(cfg)
+						if v == "CUSTOM" then
+							custom.enabled = true
+							cfg.sortMethod = "NAMELIST"
+							if EditMode and EditMode.SetValue then
+								EditMode:SetValue(editModeId, "sortMethod", "CUSTOM", nil, true)
+								EditMode:SetValue(editModeId, "customSortEnabled", true, nil, true)
+							end
+						else
+							custom.enabled = false
+							cfg.sortMethod = v
+							if EditMode and EditMode.SetValue then
+								EditMode:SetValue(editModeId, "sortMethod", cfg.sortMethod, nil, true)
+								EditMode:SetValue(editModeId, "customSortEnabled", false, nil, true)
+							end
+							if GF._customSortEditor and GF._customSortEditor.IsShown and GF._customSortEditor:IsShown() then GF._customSortEditor:Hide() end
+						end
 						GF:ApplyHeaderAttributes(kind)
+						if GF._previewActive and GF._previewActive[kind] then GF:UpdatePreviewLayout(kind) end
 						data.customDefaultText = option.label
 						if addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RequestRefreshSettings then addon.EditModeLib.internal:RequestRefreshSettings() end
 					end)
@@ -13282,25 +13374,6 @@ local function buildEditModeSettings(kind, editModeId)
 						if addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RequestRefreshSettings then addon.EditModeLib.internal:RequestRefreshSettings() end
 					end)
 				end
-			end,
-		}
-		settings[#settings + 1] = {
-			name = "Custom sorting",
-			kind = SettingType.Checkbox,
-			field = "customSortEnabled",
-			parentId = "raid",
-			default = false,
-			get = function() return isCustomSortingEnabled() end,
-			set = function(_, value)
-				local cfg = getCfg(kind)
-				if not cfg then return end
-				local custom = GFH.EnsureCustomSortConfig(cfg)
-				custom.enabled = value and true or false
-				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "customSortEnabled", custom.enabled, nil, true) end
-				if not custom.enabled and GF._customSortEditor then GF._customSortEditor:Hide() end
-				GF:ApplyHeaderAttributes(kind)
-				if GF._previewActive and GF._previewActive[kind] then GF:UpdatePreviewLayout(kind) end
-				if addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RequestRefreshSettings then addon.EditModeLib.internal:RequestRefreshSettings() end
 			end,
 		}
 		settings[#settings + 1] = {
@@ -14363,6 +14436,14 @@ local function applyEditModeData(kind, data)
 		local custom = GFH.EnsureCustomSortConfig(cfg)
 		if data.customSortEnabled ~= nil then
 			custom.enabled = data.customSortEnabled and true or false
+			if custom.enabled then
+				cfg.sortMethod = "NAMELIST"
+			else
+				local current = tostring(cfg.sortMethod or ""):upper()
+				if current == "NAMELIST" or current == "CUSTOM" then
+					cfg.sortMethod = (DEFAULTS.raid and DEFAULTS.raid.sortMethod) or "INDEX"
+				end
+			end
 		elseif EditMode and EditMode.SetValue then
 			EditMode:SetValue(EDITMODE_IDS[kind], "customSortEnabled", custom and custom.enabled == true, nil, true)
 		end
@@ -14498,7 +14579,7 @@ function GF:EnsureEditMode()
 				unitsPerColumn = cfg.unitsPerColumn or (DEFAULTS.raid and DEFAULTS.raid.unitsPerColumn) or 5,
 				maxColumns = cfg.maxColumns or (DEFAULTS.raid and DEFAULTS.raid.maxColumns) or 8,
 				columnSpacing = cfg.columnSpacing or (DEFAULTS.raid and DEFAULTS.raid.columnSpacing) or 0,
-				customSortEnabled = (cfg.customSort and cfg.customSort.enabled) == true,
+				customSortEnabled = resolveSortMethod(cfg) == "NAMELIST",
 				customSortSeparateMeleeRanged = (cfg.customSort and cfg.customSort.separateMeleeRanged) == true,
 				showName = (cfg.text and cfg.text.showName) ~= false,
 				nameClassColor = (cfg.text and cfg.text.useClassColor) ~= false,
@@ -14959,13 +15040,17 @@ do
 			end
 			local cfg = getCfg("raid")
 			local custom = cfg and GFH and GFH.EnsureCustomSortConfig and GFH.EnsureCustomSortConfig(cfg)
-			if custom and custom.enabled == true and custom.separateMeleeRanged == true and GFH and GFH.QueueInspectGroup then GFH.QueueInspectGroup() end
+			if custom and custom.separateMeleeRanged == true and resolveSortMethod(cfg) == "NAMELIST" and GFH and GFH.QueueInspectGroup then
+				GFH.QueueInspectGroup()
+			end
 		elseif event == "PLAYER_SPECIALIZATION_CHANGED" then
 			GF:RefreshPowerVisibility()
 			GF:RefreshCustomSortNameList()
 			local cfg = getCfg("raid")
 			local custom = cfg and GFH and GFH.EnsureCustomSortConfig and GFH.EnsureCustomSortConfig(cfg)
-			if custom and custom.enabled == true and custom.separateMeleeRanged == true and GFH and GFH.QueueInspectGroup then GFH.QueueInspectGroup() end
+			if custom and custom.separateMeleeRanged == true and resolveSortMethod(cfg) == "NAMELIST" and GFH and GFH.QueueInspectGroup then
+				GFH.QueueInspectGroup()
+			end
 		end
 	end)
 end
