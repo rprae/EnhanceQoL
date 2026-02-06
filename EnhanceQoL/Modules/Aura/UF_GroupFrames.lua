@@ -3501,7 +3501,7 @@ function GF:UpdatePrivateAuras(self)
 		return
 	end
 	local inEditMode = isEditModeActive()
-	UFHelper.ApplyPrivateAuras(st.privateAuras, self.unit, pcfg, st.barGroup or self, st.healthTextLayer or st.barGroup or self, inEditMode == true)
+	UFHelper.ApplyPrivateAuras(st.privateAuras, self.unit, pcfg, st.barGroup or self, st.healthTextLayer or st.barGroup or self, inEditMode == true, false)
 end
 
 function GF:UpdateHealthValue(self, unit, st)
@@ -5271,10 +5271,10 @@ local function buildEditModeSettings(kind, editModeId)
 		{ value = "DESC", label = "Descending" },
 	}
 	local privateAuraPointOptions = {
-		{ value = "LEFT", label = "Left" },
-		{ value = "RIGHT", label = "Right" },
-		{ value = "TOP", label = "Top" },
-		{ value = "BOTTOM", label = "Bottom" },
+		{ value = "LEFT", label = "Left", text = "Left" },
+		{ value = "RIGHT", label = "Right", text = "Right" },
+		{ value = "TOP", label = "Top", text = "Top" },
+		{ value = "BOTTOM", label = "Bottom", text = "Bottom" },
 	}
 	local defPrivateAuras = (DEFAULTS[kind] and DEFAULTS[kind].privateAuras) or {}
 	local function ensurePrivateAuraConfig(cfg)
