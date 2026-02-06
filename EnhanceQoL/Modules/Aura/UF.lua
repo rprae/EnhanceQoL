@@ -268,6 +268,7 @@ local defaults = {
 			offsetRight = { x = -6, y = 0 },
 			useShortNumbers = true,
 			hidePercentSymbol = false,
+			roundPercent = false,
 			texture = "DEFAULT",
 			reverseFill = false,
 		},
@@ -291,6 +292,7 @@ local defaults = {
 			offsetRight = { x = -6, y = 0 },
 			useShortNumbers = true,
 			hidePercentSymbol = false,
+			roundPercent = false,
 			texture = "DEFAULT",
 			reverseFill = false,
 		},
@@ -3616,6 +3618,7 @@ local function updateHealth(cfg, unit)
 	local delimiter2 = UFHelper.getTextDelimiterSecondary(hc, defH, delimiter)
 	local delimiter3 = UFHelper.getTextDelimiterTertiary(hc, defH, delimiter, delimiter2)
 	local hidePercentSymbol = hc.hidePercentSymbol == true
+	local roundPercent = hc.roundPercent == true
 	local hideClassText = shouldHideClassificationText(cfg, unit)
 	local levelText
 	if UFHelper.textModeUsesLevel(leftMode) or UFHelper.textModeUsesLevel(centerMode) or UFHelper.textModeUsesLevel(rightMode) then levelText = UFHelper.getUnitLevelText(unit, nil, hideClassText) end
@@ -3623,21 +3626,21 @@ local function updateHealth(cfg, unit)
 		if leftMode == "NONE" then
 			st.healthTextLeft:SetText("")
 		else
-			st.healthTextLeft:SetText(UFHelper.formatText(leftMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText))
+			st.healthTextLeft:SetText(UFHelper.formatText(leftMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, nil, roundPercent))
 		end
 	end
 	if st.healthTextCenter then
 		if centerMode == "NONE" then
 			st.healthTextCenter:SetText("")
 		else
-			st.healthTextCenter:SetText(UFHelper.formatText(centerMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText))
+			st.healthTextCenter:SetText(UFHelper.formatText(centerMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, nil, roundPercent))
 		end
 	end
 	if st.healthTextRight then
 		if rightMode == "NONE" then
 			st.healthTextRight:SetText("")
 		else
-			st.healthTextRight:SetText(UFHelper.formatText(rightMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText))
+			st.healthTextRight:SetText(UFHelper.formatText(rightMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, nil, roundPercent))
 		end
 	end
 end
@@ -3654,6 +3657,7 @@ local function updatePower(cfg, unit)
 	local pcfg = cfg.power or {}
 	local powerDetached = pcfg.detached == true
 	local hidePercentSymbol = pcfg.hidePercentSymbol == true
+	local roundPercent = pcfg.roundPercent == true
 	local leftMode = pcfg.textLeft or "PERCENT"
 	local centerMode = pcfg.textCenter or "NONE"
 	local rightMode = pcfg.textRight or "CURMAX"
@@ -3708,7 +3712,7 @@ local function updatePower(cfg, unit)
 			fs:SetText("")
 			return
 		end
-		fs:SetText(UFHelper.formatText(mode, cur, maxv, pcfg.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText))
+		fs:SetText(UFHelper.formatText(mode, cur, maxv, pcfg.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, nil, roundPercent))
 	end
 	setPowerText(st.powerTextLeft, leftMode)
 	setPowerText(st.powerTextCenter, centerMode)
@@ -5072,6 +5076,7 @@ local function applyBossEditSample(idx, cfg)
 	local delimiter2 = UFHelper.getTextDelimiterSecondary(hc, defH, delimiter)
 	local delimiter3 = UFHelper.getTextDelimiterTertiary(hc, defH, delimiter, delimiter2)
 	local hidePercentSymbol = hc.hidePercentSymbol == true
+	local roundPercent = hc.roundPercent == true
 	local levelText
 	if UFHelper.textModeUsesLevel(leftMode) or UFHelper.textModeUsesLevel(centerMode) or UFHelper.textModeUsesLevel(rightMode) then
 		levelText = UFHelper.getUnitLevelText("player", nil, hideClassText)
@@ -5080,21 +5085,21 @@ local function applyBossEditSample(idx, cfg)
 		if leftMode == "NONE" then
 			st.healthTextLeft:SetText("")
 		else
-			st.healthTextLeft:SetText(UFHelper.formatText(leftMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText))
+			st.healthTextLeft:SetText(UFHelper.formatText(leftMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, nil, roundPercent))
 		end
 	end
 	if st.healthTextCenter then
 		if centerMode == "NONE" then
 			st.healthTextCenter:SetText("")
 		else
-			st.healthTextCenter:SetText(UFHelper.formatText(centerMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText))
+			st.healthTextCenter:SetText(UFHelper.formatText(centerMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, nil, roundPercent))
 		end
 	end
 	if st.healthTextRight then
 		if rightMode == "NONE" then
 			st.healthTextRight:SetText("")
 		else
-			st.healthTextRight:SetText(UFHelper.formatText(rightMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText))
+			st.healthTextRight:SetText(UFHelper.formatText(rightMode, cur, maxv, hc.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, nil, roundPercent))
 		end
 	end
 
@@ -5117,6 +5122,7 @@ local function applyBossEditSample(idx, cfg)
 			local pDelimiter2 = UFHelper.getTextDelimiterSecondary(pcfg, defP, pDelimiter)
 			local pDelimiter3 = UFHelper.getTextDelimiterTertiary(pcfg, defP, pDelimiter, pDelimiter2)
 			local pHidePercentSymbol = pcfg.hidePercentSymbol == true
+			local pRoundPercent = pcfg.roundPercent == true
 			local pLevelText = levelText
 			if not pLevelText and (UFHelper.textModeUsesLevel(pLeftMode) or UFHelper.textModeUsesLevel(pCenterMode) or UFHelper.textModeUsesLevel(pRightMode)) then
 				pLevelText = UFHelper.getUnitLevelText("player", nil, hideClassText)
@@ -5125,7 +5131,7 @@ local function applyBossEditSample(idx, cfg)
 				if pLeftMode == "NONE" then
 					st.powerTextLeft:SetText("")
 				else
-					st.powerTextLeft:SetText(UFHelper.formatText(pLeftMode, pCur, pMax, pcfg.useShortNumbers ~= false, pPercent, pDelimiter, pDelimiter2, pDelimiter3, pHidePercentSymbol, pLevelText))
+					st.powerTextLeft:SetText(UFHelper.formatText(pLeftMode, pCur, pMax, pcfg.useShortNumbers ~= false, pPercent, pDelimiter, pDelimiter2, pDelimiter3, pHidePercentSymbol, pLevelText, nil, pRoundPercent))
 				end
 			end
 			if st.powerTextCenter then
@@ -5133,7 +5139,7 @@ local function applyBossEditSample(idx, cfg)
 					st.powerTextCenter:SetText("")
 				else
 					st.powerTextCenter:SetText(
-						UFHelper.formatText(pCenterMode, pCur, pMax, pcfg.useShortNumbers ~= false, pPercent, pDelimiter, pDelimiter2, pDelimiter3, pHidePercentSymbol, pLevelText)
+						UFHelper.formatText(pCenterMode, pCur, pMax, pcfg.useShortNumbers ~= false, pPercent, pDelimiter, pDelimiter2, pDelimiter3, pHidePercentSymbol, pLevelText, nil, pRoundPercent)
 					)
 				end
 			end
@@ -5142,7 +5148,7 @@ local function applyBossEditSample(idx, cfg)
 					st.powerTextRight:SetText("")
 				else
 					st.powerTextRight:SetText(
-						UFHelper.formatText(pRightMode, pCur, pMax, pcfg.useShortNumbers ~= false, pPercent, pDelimiter, pDelimiter2, pDelimiter3, pHidePercentSymbol, pLevelText)
+						UFHelper.formatText(pRightMode, pCur, pMax, pcfg.useShortNumbers ~= false, pPercent, pDelimiter, pDelimiter2, pDelimiter3, pHidePercentSymbol, pLevelText, nil, pRoundPercent)
 					)
 				end
 			end

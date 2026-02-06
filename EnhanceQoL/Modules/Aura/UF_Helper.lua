@@ -606,7 +606,7 @@ function H.ApplyPrivateAuras(container, unit, cfg, parent, levelFrame, showSampl
 	container:Show()
 
 	local state = cacheState and (container._eqolPrivateAuraState or {}) or {}
-	local changed = (not cacheState)
+	local changed = not cacheState
 		or state.unitToken ~= unit
 		or state.effectiveUnit ~= effectiveUnit
 		or state.amount ~= amount
@@ -1683,7 +1683,7 @@ function H.getUnitLevelText(unit, levelOverride, hideClassificationText)
 	return levelText
 end
 
-function H.formatText(mode, cur, maxv, useShort, percentValue, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, missingValue)
+function H.formatText(mode, cur, maxv, useShort, percentValue, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, missingValue, roundPercent)
 	if mode == "NONE" then return "" end
 	local joinPrimary, joinSecondary, joinTertiary = H.resolveTextDelimiters(delimiter, delimiter2, delimiter3)
 	local percentSuffix = hidePercentSymbol and "" or "%"
@@ -1721,7 +1721,13 @@ function H.formatText(mode, cur, maxv, useShort, percentValue, delimiter, delimi
 			local scur = useShort and H.shortValue(cur) or BreakUpLargeNumbers(cur)
 			local smax = useShort and H.shortValue(maxv) or BreakUpLargeNumbers(maxv)
 			local percentText
-			if percentValue ~= nil then percentText = ("%s%s"):format(tostring(AbbreviateLargeNumbers(percentValue)), percentSuffix) end
+			if percentValue ~= nil then
+				if roundPercent then
+					percentText = ("%s%s"):format(tostring(C_StringUtil.RoundToNearestString(percentValue)), percentSuffix)
+				else
+					percentText = ("%s%s"):format(tostring(AbbreviateLargeNumbers(percentValue)), percentSuffix)
+				end
+			end
 
 			if mode == "CURRENT" then return tostring(scur) end
 			if mode == "MAX" then return tostring(smax) end

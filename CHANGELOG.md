@@ -1,10 +1,11 @@
 # Changelog
 
-## [7.10.0] - 2026-02-02
+## [7.10.0] - 2026-02-06
 
 ### ✨ Added
 
 - Unit Frames: Aura icons can use custom border textures (boss frames included)
+- Unit Frames: Option to round percent values for health/power text
 - Group Frames (Party/Raid): **BETA** (performance test) for feedback on missing features or breakage. Aura filters require 12.0.1; on 12.0.0 you will see more auras (e.g., Externals filtering won’t work yet).
 - Cooldown Panels: Optional radial layout with radius/rotation controls (layout fields auto-hide on switch)
 - Cooldown Panels: Cursor anchor mode with Edit Mode preview and live cursor follow

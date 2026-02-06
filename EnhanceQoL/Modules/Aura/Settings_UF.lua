@@ -19,13 +19,14 @@ local UF = addon.Aura and addon.Aura.UF
 local UFHelper = addon.Aura and addon.Aura.UFHelper
 if not (UF and settingType) then return end
 
-local clampNumber = UFHelper and UFHelper.ClampNumber or function(value, minValue, maxValue, fallback)
-	local v = tonumber(value)
-	if v == nil then return fallback end
-	if minValue ~= nil and v < minValue then v = minValue end
-	if maxValue ~= nil and v > maxValue then v = maxValue end
-	return v
-end
+local clampNumber = UFHelper and UFHelper.ClampNumber
+	or function(value, minValue, maxValue, fallback)
+		local v = tonumber(value)
+		if v == nil then return fallback end
+		if minValue ~= nil and v < minValue then v = minValue end
+		if maxValue ~= nil and v > maxValue then v = maxValue end
+		return v
+	end
 
 local MIN_WIDTH = 50
 local OFFSET_RANGE = 400
@@ -1395,6 +1396,17 @@ local function buildUnitSettings(unit)
 		"health"
 	)
 
+	list[#list + 1] = checkbox(
+		L["Round percent values"] or "Round percent values",
+		function() return getValue(unit, { "health", "roundPercent" }, healthDef.roundPercent == true) == true end,
+		function(val)
+			setValue(unit, { "health", "roundPercent" }, val and true or false)
+			refresh()
+		end,
+		healthDef.roundPercent == true,
+		"health"
+	)
+
 	list[#list + 1] = slider(L["FontSize"] or "Font size", 8, 30, 1, function() return getValue(unit, { "health", "fontSize" }, healthDef.fontSize or 14) end, function(val)
 		debounced(unit .. "_healthFontSize", function()
 			setValue(unit, { "health", "fontSize" }, val or healthDef.fontSize or 14)
@@ -1913,6 +1925,18 @@ local function buildUnitSettings(unit)
 		setValue(unit, { "power", "hidePercentSymbol" }, val and true or false)
 		refresh()
 	end, powerDef.hidePercentSymbol == true, "power", isPowerEnabled)
+
+	list[#list + 1] = checkbox(
+		L["Round percent values"] or "Round percent values",
+		function() return getValue(unit, { "power", "roundPercent" }, powerDef.roundPercent == true) == true end,
+		function(val)
+			setValue(unit, { "power", "roundPercent" }, val and true or false)
+			refresh()
+		end,
+		powerDef.roundPercent == true,
+		"power",
+		isPowerEnabled
+	)
 
 	local powerFontSize = slider(L["FontSize"] or "Font size", 8, 30, 1, function() return getValue(unit, { "power", "fontSize" }, powerDef.fontSize or 14) end, function(val)
 		debounced(unit .. "_powerFontSize", function()
@@ -4289,20 +4313,20 @@ local function buildUnitSettings(unit)
 
 	if unit ~= "target" then
 		list[#list + 1] = { name = L["UFPrivateAuras"] or "Private Auras", kind = settingType.Collapsible, id = "privateAuras", defaultCollapsed = true }
-		local paDef = def.privateAuras or {
-			enabled = false,
-			countdownFrame = true,
-			countdownNumbers = false,
-			showDispelType = false,
-			icon = { amount = 2, size = 24, point = "LEFT", offset = 3 },
-			parent = { point = "BOTTOM", offsetX = 0, offsetY = -4 },
-			duration = { enable = false, point = "BOTTOM", offsetX = 0, offsetY = -1 },
-		}
+		local paDef = def.privateAuras
+			or {
+				enabled = false,
+				countdownFrame = true,
+				countdownNumbers = false,
+				showDispelType = false,
+				icon = { amount = 2, size = 24, point = "LEFT", offset = 3 },
+				parent = { point = "BOTTOM", offsetX = 0, offsetY = -4 },
+				duration = { enable = false, point = "BOTTOM", offsetX = 0, offsetY = -1 },
+			}
 		local function isPrivateAurasEnabled() return getValue(unit, { "privateAuras", "enabled" }, paDef.enabled == true) == true end
 		local function isPrivateCountdownEnabled() return isPrivateAurasEnabled() and (getValue(unit, { "privateAuras", "countdownFrame" }, paDef.countdownFrame ~= false) ~= false) end
 		local function isPrivateDurationEnabled()
-			return isPrivateAurasEnabled()
-				and (getValue(unit, { "privateAuras", "duration", "enable" }, (paDef.duration and paDef.duration.enable) == true) == true)
+			return isPrivateAurasEnabled() and (getValue(unit, { "privateAuras", "duration", "enable" }, (paDef.duration and paDef.duration.enable) == true) == true)
 		end
 
 		list[#list + 1] = checkbox(L["UFPrivateAurasEnable"] or "Enable private auras", isPrivateAurasEnabled, function(val)
@@ -4416,36 +4440,52 @@ local function buildUnitSettings(unit)
 		)
 		list[#list].isEnabled = isPrivateAurasEnabled
 
-		list[#list + 1] = checkbox(L["UFPrivateAurasCountdownFrame"] or "Show countdown frame", function()
-			return getValue(unit, { "privateAuras", "countdownFrame" }, paDef.countdownFrame ~= false) ~= false
-		end, function(val)
-			setValue(unit, { "privateAuras", "countdownFrame" }, val and true or false)
-			refresh()
-		end, paDef.countdownFrame ~= false, "privateAuras")
+		list[#list + 1] = checkbox(
+			L["UFPrivateAurasCountdownFrame"] or "Show countdown frame",
+			function() return getValue(unit, { "privateAuras", "countdownFrame" }, paDef.countdownFrame ~= false) ~= false end,
+			function(val)
+				setValue(unit, { "privateAuras", "countdownFrame" }, val and true or false)
+				refresh()
+			end,
+			paDef.countdownFrame ~= false,
+			"privateAuras"
+		)
 		list[#list].isEnabled = isPrivateAurasEnabled
 
-		list[#list + 1] = checkbox(L["UFPrivateAurasCountdownNumbers"] or "Show countdown numbers", function()
-			return getValue(unit, { "privateAuras", "countdownNumbers" }, paDef.countdownNumbers ~= false) ~= false
-		end, function(val)
-			setValue(unit, { "privateAuras", "countdownNumbers" }, val and true or false)
-			refresh()
-		end, paDef.countdownNumbers ~= false, "privateAuras")
+		list[#list + 1] = checkbox(
+			L["UFPrivateAurasCountdownNumbers"] or "Show countdown numbers",
+			function() return getValue(unit, { "privateAuras", "countdownNumbers" }, paDef.countdownNumbers ~= false) ~= false end,
+			function(val)
+				setValue(unit, { "privateAuras", "countdownNumbers" }, val and true or false)
+				refresh()
+			end,
+			paDef.countdownNumbers ~= false,
+			"privateAuras"
+		)
 		list[#list].isEnabled = isPrivateCountdownEnabled
 
-		list[#list + 1] = checkbox(L["UFPrivateAurasShowDispelType"] or "Show dispel type", function()
-			return getValue(unit, { "privateAuras", "showDispelType" }, paDef.showDispelType == true) == true
-		end, function(val)
-			setValue(unit, { "privateAuras", "showDispelType" }, val and true or false)
-			refresh()
-		end, paDef.showDispelType == true, "privateAuras")
+		list[#list + 1] = checkbox(
+			L["UFPrivateAurasShowDispelType"] or "Show dispel type",
+			function() return getValue(unit, { "privateAuras", "showDispelType" }, paDef.showDispelType == true) == true end,
+			function(val)
+				setValue(unit, { "privateAuras", "showDispelType" }, val and true or false)
+				refresh()
+			end,
+			paDef.showDispelType == true,
+			"privateAuras"
+		)
 		list[#list].isEnabled = isPrivateAurasEnabled
 
-		list[#list + 1] = checkbox(L["UFPrivateAurasDurationEnable"] or "Show duration", function()
-			return getValue(unit, { "privateAuras", "duration", "enable" }, (paDef.duration and paDef.duration.enable) == true) == true
-		end, function(val)
-			setValue(unit, { "privateAuras", "duration", "enable" }, val and true or false)
-			refresh()
-		end, (paDef.duration and paDef.duration.enable) == true, "privateAuras")
+		list[#list + 1] = checkbox(
+			L["UFPrivateAurasDurationEnable"] or "Show duration",
+			function() return getValue(unit, { "privateAuras", "duration", "enable" }, (paDef.duration and paDef.duration.enable) == true) == true end,
+			function(val)
+				setValue(unit, { "privateAuras", "duration", "enable" }, val and true or false)
+				refresh()
+			end,
+			(paDef.duration and paDef.duration.enable) == true,
+			"privateAuras"
+		)
 		list[#list].isEnabled = isPrivateAurasEnabled
 
 		list[#list + 1] = radioDropdown(
