@@ -4820,6 +4820,58 @@ local function registerSettingsUI()
 		end,
 		parentSection = expandable,
 	})
+	addon.functions.SettingsCreateCheckbox(cUF, {
+		var = "ufEnableMainTankGroupFrames",
+		text = L["UFGroupFramesMTEnable"] or "Enable Main Tank frames",
+		default = false,
+		get = function()
+			local cfg = getGroupFramesConfig("mt")
+			return cfg and cfg.enabled == true
+		end,
+		func = function(val)
+			local cfg = getGroupFramesConfig("mt")
+			if cfg then cfg.enabled = val and true or false end
+			if UF and UF.GroupFrames then
+				if val then
+					UF.GroupFrames:Enable("mt")
+				else
+					UF.GroupFrames:Disable("mt")
+				end
+			end
+			refreshSettingsUI()
+		end,
+		isEnabled = function()
+			local raidCfg = getGroupFramesConfig("raid")
+			return raidCfg and raidCfg.enabled == true
+		end,
+		parentSection = expandable,
+	})
+	addon.functions.SettingsCreateCheckbox(cUF, {
+		var = "ufEnableMainAssistGroupFrames",
+		text = L["UFGroupFramesMAEnable"] or "Enable Main Assist frames",
+		default = false,
+		get = function()
+			local cfg = getGroupFramesConfig("ma")
+			return cfg and cfg.enabled == true
+		end,
+		func = function(val)
+			local cfg = getGroupFramesConfig("ma")
+			if cfg then cfg.enabled = val and true or false end
+			if UF and UF.GroupFrames then
+				if val then
+					UF.GroupFrames:Enable("ma")
+				else
+					UF.GroupFrames:Disable("ma")
+				end
+			end
+			refreshSettingsUI()
+		end,
+		isEnabled = function()
+			local raidCfg = getGroupFramesConfig("raid")
+			return raidCfg and raidCfg.enabled == true
+		end,
+		parentSection = expandable,
+	})
 	local function addToggle(unit, label, varName)
 		local def = defaultsFor(unit)
 		addon.functions.SettingsCreateCheckbox(cUF, {
