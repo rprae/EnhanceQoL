@@ -78,7 +78,7 @@ local BAR_TEX_INHERIT = "__PER_BAR__"
 local EDIT_MODE_SAMPLE_MAX = 100
 local AURA_FILTERS = GFH.AuraFilters
 local AURA_CACHE_OPTS = GFH.AuraCacheOptions
-local PREVIEW_SAMPLES = GFH.PREVIEW_SAMPLES or { party = {}, raid = {} }
+local PREVIEW_SAMPLES = GFH.PREVIEW_SAMPLES or { party = {}, raid = {}, mt = {}, ma = {} }
 local groupNumberFormatOptions = GFH.GROUP_NUMBER_FORMAT_OPTIONS or {}
 local groupNumberFormatTokens = {}
 local groupNumberFormatByText = {}
@@ -1454,6 +1454,57 @@ local DEFAULTS = {
 		},
 	},
 }
+
+local function copyDefaultsTable(src)
+	if type(src) ~= "table" then return src end
+	if addon.functions and addon.functions.copyTable then return addon.functions.copyTable(src) end
+	if CopyTable then return CopyTable(src) end
+	local out = {}
+	for k, v in pairs(src) do
+		if type(v) == "table" then
+			out[k] = copyDefaultsTable(v)
+		else
+			out[k] = v
+		end
+	end
+	return out
+end
+
+do
+	local mtDefaults = copyDefaultsTable(DEFAULTS.raid)
+	mtDefaults.enabled = false
+	mtDefaults.sortMethod = "NAME"
+	mtDefaults.sortDir = "ASC"
+	mtDefaults.groupBy = nil
+	mtDefaults.groupingOrder = nil
+	mtDefaults.groupFilter = nil
+	mtDefaults.unitsPerColumn = 5
+	mtDefaults.maxColumns = 1
+	mtDefaults.growth = "DOWN"
+	mtDefaults.point = "TOPLEFT"
+	mtDefaults.relativePoint = "TOPLEFT"
+	mtDefaults.relativeTo = "UIParent"
+	mtDefaults.x = 500
+	mtDefaults.y = -120
+	DEFAULTS.mt = mtDefaults
+
+	local maDefaults = copyDefaultsTable(DEFAULTS.raid)
+	maDefaults.enabled = false
+	maDefaults.sortMethod = "NAME"
+	maDefaults.sortDir = "ASC"
+	maDefaults.groupBy = nil
+	maDefaults.groupingOrder = nil
+	maDefaults.groupFilter = nil
+	maDefaults.unitsPerColumn = 5
+	maDefaults.maxColumns = 1
+	maDefaults.growth = "DOWN"
+	maDefaults.point = "TOPLEFT"
+	maDefaults.relativePoint = "TOPLEFT"
+	maDefaults.relativeTo = "UIParent"
+	maDefaults.x = 700
+	maDefaults.y = -120
+	DEFAULTS.ma = maDefaults
+end
 
 local DB
 
@@ -4683,6 +4734,16 @@ end
 
 local getGrowthStartPoint = GFH.GetGrowthStartPoint
 
+local function isRaidLikeKind(kind) return kind == "raid" or kind == "mt" or kind == "ma" end
+
+local function isSplitRoleKind(kind) return kind == "mt" or kind == "ma" end
+
+local function getSplitRoleFilter(kind)
+	if kind == "mt" then return "MAINTANK" end
+	if kind == "ma" then return "MAINASSIST" end
+	return nil
+end
+
 local function ensureAnchor(kind, parent)
 	if not kind then return nil end
 	GF.anchors = GF.anchors or {}
@@ -4694,6 +4755,10 @@ local function ensureAnchor(kind, parent)
 		name = "EQOLUFPartyAnchor"
 	elseif kind == "raid" then
 		name = "EQOLUFRaidAnchor"
+	elseif kind == "mt" then
+		name = "EQOLUFMTAnchor"
+	elseif kind == "ma" then
+		name = "EQOLUFMAAnchor"
 	end
 	if not name then return nil end
 
@@ -4734,12 +4799,12 @@ function GF:UpdateAnchorSize(kind)
 
 	local spacing = roundToPixel(clampNumber(tonumber(cfg.spacing) or 0, 0, 40, 0), scale)
 	local columnSpacing = spacing
-	if kind == "raid" then columnSpacing = roundToPixel(clampNumber(tonumber(cfg.columnSpacing) or spacing, 0, 40, spacing), scale) end
+	if isRaidLikeKind(kind) then columnSpacing = roundToPixel(clampNumber(tonumber(cfg.columnSpacing) or spacing, 0, 40, spacing), scale) end
 	local growth = (cfg.growth or "DOWN"):upper()
 
 	local unitsPer = 5
 	local columns = 1
-	if kind == "raid" then
+	if isRaidLikeKind(kind) then
 		unitsPer = max(1, floor(clampNumber(tonumber(cfg.unitsPerColumn) or 5, 1, 10, 5) + 0.5))
 		columns = max(1, floor(clampNumber(tonumber(cfg.maxColumns) or 8, 1, 10, 8) + 0.5))
 	end
@@ -4785,7 +4850,7 @@ local function applyVisibility(header, kind, cfg)
 		else
 			cond = "[group:raid] hide; [group:party] show; hide"
 		end
-	elseif kind == "raid" then
+	elseif isRaidLikeKind(kind) then
 		cond = "[group:raid] show; hide"
 	end
 
@@ -4819,7 +4884,7 @@ function GF:EnsureRaidGroupHeaders()
 end
 
 function GF:EnsurePreviewFrames(kind)
-	if kind ~= "party" and kind ~= "raid" then return nil end
+	if kind ~= "party" and kind ~= "raid" and kind ~= "mt" and kind ~= "ma" then return nil end
 	local cfg = getCfg(kind)
 	if not (cfg and cfg.enabled == true) then return nil end
 	local samples = PREVIEW_SAMPLES[kind]
@@ -4871,6 +4936,7 @@ function GF:UpdatePreviewLayout(kind)
 		GF:ShowPreviewFrames(kind, false)
 		return
 	end
+	local raidStyle = isRaidLikeKind(kind)
 	local sampleLimit = (kind == "raid" and ((GF._previewSampleSize and GF._previewSampleSize[kind]) or 10)) or nil
 	local samples = (GFH.BuildPreviewSampleList and GFH.BuildPreviewSampleList(kind, cfg, PREVIEW_SAMPLES[kind], sampleLimit, 2, 3)) or (PREVIEW_SAMPLES[kind] or {})
 	GF._previewSampleCount = GF._previewSampleCount or {}
@@ -4895,13 +4961,13 @@ function GF:UpdatePreviewLayout(kind)
 	local unitsPerColumn = 1
 	local maxColumns = 1
 	local columnSpacing = spacing
-	if kind == "raid" then
+	if raidStyle then
 		unitsPerColumn = max(1, floor(clampNumber(tonumber(cfg.unitsPerColumn) or 5, 1, 10, 5) + 0.5))
 		maxColumns = max(1, floor(clampNumber(tonumber(cfg.maxColumns) or 8, 1, 10, 8) + 0.5))
 		columnSpacing = roundToPixel(clampNumber(tonumber(cfg.columnSpacing) or spacing, 0, 40, spacing), scale)
 	end
 	local maxShown
-	if kind == "raid" then
+	if raidStyle then
 		local total = #frames
 		if total > unitsPerColumn and maxColumns > 0 then
 			maxColumns = min(maxColumns, ceil(total / unitsPerColumn))
@@ -4909,9 +4975,13 @@ function GF:UpdatePreviewLayout(kind)
 			maxColumns = 1
 		end
 		maxShown = unitsPerColumn * maxColumns
-		local sampleLimit = GF._previewSampleSize and GF._previewSampleSize[kind]
-		if not sampleLimit then sampleLimit = 10 end
-		maxShown = min(maxShown, sampleLimit, #samples)
+		if kind == "raid" then
+			local previewLimit = GF._previewSampleSize and GF._previewSampleSize[kind]
+			if not previewLimit then previewLimit = 10 end
+			maxShown = min(maxShown, previewLimit, #samples)
+		else
+			maxShown = min(maxShown, #samples)
+		end
 	else
 		maxShown = min(#frames, #samples)
 	end
@@ -4934,7 +5004,7 @@ function GF:UpdatePreviewLayout(kind)
 				updateButtonConfig(btn, cfg)
 				btn:SetSize(w, h)
 				btn:ClearAllPoints()
-				if kind == "raid" then
+				if raidStyle then
 					local idx = i - 1
 					local row = idx % unitsPerColumn
 					local col = floor(idx / unitsPerColumn)
@@ -4968,9 +5038,11 @@ end
 function GF:ShowPreviewFrames(kind, show)
 	local frames = GF._previewFrames and GF._previewFrames[kind]
 	if not frames then return end
+	local raidStyle = isRaidLikeKind(kind)
 	local maxShown = #frames
-	if kind == "raid" then
-		local limit = (GF._previewSampleSize and GF._previewSampleSize[kind]) or 10
+	if raidStyle then
+		local limit = #frames
+		if kind == "raid" then limit = (GF._previewSampleSize and GF._previewSampleSize[kind]) or 10 end
 		local cfg = getCfg(kind)
 		if cfg then
 			local unitsPerColumn = max(1, floor((tonumber(cfg.unitsPerColumn) or 5) + 0.5))
@@ -5054,7 +5126,7 @@ function GF:ToggleCustomSortEditor()
 end
 
 function GF:SetEditModeSampleFrames(kind, show)
-	if kind ~= "party" and kind ~= "raid" then return end
+	if kind ~= "party" and kind ~= "raid" and kind ~= "mt" and kind ~= "ma" then return end
 	GF._editModeSampleFrames = GF._editModeSampleFrames or {}
 	local enabled = show == true
 	if GF._editModeSampleFrames[kind] == enabled then return end
@@ -5538,6 +5610,8 @@ function GF:ApplyHeaderAttributes(kind)
 	local useGroupHeaders = false
 	local sortMethod
 	local rawGroupBy
+	local db = DB or ensureDB()
+	local raidFramesEnabled = db and db.raid and db.raid.enabled == true
 
 	if kind == "party" then
 		header:SetAttribute("showParty", true)
@@ -5583,6 +5657,23 @@ function GF:ApplyHeaderAttributes(kind)
 		header:SetAttribute("unitsPerColumn", raidUnitsPerColumn)
 		header:SetAttribute("maxColumns", raidMaxColumns)
 		useGroupHeaders = isGroupCustomLayout(cfg)
+	elseif isSplitRoleKind(kind) then
+		header:SetAttribute("showParty", false)
+		header:SetAttribute("showRaid", true)
+		header:SetAttribute("showPlayer", true)
+		header:SetAttribute("showSolo", false)
+		header:SetAttribute("groupingOrder", nil)
+		header:SetAttribute("groupFilter", nil)
+		header:SetAttribute("groupBy", nil)
+		header:SetAttribute("nameList", nil)
+		header:SetAttribute("roleFilter", getSplitRoleFilter(kind))
+		header:SetAttribute("strictFiltering", true)
+		header:SetAttribute("sortMethod", "NAME")
+		header:SetAttribute("sortDir", "ASC")
+		raidUnitsPerColumn = clampNumber(tonumber(cfg.unitsPerColumn) or 5, 1, 10, 5)
+		raidMaxColumns = clampNumber(tonumber(cfg.maxColumns) or 1, 1, 10, 1)
+		header:SetAttribute("unitsPerColumn", raidUnitsPerColumn)
+		header:SetAttribute("maxColumns", raidMaxColumns)
 	end
 
 	if header._eqolForceShow then
@@ -5681,6 +5772,8 @@ function GF:ApplyHeaderAttributes(kind)
 	local forceShow = header._eqolForceShow
 	if kind == "raid" then
 		header._eqolSpecialHide = useGroupHeaders == true
+	elseif isSplitRoleKind(kind) then
+		header._eqolSpecialHide = raidFramesEnabled ~= true
 	else
 		header._eqolSpecialHide = nil
 	end
@@ -5770,12 +5863,14 @@ end
 
 function GF:EnsureHeaders()
 	if not isFeatureEnabled() then return end
-	if GF.headers.party and GF.headers.raid and GF.anchors.party and GF.anchors.raid then return end
+	if GF.headers.party and GF.headers.raid and GF.headers.mt and GF.headers.ma and GF.anchors.party and GF.anchors.raid and GF.anchors.mt and GF.anchors.ma then return end
 
 	local parent = _G.PetBattleFrameHider or UIParent
 
 	if not GF.anchors.party then ensureAnchor("party", parent) end
 	if not GF.anchors.raid then ensureAnchor("raid", parent) end
+	if not GF.anchors.mt then ensureAnchor("mt", parent) end
+	if not GF.anchors.ma then ensureAnchor("ma", parent) end
 
 	if not GF.headers.party then
 		GF.headers.party = CreateFrame("Frame", "EQOLUFPartyHeader", parent, "SecureGroupHeaderTemplate")
@@ -5787,6 +5882,18 @@ function GF:EnsureHeaders()
 		GF.headers.raid = CreateFrame("Frame", "EQOLUFRaidHeader", parent, "SecureGroupHeaderTemplate")
 		GF.headers.raid._eqolKind = "raid"
 		GF.headers.raid:Hide()
+	end
+
+	if not GF.headers.mt then
+		GF.headers.mt = CreateFrame("Frame", "EQOLUFMTHeader", parent, "SecureGroupHeaderTemplate")
+		GF.headers.mt._eqolKind = "mt"
+		GF.headers.mt:Hide()
+	end
+
+	if not GF.headers.ma then
+		GF.headers.ma = CreateFrame("Frame", "EQOLUFMAHeader", parent, "SecureGroupHeaderTemplate")
+		GF.headers.ma._eqolKind = "ma"
+		GF.headers.ma:Hide()
 	end
 
 	for kind, header in pairs(GF.headers) do
@@ -5807,6 +5914,8 @@ function GF:EnsureHeaders()
 
 	GF:ApplyHeaderAttributes("party")
 	GF:ApplyHeaderAttributes("raid")
+	GF:ApplyHeaderAttributes("mt")
+	GF:ApplyHeaderAttributes("ma")
 end
 
 function GF:EnableFeature()
@@ -5884,12 +5993,16 @@ function GF.Refresh(kind)
 	else
 		GF:ApplyHeaderAttributes("party")
 		GF:ApplyHeaderAttributes("raid")
+		GF:ApplyHeaderAttributes("mt")
+		GF:ApplyHeaderAttributes("ma")
 	end
 end
 
 local EDITMODE_IDS = {
 	party = "EQOL_UF_GROUP_PARTY",
 	raid = "EQOL_UF_GROUP_RAID",
+	mt = "EQOL_UF_GROUP_MT",
+	ma = "EQOL_UF_GROUP_MA",
 }
 
 local function anchorUsesUIParent(kind)
@@ -5903,6 +6016,8 @@ local function buildEditModeSettings(kind, editModeId)
 
 	local widthLabel = HUD_EDIT_MODE_SETTING_CHAT_FRAME_WIDTH or "Width"
 	local heightLabel = HUD_EDIT_MODE_SETTING_CHAT_FRAME_HEIGHT or "Height"
+	local raidLikeKind = isRaidLikeKind(kind)
+	local raidKind = kind == "raid"
 	local specOptions = buildSpecOptions()
 	local tooltipModeOptions = {
 		{ value = "OFF", label = "Off" },
@@ -13422,9 +13537,10 @@ local function buildEditModeSettings(kind, editModeId)
 				GF:ApplyHeaderAttributes(kind)
 			end,
 		}
-	elseif kind == "raid" then
+	elseif raidLikeKind then
+		local raidSectionName = (kind == "mt" and "Main Tank") or (kind == "ma" and "Main Assist") or (RAID or "Raid")
 		settings[#settings + 1] = {
-			name = "Raid",
+			name = raidSectionName,
 			kind = SettingType.Collapsible,
 			id = "raid",
 			defaultCollapsed = true,
@@ -13437,11 +13553,11 @@ local function buildEditModeSettings(kind, editModeId)
 			minValue = 1,
 			maxValue = 10,
 			valueStep = 1,
-			default = (DEFAULTS.raid and DEFAULTS.raid.unitsPerColumn) or 5,
+			default = (DEFAULTS[kind] and DEFAULTS[kind].unitsPerColumn) or (DEFAULTS.raid and DEFAULTS.raid.unitsPerColumn) or 5,
 			parentId = "raid",
 			get = function()
 				local cfg = getCfg(kind)
-				return cfg and cfg.unitsPerColumn or (DEFAULTS.raid and DEFAULTS.raid.unitsPerColumn) or 5
+				return cfg and cfg.unitsPerColumn or (DEFAULTS[kind] and DEFAULTS[kind].unitsPerColumn) or (DEFAULTS.raid and DEFAULTS.raid.unitsPerColumn) or 5
 			end,
 			set = function(_, value)
 				local cfg = getCfg(kind)
@@ -13461,11 +13577,11 @@ local function buildEditModeSettings(kind, editModeId)
 			minValue = 1,
 			maxValue = 10,
 			valueStep = 1,
-			default = (DEFAULTS.raid and DEFAULTS.raid.maxColumns) or 8,
+			default = (DEFAULTS[kind] and DEFAULTS[kind].maxColumns) or (DEFAULTS.raid and DEFAULTS.raid.maxColumns) or 8,
 			parentId = "raid",
 			get = function()
 				local cfg = getCfg(kind)
-				return cfg and cfg.maxColumns or (DEFAULTS.raid and DEFAULTS.raid.maxColumns) or 8
+				return cfg and cfg.maxColumns or (DEFAULTS[kind] and DEFAULTS[kind].maxColumns) or (DEFAULTS.raid and DEFAULTS.raid.maxColumns) or 8
 			end,
 			set = function(_, value)
 				local cfg = getCfg(kind)
@@ -13485,11 +13601,11 @@ local function buildEditModeSettings(kind, editModeId)
 			minValue = 0,
 			maxValue = 40,
 			valueStep = 1,
-			default = (DEFAULTS.raid and DEFAULTS.raid.columnSpacing) or 0,
+			default = (DEFAULTS[kind] and DEFAULTS[kind].columnSpacing) or (DEFAULTS.raid and DEFAULTS.raid.columnSpacing) or 0,
 			parentId = "raid",
 			get = function()
 				local cfg = getCfg(kind)
-				return cfg and cfg.columnSpacing or (DEFAULTS.raid and DEFAULTS.raid.columnSpacing) or 0
+				return cfg and cfg.columnSpacing or (DEFAULTS[kind] and DEFAULTS[kind].columnSpacing) or (DEFAULTS.raid and DEFAULTS.raid.columnSpacing) or 0
 			end,
 			set = function(_, value)
 				local cfg = getCfg(kind)
@@ -13512,6 +13628,7 @@ local function buildEditModeSettings(kind, editModeId)
 				if not value then return end
 				applyGroupByPreset(value)
 			end,
+			isShown = function() return raidKind end,
 			isEnabled = function() return not isCustomSortEditorOpen() end,
 			generator = function(_, root, data)
 				for _, option in ipairs(sortGroupOptions) do
@@ -13556,6 +13673,7 @@ local function buildEditModeSettings(kind, editModeId)
 				if GF._previewActive and GF._previewActive[kind] then GF:UpdatePreviewLayout(kind) end
 				if addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RequestRefreshSettings then addon.EditModeLib.internal:RequestRefreshSettings() end
 			end,
+			isShown = function() return raidKind end,
 			generator = function(_, root, data)
 				for _, option in ipairs(sortMethodOptions) do
 					root:CreateRadio(option.label, function() return getSortMethodValue() == option.value end, function()
@@ -13602,6 +13720,7 @@ local function buildEditModeSettings(kind, editModeId)
 				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "sortDir", cfg.sortDir, nil, true) end
 				GF:ApplyHeaderAttributes(kind)
 			end,
+			isShown = function() return raidKind end,
 			generator = function(_, root, data)
 				for _, option in ipairs(sortDirOptions) do
 					root:CreateRadio(option.label, function() return getSortDirValue() == option.value end, function()
@@ -13643,6 +13762,7 @@ local function buildEditModeSettings(kind, editModeId)
 				if GF._previewActive and GF._previewActive[kind] then GF:UpdatePreviewLayout(kind) end
 				if GF._customSortEditor and GF._customSortEditor.Refresh then GF._customSortEditor:Refresh() end
 			end,
+			isShown = function() return raidKind end,
 			isEnabled = function() return isCustomSortingEnabled() end,
 		}
 		settings[#settings + 1] = {
@@ -14672,28 +14792,30 @@ local function applyEditModeData(kind, data)
 	if kind == "party" then
 		if data.showPlayer ~= nil then cfg.showPlayer = data.showPlayer and true or false end
 		if data.showSolo ~= nil then cfg.showSolo = data.showSolo and true or false end
-	elseif kind == "raid" then
-		local custom = GFH.EnsureCustomSortConfig(cfg)
-		if data.customSortEnabled ~= nil then
-			custom.enabled = data.customSortEnabled and true or false
-			if custom.enabled then
-				cfg.sortMethod = "NAMELIST"
-			else
-				local current = tostring(cfg.sortMethod or ""):upper()
-				if current == "NAMELIST" or current == "CUSTOM" then cfg.sortMethod = (DEFAULTS.raid and DEFAULTS.raid.sortMethod) or "INDEX" end
+	elseif isRaidLikeKind(kind) then
+		if kind == "raid" then
+			local custom = GFH.EnsureCustomSortConfig(cfg)
+			if data.customSortEnabled ~= nil then
+				custom.enabled = data.customSortEnabled and true or false
+				if custom.enabled then
+					cfg.sortMethod = "NAMELIST"
+				else
+					local current = tostring(cfg.sortMethod or ""):upper()
+					if current == "NAMELIST" or current == "CUSTOM" then cfg.sortMethod = (DEFAULTS.raid and DEFAULTS.raid.sortMethod) or "INDEX" end
+				end
+			elseif EditMode and EditMode.SetValue then
+				EditMode:SetValue(EDITMODE_IDS[kind], "customSortEnabled", custom and custom.enabled == true, nil, true)
 			end
-		elseif EditMode and EditMode.SetValue then
-			EditMode:SetValue(EDITMODE_IDS[kind], "customSortEnabled", custom and custom.enabled == true, nil, true)
-		end
-		if data.customSortSeparateMeleeRanged ~= nil then
-			custom.separateMeleeRanged = data.customSortSeparateMeleeRanged and true or false
-			if custom.separateMeleeRanged then
-				custom.roleOrder = GFH.ExpandRoleOrder(custom.roleOrder, true)
-			else
-				custom.roleOrder = GFH.CollapseRoleOrder(custom.roleOrder)
+			if data.customSortSeparateMeleeRanged ~= nil then
+				custom.separateMeleeRanged = data.customSortSeparateMeleeRanged and true or false
+				if custom.separateMeleeRanged then
+					custom.roleOrder = GFH.ExpandRoleOrder(custom.roleOrder, true)
+				else
+					custom.roleOrder = GFH.CollapseRoleOrder(custom.roleOrder)
+				end
+			elseif EditMode and EditMode.SetValue then
+				EditMode:SetValue(EDITMODE_IDS[kind], "customSortSeparateMeleeRanged", custom and custom.separateMeleeRanged == true, nil, true)
 			end
-		elseif EditMode and EditMode.SetValue then
-			EditMode:SetValue(EDITMODE_IDS[kind], "customSortSeparateMeleeRanged", custom and custom.separateMeleeRanged == true, nil, true)
 		end
 		if data.unitsPerColumn ~= nil then
 			local v = clampNumber(data.unitsPerColumn, 1, 10, cfg.unitsPerColumn or 5)
@@ -14730,7 +14852,7 @@ function GF:EnsureEditMode()
 
 	GF:EnsureHeaders()
 
-	for _, kind in ipairs({ "party", "raid" }) do
+	for _, kind in ipairs({ "party", "raid", "mt", "ma" }) do
 		local anchor = GF.anchors and GF.anchors[kind]
 		if anchor then
 			GF:UpdateAnchorSize(kind)
@@ -14814,9 +14936,9 @@ function GF:EnsureEditMode()
 				tooltipAuras = ac.buff.showTooltip == true and ac.debuff.showTooltip == true and ac.externals.showTooltip == true,
 				showPlayer = cfg.showPlayer == true,
 				showSolo = cfg.showSolo == true,
-				unitsPerColumn = cfg.unitsPerColumn or (DEFAULTS.raid and DEFAULTS.raid.unitsPerColumn) or 5,
-				maxColumns = cfg.maxColumns or (DEFAULTS.raid and DEFAULTS.raid.maxColumns) or 8,
-				columnSpacing = cfg.columnSpacing or (DEFAULTS.raid and DEFAULTS.raid.columnSpacing) or 0,
+				unitsPerColumn = cfg.unitsPerColumn or (DEFAULTS[kind] and DEFAULTS[kind].unitsPerColumn) or (DEFAULTS.raid and DEFAULTS.raid.unitsPerColumn) or 5,
+				maxColumns = cfg.maxColumns or (DEFAULTS[kind] and DEFAULTS[kind].maxColumns) or (DEFAULTS.raid and DEFAULTS.raid.maxColumns) or 8,
+				columnSpacing = cfg.columnSpacing or (DEFAULTS[kind] and DEFAULTS[kind].columnSpacing) or (DEFAULTS.raid and DEFAULTS.raid.columnSpacing) or 0,
 				customSortEnabled = resolveSortMethod(cfg) == "NAMELIST",
 				customSortSeparateMeleeRanged = (cfg.customSort and cfg.customSort.separateMeleeRanged) == true,
 				showName = (cfg.text and cfg.text.showName) ~= false,
@@ -15099,7 +15221,7 @@ function GF:EnsureEditMode()
 
 			EditMode:RegisterFrame(EDITMODE_IDS[kind], {
 				frame = anchor,
-				title = (kind == "party") and (PARTY or "Party") or (RAID or "Raid"),
+				title = (kind == "party" and (PARTY or "Party")) or (kind == "raid" and (RAID or "Raid")) or (kind == "mt" and "Main Tank") or (kind == "ma" and "Main Assist") or tostring(kind),
 				layoutDefaults = defaults,
 				settings = buildEditModeSettings(kind, EDITMODE_IDS[kind]),
 				onApply = function(_, _, data) applyEditModeData(kind, data) end,
@@ -15108,7 +15230,12 @@ function GF:EnsureEditMode()
 				onExit = function() GF:OnExitEditMode(kind) end,
 				isEnabled = function()
 					local cfg = getCfg(kind)
-					return cfg and cfg.enabled == true
+					if not (cfg and cfg.enabled == true) then return false end
+					if isSplitRoleKind(kind) then
+						local db = DB or ensureDB()
+						return db and db.raid and db.raid.enabled == true
+					end
+					return true
 				end,
 				allowDrag = function() return anchorUsesUIParent(kind) end,
 				showOutsideEditMode = false,
@@ -15161,7 +15288,7 @@ function GF:OnEnterEditMode(kind)
 	if not (cfg and cfg.enabled == true) then return end
 	if GF._editModeSampleAuras == nil then GF._editModeSampleAuras = true end
 	if GF._editModeSampleStatusText == nil then GF._editModeSampleStatusText = true end
-	if GF._editModeSampleFrames == nil then GF._editModeSampleFrames = { party = false, raid = false } end
+	if GF._editModeSampleFrames == nil then GF._editModeSampleFrames = { party = false, raid = false, mt = false, ma = false } end
 	if GF._previewSampleSize == nil then GF._previewSampleSize = { raid = 10 } end
 	GF:EnsureHeaders()
 	local header = GF.headers and GF.headers[kind]

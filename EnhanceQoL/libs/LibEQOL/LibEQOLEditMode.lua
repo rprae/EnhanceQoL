@@ -1238,6 +1238,7 @@ local function ensureManagerTogglePanel()
 	scroll:SetHeight(1)
 	scroll:EnableMouseWheel(true)
 	if scroll.ScrollBar and scroll.ScrollBar.SetHideIfUnscrollable then scroll.ScrollBar:SetHideIfUnscrollable(true) end
+	FixScrollBarInside(scroll)
 
 	local list = CreateFrame("Frame", nil, scroll, "VerticalLayoutFrame")
 	list:SetWidth(1)
@@ -1534,12 +1535,17 @@ function Layout:HandleLayoutsChanged(_, layoutInfo)
 
 	local newSnapshot = snapshotLayoutNames(layoutInfo)
 	local oldSnapshot = State.layoutSnapshot or {}
-	for index, newName in pairs(newSnapshot) do
-		local oldName = oldSnapshot[index]
-		if oldName and newName and oldName ~= newName then
-			local uiIndex = index + 2
-			for _, callback in next, lib.eventHandlersLayoutRenamed do
-				securecallfunction(callback, oldName, newName, uiIndex)
+	local didLayoutCountShrink = #newSnapshot < #oldSnapshot
+	-- Blizzard shifts custom layout indices on delete, which makes unchanged names
+	-- look like rename diffs across the remaining entries.
+	if not didLayoutCountShrink then
+		for index, newName in ipairs(newSnapshot) do
+			local oldName = oldSnapshot[index]
+			if oldName and newName and oldName ~= newName then
+				local uiIndex = index + 2
+				for _, callback in next, lib.eventHandlersLayoutRenamed do
+					securecallfunction(callback, oldName, newName, uiIndex)
+				end
 			end
 		end
 	end

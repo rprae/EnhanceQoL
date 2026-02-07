@@ -21,6 +21,7 @@ local function ensureDB()
 	db = addon.db.datapanel.durability
 	db.fontSize = db.fontSize or 13
 	if db.showIcon == nil then db.showIcon = true end
+	if db.showCritical == nil then db.showCritical = true end
 	if db.useTextColor == nil then db.useTextColor = false end
 	if not db.textColor then
 		local r, g, b = 1, 0.82, 0
@@ -78,6 +79,15 @@ local function createAceWindow()
 		addon.DataHub:RequestUpdate(stream)
 	end)
 	frame:AddChild(showIcon)
+
+	local showCritical = AceGUI:Create("CheckBox")
+	showCritical:SetLabel(L["durabilityShowCritical"] or "Show critical warning")
+	showCritical:SetValue(db.showCritical)
+	showCritical:SetCallback("OnValueChanged", function(_, _, val)
+		db.showCritical = val and true or false
+		addon.DataHub:RequestUpdate(stream)
+	end)
+	frame:AddChild(showCritical)
 
 	local useColor = AceGUI:Create("CheckBox")
 	useColor:SetLabel(L["durabilityUseTextColor"] or "Use custom text color")
@@ -259,7 +269,8 @@ local function calculateDurability(stream)
 
 	local useTextColor = db and db.useTextColor and db.textColor
 	local critDuraText = ""
-	if critDura > 0 then
+	local showCritical = db and db.showCritical ~= false
+	if showCritical and critDura > 0 then
 		if useTextColor then
 			critDuraText = ("%d %s < 50%%"):format(critDura, ITEMS)
 		else
@@ -321,7 +332,7 @@ local provider = {
 		end
 		tip:AddLine(" ")
 		tip:AddDoubleLine(TOTAL or "Total", formatPercentColored(math.floor((summary.totalPercent or 0) + 0.5)))
-		if summary.critCount and summary.critCount > 0 then tip:AddDoubleLine(ITEMS .. " < 50%", tostring(summary.critCount)) end
+		if db and db.showCritical ~= false and summary.critCount and summary.critCount > 0 then tip:AddDoubleLine(ITEMS .. " < 50%", tostring(summary.critCount)) end
 		local hint = getOptionsHint()
 		if hint then tip:AddLine(hint) end
 		tip:Show()

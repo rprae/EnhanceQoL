@@ -12,6 +12,7 @@
 - Unit Frames: Castbar can use class color instead of custom cast color
 - Unit Frames: Per-frame smooth fill option for health/power/absorb bars (default off)
 - Group Frames (Party/Raid): **BETA** (performance test) for feedback on missing features or breakage. Aura filters require 12.0.1; on 12.0.0 you will see more auras (e.g., Externals filtering won’t work yet).
+- Group Frames (Raid): Optional split blocks for Main Tank and Main Assist with separate anchors and full raid-style appearance settings.
 - Cooldown Panels: Optional radial layout with radius/rotation controls (layout fields auto-hide on switch)
 - Cooldown Panels: Cursor anchor mode with Edit Mode preview and live cursor follow
 - Cooldown Panels: Hide on CD option for cooldown icons
@@ -21,6 +22,7 @@
 - Unit Frames: Combat feedback text with configurable font/anchor/events
 - Skinner: Character Frame flat skin (buttons, dropdowns, title pane hover/selection)
 - Data Panels: Background and border textures/colors are now configurable via SharedMedia.
+- Data Panels: Durability stream now has an option to hide the critical warning text (`Items < 50%`).
 
 ### 🔄 Changed
 

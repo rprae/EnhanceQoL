@@ -312,6 +312,7 @@ L["volumeRightClickHint"] = "Right-click: Toggle volume stream"
 L["volumeMiddleClickHint"] = "Middle-click: Toggle mute active stream"
 L["volumeMouseWheelHint"] = "Mouse wheel: Adjust active volume"
 L["durabilityShowIcon"] = "Show icon"
+L["durabilityShowCritical"] = "Show critical warning"
 L["durabilityUseTextColor"] = "Use custom text color"
 
 L["Hide Raid Tools"] = "Hide Raid Tools in Party"
