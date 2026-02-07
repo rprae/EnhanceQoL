@@ -4748,13 +4748,13 @@ local function applyBars(cfg, unit)
 			UFHelper.configureSpecialTexture(st.absorb2, "HEALTH", absorbTextureKey, hc)
 			if st.absorb2.SetOrientation then st.absorb2:SetOrientation("HORIZONTAL") end
 			if UFHelper and UFHelper.applyAbsorbClampLayout then
-				UFHelper.applyAbsorbClampLayout(st.absorb2, st.health, absorbHeight, healthHeight)
 				if reverseHealth then
 					if UFHelper.setupAbsorbClampReverseAware then UFHelper.setupAbsorbClampReverseAware(st.health, st.absorb2) end
 				else
 					if UFHelper.setupAbsorbClamp then UFHelper.setupAbsorbClamp(st.health, st.absorb2) end
-					if UFHelper.setupAbsorbOverShift then UFHelper.setupAbsorbOverShift(st.health, st.absorb) end
+					if UFHelper.setupAbsorbOverShift then UFHelper.setupAbsorbOverShift(st.health, st.absorb, absorbHeight, healthHeight) end
 				end
+				UFHelper.applyAbsorbClampLayout(st.absorb2, st.health, absorbHeight, healthHeight, reverseHealth)
 				syncTextFrameLevels(st)
 			end
 			setFrameLevelAbove(st.absorb2, st.health, 1)

@@ -3605,6 +3605,21 @@ local function shouldShowLevel(scfg, unit)
 	return true
 end
 
+local function getRaidSubgroupForUnit(unit)
+	if not unit then return nil end
+	local idx
+	if UnitInRaid then idx = UnitInRaid(unit) end
+	if (not idx) and type(unit) == "string" then
+		local raidIndex = unit:match("^raid(%d+)$")
+		if raidIndex then idx = tonumber(raidIndex) end
+	end
+	if not idx then return nil end
+	if not GetRaidRosterInfo then return nil end
+	local _, _, subgroup = GetRaidRosterInfo(idx)
+	if issecretvalue and issecretvalue(subgroup) then return nil end
+	return tonumber(subgroup)
+end
+
 function GF:UpdateLevel(self)
 	local unit = getUnit(self)
 	local st = getState(self)
@@ -3712,14 +3727,7 @@ function GF:UpdateStatusText(self)
 
 	local groupTag
 	if resolveGroupNumberEnabled(cfg, def) then
-		local subgroup
-		if unit and UnitInRaid and GetRaidRosterInfo then
-			local idx = UnitInRaid(unit)
-			if idx then
-				local _, _, raidSubgroup = GetRaidRosterInfo(idx)
-				if not (issecretvalue and issecretvalue(raidSubgroup)) then subgroup = raidSubgroup end
-			end
-		end
+		local subgroup = getRaidSubgroupForUnit(unit)
 		if not subgroup and allowSample then subgroup = st._previewGroup or 1 end
 		if subgroup then groupTag = formatGroupNumber(subgroup, resolveGroupNumberFormat(cfg, def)) end
 	end
@@ -15557,6 +15565,7 @@ end
 registerFeatureEvents = function(frame)
 	if not frame then return end
 	if frame.RegisterEvent then
+		frame:RegisterEvent("PLAYER_ENTERING_WORLD")
 		frame:RegisterEvent("PLAYER_REGEN_ENABLED")
 		frame:RegisterEvent("PLAYER_FLAGS_CHANGED")
 		frame:RegisterEvent("GROUP_ROSTER_UPDATE")
@@ -15572,6 +15581,7 @@ end
 unregisterFeatureEvents = function(frame)
 	if not frame then return end
 	if frame.UnregisterEvent then
+		frame:UnregisterEvent("PLAYER_ENTERING_WORLD")
 		frame:UnregisterEvent("PLAYER_REGEN_ENABLED")
 		frame:UnregisterEvent("PLAYER_FLAGS_CHANGED")
 		frame:UnregisterEvent("GROUP_ROSTER_UPDATE")
@@ -15582,6 +15592,46 @@ unregisterFeatureEvents = function(frame)
 		frame:UnregisterEvent("RAID_TARGET_UPDATE")
 		frame:UnregisterEvent("PLAYER_TARGET_CHANGED")
 	end
+end
+
+local postEnterWorldTicker
+
+local function cancelPostEnterWorldTicker()
+	if postEnterWorldTicker and postEnterWorldTicker.Cancel then
+		postEnterWorldTicker:Cancel()
+	end
+	postEnterWorldTicker = nil
+end
+
+local function runPostEnterWorldRefreshPass()
+	if not isFeatureEnabled() then return end
+	GF:EnsureHeaders()
+	GF.Refresh()
+	GF:RefreshRoleIcons()
+	GF:RefreshGroupIcons()
+	GF:RefreshStatusText()
+	GF:RefreshGroupIndicators()
+	GF:RefreshCustomSortNameList()
+end
+
+local function schedulePostEnterWorldRefresh()
+	cancelPostEnterWorldTicker()
+	if not (C_Timer and C_Timer.NewTicker) then
+		runPostEnterWorldRefreshPass()
+		return
+	end
+	local passes = 0
+	postEnterWorldTicker = C_Timer.NewTicker(0.25, function()
+		passes = passes + 1
+		if not isFeatureEnabled() then
+			cancelPostEnterWorldTicker()
+			return
+		end
+		if not (InCombatLockdown and InCombatLockdown()) then
+			runPostEnterWorldRefreshPass()
+		end
+		if passes >= 8 then cancelPostEnterWorldTicker() end
+	end)
 end
 
 do
@@ -15597,6 +15647,9 @@ do
 				GF:DisableBlizzardFrames()
 				GF:EnsureEditMode()
 			end
+		elseif event == "PLAYER_ENTERING_WORLD" then
+			runPostEnterWorldRefreshPass()
+			schedulePostEnterWorldRefresh()
 		elseif event == "PLAYER_REGEN_ENABLED" then
 			if GF._pendingDisable then
 				GF._pendingDisable = nil
