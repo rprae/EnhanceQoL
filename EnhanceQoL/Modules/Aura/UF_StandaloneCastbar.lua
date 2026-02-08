@@ -883,6 +883,10 @@ local function setSampleCast()
 end
 
 local function shouldIgnoreCastFail(castGUID, spellId)
+	if UnitChannelInfo then
+		local channelName = UnitChannelInfo(UNIT)
+		if channelName then return true end
+	end
 	local info = state.castInfo
 	if not info then return false end
 	if info.castGUID and castGUID then
