@@ -447,7 +447,12 @@ function GF:BuildDenseCustomGroupSpecs(cfg)
 	if not (GFH and GFH.BuildCustomSortNameListsByGroup) then return {} end
 	local sparseLists = GFH.BuildCustomSortNameListsByGroup(cfg) or {}
 
-	local function trimCsvToken(token) return (tostring(token or ""):gsub("^%s+", ""):gsub("%s+$", "")) end
+	local function trimCsvToken(token)
+		local normalized = tostring(token or "")
+		normalized = normalized:gsub("^%s+", "")
+		normalized = normalized:gsub("%s+$", "")
+		return normalized
+	end
 
 	local function buildOrderedGroups(onlyExisting)
 		local ordering = (cfg and cfg.groupingOrder) or (GFH and GFH.GROUP_ORDER) or "1,2,3,4,5,6,7,8"
@@ -507,13 +512,17 @@ function GF:BuildDenseCustomGroupSpecs(cfg)
 	local orderedGroups = buildOrderedGroups(true)
 	if #orderedGroups == 0 then orderedGroups = buildOrderedGroups(false) end
 	local fallbackLists = {}
+	local fallbackGroups = {}
 	if IsInRaid and IsInRaid() and GetNumGroupMembers and GetRaidRosterInfo then
 		for i = 1, GetNumGroupMembers() do
 			local name, _, subgroup = GetRaidRosterInfo(i)
 			subgroup = tonumber(subgroup)
-			if name and subgroup and subgroup >= 1 and subgroup <= 8 then
-				fallbackLists[subgroup] = fallbackLists[subgroup] or {}
-				fallbackLists[subgroup][#fallbackLists[subgroup] + 1] = name
+			if subgroup and subgroup >= 1 and subgroup <= 8 then
+				fallbackGroups[subgroup] = true
+				if name then
+					fallbackLists[subgroup] = fallbackLists[subgroup] or {}
+					fallbackLists[subgroup][#fallbackLists[subgroup] + 1] = name
+				end
 			end
 		end
 	end
@@ -521,11 +530,20 @@ function GF:BuildDenseCustomGroupSpecs(cfg)
 	for _, group in ipairs(orderedGroups) do
 		local nameList = sparseLists[group]
 		if (type(nameList) ~= "string" or nameList == "") and fallbackLists[group] then nameList = table.concat(fallbackLists[group], ",") end
-		if type(nameList) == "string" and nameList ~= "" then specs[#specs + 1] = {
-			group = group,
-			sortMethod = "NAMELIST",
-			nameList = nameList,
-		} end
+		if type(nameList) == "string" and nameList ~= "" then
+			specs[#specs + 1] = {
+				group = group,
+				sortMethod = "NAMELIST",
+				nameList = nameList,
+			}
+		elseif fallbackGroups[group] then
+			-- Fallback while custom namelists are still warming up (for example right after login/reload).
+			specs[#specs + 1] = {
+				group = group,
+				sortMethod = "INDEX",
+				nameList = nil,
+			}
+		end
 	end
 	return specs
 end
@@ -536,7 +554,12 @@ function GF:BuildRaidGroupHeaderSpecs(cfg, sortMethod, useCustomSort)
 	local method = tostring(sortMethod or "INDEX"):upper()
 	if method ~= "NAME" and method ~= "INDEX" then method = "INDEX" end
 
-	local function trimCsvToken(token) return (tostring(token or ""):gsub("^%s+", ""):gsub("%s+$", "")) end
+	local function trimCsvToken(token)
+		local normalized = tostring(token or "")
+		normalized = normalized:gsub("^%s+", "")
+		normalized = normalized:gsub("%s+$", "")
+		return normalized
+	end
 
 	local ordering = (cfg and cfg.groupingOrder) or (GFH and GFH.GROUP_ORDER) or "1,2,3,4,5,6,7,8"
 	local groups, seen = {}, {}
@@ -1922,11 +1945,6 @@ function GF:BuildButton(self)
 	local tc = cfg.text or {}
 
 	if self.RegisterForClicks then self:RegisterForClicks("AnyUp") end
-
-	if (not InCombatLockdown or not InCombatLockdown()) and self.SetAttribute then
-		self:SetAttribute("*type1", "target")
-		self:SetAttribute("*type2", "togglemenu")
-	end
 
 	_G.ClickCastFrames = _G.ClickCastFrames or {}
 	_G.ClickCastFrames[self] = true
@@ -3830,12 +3848,15 @@ local function updateGroupIndicatorsForFrames(container, frames, cfg, def, isPre
 				end
 			else
 				local unit = getUnit(frame)
-				if unit and UnitInRaid and GetRaidRosterInfo then
-					local idx = UnitInRaid(unit)
-					if idx then
-						local _, _, raidSubgroup = GetRaidRosterInfo(idx)
-						if not (issecretvalue and issecretvalue(raidSubgroup)) then subgroup = raidSubgroup end
-						sortIndex = idx
+				if unit then
+					subgroup = getRaidSubgroupForUnit(unit)
+					if type(unit) == "string" then
+						local raidIndex = unit:match("^raid(%d+)$")
+						if raidIndex then sortIndex = tonumber(raidIndex) end
+					end
+					if sortIndex == nil and UnitInRaid then
+						local idx = UnitInRaid(unit)
+						if not (issecretvalue and issecretvalue(idx)) then sortIndex = idx end
 					end
 				end
 				if unit and UnitName then name = UnitName(unit) end
@@ -5371,15 +5392,30 @@ end
 
 local function forEachChild(header, fn)
 	if not header or not fn then return end
-	if header.EnumerateChildren then
-		for child in header:EnumerateChildren() do
-			fn(child)
-		end
-		return
+	if not header.GetAttribute then return end
+
+	-- SecureGroupHeader-managed children are exposed via child1..childN attributes.
+	-- Mirror oUF/ElvUI behavior; do not depend on raw GetChildren ordering.
+	local index = 1
+	local child = header:GetAttribute("child" .. index)
+	while child do
+		fn(child, index)
+		index = index + 1
+		child = header:GetAttribute("child" .. index)
 	end
-	local children = { header:GetChildren() }
-	for _, child in ipairs(children) do
-		fn(child)
+end
+
+local function syncHeaderChild(child, kind, cfg)
+	if not (child and cfg) then return end
+
+	child._eqolGroupKind = kind
+	child._eqolCfg = cfg
+	updateButtonConfig(child, cfg)
+	GF:LayoutAuras(child)
+	if child.unit then GF:UnitButton_RegisterUnitEvents(child, child.unit) end
+	if child._eqolUFState then
+		GF:LayoutButton(child)
+		GF:UpdateAll(child)
 	end
 end
 
@@ -5701,18 +5737,7 @@ function GF:RefreshCustomSortNameList()
 end
 
 local function syncRaidGroupHeaderChildren(header, cfg, layout)
-	forEachChild(header, function(child)
-		child._eqolGroupKind = "raid"
-		child._eqolCfg = cfg
-		updateButtonConfig(child, cfg)
-		GF:LayoutAuras(child)
-		if child.unit then GF:UnitButton_RegisterUnitEvents(child, child.unit) end
-		child:SetSize(layout.w, layout.h)
-		if child._eqolUFState then
-			GF:LayoutButton(child)
-			GF:UpdateAll(child)
-		end
-	end)
+	forEachChild(header, function(child) syncHeaderChild(child, "raid", cfg) end)
 end
 
 local function applyRaidGroupHeaders(cfg, layout, groupSpecs, forceShow, forceHide, maxGroups)
@@ -5776,32 +5801,28 @@ local function applyRaidGroupHeaders(cfg, layout, groupSpecs, forceShow, forceHi
 				header:SetAttribute("initialConfigFunction", layout.initConfigFunction)
 
 				header:ClearAllPoints()
-				local offsetX, offsetY = 0, 0
-				if layout.isHorizontal then
-					offsetY = roundToPixel((i - 1) * (layout.perHeaderH + layout.columnSpacing) * -1, layout.scale)
+				if i == 1 then
+					header:SetPoint(layout.startPoint, anchor, layout.startPoint, 0, 0)
 				else
-					offsetX = roundToPixel((i - 1) * (layout.perHeaderW + layout.columnSpacing), layout.scale)
+					local previous = headers[i - 1]
+					if previous and previous._eqolSpecialHide ~= true then
+						local spacing = roundToPixel(layout.columnSpacing or 0, layout.scale)
+						if layout.isHorizontal then
+							local relPoint = (layout.startPoint == "TOPRIGHT") and "BOTTOMRIGHT" or "BOTTOMLEFT"
+							header:SetPoint(layout.startPoint, previous, relPoint, 0, -spacing)
+						else
+							local relPoint = (layout.startPoint == "BOTTOMLEFT") and "BOTTOMRIGHT" or "TOPRIGHT"
+							header:SetPoint(layout.startPoint, previous, relPoint, spacing, 0)
+						end
+					else
+						header:SetPoint(layout.startPoint, anchor, layout.startPoint, 0, 0)
+					end
 				end
-				header:SetPoint(layout.startPoint, anchor, layout.startPoint, offsetX, offsetY)
-
-				syncRaidGroupHeaderChildren(header, cfg, layout)
 			end
 
 			applyVisibility(header, "raid", cfg)
 
-			if active and header.GetChildren then
-				for _, child in ipairs({ header:GetChildren() }) do
-					if child and child.ClearAllPoints then child:ClearAllPoints() end
-				end
-			end
-
-			if active and header.IsShown and header:IsShown() then
-				if SecureGroupHeader_Update then
-					SecureGroupHeader_Update(header)
-				elseif header.Show then
-					header:Show()
-				end
-			end
+			if active and header.IsShown and header:IsShown() and header.Show then header:Show() end
 
 			if active then syncRaidGroupHeaderChildren(header, cfg, layout) end
 
@@ -5973,18 +5994,7 @@ function GF:ApplyHeaderAttributes(kind)
 	header:SetAttribute("initialConfigFunction", initConfigFunction)
 
 	local function syncHeaderChildren()
-		forEachChild(header, function(child)
-			child._eqolGroupKind = kind
-			child._eqolCfg = cfg
-			updateButtonConfig(child, cfg)
-			GF:LayoutAuras(child)
-			if child.unit then GF:UnitButton_RegisterUnitEvents(child, child.unit) end
-			child:SetSize(w, h)
-			if child._eqolUFState then
-				GF:LayoutButton(child)
-				GF:UpdateAll(child)
-			end
-		end)
+		forEachChild(header, function(child) syncHeaderChild(child, kind, cfg) end)
 	end
 
 	syncHeaderChildren()
@@ -6070,23 +6080,7 @@ function GF:ApplyHeaderAttributes(kind)
 	end
 	if GF._previewActive and GF._previewActive[kind] then GF:UpdatePreviewLayout(kind) end
 
-	if header.GetChildren then
-		for _, child in ipairs({ header:GetChildren() }) do
-			if child and child.ClearAllPoints then child:ClearAllPoints() end
-		end
-	end
-
-	if header.IsShown and header:IsShown() then
-		if SecureGroupHeader_Update then
-			SecureGroupHeader_Update(header)
-		elseif header.Show then
-			header:Show()
-		end
-	end
-
-	-- Roster changes can create new secure children after the first sync pass.
-	-- Re-apply config so freshly created buttons pick up styling/events immediately.
-	syncHeaderChildren()
+	if header.IsShown and header:IsShown() and header.Show then header:Show() end
 
 	if header.IsShown and header:IsShown() then
 		nudgeHeaderLayout(header)
@@ -15570,6 +15564,7 @@ registerFeatureEvents = function(frame)
 		frame:RegisterEvent("PLAYER_REGEN_ENABLED")
 		frame:RegisterEvent("PLAYER_FLAGS_CHANGED")
 		frame:RegisterEvent("GROUP_ROSTER_UPDATE")
+		frame:RegisterEvent("UNIT_NAME_UPDATE")
 		frame:RegisterEvent("PARTY_LEADER_CHANGED")
 		frame:RegisterEvent("PLAYER_ROLES_ASSIGNED")
 		frame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
@@ -15586,6 +15581,7 @@ unregisterFeatureEvents = function(frame)
 		frame:UnregisterEvent("PLAYER_REGEN_ENABLED")
 		frame:UnregisterEvent("PLAYER_FLAGS_CHANGED")
 		frame:UnregisterEvent("GROUP_ROSTER_UPDATE")
+		frame:UnregisterEvent("UNIT_NAME_UPDATE")
 		frame:UnregisterEvent("PARTY_LEADER_CHANGED")
 		frame:UnregisterEvent("PLAYER_ROLES_ASSIGNED")
 		frame:UnregisterEvent("PLAYER_SPECIALIZATION_CHANGED")
@@ -15685,6 +15681,8 @@ do
 			local cfg = getCfg("raid")
 			local custom = cfg and GFH and GFH.EnsureCustomSortConfig and GFH.EnsureCustomSortConfig(cfg)
 			if custom and custom.separateMeleeRanged == true and resolveSortMethod(cfg) == "NAMELIST" and GFH and GFH.QueueInspectGroup then GFH.QueueInspectGroup() end
+		elseif event == "UNIT_NAME_UPDATE" then
+			GF:RefreshGroupIndicators()
 		elseif event == "PLAYER_SPECIALIZATION_CHANGED" then
 			GF:RefreshPowerVisibility()
 			GF:RefreshCustomSortNameList()

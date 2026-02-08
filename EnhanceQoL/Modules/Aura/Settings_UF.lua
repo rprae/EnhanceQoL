@@ -462,7 +462,7 @@ local function fontOptions()
 		if type(path) == "string" and path ~= "" then list[#list + 1] = { value = path, label = tostring(name) } end
 		if path == defaultPath then hasDefault = true end
 	end
-	if defaultPath and not hasDefault then list[#list + 1] = { value = defaultPath, label = L["Default"] or "Default" } end
+	if defaultPath and not hasDefault then list[#list + 1] = { value = defaultPath, label = DEFAULT } end
 	table.sort(list, function(a, b) return tostring(a.label) < tostring(b.label) end)
 	return list
 end
@@ -496,7 +496,7 @@ local function borderOptions()
 		seen[lv] = true
 		list[#list + 1] = { value = value, label = label }
 	end
-	add("DEFAULT", L["Default"] or "Default")
+	add("DEFAULT", DEFAULT)
 	if not LSM then return list end
 	local hash = LSM:HashTable("border") or {}
 	for name, path in pairs(hash) do
@@ -973,7 +973,7 @@ local function buildUnitSettings(unit)
 	list[#list + 1] = detachedBorderOffset
 
 	local powerDefaults = def.power or {}
-	local detachedStrataOptions = { { value = "", label = L["Default"] or "Default" } }
+	local detachedStrataOptions = { { value = "", label = DEFAULT } }
 	for i = 1, #strataOptions do
 		detachedStrataOptions[#detachedStrataOptions + 1] = strataOptions[i]
 	end

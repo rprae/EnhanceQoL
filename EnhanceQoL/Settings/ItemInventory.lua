@@ -86,6 +86,23 @@ local function applyCharIlvlPosition(element)
 	element.ilvl:SetPoint(anchor.textPoint, element.ilvlBackground, anchor.textPoint, anchor.textX, anchor.textY)
 end
 
+local function getMissingEnchantOverlayColor()
+	local c = addon.db and addon.db["missingEnchantOverlayColor"]
+	local r = (c and c.r) or 1
+	local g = (c and c.g) or 0
+	local b = (c and c.b) or 0
+	local a = (c and c.a)
+	if a == nil then a = 0.6 end
+	return r, g, b, a
+end
+
+local function applyMissingEnchantOverlayStyle(texture)
+	if not texture then return end
+	local r, g, b, a = getMissingEnchantOverlayColor()
+	texture:SetColorTexture(r, g, b, a)
+	texture:SetGradient("VERTICAL", CreateColor(r, g, b, math.min(1, a + 0.35)), CreateColor(r, g, b, math.max(0, a - 0.15)))
+end
+
 local function CheckItemGems(element, itemLink, emptySocketsCount, key, pdElement, attempts)
 	attempts = attempts or 1 -- Anzahl der Versuche
 	if attempts > 10 then -- Abbruch nach 5 Versuchen, um Endlosschleifen zu vermeiden
@@ -296,6 +313,7 @@ local function onInspect(arg1)
 	}
 
 	for key, element in pairs(itemSlotsInspectList) do
+		if element.borderGradient then applyMissingEnchantOverlayStyle(element.borderGradient) end
 		if nil == inspectDone[key] then
 			if element.ilvl then element.ilvl:SetFormattedText("") end
 			if element.ilvlBackground then element.ilvlBackground:Hide() end
@@ -407,13 +425,13 @@ local function onInspect(arg1)
 									element.borderGradient = element:CreateTexture(nil, "ARTWORK")
 									element.borderGradient:SetPoint("TOPLEFT", element, "TOPLEFT", -2, 2)
 									element.borderGradient:SetPoint("BOTTOMRIGHT", element, "BOTTOMRIGHT", 2, -2)
-									element.borderGradient:SetColorTexture(1, 0, 0, 0.6) -- Grundfarbe Rot
-									element.borderGradient:SetGradient("VERTICAL", CreateColor(1, 0, 0, 1), CreateColor(1, 0.3, 0.3, 0.5))
+									applyMissingEnchantOverlayStyle(element.borderGradient)
 									element.borderGradient:Hide()
 								end
 								element.enchant:SetFont(addon.variables.defaultFont, 12, "OUTLINE")
 							end
 							if element.borderGradient then
+								applyMissingEnchantOverlayStyle(element.borderGradient)
 								element.borderGradient:Hide()
 								local showMissingOverlay = addon.db["showMissingEnchantOverlayOnCharframe"] ~= false
 								local enchantText = getTooltipInfoFromLink(itemLink)
@@ -590,6 +608,7 @@ local function setIlvlText(element, slot)
 				end
 
 				if CharOpt("enchants") and element.borderGradient then
+					applyMissingEnchantOverlayStyle(element.borderGradient)
 					element.borderGradient:Hide()
 					local showMissingOverlay = addon.db["showMissingEnchantOverlayOnCharframe"] ~= false
 					local foundEnchant = enchantText ~= nil
@@ -1489,6 +1508,7 @@ function addon.functions.initItemInventory()
 	addon.functions.InitDBValue("showGemsTooltipOnCharframe", false)
 	addon.functions.InitDBValue("showEnchantOnCharframe", false)
 	addon.functions.InitDBValue("showMissingEnchantOverlayOnCharframe", true)
+	addon.functions.InitDBValue("missingEnchantOverlayColor", { r = 1, g = 0, b = 0, a = 0.6 })
 	addon.functions.InitDBValue("showCatalystChargesOnCharframe", false)
 	addon.functions.InitDBValue("movementSpeedStatEnabled", false)
 	addon.functions.InitDBValue("characterStatsFormattingEnabled", false)
@@ -1570,8 +1590,7 @@ function addon.functions.initItemInventory()
 			value.borderGradient = value:CreateTexture(nil, "ARTWORK")
 			value.borderGradient:SetPoint("TOPLEFT", value, "TOPLEFT", -2, 2)
 			value.borderGradient:SetPoint("BOTTOMRIGHT", value, "BOTTOMRIGHT", 2, -2)
-			value.borderGradient:SetColorTexture(1, 0, 0, 0.6) -- Grundfarbe Rot
-			value.borderGradient:SetGradient("VERTICAL", CreateColor(1, 0, 0, 1), CreateColor(1, 0.3, 0.3, 0.5))
+			applyMissingEnchantOverlayStyle(value.borderGradient)
 			value.borderGradient:Hide()
 		end
 		-- Text für das Item-Level

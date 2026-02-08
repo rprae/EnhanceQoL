@@ -24,6 +24,8 @@
 - Skinner: Character Frame flat skin (buttons, dropdowns, title pane hover/selection)
 - Data Panels: Background and border textures/colors are now configurable via SharedMedia.
 - Data Panels: Durability stream now has an option to hide the critical warning text (`Items < 50%`).
+- Data Panels: Gold stream now supports a custom text color and optional silver/copper display in addition to gold.
+- Data Panels: Durability stream now has customizable high/mid/low colors.
 
 ### 🔄 Changed
 
@@ -59,6 +61,7 @@
 - World Map Teleport: Mixed Alliance and Horde for Tol Barad Portal
 - Cooldown Panels: Specs were not correctly checked
 - Itemlevel in Bags and Characterpanel are now correct
+- Missing locales
 
 ---
 
