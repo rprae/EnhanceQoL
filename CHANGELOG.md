@@ -17,6 +17,10 @@
 ### 🐛 Fixed
 
 - Action Tracker: Removed some DK, Evoker and Priest fake spells
+- Cooldown Panels: Improved reliability when changing spec and entering/leaving instances.
+- Cooldown Panels: Fixed cases where hidden panels or cursor overlays could remain visible.
+- Cooldown Panels: Improved static text behavior for multi-entry panels.
+- Cooldown Panels: Simplified Static Text options in Edit Mode to reduce confusion.
 
 ---
 

@@ -5640,6 +5640,16 @@ local eventHandlers = {
 			if _G.BankPanel and _G.BankPanel:IsShown() then addon.functions.updateBags(_G.BankPanel) end
 		end
 	end,
+	["ACTIVE_TALENT_GROUP_CHANGED"] = function(arg1)
+		local uSpec = C_SpecializationInfo.GetSpecialization()
+		if uSpec and uSpec > 0 then
+			addon.variables.unitSpec = uSpec
+			local specId, specName = C_SpecializationInfo.GetSpecializationInfo(addon.variables.unitSpec)
+			addon.variables.unitSpecName = specName
+			addon.variables.unitRole = GetSpecializationRole(addon.variables.unitSpec)
+			addon.variables.unitSpecId = specId
+		end
+	end,
 	["ADDON_LOADED"] = function(arg1)
 		if arg1 == addonName then
 			local legacy = {}
