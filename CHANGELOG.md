@@ -1,5 +1,13 @@
 # Changelog
 
+## [7.12.0] - 2026-02-12
+
+### ✨ Added
+
+- GCD Bar: Added `Match relative frame width` for anchored layouts, including live width sync with the selected relative frame.
+
+---
+
 ## [7.11.4] - 2026-02-09
 
 ### 🐛 Fixed
