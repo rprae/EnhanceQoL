@@ -1,6 +1,6 @@
 -- luacheck: globals RegisterStateDriver UnregisterStateDriver RegisterUnitWatch
 local parentAddonName = "EnhanceQoL"
-local addonName, addon = ...
+local addon = select(2, ...)
 
 if _G[parentAddonName] then
 	addon = _G[parentAddonName]
@@ -2829,6 +2829,20 @@ end
 
 local function hasAuraFlag(flags, flag) return flags and flags % (flag * 2) >= flag end
 
+local function clearDispelAuraState(st)
+	if not st then return end
+	st._dispelAuraId = nil
+	st._dispelAuraIdDirty = nil
+end
+
+local function markDispelAuraDirty(st, auraId)
+	if not st then return end
+	if auraId == nil or st._dispelAuraId == auraId then
+		st._dispelAuraId = nil
+		st._dispelAuraIdDirty = true
+	end
+end
+
 local function clearAuraKinds(st)
 	if not st then return end
 	st._auraKindById = st._auraKindById or {}
@@ -2836,6 +2850,7 @@ local function clearAuraKinds(st)
 	for k in pairs(flagsById) do
 		flagsById[k] = nil
 	end
+	clearDispelAuraState(st)
 end
 
 local function isAuraFilteredIn(unit, auraInstanceID, filter)
@@ -2860,7 +2875,7 @@ local function getAuraKindFlags(unit, aura, helpfulFilter, harmfulFilter, extern
 		if wantDebuff and harmfulMatch then flags = setAuraFlag(flags, AURA_KIND_HARMFUL) end
 	end
 
-	if wantExternals and isAuraFilteredIn(unit, auraId, externalFilter) then flags = setAuraFlag(flags, AURA_KIND_EXTERNAL) end
+	if wantExternals and not harmfulMatch and isAuraFilteredIn(unit, auraId, externalFilter) then flags = setAuraFlag(flags, AURA_KIND_EXTERNAL) end
 	if wantsDispel and harmfulMatch and isAuraFilteredIn(unit, auraId, dispelFilter) then flags = setAuraFlag(flags, AURA_KIND_DISPEL) end
 
 	return flags
@@ -2879,7 +2894,15 @@ local function compactAuraOrder(cache)
 	local order = cache.order
 	local indexById = cache.indexById
 	local auras = cache.auras
-	local seen = {}
+	local seen = cache._seen
+	if seen then
+		for k in pairs(seen) do
+			seen[k] = nil
+		end
+	else
+		seen = {}
+		cache._seen = seen
+	end
 	local write = 1
 	for read = 1, #order do
 		local auraId = order[read]
@@ -2896,15 +2919,12 @@ local function compactAuraOrder(cache)
 	cache._orderDirty = nil
 end
 
-local function cacheAuraWithFlags(cache, flagsById, aura, flags)
+local function cacheAuraWithFlags(cache, flagsById, aura, flags, st)
 	if not (cache and aura and aura.auraInstanceID) then return end
 	local auraId = aura.auraInstanceID
+	local prevFlags = flagsById and flagsById[auraId]
 	if flags then
-		if AuraUtil and AuraUtil.cacheAura then
-			AuraUtil.cacheAura(cache, aura)
-		else
-			cache.auras[auraId] = aura
-		end
+		cache.auras[auraId] = aura
 		if AuraUtil and AuraUtil.addAuraToOrder then
 			AuraUtil.addAuraToOrder(cache, auraId)
 		else
@@ -2914,7 +2934,21 @@ local function cacheAuraWithFlags(cache, flagsById, aura, flags)
 			end
 		end
 		if flagsById then flagsById[auraId] = flags end
+		if st then
+			local hadDispel = hasAuraFlag(prevFlags, AURA_KIND_DISPEL)
+			local hasDispel = hasAuraFlag(flags, AURA_KIND_DISPEL)
+			if st._dispelAuraId == auraId and not hasDispel then
+				st._dispelAuraId = nil
+				st._dispelAuraIdDirty = true
+			elseif (not st._dispelAuraId) and hasDispel then
+				st._dispelAuraId = auraId
+				st._dispelAuraIdDirty = nil
+			elseif hadDispel and not hasDispel and not st._dispelAuraId then
+				st._dispelAuraIdDirty = true
+			end
+		end
 	else
+		markDispelAuraDirty(st, auraId)
 		removeAuraFromGroupStore(cache, flagsById, auraId)
 	end
 end
@@ -3218,7 +3252,7 @@ local function fullScanGroupAuras(unit, st, cache, helpfulFilter, harmfulFilter,
 		if not auraId or seen[auraId] then return end
 		seen[auraId] = true
 		local flags = getAuraKindFlags(unit, aura, helpfulFilter, harmfulFilter, externalFilter, dispelFilter, wantBuff, wantDebuff, wantExternals, wantsDispel)
-		cacheAuraWithFlags(cache, flagsById, aura, flags)
+		cacheAuraWithFlags(cache, flagsById, aura, flags, st)
 	end
 
 	if wantBuff and helpfulFilter then
@@ -3262,7 +3296,9 @@ local function updateGroupAuraCache(unit, st, updateInfo, ac, helpfulFilter, har
 
 	if updateInfo.removedAuraInstanceIDs then
 		for i = 1, #updateInfo.removedAuraInstanceIDs do
-			removeAuraFromGroupStore(cache, flagsById, updateInfo.removedAuraInstanceIDs[i])
+			local auraId = updateInfo.removedAuraInstanceIDs[i]
+			markDispelAuraDirty(st, auraId)
+			removeAuraFromGroupStore(cache, flagsById, auraId)
 		end
 	end
 
@@ -3270,7 +3306,7 @@ local function updateGroupAuraCache(unit, st, updateInfo, ac, helpfulFilter, har
 		for i = 1, #updateInfo.addedAuras do
 			local aura = updateInfo.addedAuras[i]
 			local flags = getAuraKindFlags(unit, aura, helpfulFilter, harmfulFilter, externalFilter, dispelFilter, wantBuff, wantDebuff, wantExternals, wantsDispel)
-			cacheAuraWithFlags(cache, flagsById, aura, flags)
+			cacheAuraWithFlags(cache, flagsById, aura, flags, st)
 		end
 	end
 
@@ -3281,8 +3317,9 @@ local function updateGroupAuraCache(unit, st, updateInfo, ac, helpfulFilter, har
 				local aura = C_UnitAuras.GetAuraDataByAuraInstanceID(unit, auraId)
 				if aura then
 					local flags = getAuraKindFlags(unit, aura, helpfulFilter, harmfulFilter, externalFilter, dispelFilter, wantBuff, wantDebuff, wantExternals, wantsDispel)
-					cacheAuraWithFlags(cache, flagsById, aura, flags)
+					cacheAuraWithFlags(cache, flagsById, aura, flags, st)
 				else
+					markDispelAuraDirty(st, auraId)
 					removeAuraFromGroupStore(cache, flagsById, auraId)
 				end
 			end
@@ -4057,34 +4094,55 @@ function GF:UpdateDispelTint(self, cache, dispelFilter, allowSample, requiredFla
 			local auras = cache.auras
 			local order = cache.order
 			local flagsById = st._auraKindById
-			for i = 1, #order do
-				local auraId = order[i]
-				local aura = auraId and auras[auraId]
-				local match = true
-				if requiredFlag then
-					local auraKey = (aura and aura.auraInstanceID) or auraId
-					match = auraKey and hasAuraFlag(flagsById and flagsById[auraKey], requiredFlag)
+			local dispelAuraId = st._dispelAuraId
+			local dispelAura
+			local needsScan = st._dispelAuraIdDirty or not dispelAuraId
+			if not needsScan then
+				dispelAura = auras[dispelAuraId]
+				if not dispelAura then
+					needsScan = true
+				elseif requiredFlag and not hasAuraFlag(flagsById and flagsById[dispelAuraId], requiredFlag) then
+					needsScan = true
 				end
-				if aura and match then
-					local dispelName = aura.dispelName
-					if not (issecretvalue and issecretvalue(dispelName)) and dispelName and dispelName ~= "" then colorKey = dispelName end
-					local dispelCurve = GFH.DispelColorCurve
-					if aura.auraInstanceID and C_UnitAuras and C_UnitAuras.GetAuraDispelTypeColor and dispelCurve then
-						local color = C_UnitAuras.GetAuraDispelTypeColor(unit, aura.auraInstanceID, dispelCurve)
-						if not (issecretvalue and issecretvalue(color)) then
-							if color and color.GetRGBA then
-								r, g, b = color:GetRGBA()
-							elseif color and color.r then
-								r, g, b = color.r, color.g, color.b
-							end
+			end
+			if needsScan then
+				dispelAuraId = nil
+				dispelAura = nil
+				for i = 1, #order do
+					local auraId = order[i]
+					local aura = auraId and auras[auraId]
+					local match = true
+					if requiredFlag then
+						local auraKey = (aura and aura.auraInstanceID) or auraId
+						match = auraKey and hasAuraFlag(flagsById and flagsById[auraKey], requiredFlag)
+					end
+					if aura and match then
+						dispelAura = aura
+						dispelAuraId = aura.auraInstanceID or auraId
+						break
+					end
+				end
+				st._dispelAuraId = dispelAuraId
+				st._dispelAuraIdDirty = nil
+			end
+			if dispelAura then
+				local dispelName = dispelAura.dispelName
+				if not (issecretvalue and issecretvalue(dispelName)) and dispelName and dispelName ~= "" then colorKey = dispelName end
+				local dispelCurve = GFH.DispelColorCurve
+				if dispelAura.auraInstanceID and C_UnitAuras and C_UnitAuras.GetAuraDispelTypeColor and dispelCurve then
+					local color = C_UnitAuras.GetAuraDispelTypeColor(unit, dispelAura.auraInstanceID, dispelCurve)
+					if not (issecretvalue and issecretvalue(color)) then
+						if color and color.GetRGBA then
+							r, g, b = color:GetRGBA()
+						elseif color and color.r then
+							r, g, b = color.r, color.g, color.b
 						end
 					end
-					if not r then
-						if not (issecretvalue and issecretvalue(dispelName)) then
-							r, g, b = GFH.GetDebuffColorFromName(dispelName or "None")
-						end
+				end
+				if not r then
+					if not (issecretvalue and issecretvalue(dispelName)) then
+						r, g, b = GFH.GetDebuffColorFromName(dispelName or "None")
 					end
-					break
 				end
 			end
 		end
@@ -4837,6 +4895,8 @@ function GF:UnitButton_SetUnit(self, unit)
 		st._auraCache = nil
 		st._auraCacheByKey = nil
 		st._auraQueryMax = nil
+		st._dispelAuraId = nil
+		st._dispelAuraIdDirty = nil
 	end
 	GF:CacheUnitStatic(self)
 
@@ -4869,6 +4929,8 @@ function GF:UnitButton_ClearUnit(self)
 		st._auraCache = nil
 		st._auraCacheByKey = nil
 		st._auraQueryMax = nil
+		st._dispelAuraId = nil
+		st._dispelAuraIdDirty = nil
 	end
 	if st and st.privateAuras and UFHelper then
 		if UFHelper.RemovePrivateAuras then UFHelper.RemovePrivateAuras(st.privateAuras) end
@@ -6682,6 +6744,8 @@ function GF:RefreshChangedUnitButtons()
 		st._auraKindById = nil
 		st._auraChanged = nil
 		st._auraQueryMax = nil
+		st._dispelAuraId = nil
+		st._dispelAuraIdDirty = nil
 		GF:CacheUnitStatic(child)
 		GF:UnitButton_RegisterUnitEvents(child, unit)
 		if st._wantsAbsorb then GF:UpdateAbsorbCache(child, nil, unit, st) end
@@ -16245,13 +16309,12 @@ function GF:SchedulePostEnterWorldRefresh()
 end
 
 do
-	local f = CreateFrame("Frame")
-	GF._eventFrame = f
-	f:RegisterEvent("PLAYER_LOGIN")
-	f:SetScript("OnEvent", function(_, event, ...)
+	GF._eventFrame = CreateFrame("Frame")
+	GF._eventFrame:RegisterEvent("PLAYER_LOGIN")
+	GF._eventFrame:SetScript("OnEvent", function(_, event, ...)
 		if event == "PLAYER_LOGIN" then
 			if isFeatureEnabled() then
-				registerFeatureEvents(f)
+				registerFeatureEvents(_)
 				GF:EnsureHeaders()
 				GF.Refresh()
 				GF:DisableBlizzardFrames()
