@@ -161,7 +161,6 @@ local function openTalents()
 		return
 	end
 	if PlayerSpellsUtil and PlayerSpellsUtil.ToggleClassTalentOrSpecFrame and callSecure(PlayerSpellsUtil.ToggleClassTalentOrSpecFrame) then return end
-	callSecure(ToggleTalentFrame)
 end
 
 local function openSpellbook()
@@ -181,7 +180,6 @@ local function openSpellbook()
 	then
 		return
 	end
-	callSecure(ToggleSpellBookFrame)
 end
 
 local function openAchievements()
