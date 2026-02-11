@@ -124,6 +124,40 @@ local BLIZZ_FRAME_NAMES = {
 	focus = "FocusFrame",
 	pet = "PetFrame",
 }
+local RELATIVE_ANCHOR_FRAME_MAP = {
+	PlayerFrame = { uf = UF_FRAME_NAMES.player.frame, blizz = BLIZZ_FRAME_NAMES.player, ufKey = "player" },
+	EQOLUFPlayerFrame = { uf = UF_FRAME_NAMES.player.frame, blizz = BLIZZ_FRAME_NAMES.player, ufKey = "player" },
+	TargetFrame = { uf = UF_FRAME_NAMES.target.frame, blizz = BLIZZ_FRAME_NAMES.target, ufKey = "target" },
+	EQOLUFTargetFrame = { uf = UF_FRAME_NAMES.target.frame, blizz = BLIZZ_FRAME_NAMES.target, ufKey = "target" },
+	TargetFrameToT = { uf = UF_FRAME_NAMES.targettarget.frame, blizz = BLIZZ_FRAME_NAMES.targettarget, ufKey = "targettarget" },
+	EQOLUFToTFrame = { uf = UF_FRAME_NAMES.targettarget.frame, blizz = BLIZZ_FRAME_NAMES.targettarget, ufKey = "targettarget" },
+	FocusFrame = { uf = UF_FRAME_NAMES.focus.frame, blizz = BLIZZ_FRAME_NAMES.focus, ufKey = "focus" },
+	EQOLUFFocusFrame = { uf = UF_FRAME_NAMES.focus.frame, blizz = BLIZZ_FRAME_NAMES.focus, ufKey = "focus" },
+	PetFrame = { uf = UF_FRAME_NAMES.pet.frame, blizz = BLIZZ_FRAME_NAMES.pet, ufKey = "pet" },
+	EQOLUFPetFrame = { uf = UF_FRAME_NAMES.pet.frame, blizz = BLIZZ_FRAME_NAMES.pet, ufKey = "pet" },
+	BossTargetFrameContainer = { uf = "EQOLUFBossContainer", blizz = "BossTargetFrameContainer", ufKey = "boss" },
+	EQOLUFBossContainer = { uf = "EQOLUFBossContainer", blizz = "BossTargetFrameContainer", ufKey = "boss" },
+}
+
+local function isMappedUFEnabled(ufKey)
+	local ufCfg = addon.db and addon.db.ufFrames
+	local cfg = ufCfg and ufCfg[ufKey]
+	return cfg and cfg.enabled == true
+end
+
+local function resolveRelativeAnchorFrame(relativeName)
+	if type(relativeName) ~= "string" or relativeName == "" or relativeName == "UIParent" then return UIParent end
+	local mapped = RELATIVE_ANCHOR_FRAME_MAP[relativeName]
+	if mapped then
+		if mapped.ufKey and isMappedUFEnabled(mapped.ufKey) then
+			local ufFrame = _G[mapped.uf]
+			if ufFrame then return ufFrame end
+		end
+		local blizzFrame = _G[mapped.blizz]
+		if blizzFrame then return blizzFrame end
+	end
+	return _G[relativeName] or UIParent
+end
 local MIN_WIDTH = 50
 local classResourceFramesByClass = {
 	DEATHKNIGHT = { "RuneFrame" },
@@ -1376,7 +1410,7 @@ local function anchorBossContainer(cfg)
 	local def = defaultsFor("boss")
 	local anchor = (cfg and cfg.anchor) or (def and def.anchor) or { point = "CENTER", relativeTo = "UIParent", relativePoint = "CENTER", x = 0, y = 0 }
 	bossContainer:ClearAllPoints()
-	bossContainer:SetPoint(anchor.point or "CENTER", _G[anchor.relativeTo] or UIParent, anchor.relativePoint or anchor.point or "CENTER", anchor.x or 0, anchor.y or 0)
+	bossContainer:SetPoint(anchor.point or "CENTER", resolveRelativeAnchorFrame(anchor.relativeTo), anchor.relativePoint or anchor.point or "CENTER", anchor.x or 0, anchor.y or 0)
 end
 
 local function ensureBossContainer()
@@ -4613,7 +4647,7 @@ local function layoutFrame(cfg, unit)
 		if st.frame.SetParent then st.frame:SetParent(container) end
 		if st.frame:GetNumPoints() == 0 then st.frame:SetPoint("TOPLEFT", container, "TOPLEFT", 0, 0) end
 	else
-		local rel = (anchor and _G[anchor.relativeTo]) or UIParent
+		local rel = resolveRelativeAnchorFrame(anchor and anchor.relativeTo)
 		st.frame:ClearAllPoints()
 		st.frame:SetPoint(anchor.point or "CENTER", rel or UIParent, anchor.relativePoint or anchor.point or "CENTER", anchor.x or 0, anchor.y or 0)
 	end
