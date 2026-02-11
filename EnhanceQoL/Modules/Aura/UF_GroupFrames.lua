@@ -286,14 +286,7 @@ local function applyBarBackdrop(bar, cfg)
 		bar._eqolBackdropConfigured = nil
 		return
 	end
-	if
-		bar._eqolBackdropEnabled == true
-		and bar._eqolBackdropConfigured == true
-		and bar._eqolBackdropR == r
-		and bar._eqolBackdropG == g
-		and bar._eqolBackdropB == b
-		and bar._eqolBackdropA == a
-	then
+	if bar._eqolBackdropEnabled == true and bar._eqolBackdropConfigured == true and bar._eqolBackdropR == r and bar._eqolBackdropG == g and bar._eqolBackdropB == b and bar._eqolBackdropA == a then
 		return
 	end
 
@@ -14758,6 +14751,7 @@ local function buildEditModeSettings(kind, editModeId)
 				cfg.sortDir = tostring(value):upper()
 				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "sortDir", cfg.sortDir, nil, true) end
 				GF:ApplyHeaderAttributes(kind)
+				if GF._previewActive and GF._previewActive[kind] then GF:UpdatePreviewLayout(kind) end
 			end,
 			generator = function(_, root, data)
 				for _, option in ipairs(sortDirOptions) do
@@ -14767,6 +14761,7 @@ local function buildEditModeSettings(kind, editModeId)
 						cfg.sortDir = option.value
 						if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "sortDir", cfg.sortDir, nil, true) end
 						GF:ApplyHeaderAttributes(kind)
+						if GF._previewActive and GF._previewActive[kind] then GF:UpdatePreviewLayout(kind) end
 						data.customDefaultText = option.label
 						if addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RequestRefreshSettings then addon.EditModeLib.internal:RequestRefreshSettings() end
 					end)

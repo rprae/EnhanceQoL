@@ -56,9 +56,9 @@ H.PREVIEW_SAMPLES = {
 	party = {
 		{ name = "Tank", class = "WARRIOR", role = "TANK", group = 1 },
 		{ name = "Healer", class = "PRIEST", role = "HEALER", group = 1 },
-		{ name = "DPS", class = "MAGE", role = "DAMAGER", group = 1 },
-		{ name = "DPS", class = "HUNTER", role = "DAMAGER", group = 1 },
-		{ name = "DPS", class = "ROGUE", role = "DAMAGER", group = 1 },
+		{ name = "Mage", class = "MAGE", role = "DAMAGER", group = 1 },
+		{ name = "Hunter", class = "HUNTER", role = "DAMAGER", group = 1 },
+		{ name = "Rogue", class = "ROGUE", role = "DAMAGER", group = 1 },
 	},
 	mt = {
 		{ name = "MT", class = "WARRIOR", role = "TANK", group = 1 },
@@ -1232,7 +1232,8 @@ if not H.PREVIEW_SAMPLES.raid or #H.PREVIEW_SAMPLES.raid == 0 then H.PREVIEW_SAM
 
 function H.BuildPreviewSampleList(kind, cfg, baseSamples, limit, quotaTanks, quotaHealers)
 	local base = baseSamples or {}
-	if kind ~= "raid" then return base end
+	if kind ~= "raid" and kind ~= "party" then return base end
+	local isParty = kind == "party"
 
 	local groupFilter = cfg and cfg.groupFilter
 	local roleFilter = cfg and cfg.roleFilter
@@ -1243,7 +1244,7 @@ function H.BuildPreviewSampleList(kind, cfg, baseSamples, limit, quotaTanks, quo
 	local groupBy = normalizeGroupBy(cfg and cfg.groupBy)
 	local groupingOrder = cfg and cfg.groupingOrder
 
-	if not groupFilter and not roleFilter and not nameList then groupFilter = H.GROUP_ORDER end
+	if not isParty and not groupFilter and not roleFilter and not nameList then groupFilter = H.GROUP_ORDER end
 
 	local list = {}
 	local nameOrder = {}
