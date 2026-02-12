@@ -7438,6 +7438,18 @@ end
 function GF:AppendStatusIconSettings(settings, kind, editModeId, insertIndex)
 	local iconMeta = GFH.STATUS_ICON_EDITMODE_META
 	if not (settings and SettingType and iconMeta and iconMeta[1]) then return end
+	local iconLabelByKey = {
+		readyCheckIcon = L["UFGroupStatusIconReadyCheck"] or "Ready check icon",
+		summonIcon = L["UFGroupStatusIconSummon"] or "Summon icon",
+		resurrectIcon = L["UFGroupStatusIconResurrect"] or "Resurrect icon",
+		phaseIcon = L["UFGroupStatusIconPhase"] or "Phasing icon",
+	}
+	local showFormat = L["UFGroupStatusIconsShowFormat"] or "Show %s"
+	local sampleFormat = L["UFGroupStatusIconsSampleFormat"] or "%s sample"
+	local sizeFormat = L["UFGroupStatusIconsSizeFormat"] or "%s size"
+	local anchorFormat = L["UFGroupStatusIconsAnchorFormat"] or "%s anchor"
+	local offsetXFormat = L["UFGroupStatusIconsOffsetXFormat"] or "%s offset X"
+	local offsetYFormat = L["UFGroupStatusIconsOffsetYFormat"] or "%s offset Y"
 	local function push(entry)
 		if insertIndex and insertIndex > 0 then
 			table.insert(settings, insertIndex, entry)
@@ -7448,15 +7460,16 @@ function GF:AppendStatusIconSettings(settings, kind, editModeId, insertIndex)
 	end
 
 	push({
-		name = "Status icons",
+		name = L["UFGroupStatusIcons"] or "Status icons",
 		kind = SettingType.Collapsible,
 		id = "statusicons",
 		defaultCollapsed = true,
 	})
 
-	for _, meta in ipairs(iconMeta) do
+	for index, meta in ipairs(iconMeta) do
+		if index > 1 then push({ name = "", kind = SettingType.Divider, parentId = "statusicons" }) end
 		local key = meta.key
-		local label = meta.name or key
+		local label = iconLabelByKey[key] or meta.name or key
 		local defaultPoint = meta.defaultPoint or "CENTER"
 		local defaultSize = tonumber(meta.defaultSize) or 16
 		local enabledField = key .. "Enabled"
@@ -7467,7 +7480,7 @@ function GF:AppendStatusIconSettings(settings, kind, editModeId, insertIndex)
 		local offsetYField = key .. "OffsetY"
 
 		push({
-			name = "Show " .. label,
+			name = showFormat:format(label),
 			kind = SettingType.Checkbox,
 			field = enabledField,
 			parentId = "statusicons",
@@ -7481,7 +7494,7 @@ function GF:AppendStatusIconSettings(settings, kind, editModeId, insertIndex)
 			end,
 		})
 		push({
-			name = label .. " sample",
+			name = sampleFormat:format(label),
 			kind = SettingType.Checkbox,
 			field = sampleField,
 			parentId = "statusicons",
@@ -7496,7 +7509,7 @@ function GF:AppendStatusIconSettings(settings, kind, editModeId, insertIndex)
 			isEnabled = function() return GF.ReadStatusIconField(kind, key, "enabled", true) ~= false end,
 		})
 		push({
-			name = label .. " size",
+			name = sizeFormat:format(label),
 			kind = SettingType.Slider,
 			allowInput = true,
 			field = sizeField,
@@ -7516,7 +7529,7 @@ function GF:AppendStatusIconSettings(settings, kind, editModeId, insertIndex)
 			isEnabled = function() return GF.ReadStatusIconField(kind, key, "enabled", true) ~= false end,
 		})
 		push({
-			name = label .. " anchor",
+			name = anchorFormat:format(label),
 			kind = SettingType.Dropdown,
 			field = pointField,
 			parentId = "statusicons",
@@ -7538,7 +7551,7 @@ function GF:AppendStatusIconSettings(settings, kind, editModeId, insertIndex)
 			isEnabled = function() return GF.ReadStatusIconField(kind, key, "enabled", true) ~= false end,
 		})
 		push({
-			name = label .. " offset X",
+			name = offsetXFormat:format(label),
 			kind = SettingType.Slider,
 			allowInput = true,
 			field = offsetXField,
@@ -7558,7 +7571,7 @@ function GF:AppendStatusIconSettings(settings, kind, editModeId, insertIndex)
 			isEnabled = function() return GF.ReadStatusIconField(kind, key, "enabled", true) ~= false end,
 		})
 		push({
-			name = label .. " offset Y",
+			name = offsetYFormat:format(label),
 			kind = SettingType.Slider,
 			allowInput = true,
 			field = offsetYField,
