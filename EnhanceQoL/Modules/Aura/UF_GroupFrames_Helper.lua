@@ -218,9 +218,21 @@ end
 
 function H.RoundToPixel(value, scale)
 	value = tonumber(value) or 0
-	scale = scale or 1
+	scale = tonumber(scale) or 1
 	if scale <= 0 then return value end
-	return (math.floor((value * scale) + 0.5) / scale)
+	if value == 0 then return 0 end
+	local scaled = value * scale
+	if scaled >= 0 then
+		scaled = floor(scaled + 0.5)
+	else
+		scaled = ceil(scaled - 0.5)
+	end
+	return scaled / scale
+end
+
+function H.SnapPointOffsets(relativeFrame, relativePoint, x, y, scale)
+	scale = scale or H.GetEffectiveScale(relativeFrame)
+	return H.RoundToPixel(x, scale), H.RoundToPixel(y, scale)
 end
 
 function H.LayoutTexts(bar, leftFS, centerFS, rightFS, cfg, scale)
@@ -366,9 +378,20 @@ function H.SetPointFromCfg(frame, cfg)
 	local rel = cfg.relativeTo and _G[cfg.relativeTo] or UIParent
 	local p = cfg.point or "CENTER"
 	local rp = cfg.relativePoint or p
-	local scale = H.GetEffectiveScale(rel)
-	local x = H.RoundToPixel(tonumber(cfg.x) or 0, scale)
-	local y = H.RoundToPixel(tonumber(cfg.y) or 0, scale)
+	local x = tonumber(cfg.x) or 0
+	local y = tonumber(cfg.y) or 0
+	if x >= 0 then
+		x = floor(x + 0.5)
+	else
+		x = ceil(x - 0.5)
+	end
+	if y >= 0 then
+		y = floor(y + 0.5)
+	else
+		y = ceil(y - 0.5)
+	end
+	if cfg.x ~= x then cfg.x = x end
+	if cfg.y ~= y then cfg.y = y end
 	frame:SetPoint(p, rel, rp, x, y)
 end
 local LOCALIZED_CLASS_NAMES_FEMALE = LOCALIZED_CLASS_NAMES_FEMALE

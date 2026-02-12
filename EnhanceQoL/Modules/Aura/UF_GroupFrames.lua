@@ -311,33 +311,22 @@ local function getEffectiveBarTexture(cfg, barCfg)
 end
 
 local function stabilizeStatusBarTexture(bar)
-	if not (bar and bar.GetStatusBarTexture) then return end
+	if not bar then return end
+	if bar.SetSnapToPixelGrid then bar:SetSnapToPixelGrid(false) end
+	if bar.SetTexelSnappingBias then bar:SetTexelSnappingBias(0) end
+	if not bar.GetStatusBarTexture then return end
 	local t = bar:GetStatusBarTexture()
 	if not t then return end
 	if t.SetHorizTile then t:SetHorizTile(false) end
 	if t.SetVertTile then t:SetVertTile(false) end
 	if t.SetTexCoord then t:SetTexCoord(0, 1, 0, 1) end
-	if t.SetSnapToPixelGrid then t:SetSnapToPixelGrid(true) end
+	if t.SetSnapToPixelGrid then t:SetSnapToPixelGrid(false) end
 	if t.SetTexelSnappingBias then t:SetTexelSnappingBias(0) end
 end
 
 local roundToPixel = GFH.RoundToPixel
 
-local function roundToEvenPixel(value, scale)
-	if value == nil then return nil end
-	if not scale or scale <= 0 then return value end
-	local raw = value * scale
-	local px = floor(raw + 0.5)
-	if px % 2 == 1 then
-		-- Choose the nearest even pixel count to avoid half-pixel centers (text jitter).
-		if raw >= px then
-			px = px + 1
-		else
-			px = px - 1
-		end
-	end
-	return px / scale
-end
+local function roundToEvenPixel(value, scale) return roundToPixel(value, scale) end
 
 local layoutTexts = GFH.LayoutTexts
 
@@ -2319,6 +2308,9 @@ function GF:LayoutButton(self)
 	powerH = roundToEvenPixel(max(0, powerH), scale)
 	if powerH > availH then powerH = availH end
 
+	local negBorderOffset = roundToPixel(-borderOffset, scale)
+	local healthBottomOffset = roundToPixel(powerH + borderOffset, scale)
+
 	st.barGroup:SetAllPoints(self)
 	setBackdrop(st.barGroup, cfg.border)
 
@@ -2329,12 +2321,12 @@ function GF:LayoutButton(self)
 
 	st.power:ClearAllPoints()
 	st.power:SetPoint("BOTTOMLEFT", st.barGroup, "BOTTOMLEFT", borderOffset, borderOffset)
-	st.power:SetPoint("BOTTOMRIGHT", st.barGroup, "BOTTOMRIGHT", -borderOffset, borderOffset)
+	st.power:SetPoint("BOTTOMRIGHT", st.barGroup, "BOTTOMRIGHT", negBorderOffset, borderOffset)
 	st.power:SetHeight(powerH)
 
 	st.health:ClearAllPoints()
-	st.health:SetPoint("TOPLEFT", st.barGroup, "TOPLEFT", borderOffset, -borderOffset)
-	st.health:SetPoint("BOTTOMRIGHT", st.barGroup, "BOTTOMRIGHT", -borderOffset, powerH + borderOffset)
+	st.health:SetPoint("TOPLEFT", st.barGroup, "TOPLEFT", borderOffset, negBorderOffset)
+	st.health:SetPoint("BOTTOMRIGHT", st.barGroup, "BOTTOMRIGHT", negBorderOffset, healthBottomOffset)
 	applyBarBackdrop(st.health, hc)
 	applyBarBackdrop(st.power, cfg.power or {})
 
@@ -2444,6 +2436,9 @@ function GF:LayoutButton(self)
 	end
 
 	if st.nameText then
+		if st.nameText.SetWordWrap then st.nameText:SetWordWrap(false) end
+		if st.nameText.SetNonSpaceWrap then st.nameText:SetNonSpaceWrap(false) end
+		if st.nameText.SetMaxLines then st.nameText:SetMaxLines(1) end
 		if UFHelper and UFHelper.applyFont then
 			local hc = cfg.health or {}
 			UFHelper.applyFont(st.nameText, tc.font or hc.font, tc.fontSize or hc.fontSize or 12, tc.fontOutline or hc.fontOutline)
@@ -2459,11 +2454,13 @@ function GF:LayoutButton(self)
 		local namePad = (nameAnchor and nameAnchor:find("LEFT")) and rolePad or 0
 		local nameX = (nameOffset.x ~= nil and nameOffset.x or baseOffset.x or 6) + namePad
 		local nameY = nameOffset.y ~= nil and nameOffset.y or baseOffset.y or 0
-		nameX = roundToPixel(nameX, scale)
-		nameY = roundToPixel(nameY, scale)
+		if GFH and GFH.SnapPointOffsets then
+			nameX, nameY = GFH.SnapPointOffsets(st.health, nameAnchor, nameX, nameY, scale)
+		else
+			nameX, nameY = roundToPixel(nameX, scale), roundToPixel(nameY, scale)
+		end
 		local nameMaxChars = tonumber(tc.nameMaxChars) or 0
 		st.nameText:ClearAllPoints()
-		st.nameText:SetPoint(nameAnchor, st.health, nameAnchor, nameX, nameY)
 		if nameMaxChars <= 0 then
 			local vert = "CENTER"
 			if nameAnchor and nameAnchor:find("TOP") then
@@ -2473,8 +2470,19 @@ function GF:LayoutButton(self)
 			end
 			local leftPoint = (vert == "CENTER") and "LEFT" or (vert .. "LEFT")
 			local rightPoint = (vert == "CENTER") and "RIGHT" or (vert .. "RIGHT")
-			st.nameText:SetPoint(leftPoint, st.health, leftPoint, nameX, nameY)
-			st.nameText:SetPoint(rightPoint, st.health, rightPoint, roundToPixel(-4, scale), nameY)
+			local leftX, leftY
+			local rightX, rightY
+			if GFH and GFH.SnapPointOffsets then
+				leftX, leftY = GFH.SnapPointOffsets(st.health, leftPoint, nameX, nameY, scale)
+				rightX, rightY = GFH.SnapPointOffsets(st.health, rightPoint, -4, nameY, scale)
+			else
+				leftX, leftY = roundToPixel(nameX, scale), roundToPixel(nameY, scale)
+				rightX, rightY = roundToPixel(-4, scale), roundToPixel(nameY, scale)
+			end
+			st.nameText:SetPoint(leftPoint, st.health, leftPoint, leftX, leftY)
+			st.nameText:SetPoint(rightPoint, st.health, rightPoint, rightX, rightY)
+		else
+			st.nameText:SetPoint(nameAnchor, st.health, nameAnchor, nameX, nameY)
 		end
 		local justify = "CENTER"
 		if nameAnchor and nameAnchor:find("LEFT") then
@@ -2501,6 +2509,9 @@ function GF:LayoutButton(self)
 	end
 
 	if st.levelText then
+		if st.levelText.SetWordWrap then st.levelText:SetWordWrap(false) end
+		if st.levelText.SetNonSpaceWrap then st.levelText:SetNonSpaceWrap(false) end
+		if st.levelText.SetMaxLines then st.levelText:SetMaxLines(1) end
 		if UFHelper and UFHelper.applyFont then
 			local hc = cfg.health or {}
 			local levelFont = sc.levelFont or tc.font or hc.font
@@ -2510,8 +2521,15 @@ function GF:LayoutButton(self)
 		end
 		local anchor = sc.levelAnchor or "RIGHT"
 		local levelOffset = sc.levelOffset or {}
+		if st.levelText.SetWidth then st.levelText:SetWidth(roundToPixel((sc.levelWidth or 26), scale)) end
+		local levelX, levelY
+		if GFH and GFH.SnapPointOffsets then
+			levelX, levelY = GFH.SnapPointOffsets(st.health, anchor, levelOffset.x or 0, levelOffset.y or 0, scale)
+		else
+			levelX, levelY = roundToPixel(levelOffset.x or 0, scale), roundToPixel(levelOffset.y or 0, scale)
+		end
 		st.levelText:ClearAllPoints()
-		st.levelText:SetPoint(anchor, st.health, anchor, roundToPixel(levelOffset.x or 0, scale), roundToPixel(levelOffset.y or 0, scale))
+		st.levelText:SetPoint(anchor, st.health, anchor, levelX, levelY)
 		local justify = "CENTER"
 		if anchor and anchor:find("LEFT") then
 			justify = "LEFT"
@@ -3275,6 +3293,20 @@ function GF:LayoutAuras(self)
 					if cols < 1 then cols = 1 end
 					local w = cols * size + spacing * max(0, cols - 1)
 					local h = rows * size + spacing * max(0, rows - 1)
+					-- If we anchor the container via a centered point (e.g. CENTER/TOP/BOTTOM/LEFT/RIGHT),
+					-- make sure its size is even in pixel-space to avoid half-pixel jitter.
+					local centerX = anchorPoint and (not anchorPoint:find("LEFT") and not anchorPoint:find("RIGHT"))
+					local centerY = anchorPoint and (not anchorPoint:find("TOP") and not anchorPoint:find("BOTTOM"))
+					if centerX then
+						w = roundToEvenPixel(w, scale)
+					else
+						w = roundToPixel(w, scale)
+					end
+					if centerY then
+						h = roundToEvenPixel(h, scale)
+					else
+						h = roundToPixel(h, scale)
+					end
 					container:SetSize(w > 0 and w or 0.001, h > 0 and h or 0.001)
 					if container.SetClipsChildren then container:SetClipsChildren(false) end
 				end
@@ -3390,6 +3422,9 @@ local function updateAuraType(self, unit, st, ac, kindKey, cache, changed)
 	end
 	if kindKey == "externals" and layout.anchorPoint == "CENTER" and container then
 		local w, h = calcAuraGridSize(shown, layout.perRow, layout.size, layout.spacing, layout.primary)
+		local scale = GFH.GetEffectiveScale(container)
+		w = roundToEvenPixel(w, scale)
+		h = roundToEvenPixel(h, scale)
 		if container._eqolAuraCenterW ~= w or container._eqolAuraCenterH ~= h then
 			container:SetSize(w, h)
 			container._eqolAuraCenterW = w
@@ -3797,6 +3832,9 @@ function GF:UpdateSampleAuras(self)
 		end
 		if kindKey == "externals" and layout.anchorPoint == "CENTER" and container then
 			local w, h = calcAuraGridSize(shown, layout.perRow, layout.size, layout.spacing, layout.primary)
+			local scale = GFH.GetEffectiveScale(container)
+			w = roundToEvenPixel(w, scale)
+			h = roundToEvenPixel(h, scale)
 			if container._eqolAuraCenterW ~= w or container._eqolAuraCenterH ~= h then
 				container:SetSize(w, h)
 				container._eqolAuraCenterW = w
@@ -5407,8 +5445,8 @@ function GF:UpdateAnchorSize(kind)
 	if totalW < w then totalW = w end
 	if totalH < h then totalH = h end
 
-	totalW = roundToPixel(totalW, scale)
-	totalH = roundToPixel(totalH, scale)
+	totalW = roundToEvenPixel(totalW, scale)
+	totalH = roundToEvenPixel(totalH, scale)
 
 	anchor:SetSize(totalW, totalH)
 end
@@ -7351,6 +7389,174 @@ local function buildEditModeSettings(kind, editModeId)
 				cfg.height = v
 				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "height", v, nil, true) end
 				GF:ApplyHeaderAttributes(kind)
+			end,
+		},
+		{
+			name = L["Anchor point"] or "Anchor point",
+			kind = SettingType.Dropdown,
+			field = "point",
+			parentId = "frame",
+			values = anchorOptions9,
+			height = 180,
+			default = (DEFAULTS[kind] and DEFAULTS[kind].point) or "CENTER",
+			get = function()
+				local cfg = getCfg(kind)
+				return (cfg and cfg.point) or (DEFAULTS[kind] and DEFAULTS[kind].point) or "CENTER"
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg or not value then return end
+				cfg.point = tostring(value):upper()
+				if not cfg.relativePoint or cfg.relativePoint == "" then cfg.relativePoint = cfg.point end
+				if not cfg.relativeTo or cfg.relativeTo == "" then cfg.relativeTo = "UIParent" end
+				if EditMode and EditMode.SetValue then
+					EditMode:SetValue(editModeId, "point", cfg.point, nil, true)
+					EditMode:SetValue(editModeId, "relativePoint", cfg.relativePoint, nil, true)
+				end
+				if EditMode and EditMode.RefreshFrame then
+					if EditMode.EnsureLayoutData and EditMode.GetActiveLayoutName then
+						local layoutName = EditMode:GetActiveLayoutName()
+						if layoutName then
+							local def = DEFAULTS[kind] or {}
+							local data = EditMode:EnsureLayoutData(editModeId, layoutName)
+							if data then
+								data.point = cfg.point or def.point or "CENTER"
+								data.relativePoint = cfg.relativePoint or cfg.point or def.relativePoint or def.point or "CENTER"
+								data.x = cfg.x or def.x or 0
+								data.y = cfg.y or def.y or 0
+							end
+						end
+					end
+					EditMode:RefreshFrame(editModeId)
+				end
+				GF:ApplyHeaderAttributes(kind)
+				if addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RefreshSettingValues then addon.EditModeLib.internal:RefreshSettingValues() end
+			end,
+		},
+		{
+			name = L["Relative point"] or "Relative point",
+			kind = SettingType.Dropdown,
+			field = "relativePoint",
+			parentId = "frame",
+			values = anchorOptions9,
+			height = 180,
+			default = (DEFAULTS[kind] and (DEFAULTS[kind].relativePoint or DEFAULTS[kind].point)) or "CENTER",
+			get = function()
+				local cfg = getCfg(kind)
+				return (cfg and (cfg.relativePoint or cfg.point)) or (DEFAULTS[kind] and (DEFAULTS[kind].relativePoint or DEFAULTS[kind].point)) or "CENTER"
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg or not value then return end
+				cfg.relativePoint = tostring(value):upper()
+				if not cfg.point or cfg.point == "" then cfg.point = cfg.relativePoint end
+				if not cfg.relativeTo or cfg.relativeTo == "" then cfg.relativeTo = "UIParent" end
+				if EditMode and EditMode.SetValue then
+					EditMode:SetValue(editModeId, "relativePoint", cfg.relativePoint, nil, true)
+					EditMode:SetValue(editModeId, "point", cfg.point, nil, true)
+				end
+				if EditMode and EditMode.RefreshFrame then
+					if EditMode.EnsureLayoutData and EditMode.GetActiveLayoutName then
+						local layoutName = EditMode:GetActiveLayoutName()
+						if layoutName then
+							local def = DEFAULTS[kind] or {}
+							local data = EditMode:EnsureLayoutData(editModeId, layoutName)
+							if data then
+								data.point = cfg.point or def.point or "CENTER"
+								data.relativePoint = cfg.relativePoint or cfg.point or def.relativePoint or def.point or "CENTER"
+								data.x = cfg.x or def.x or 0
+								data.y = cfg.y or def.y or 0
+							end
+						end
+					end
+					EditMode:RefreshFrame(editModeId)
+				end
+				GF:ApplyHeaderAttributes(kind)
+				if addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RefreshSettingValues then addon.EditModeLib.internal:RefreshSettingValues() end
+			end,
+		},
+		{
+			name = L["Offset X"] or "Offset X",
+			kind = SettingType.Slider,
+			allowInput = true,
+			field = "x",
+			minValue = -4000,
+			maxValue = 4000,
+			valueStep = 1,
+			default = (DEFAULTS[kind] and DEFAULTS[kind].x) or 0,
+			parentId = "frame",
+			get = function()
+				local cfg = getCfg(kind)
+				return (cfg and cfg.x) or (DEFAULTS[kind] and DEFAULTS[kind].x) or 0
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				if not cfg.relativeTo or cfg.relativeTo == "" then cfg.relativeTo = "UIParent" end
+				local raw = clampNumber(value, -4000, 4000, cfg.x or 0)
+				cfg.x = roundToPixel(raw, 1)
+				local v = cfg.x
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "x", v, nil, true) end
+				if EditMode and EditMode.RefreshFrame then
+					if EditMode.EnsureLayoutData and EditMode.GetActiveLayoutName then
+						local layoutName = EditMode:GetActiveLayoutName()
+						if layoutName then
+							local def = DEFAULTS[kind] or {}
+							local data = EditMode:EnsureLayoutData(editModeId, layoutName)
+							if data then
+								data.point = cfg.point or def.point or "CENTER"
+								data.relativePoint = cfg.relativePoint or cfg.point or def.relativePoint or def.point or "CENTER"
+								data.x = cfg.x or def.x or 0
+								data.y = cfg.y or def.y or 0
+							end
+						end
+					end
+					EditMode:RefreshFrame(editModeId)
+				end
+				GF:ApplyHeaderAttributes(kind)
+				if addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RefreshSettingValues then addon.EditModeLib.internal:RefreshSettingValues() end
+			end,
+		},
+		{
+			name = L["Offset Y"] or "Offset Y",
+			kind = SettingType.Slider,
+			allowInput = true,
+			field = "y",
+			minValue = -4000,
+			maxValue = 4000,
+			valueStep = 1,
+			default = (DEFAULTS[kind] and DEFAULTS[kind].y) or 0,
+			parentId = "frame",
+			get = function()
+				local cfg = getCfg(kind)
+				return (cfg and cfg.y) or (DEFAULTS[kind] and DEFAULTS[kind].y) or 0
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				if not cfg.relativeTo or cfg.relativeTo == "" then cfg.relativeTo = "UIParent" end
+				local raw = clampNumber(value, -4000, 4000, cfg.y or 0)
+				cfg.y = roundToPixel(raw, 1)
+				local v = cfg.y
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "y", v, nil, true) end
+				if EditMode and EditMode.RefreshFrame then
+					if EditMode.EnsureLayoutData and EditMode.GetActiveLayoutName then
+						local layoutName = EditMode:GetActiveLayoutName()
+						if layoutName then
+							local def = DEFAULTS[kind] or {}
+							local data = EditMode:EnsureLayoutData(editModeId, layoutName)
+							if data then
+								data.point = cfg.point or def.point or "CENTER"
+								data.relativePoint = cfg.relativePoint or cfg.point or def.relativePoint or def.point or "CENTER"
+								data.x = cfg.x or def.x or 0
+								data.y = cfg.y or def.y or 0
+							end
+						end
+					end
+					EditMode:RefreshFrame(editModeId)
+				end
+				GF:ApplyHeaderAttributes(kind)
+				if addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RefreshSettingValues then addon.EditModeLib.internal:RefreshSettingValues() end
 			end,
 		},
 		{
@@ -15336,13 +15542,33 @@ local function applyEditModeData(kind, data)
 	local cfg = getCfg(kind)
 	if not cfg then return end
 
-	if data.point then
-		cfg.point = data.point
-		cfg.relativePoint = data.relativePoint or data.point
-		local scale = GFH.GetEffectiveScale(UIParent)
-		cfg.x = roundToPixel(data.x or 0, scale)
-		cfg.y = roundToPixel(data.y or 0, scale)
+	local positionChanged = false
+	if data.point or data.relativePoint or data.x ~= nil or data.y ~= nil then
+		cfg.point = tostring(data.point or cfg.point or "CENTER"):upper()
+		cfg.relativePoint = tostring(data.relativePoint or cfg.point):upper()
 		if not cfg.relativeTo or cfg.relativeTo == "" then cfg.relativeTo = "UIParent" end
+		cfg.x = roundToPixel(clampNumber((data.x ~= nil and data.x or cfg.x) or 0, -4000, 4000, cfg.x or 0), 1)
+		cfg.y = roundToPixel(clampNumber((data.y ~= nil and data.y or cfg.y) or 0, -4000, 4000, cfg.y or 0), 1)
+		if data.point ~= cfg.point then
+			data.point = cfg.point
+			positionChanged = true
+			if EditMode and EditMode.SetValue then EditMode:SetValue(EDITMODE_IDS[kind], "point", cfg.point, nil, true) end
+		end
+		if data.relativePoint ~= cfg.relativePoint then
+			data.relativePoint = cfg.relativePoint
+			positionChanged = true
+			if EditMode and EditMode.SetValue then EditMode:SetValue(EDITMODE_IDS[kind], "relativePoint", cfg.relativePoint, nil, true) end
+		end
+		if data.x ~= cfg.x then
+			data.x = cfg.x
+			positionChanged = true
+			if EditMode and EditMode.SetValue then EditMode:SetValue(EDITMODE_IDS[kind], "x", cfg.x, nil, true) end
+		end
+		if data.y ~= cfg.y then
+			data.y = cfg.y
+			positionChanged = true
+			if EditMode and EditMode.SetValue then EditMode:SetValue(EDITMODE_IDS[kind], "y", cfg.y, nil, true) end
+		end
 	end
 
 	local refreshAuras = false
@@ -16147,6 +16373,15 @@ local function applyEditModeData(kind, data)
 	if data.hideInClientScene ~= nil then GF:RefreshClientSceneVisibility() end
 	if refreshNames then GF:RefreshNames() end
 	if refreshAuras then refreshAllAuras() end
+	if positionChanged and addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RefreshSettingValues then addon.EditModeLib.internal:RefreshSettingValues() end
+	if positionChanged and EditMode and EditMode.RefreshFrame and not GF._syncingGroupFrameEditModePosition then
+		local editModeId = EDITMODE_IDS and EDITMODE_IDS[kind]
+		if editModeId then
+			GF._syncingGroupFrameEditModePosition = true
+			EditMode:RefreshFrame(editModeId)
+			GF._syncingGroupFrameEditModePosition = false
+		end
+	end
 end
 
 function GF:EnsureEditMode()
@@ -16538,7 +16773,18 @@ function GF:EnsureEditMode()
 				layoutDefaults = defaults,
 				settings = buildEditModeSettings(kind, EDITMODE_IDS[kind]),
 				onApply = function(_, _, data) applyEditModeData(kind, data) end,
-				onPositionChanged = function(_, _, data) applyEditModeData(kind, data) end,
+				onPositionChanged = function(_, _, dataOrPoint, x, y)
+					if type(dataOrPoint) == "table" then
+						applyEditModeData(kind, dataOrPoint)
+					else
+						applyEditModeData(kind, {
+							point = dataOrPoint,
+							relativePoint = dataOrPoint,
+							x = x,
+							y = y,
+						})
+					end
+				end,
 				onEnter = function() GF:OnEnterEditMode(kind) end,
 				onExit = function() GF:OnExitEditMode(kind) end,
 				isEnabled = function()
