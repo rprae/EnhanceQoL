@@ -1,5 +1,13 @@
 # Changelog
 
+## [7.13.1] - 2026-02-12
+
+### 🐛 Fixed
+
+- Unit Frames: Party/Raid-Frames were not clickthrough for auras and private auras
+
+---
+
 ## [7.13.0] - 2026-02-12
 
 ### ✨ Added
