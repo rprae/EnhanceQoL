@@ -164,6 +164,7 @@ local COSMETIC_BAR_KEYS = {
 	"textStyle",
 	"shortNumbers",
 	"percentRounding",
+	"hidePercentSign",
 	"fontSize",
 	"fontFace",
 	"fontOutline",
@@ -282,6 +283,12 @@ local function formatPercentText(value, cfg)
 	end
 	if C_StringUtil and C_StringUtil.RoundToNearestString then return C_StringUtil.RoundToNearestString(value) end
 	return tostring(floor(value + 0.5))
+end
+
+local function formatPercentDisplay(value, cfg)
+	local percentText = formatPercentText(value, cfg)
+	if cfg and cfg.hidePercentSign == true then return percentText end
+	return (addon.variables and addon.variables.isMidnight) and (percentText .. "%") or percentText
 end
 
 local function isSpellKnownSafe(spellId)
@@ -2125,8 +2132,7 @@ function updateHealthBar(evt)
 		healthBar._lastVal = curHealth
 
 		local percent = getHealthPercent("player", curHealth, maxHealth)
-		local percentText = formatPercentText(percent, settings)
-		local percentStr = addon.variables.isMidnight and (percentText .. "%") or percentText
+		local percentStr = formatPercentDisplay(percent, settings)
 		if healthBar.text then
 			local style = settings and settings.textStyle or "PERCENT"
 			local useShortNumbers = settings.shortNumbers ~= false
@@ -2989,8 +2995,7 @@ function updatePowerBar(type, runeSlot)
 
 		local percent = maxHealth > 0 and (curPower / maxHealth) or 0
 		local percentDisplay = percent * 100
-		local percentText = formatPercentText(percentDisplay, cfg)
-		local percentStr = addon.variables.isMidnight and (percentText .. "%") or percentText
+		local percentStr = formatPercentDisplay(percentDisplay, cfg)
 		if bar.text then
 			local useShortNumbers = cfg.shortNumbers ~= false
 			if style == "NONE" then
@@ -3087,8 +3092,7 @@ function updatePowerBar(type, runeSlot)
 		bar._lastVal = shownStacks
 
 		local percent = logicalMax > 0 and (stacks / logicalMax * 100) or 0
-		local percentText = formatPercentText(percent, cfg)
-		local percentStr = addon.variables.isMidnight and (percentText .. "%") or percentText
+		local percentStr = formatPercentDisplay(percent, cfg)
 
 		if bar.text then
 			local useShortNumbers = cfg.shortNumbers ~= false
@@ -3207,8 +3211,7 @@ function updatePowerBar(type, runeSlot)
 	setBarValue(bar, barValue, smooth)
 	bar._lastVal = barValue
 	local percent = getPowerPercent("player", pType, curPower, maxPower)
-	local percentText = formatPercentText(percent, cfg)
-	local percentStr = addon.variables.isMidnight and (percentText .. "%") or percentText
+	local percentStr = formatPercentDisplay(percent, cfg)
 	if bar.text then
 		local useShortNumbers = cfg.shortNumbers ~= false
 		if style == "NONE" then

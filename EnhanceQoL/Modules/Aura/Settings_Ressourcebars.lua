@@ -1752,6 +1752,24 @@ local function registerEditModeBars()
 				}
 
 				settingsList[#settingsList + 1] = {
+					name = L["Hide percent (%)"] or "Hide percent (%)",
+					kind = settingType.Checkbox,
+					field = "hidePercentSign",
+					parentId = "textsettings",
+					get = function()
+						local c = curSpecCfg()
+						return c and c.hidePercentSign == true
+					end,
+					set = function(_, value)
+						local c = curSpecCfg()
+						if not c then return end
+						c.hidePercentSign = value and true or false
+						queueRefresh()
+					end,
+					default = false,
+				}
+
+				settingsList[#settingsList + 1] = {
 					name = HUD_EDIT_MODE_SETTING_OBJECTIVE_TRACKER_TEXT_SIZE,
 					kind = settingType.Slider,
 					allowInput = true,
@@ -2889,39 +2907,39 @@ local function buildSettings()
 					sType = "checkbox",
 					parentSection = expandable,
 				},
-					{
-						var = "resourceBarsHidePetBattle",
-						text = L["Hide in pet battles"] or "Hide in pet battles",
-						get = function() return addon.db["resourceBarsHidePetBattle"] end,
-						func = function(val)
-							addon.db["resourceBarsHidePetBattle"] = val and true or false
-							applyResourceBarsVisibility("settings")
-						end,
-						parent = true,
-						parentCheck = function() return addon.db["enableResourceFrame"] == true end,
-						sType = "checkbox",
-						parentSection = expandable,
-					},
-					{
-						var = "resourceBarsHideClientScene",
-						text = L["Hide in client scenes"] or "Hide in client scenes",
-						get = function()
-							local value = addon.db["resourceBarsHideClientScene"]
-							if value == nil then return true end
-							return value == true
-						end,
-						func = function(val)
-							addon.db["resourceBarsHideClientScene"] = val and true or false
-							applyResourceBarsVisibility("settings")
-						end,
-						parent = true,
-						parentCheck = function() return addon.db["enableResourceFrame"] == true end,
-						sType = "checkbox",
-						parentSection = expandable,
-					},
-					{
-						var = "resourceBarsAutoEnable",
-						text = L["AutoEnableAllBars"] or "Auto-enable bars for new characters",
+				{
+					var = "resourceBarsHidePetBattle",
+					text = L["Hide in pet battles"] or "Hide in pet battles",
+					get = function() return addon.db["resourceBarsHidePetBattle"] end,
+					func = function(val)
+						addon.db["resourceBarsHidePetBattle"] = val and true or false
+						applyResourceBarsVisibility("settings")
+					end,
+					parent = true,
+					parentCheck = function() return addon.db["enableResourceFrame"] == true end,
+					sType = "checkbox",
+					parentSection = expandable,
+				},
+				{
+					var = "resourceBarsHideClientScene",
+					text = L["Hide in client scenes"] or "Hide in client scenes",
+					get = function()
+						local value = addon.db["resourceBarsHideClientScene"]
+						if value == nil then return true end
+						return value == true
+					end,
+					func = function(val)
+						addon.db["resourceBarsHideClientScene"] = val and true or false
+						applyResourceBarsVisibility("settings")
+					end,
+					parent = true,
+					parentCheck = function() return addon.db["enableResourceFrame"] == true end,
+					sType = "checkbox",
+					parentSection = expandable,
+				},
+				{
+					var = "resourceBarsAutoEnable",
+					text = L["AutoEnableAllBars"] or "Auto-enable bars for new characters",
 					sType = "multidropdown",
 					options = AUTO_ENABLE_OPTIONS,
 					order = AUTO_ENABLE_ORDER,
