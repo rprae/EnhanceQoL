@@ -114,18 +114,27 @@ local function maybeAutoEnableBars(specIndex, specCfg)
 					local a = specCfg[pType].anchor or {}
 					a.point = a.point or "CENTER"
 					a.relativePoint = a.relativePoint or "CENTER"
-					local targetFrame = a.relativeFrame or frameNameFor("HEALTH")
-					if class == "DRUID" then
-						if pType == "COMBO_POINTS" then targetFrame = frameNameFor("ENERGY") end
-						if not targetFrame or targetFrame == "" then targetFrame = prevFrame or (selection.MAIN and mainFrame or nil) end
-					else
-						targetFrame = prevFrame
+					local explicitRelative = type(a.relativeFrame) == "string" and a.relativeFrame ~= ""
+					local chained = false
+					if not explicitRelative then
+						local targetFrame = frameNameFor("HEALTH")
+						if class == "DRUID" then
+							if pType == "COMBO_POINTS" then
+								targetFrame = frameNameFor("ENERGY")
+							else
+								targetFrame = prevFrame
+							end
+							if not targetFrame or targetFrame == "" then targetFrame = prevFrame or (selection.MAIN and mainFrame or nil) end
+						else
+							targetFrame = prevFrame
+						end
+						a.relativeFrame = targetFrame
+						chained = targetFrame and targetFrame ~= ""
 					end
-					a.relativeFrame = targetFrame
 					a.x = a.x or 0
-					a.y = a.y or -2
+					if chained then a.y = a.y or -2 end
 					a.autoSpacing = a.autoSpacing or nil
-					a.matchRelativeWidth = a.matchRelativeWidth or true
+					if chained then a.matchRelativeWidth = a.matchRelativeWidth or true end
 					specCfg[pType].anchor = a
 					if class ~= "DRUID" then prevFrame = frameNameFor(pType) end
 				else
