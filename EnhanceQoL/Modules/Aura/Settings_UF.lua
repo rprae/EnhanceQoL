@@ -2614,7 +2614,9 @@ local function buildUnitSettings(unit)
 			if fallback == nil then fallback = 5 end
 			return math.max(0, getValue(unit, { "classResource", "frameLevelOffset" }, fallback))
 		end, function(val)
-			setValue(unit, { "classResource", "frameLevelOffset" }, math.max(0, val or 0))
+			local levelOffset = math.max(0, val or 0)
+			setValue(unit, { "classResource", "frameLevelOffset" }, levelOffset)
+			if UF and UF.ClassResourceUtil and UF.ClassResourceUtil.SetFrameLevelHookOffset then UF.ClassResourceUtil.SetFrameLevelHookOffset(levelOffset) end
 			refreshSelf()
 		end, math.max(0, (crDef.frameLevelOffset == nil) and 5 or crDef.frameLevelOffset), "classResource", true)
 		classFrameLevelOffset.isEnabled = isClassResourceEnabled

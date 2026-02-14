@@ -983,13 +983,27 @@ function ClassResourceUtil.onClassResourceShow()
 	if applyClassResourceLayout then applyClassResourceLayout(states[UNIT.PLAYER] and states[UNIT.PLAYER].cfg or ensureDB(UNIT.PLAYER)) end
 end
 
+function ClassResourceUtil.SetFrameLevelHookOffset(offset)
+	offset = tonumber(offset) or 0
+	if offset < 0 then offset = 0 end
+	ClassResourceUtil._frameLevelMinimum = 7 + offset
+end
+
 function ClassResourceUtil.hookClassResourceFrame(frame)
 	if not frame or classResourceHooks[frame] then return end
 	classResourceHooks[frame] = true
 	frame:HookScript("OnShow", ClassResourceUtil.onClassResourceShow)
-	if hooksecurefunc and frame.SetFrameLevel then hooksecurefunc(frame, "SetFrameLevel", function(self)
-		if frame:GetFrameLevel() < 7 then frame:SetFrameLevel(7) end
-	end) end
+	if hooksecurefunc and frame.SetFrameLevel then
+		hooksecurefunc(frame, "SetFrameLevel", function(self)
+			if not classResourceManagedFrames[self] then return end
+			if self._eqolClassResourceLevelHook then return end
+			local minLevel = ClassResourceUtil._frameLevelMinimum or 7
+			if self:GetFrameLevel() >= minLevel then return end
+			self._eqolClassResourceLevelHook = true
+			self:SetFrameLevel(minLevel)
+			self._eqolClassResourceLevelHook = nil
+		end)
+	end
 end
 
 applyClassResourceLayout = function(cfg)
@@ -1029,6 +1043,7 @@ applyClassResourceLayout = function(cfg)
 	if frameLevelOffset == nil then frameLevelOffset = tonumber(def.classResource and def.classResource.frameLevelOffset) end
 	if frameLevelOffset == nil then frameLevelOffset = 5 end
 	if frameLevelOffset < 0 then frameLevelOffset = 0 end
+	if ClassResourceUtil.SetFrameLevelHookOffset then ClassResourceUtil.SetFrameLevelHookOffset(frameLevelOffset) end
 
 	for _, frame in ipairs(frames) do
 		ClassResourceUtil.storeClassResourceDefaults(frame)
@@ -7011,6 +7026,15 @@ function UF.Initialize()
 	addon.Aura.UFInitialized = true
 	if UF.RegisterSettings then UF.RegisterSettings() end
 	local cfg = ensureDB("player")
+	do
+		local def = defaultsFor(UNIT.PLAYER)
+		local rcfg = (cfg and cfg.classResource) or (def and def.classResource) or {}
+		local frameLevelOffset = tonumber(rcfg.frameLevelOffset)
+		if frameLevelOffset == nil then frameLevelOffset = tonumber(def and def.classResource and def.classResource.frameLevelOffset) end
+		if frameLevelOffset == nil then frameLevelOffset = 5 end
+		if frameLevelOffset < 0 then frameLevelOffset = 0 end
+		if ClassResourceUtil.SetFrameLevelHookOffset then ClassResourceUtil.SetFrameLevelHookOffset(frameLevelOffset) end
+	end
 	if cfg.enabled then After(0.1, function() UF.Enable() end) end
 	cfg = ensureDB("target")
 	if cfg.enabled then
