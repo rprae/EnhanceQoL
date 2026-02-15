@@ -5708,6 +5708,8 @@ local eventHandlers = {
 	["PLAYER_LOGIN"] = function()
 		addon.functions.applyUIScalePreset()
 
+		addon.variables.screenHeight = GetScreenHeight()
+
 		if addon.db["enableMinimapButtonBin"] then addon.functions.toggleButtonSink() end
 		if addon.db["actionBarAnchorEnabled"] then RefreshAllActionBarAnchors() end
 		addon.variables.unitSpec = C_SpecializationInfo.GetSpecialization()

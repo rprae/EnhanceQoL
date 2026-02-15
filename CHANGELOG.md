@@ -1,5 +1,13 @@
 # Changelog
 
+## [7.16.1] - 2026-02-15
+
+### 🐛 Fixed
+
+- Unit Frames: Edit Mode settings max height is now dynamic via screen height.
+
+---
+
 ## [7.16.0] - 2026-02-15
 
 ### 🔄 Changed
