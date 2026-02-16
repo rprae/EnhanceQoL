@@ -5,6 +5,8 @@
 ### 🐛 Fixed
 
 - Unit Frames: Edit Mode settings max height is now dynamic via screen height.
+- Resource Bars: Fixed an issue where changing one spec could overwrite mana/power bar position and size in another spec after reload/spec switches.
+- Resource Bars: Improved spec handling so each specialization now keeps its own bar settings reliably.
 
 ---
 

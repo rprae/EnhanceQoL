@@ -4676,12 +4676,25 @@ local function wipeTable(t)
 	end
 end
 
+function ResourceBars.SyncRuntimeSpecContext()
+	local spec = C_SpecializationInfo and C_SpecializationInfo.GetSpecialization and C_SpecializationInfo.GetSpecialization()
+	if not spec or spec <= 0 then return end
+	addon.variables.unitSpec = spec
+	if C_SpecializationInfo and C_SpecializationInfo.GetSpecializationInfo then
+		local specId, specName = C_SpecializationInfo.GetSpecializationInfo(spec)
+		if specId then addon.variables.unitSpecId = specId end
+		if specName then addon.variables.unitSpecName = specName end
+	end
+	if GetSpecializationRole then addon.variables.unitRole = GetSpecializationRole(spec) end
+end
+
 -- Coalesce spec/trait refreshes to avoid duplicate work or timing races
 local function scheduleSpecRefresh()
 	if frameAnchor and frameAnchor._specRefreshScheduled then return end
 	if frameAnchor then frameAnchor._specRefreshScheduled = true end
 	After(0.2, function()
 		if frameAnchor then frameAnchor._specRefreshScheduled = false end
+		ResourceBars.SyncRuntimeSpecContext()
 		-- First detach all bar points to avoid transient loops
 		if addon and addon.Aura and addon.Aura.ResourceBars and addon.Aura.ResourceBars.DetachAllBars then addon.Aura.ResourceBars.DetachAllBars() end
 		ResourceBars._suspendAnchors = true
@@ -4702,9 +4715,11 @@ local function eventHandler(self, event, unit, arg1)
 	if event == "UNIT_DISPLAYPOWER" and unit == "player" then
 		setPowerbars()
 	elseif event == "ACTIVE_PLAYER_SPECIALIZATION_CHANGED" then
+		ResourceBars.SyncRuntimeSpecContext()
 		scheduleSpecRefresh()
 		if scheduleRelativeFrameWidthSync then scheduleRelativeFrameWidthSync() end
 	elseif event == "TRAIT_CONFIG_UPDATED" then
+		ResourceBars.SyncRuntimeSpecContext()
 		scheduleSpecRefresh()
 		if scheduleRelativeFrameWidthSync then scheduleRelativeFrameWidthSync() end
 	elseif event == "CLIENT_SCENE_OPENED" then
@@ -4717,6 +4732,7 @@ local function eventHandler(self, event, unit, arg1)
 		ResourceBars.ApplyVisibilityPreference(event)
 		return
 	elseif event == "PLAYER_ENTERING_WORLD" then
+		ResourceBars.SyncRuntimeSpecContext()
 		updateHealthBar("UNIT_ABSORB_AMOUNT_CHANGED")
 		setPowerbars()
 		if After then After(0, function()
