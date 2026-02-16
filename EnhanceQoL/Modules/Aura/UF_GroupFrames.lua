@@ -1797,6 +1797,7 @@ do
 	mtDefaults.enabled = false
 	mtDefaults.sortMethod = "NAME"
 	mtDefaults.sortDir = "ASC"
+	mtDefaults.hideSelf = false
 	mtDefaults.groupBy = nil
 	mtDefaults.groupingOrder = nil
 	mtDefaults.groupFilter = nil
@@ -6888,7 +6889,7 @@ function GF:ApplyHeaderAttributes(kind)
 	elseif isSplitRoleKind(kind) then
 		setAttr("showParty", false)
 		setAttr("showRaid", true)
-		setAttr("showPlayer", true)
+		setAttr("showPlayer", not (kind == "mt" and cfg.hideSelf == true))
 		setAttr("showSolo", false)
 		setAttr("groupingOrder", nil)
 		setAttr("groupFilter", nil)
@@ -6907,7 +6908,7 @@ function GF:ApplyHeaderAttributes(kind)
 	if header._eqolForceShow then
 		setAttr("showParty", true)
 		setAttr("showRaid", true)
-		setAttr("showPlayer", true)
+		setAttr("showPlayer", not (kind == "mt" and cfg.hideSelf == true))
 		setAttr("showSolo", true)
 	end
 
@@ -15568,6 +15569,25 @@ local function buildEditModeSettings(kind, editModeId)
 			defaultCollapsed = true,
 		}
 		settings[#settings + 1] = {
+			name = "Hide myself",
+			kind = SettingType.Checkbox,
+			field = "hideSelf",
+			parentId = "raid",
+			default = (DEFAULTS.mt and DEFAULTS.mt.hideSelf) or false,
+			get = function()
+				local cfg = getCfg(kind)
+				return cfg and cfg.hideSelf == true
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.hideSelf = value and true or false
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "hideSelf", cfg.hideSelf, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			isShown = function() return kind == "mt" end,
+		}
+		settings[#settings + 1] = {
 			name = "Units per column",
 			kind = SettingType.Slider,
 			allowInput = true,
@@ -16908,6 +16928,7 @@ local function applyEditModeData(kind, data)
 			end
 		end
 	elseif isRaidLikeKind(kind) then
+		if kind == "mt" and data.hideSelf ~= nil then cfg.hideSelf = data.hideSelf and true or false end
 		if kind == "raid" then
 			local custom = GFH.EnsureCustomSortConfig(cfg)
 			if data.customSortEnabled ~= nil then
@@ -17069,6 +17090,7 @@ function GF:EnsureEditMode()
 				tooltipAuras = ac.buff.showTooltip == true and ac.debuff.showTooltip == true and ac.externals.showTooltip == true,
 				showPlayer = cfg.showPlayer == true,
 				showSolo = cfg.showSolo == true,
+				hideSelf = cfg.hideSelf == true,
 				hideInClientScene = (cfg.hideInClientScene ~= nil and cfg.hideInClientScene == true) or ((cfg.hideInClientScene == nil) and (def.hideInClientScene ~= false)),
 				unitsPerColumn = cfg.unitsPerColumn or (DEFAULTS[kind] and DEFAULTS[kind].unitsPerColumn) or (DEFAULTS.raid and DEFAULTS.raid.unitsPerColumn) or 5,
 				maxColumns = cfg.maxColumns or (DEFAULTS[kind] and DEFAULTS[kind].maxColumns) or (DEFAULTS.raid and DEFAULTS.raid.maxColumns) or 8,

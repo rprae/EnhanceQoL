@@ -1,5 +1,19 @@
 # Changelog
 
+## [7.18.0] - 2026-02-16
+
+### ✨ Added
+
+- GCD Bar: Added vertical fill directions in Edit Mode (`Bottom to top` and `Top to bottom`).
+- Group Frames (Main Tank): Added `Hide myself` option to hide your own unit from MT frames.
+
+### 🔄 Changed
+
+- GCD Bar: Increased width/height limits for both dimensions.
+- GCD Bar: Width and height sliders now allow direct numeric input.
+
+---
+
 ## [7.17.1] - 2026-02-16
 
 ### 🐛 Fixed
