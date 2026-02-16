@@ -2568,8 +2568,10 @@ function GF:LayoutButton(self)
 		local namePad = (nameAnchor and nameAnchor:find("LEFT")) and rolePad or 0
 		local nameX = (nameOffset.x ~= nil and nameOffset.x or baseOffset.x or 6) + namePad
 		local nameY = nameOffset.y ~= nil and nameOffset.y or baseOffset.y or 0
+		local nameAnchorFrame = st.barGroup or st.health
+		if nameAnchor and nameAnchor:find("BOTTOM") then nameAnchorFrame = st.health or nameAnchorFrame end
 		if GFH and GFH.SnapPointOffsets then
-			nameX, nameY = GFH.SnapPointOffsets(st.health, nameAnchor, nameX, nameY, scale)
+			nameX, nameY = GFH.SnapPointOffsets(nameAnchorFrame, nameAnchor, nameX, nameY, scale)
 		else
 			nameX, nameY = roundToPixel(nameX, scale), roundToPixel(nameY, scale)
 		end
@@ -2587,16 +2589,16 @@ function GF:LayoutButton(self)
 			local leftX, leftY
 			local rightX, rightY
 			if GFH and GFH.SnapPointOffsets then
-				leftX, leftY = GFH.SnapPointOffsets(st.health, leftPoint, nameX, nameY, scale)
-				rightX, rightY = GFH.SnapPointOffsets(st.health, rightPoint, -4, nameY, scale)
+				leftX, leftY = GFH.SnapPointOffsets(nameAnchorFrame, leftPoint, nameX, nameY, scale)
+				rightX, rightY = GFH.SnapPointOffsets(nameAnchorFrame, rightPoint, -4, nameY, scale)
 			else
 				leftX, leftY = roundToPixel(nameX, scale), roundToPixel(nameY, scale)
 				rightX, rightY = roundToPixel(-4, scale), roundToPixel(nameY, scale)
 			end
-			st.nameText:SetPoint(leftPoint, st.health, leftPoint, leftX, leftY)
-			st.nameText:SetPoint(rightPoint, st.health, rightPoint, rightX, rightY)
+			st.nameText:SetPoint(leftPoint, nameAnchorFrame, leftPoint, leftX, leftY)
+			st.nameText:SetPoint(rightPoint, nameAnchorFrame, rightPoint, rightX, rightY)
 		else
-			st.nameText:SetPoint(nameAnchor, st.health, nameAnchor, nameX, nameY)
+			st.nameText:SetPoint(nameAnchor, nameAnchorFrame, nameAnchor, nameX, nameY)
 		end
 		local justify = "CENTER"
 		if nameAnchor and nameAnchor:find("LEFT") then

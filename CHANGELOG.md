@@ -1,26 +1,24 @@
 # Changelog
 
-## [7.18.1] - 2026-02-16
-
-### 🐛 Fixed
-
-- Chat: Fixed a Lua error in `chatEditBoxOnTop` (`'for' limit must be a number`) when temporary chat windows open and edit box anchor points are cached.
-- Unit Frames (Auras): Custom aura borders now apply to Target/Boss buffs as expected (not only debuffs), including configured border texture/size/offset behavior.
-- Unit Frames (Auras): Fixed a secret-value/taint Lua error in aura border color fallback handling (`canActivePlayerDispel`) during aura updates.
-
----
-
 ## [7.18.0] - 2026-02-16
 
 ### ✨ Added
 
 - GCD Bar: Added vertical fill directions in Edit Mode (`Bottom to top` and `Top to bottom`).
 - Group Frames (Main Tank): Added `Hide myself` option to hide your own unit from MT frames.
+- DataPanel: Added LibDataBroker (LDB) stream integration. LDB data objects can now be selected and used directly in Data Panels.
 
 ### 🔄 Changed
 
 - GCD Bar: Increased width/height limits for both dimensions.
 - GCD Bar: Width and height sliders now allow direct numeric input.
+
+### 🐛 Fixed
+
+- Chat: Fixed a Lua error in `chatEditBoxOnTop` (`'for' limit must be a number`) when temporary chat windows open and edit box anchor points are cached.
+- Unit Frames (Auras): Custom aura borders now apply to Target/Boss buffs as expected (not only debuffs), including configured border texture/size/offset behavior.
+- Unit Frames (Auras): Fixed a secret-value/taint Lua error in aura border color fallback handling (`canActivePlayerDispel`) during aura updates.
+- Group Frames: Name text anchoring no longer shifts upward when a power bar is shown; non-bottom name anchors now stay stable on the full bar group.
 
 ---
 
