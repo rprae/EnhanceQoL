@@ -6,6 +6,7 @@
 
 - LFG additional dungeon filter had a secret error
 - Unit Frames (Party): Custom sort was always reset
+- Chat Frame: Move editbox to top had a secret caching error
 
 ---
 

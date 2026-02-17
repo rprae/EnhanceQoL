@@ -3461,45 +3461,11 @@ local function initChatFrame()
 			ensureChatFrameHooks()
 		end
 
-	local function storeEditBoxPoints(editBox)
-		addon.variables = addon.variables or {}
-		addon.variables.chatEditBoxAnchorCache = addon.variables.chatEditBoxAnchorCache or {}
-		local cache = addon.variables.chatEditBoxAnchorCache
-		if cache[editBox] then return end
-		local points = {}
-		local numPoints = editBox.GetNumPoints and tonumber(editBox:GetNumPoints()) or 0
-		for i = 1, numPoints do
-			points[i] = { editBox:GetPoint(i) }
-		end
-		local width = editBox.GetWidth and tonumber(editBox:GetWidth()) or nil
-		local height = editBox.GetHeight and tonumber(editBox:GetHeight()) or nil
-		cache[editBox] = { points = points, width = width, height = height }
-	end
-
-	local function restoreEditBoxPoints(editBox)
-		addon.variables = addon.variables or {}
-		local cache = addon.variables.chatEditBoxAnchorCache
-		local state = cache and cache[editBox]
-		if not state then return end
-		editBox:ClearAllPoints()
-		if state.points then
-			for _, point in ipairs(state.points) do
-				editBox:SetPoint(point[1], point[2], point[3], point[4], point[5])
-			end
-		end
-		if not state.points or #state.points == 0 then
-			if state.width then editBox:SetWidth(state.width) end
-			if state.height then editBox:SetHeight(state.height) end
-		end
-		cache[editBox] = nil
-	end
-
 	addon.functions.ApplyChatEditBoxOnTop = addon.functions.ApplyChatEditBoxOnTop
 		or function(enabled)
 			forEachChatFrame(function(frame, editBox)
 				if not (frame and editBox) then return end
 				if enabled then
-					storeEditBoxPoints(editBox)
 					editBox:ClearAllPoints()
 					editBox:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
 					editBox:SetWidth(frame:GetWidth())
@@ -3509,8 +3475,6 @@ local function initChatFrame()
 						end)
 						frame.eqolEditBoxSizeHooked = true
 					end
-				else
-					restoreEditBoxPoints(editBox)
 				end
 			end)
 
