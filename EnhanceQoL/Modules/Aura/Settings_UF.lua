@@ -513,6 +513,189 @@ local function availableCopySources(unit)
 	return opts
 end
 
+local copySectionOrder = {
+	"frame",
+	"portrait",
+	"rangeFade",
+	"health",
+	"absorb",
+	"healAbsorb",
+	"power",
+	"classResource",
+	"totemFrame",
+	"raidicon",
+	"cast",
+	"status",
+	"unitStatus",
+	"combatFeedback",
+	"auras",
+	"privateAuras",
+}
+
+local copySectionLabels = {
+	frame = L["Frame"] or "Frame",
+	portrait = L["UFPortrait"] or "Portrait",
+	rangeFade = L["UFRangeFade"] or "Range fade",
+	health = L["HealthBar"] or "Health Bar",
+	absorb = L["AbsorbBar"] or "Absorb Bar",
+	healAbsorb = L["HealAbsorbBar"] or "Heal Absorb Bar",
+	power = L["PowerBar"] or "Power Bar",
+	classResource = L["ClassResource"] or "Class Resource",
+	totemFrame = L["Totem Frame"] or "Totem Frame",
+	raidicon = L["RaidTargetIcon"] or "Raid Target Icon",
+	cast = L["CastBar"] or "Cast Bar",
+	status = L["UFStatusLine"] or "Status line",
+	unitStatus = L["UFUnitStatus"] or "Unit status",
+	combatFeedback = L["UFCombatFeedback"] or "Combat feedback",
+	auras = L["Auras"] or "Auras",
+	privateAuras = L["UFPrivateAuras"] or "Private Auras",
+}
+
+local function getCopySectionSetForUnit(unit)
+	local set = {
+		frame = true,
+		portrait = true,
+		health = true,
+		power = true,
+		raidicon = true,
+		status = true,
+		unitStatus = true,
+		combatFeedback = true,
+	}
+	local bossUnit = isBossUnit(unit)
+	if unit == "target" then set.rangeFade = true end
+	if unit ~= "pet" then
+		set.absorb = true
+		set.healAbsorb = true
+	end
+	if unit == "player" then
+		local hasClassResource, hasTotemFrame = getPlayerClassFrameSupportFlags()
+		if hasClassResource then set.classResource = true end
+		if hasTotemFrame then set.totemFrame = true end
+	end
+	if unit == "player" or unit == "target" or unit == "focus" or bossUnit then
+		set.cast = true
+		set.auras = true
+	end
+	if unit ~= "target" then set.privateAuras = true end
+	return set
+end
+
+local function getCopySectionOptions(fromUnit, toUnit)
+	local opts = {}
+	local fromSections = getCopySectionSetForUnit(fromUnit)
+	local toSections = getCopySectionSetForUnit(toUnit)
+	for _, sectionId in ipairs(copySectionOrder) do
+		if fromSections[sectionId] and toSections[sectionId] then opts[#opts + 1] = { value = sectionId, label = copySectionLabels[sectionId] or sectionId } end
+	end
+	return opts
+end
+
+local function ensureCopySectionSelection(payload)
+	if type(payload) ~= "table" then return end
+	payload.sectionOptions = type(payload.sectionOptions) == "table" and payload.sectionOptions or {}
+	payload.sectionSelection = type(payload.sectionSelection) == "table" and payload.sectionSelection or {}
+	for _, option in ipairs(payload.sectionOptions) do
+		if payload.sectionSelection[option.value] == nil then payload.sectionSelection[option.value] = true end
+	end
+end
+
+local function getSelectedCopySections(payload)
+	local selected = {}
+	if type(payload) ~= "table" then return selected end
+	for _, option in ipairs(payload.sectionOptions or {}) do
+		if payload.sectionSelection and payload.sectionSelection[option.value] == true then selected[#selected + 1] = option.value end
+	end
+	return selected
+end
+
+local function ensureCopySectionCheckbox(dialog, index)
+	dialog.eqolCopySectionRows = dialog.eqolCopySectionRows or {}
+	local row = dialog.eqolCopySectionRows[index]
+	if row then return row end
+	row = CreateFrame("CheckButton", nil, dialog, "UICheckButtonTemplate")
+	row.Label = row:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+	row.Label:SetPoint("LEFT", row, "RIGHT", 1, 1)
+	row.Label:SetJustifyH("LEFT")
+	row.Label:SetWidth(250)
+	row:SetHitRectInsets(0, -250, 0, 0)
+	dialog.eqolCopySectionRows[index] = row
+	return row
+end
+
+local function ensureCopyAllCheckbox(dialog)
+	if dialog.eqolCopyAllRow then return dialog.eqolCopyAllRow end
+	local row = CreateFrame("CheckButton", nil, dialog, "UICheckButtonTemplate")
+	row.Label = row:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+	row.Label:SetPoint("LEFT", row, "RIGHT", 1, 1)
+	row.Label:SetJustifyH("LEFT")
+	row.Label:SetWidth(250)
+	row:SetHitRectInsets(0, -250, 0, 0)
+	row.Label:SetText(L["UFProfileScopeAll"] or "All settings")
+	row:SetScript("OnClick", function(self)
+		local popup = self:GetParent()
+		local payload = popup and popup.data
+		if not payload then return end
+		ensureCopySectionSelection(payload)
+		local checked = self:GetChecked() == true
+		for _, option in ipairs(payload.sectionOptions) do
+			payload.sectionSelection[option.value] = checked
+		end
+		if popup.eqolRefreshCopySelection then popup:eqolRefreshCopySelection() end
+	end)
+	dialog.eqolCopyAllRow = row
+	return row
+end
+
+local function refreshCopySelectionDialog(dialog)
+	local payload = dialog and dialog.data
+	if not payload then return end
+	ensureCopySectionSelection(payload)
+	local options = payload.sectionOptions or {}
+	local popupHeight = 150 + ((#options + 1) * 22)
+	if popupHeight < 190 then popupHeight = 190 end
+	if popupHeight > 540 then popupHeight = 540 end
+	if StaticPopup_Resize then StaticPopup_Resize(dialog, 370, popupHeight) end
+	local allRow = ensureCopyAllCheckbox(dialog)
+	allRow:ClearAllPoints()
+	if dialog.button1 then
+		allRow:SetPoint("TOPLEFT", dialog.button1, "BOTTOMLEFT", -40, -12)
+	else
+		allRow:SetPoint("TOPLEFT", dialog, "TOPLEFT", 24, -72)
+	end
+	allRow:Show()
+	local lastAnchor = allRow
+	local selectedCount = 0
+	for index, option in ipairs(options) do
+		local row = ensureCopySectionCheckbox(dialog, index)
+		row.sectionId = option.value
+		row:ClearAllPoints()
+		row:SetPoint("TOPLEFT", lastAnchor, "BOTTOMLEFT", 0, -2)
+		row.Label:SetText(option.label or option.value)
+		local checked = payload.sectionSelection[option.value] == true
+		row:SetChecked(checked)
+		if checked then selectedCount = selectedCount + 1 end
+		row:SetScript("OnClick", function(self)
+			local popup = self:GetParent()
+			local popupPayload = popup and popup.data
+			if not popupPayload then return end
+			ensureCopySectionSelection(popupPayload)
+			popupPayload.sectionSelection[self.sectionId] = self:GetChecked() == true
+			if popup.eqolRefreshCopySelection then popup:eqolRefreshCopySelection() end
+		end)
+		row:Show()
+		lastAnchor = row
+	end
+	local rows = dialog.eqolCopySectionRows or {}
+	for index = #options + 1, #rows do
+		local row = rows[index]
+		if row then row:Hide() end
+	end
+	local allSelected = #options > 0 and selectedCount == #options
+	allRow:SetChecked(allSelected)
+	if dialog.button1 and dialog.button1.SetEnabled then dialog.button1:SetEnabled(selectedCount > 0) end
+end
+
 local function getVisibilityRuleOptions(unit)
 	if not GetVisibilityRuleMetadata then return {} end
 	local options = {}
@@ -533,6 +716,14 @@ end
 
 local function showCopySettingsPopup(fromUnit, toUnit)
 	if not (fromUnit and toUnit and UF.CopySettings) then return end
+	local sectionOptions = getCopySectionOptions(fromUnit, toUnit)
+	if #sectionOptions == 0 then
+		if UF.CopySettings(fromUnit, toUnit, { keepAnchor = true, keepEnabled = true }) then
+			refresh(toUnit)
+			refreshSettingsUI()
+		end
+		return
+	end
 	StaticPopupDialogs[copyDialogKey] = StaticPopupDialogs[copyDialogKey]
 		or {
 			text = "%s",
@@ -545,9 +736,27 @@ local function showCopySettingsPopup(fromUnit, toUnit)
 			OnAccept = function(self, data)
 				local payload = data or self.data
 				if payload and payload.from and payload.to and UF.CopySettings then
-					if UF.CopySettings(payload.from, payload.to, { keepAnchor = true, keepEnabled = true }) then
+					local selected = getSelectedCopySections(payload)
+					if #selected == 0 then return end
+					local copyOptions = { keepAnchor = true, keepEnabled = true }
+					if #selected < #(payload.sectionOptions or {}) then copyOptions.sections = selected end
+					if UF.CopySettings(payload.from, payload.to, copyOptions) then
 						refresh(payload.to)
 						refreshSettingsUI()
+					end
+				end
+			end,
+			OnShow = function(self, data)
+				self.data = data or self.data
+				ensureCopySectionSelection(self.data or {})
+				if not self.eqolRefreshCopySelection then self.eqolRefreshCopySelection = refreshCopySelectionDialog end
+				self:eqolRefreshCopySelection()
+			end,
+			OnHide = function(self)
+				if self.eqolCopyAllRow then self.eqolCopyAllRow:Hide() end
+				if self.eqolCopySectionRows then
+					for _, row in ipairs(self.eqolCopySectionRows) do
+						if row then row:Hide() end
 					end
 				end
 			end,
@@ -556,8 +765,13 @@ local function showCopySettingsPopup(fromUnit, toUnit)
 	if not dialog then return end
 	local fromLabel = copyFrameLabels[fromUnit] or fromUnit
 	local toLabel = copyFrameLabels[toUnit] or toUnit
-	dialog.text = string.format("%s\n\n%s -> %s", L["Copy settings"] or "Copy settings", fromLabel, toLabel)
-	StaticPopup_Show(copyDialogKey, nil, nil, { from = fromUnit, to = toUnit })
+	dialog.text = string.format("%s\n%s -> %s", L["Copy settings"] or "Copy settings", fromLabel, toLabel)
+	StaticPopup_Show(copyDialogKey, nil, nil, {
+		from = fromUnit,
+		to = toUnit,
+		sectionOptions = sectionOptions,
+		sectionSelection = {},
+	})
 end
 
 local function hideFrameReset(frame)

@@ -852,18 +852,199 @@ local function copySettings(fromUnit, toUnit, opts)
 	local src = ensureDB(fromUnit)
 	local dest = ensureDB(toUnit)
 	if not src or not dest then return false end
-	local keepAnchor = opts.keepAnchor ~= false
-	local keepEnabled = opts.keepEnabled ~= false
-	local anchor = keepAnchor and dest.anchor and CopyTable(dest.anchor) or dest.anchor
-	local enabled = keepEnabled and dest.enabled
-	if wipe then wipe(dest) end
-	for k, v in pairs(src) do
-		if type(v) == "table" then
-			dest[k] = CopyTable(v)
-		else
-			dest[k] = v
+	local function cloneSettingValue(value)
+		if type(value) ~= "table" then return value end
+		if addon.functions and addon.functions.copyTable then return addon.functions.copyTable(value) end
+		if CopyTable then return CopyTable(value) end
+		local out = {}
+		for key, child in pairs(value) do
+			out[key] = cloneSettingValue(child)
+		end
+		return out
+	end
+	local function getPathValue(root, path)
+		if type(root) ~= "table" or type(path) ~= "table" then return nil, false end
+		local cur = root
+		for i = 1, #path do
+			if type(cur) ~= "table" then return nil, false end
+			cur = cur[path[i]]
+			if cur == nil then return nil, false end
+		end
+		return cur, true
+	end
+	local function clearPathValue(root, path)
+		if type(root) ~= "table" or type(path) ~= "table" or #path == 0 then return end
+		if #path == 1 then
+			root[path[1]] = nil
+			return
+		end
+		local cur = root
+		local trail = {}
+		for i = 1, #path - 1 do
+			local key = path[i]
+			local nxt = cur[key]
+			if type(nxt) ~= "table" then return end
+			trail[#trail + 1] = { parent = cur, key = key }
+			cur = nxt
+		end
+		cur[path[#path]] = nil
+		for i = #trail, 1, -1 do
+			local node = trail[i]
+			local child = node.parent[node.key]
+			if type(child) == "table" and not next(child) then
+				node.parent[node.key] = nil
+			else
+				break
+			end
 		end
 	end
+	local function setPathValue(root, path, value)
+		if type(root) ~= "table" or type(path) ~= "table" or #path == 0 then return end
+		if value == nil then
+			clearPathValue(root, path)
+			return
+		end
+		local cur = root
+		for i = 1, #path - 1 do
+			local key = path[i]
+			if type(cur[key]) ~= "table" then cur[key] = {} end
+			cur = cur[key]
+		end
+		cur[path[#path]] = value
+	end
+	local function copyPathValue(path)
+		local value, exists = getPathValue(src, path)
+		if exists then
+			setPathValue(dest, path, cloneSettingValue(value))
+		else
+			clearPathValue(dest, path)
+		end
+	end
+	local copySectionRules = {
+		frame = {
+			{ "showTooltip" },
+			{ "tooltipUseEditMode" },
+			{ "hideInVehicle" },
+			{ "hideInPetBattle" },
+			{ "hideInClientScene" },
+			{ "visibility" },
+			{ "visibilityFade" },
+			{ "width" },
+			{ "anchor" },
+			{ "spacing" },
+			{ "growth" },
+			{ "strata" },
+			{ "frameLevel" },
+			{ "smoothFill" },
+			{ "border" },
+			{ "highlight" },
+			{ "power", "detachedStrata" },
+			{ "power", "detachedFrameLevelOffset" },
+		},
+		portrait = {
+			{ "portrait" },
+		},
+		rangeFade = {
+			{ "rangeFade" },
+		},
+		health = {
+			{ "healthHeight" },
+			{ "health" },
+		},
+		absorb = {
+			{ "health", "absorbColor" },
+			{ "health", "absorbUseCustomColor" },
+			{ "health", "useAbsorbGlow" },
+			{ "health", "absorbReverseFill" },
+			{ "health", "absorbOverlayHeight" },
+			{ "health", "absorbTexture" },
+		},
+		healAbsorb = {
+			{ "health", "healAbsorbColor" },
+			{ "health", "healAbsorbUseCustomColor" },
+			{ "health", "healAbsorbReverseFill" },
+			{ "health", "healAbsorbOverlayHeight" },
+			{ "health", "healAbsorbTexture" },
+		},
+		power = {
+			{ "powerHeight" },
+			{ "power" },
+		},
+		classResource = {
+			{ "classResource" },
+		},
+		totemFrame = {
+			{ "classResource", "totemFrame" },
+		},
+		raidicon = {
+			{ "raidIcon" },
+		},
+		cast = {
+			{ "cast" },
+		},
+		status = {
+			{ "status", "enabled" },
+			{ "status", "fontSize" },
+			{ "status", "font" },
+			{ "status", "fontOutline" },
+			{ "status", "nameColorMode" },
+			{ "status", "nameColor" },
+			{ "status", "nameAnchor" },
+			{ "status", "nameOffset" },
+			{ "status", "nameMaxChars" },
+			{ "status", "nameFontSize" },
+			{ "status", "levelEnabled" },
+			{ "status", "hideLevelAtMax" },
+			{ "status", "levelColorMode" },
+			{ "status", "levelColor" },
+			{ "status", "levelAnchor" },
+			{ "status", "levelOffset" },
+			{ "status", "levelStrata" },
+			{ "status", "levelFrameLevelOffset" },
+			{ "status", "levelFontSize" },
+			{ "status", "classificationIcon" },
+		},
+		unitStatus = {
+			{ "status", "unitStatus" },
+			{ "status", "combatIndicator" },
+			{ "pvpIndicator" },
+			{ "roleIndicator" },
+			{ "leaderIcon" },
+			{ "resting" },
+		},
+		combatFeedback = {
+			{ "combatFeedback" },
+		},
+		auras = {
+			{ "auraIcons" },
+		},
+		privateAuras = {
+			{ "privateAuras" },
+		},
+	}
+	local keepAnchor = opts.keepAnchor ~= false
+	local keepEnabled = opts.keepEnabled ~= false
+	local anchor = keepAnchor and dest.anchor and cloneSettingValue(dest.anchor) or dest.anchor
+	local enabled = keepEnabled and dest.enabled
+	local copied = false
+	if type(opts.sections) == "table" then
+		for _, sectionId in ipairs(opts.sections) do
+			local rules = copySectionRules[sectionId]
+			if type(rules) == "table" then
+				for _, path in ipairs(rules) do
+					copyPathValue(path)
+				end
+				copied = true
+			end
+		end
+	else
+		if wipe then wipe(dest) end
+		for k, v in pairs(src) do
+			dest[k] = cloneSettingValue(v)
+		end
+		copied = true
+	end
+	if not copied then return false end
 	if keepAnchor then dest.anchor = anchor end
 	if keepEnabled then dest.enabled = enabled end
 	return true
