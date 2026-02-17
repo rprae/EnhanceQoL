@@ -9,8 +9,8 @@
 - Unit Frames: Added detached power bar options `Match health width` and `Grow from center`.
 - Unit Frames: Added `Use class color for health backdrop (players)` option for health bar backdrops.
 - Unit Frames: Added `Use reaction color for NPC names` option (Target/ToT/Focus/Boss) when custom name color is disabled.
-- Cooldown Panels: Added an option to configure the border
 - Unit Frames: Added a `Copy settings` dialog for Player/Target/ToT/Pet/Focus/Boss with selectable sections.
+- Cooldown Panels: Added an option to configure the border
 - Group Frames: Added `Copy settings` with selectable sections, including copy from Unit Frames (Player/Target/ToT/Pet/Focus/Boss) and cross-copy between Party/Raid/MT/MA.
 - Group Frames: Added a dedicated `Settings` section at the top of Edit Mode settings for `Copy settings`.
 - Group Frames: Added a `Target highlight` layer selector (`Above border` / `Behind border`) with the current behavior kept as default.
@@ -20,9 +20,9 @@
 - LFG additional dungeon filter had a secret error
 - Unit Frames (Party): Custom sort was always reset
 - Unit Frames (Player): `Always hide in party/raid` now only hides the Player Frame while actually grouped; solo visibility is no longer affected.
+- Unit Frames: Absorb/heal-absorb layering now stays below the health border, fixing cases where absorb textures could appear above the border.
 - Group Frames (Party/Raid): Added `Use Edit Mode tooltip position` so unit tooltips can follow the configured Edit Mode anchor instead of showing at the cursor.
 - Chat Frame: Move editbox to top had a secret caching error
-- Unit Frames: Absorb/heal-absorb layering now stays below the health border, fixing cases where absorb textures could appear above the border.
 
 ---
 
