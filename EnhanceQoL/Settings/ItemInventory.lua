@@ -101,6 +101,12 @@ local charIlvlAnchors = {
 
 local function isCharIlvlOutsidePosition() return (addon.db["charIlvlPosition"] or "TOPRIGHT") == "OUTSIDE" end
 
+local function hideIlvlBackground(element)
+	if not element or not element.ilvlBackground then return end
+	element.ilvlBackground:SetColorTexture(0, 0, 0, 0)
+	element.ilvlBackground:Hide()
+end
+
 local function applyCharIlvlPosition(element, slot)
 	if not element or not element.ilvlBackground or not element.ilvl then return end
 	local pos = addon.db["charIlvlPosition"] or "TOPRIGHT"
@@ -117,12 +123,14 @@ local function applyCharIlvlPosition(element, slot)
 			element.ilvlBackground:SetPoint("TOPLEFT", element, "TOPRIGHT", 5, -1)
 		end
 		element.ilvl:SetPoint("CENTER", element.ilvlBackground, "CENTER", 0, 0)
+		hideIlvlBackground(element)
 		return
 	end
 
 	local anchor = charIlvlAnchors[pos] or charIlvlAnchors.TOPRIGHT
 	element.ilvlBackground:SetPoint(anchor.bgPoint, element, anchor.bgPoint, anchor.bgX, anchor.bgY)
 	element.ilvl:SetPoint(anchor.textPoint, element.ilvlBackground, anchor.textPoint, anchor.textX, anchor.textY)
+	hideIlvlBackground(element)
 end
 
 local function positionGemFrame(element, slot, gemIndex, outsideWithIlvl)
@@ -347,12 +355,12 @@ local function onInspect(arg1)
 	if not InspectOpt("ilvl") and pdElement.ilvl then pdElement.ilvl:SetText("") end
 	if not pdElement.ilvl and InspectOpt("ilvl") then
 		pdElement.ilvlBackground = pdElement:CreateTexture(nil, "BACKGROUND")
-		pdElement.ilvlBackground:SetColorTexture(0, 0, 0, 0.8) -- Schwarzer Hintergrund mit 80% Transparenz
+		pdElement.ilvlBackground:SetColorTexture(0, 0, 0, 0)
 		pdElement.ilvlBackground:SetPoint("TOPRIGHT", pdElement, "TOPRIGHT", -2, -28)
-		pdElement.ilvlBackground:SetSize(20, 16) -- Größe des Hintergrunds (muss ggf. angepasst werden)
+		pdElement.ilvlBackground:SetSize(20, 16)
 
 		pdElement.ilvl = pdElement:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
-		pdElement.ilvl:SetPoint("TOPRIGHT", pdElement.ilvlBackground, "TOPRIGHT", -1, -1) -- Position des Textes im Zentrum des Hintergrunds
+		pdElement.ilvl:SetPoint("TOPRIGHT", pdElement.ilvlBackground, "TOPRIGHT", -1, -1)
 		addon.functions.ApplyItemLevelTextStyle(pdElement.ilvl)
 
 		if C_PaperDollInfo and C_PaperDollInfo.GetInspectItemLevel then
@@ -362,10 +370,10 @@ local function onInspect(arg1)
 			pdElement.ilvl:SetFormattedText("")
 		end
 		addon.functions.ApplyItemLevelTextColor(pdElement.ilvl, nil)
-		pdElement.ilvlBackground:Show()
+		hideIlvlBackground(pdElement)
 
 		local textWidth = pdElement.ilvl:GetStringWidth()
-		pdElement.ilvlBackground:SetSize(textWidth + 6, pdElement.ilvl:GetStringHeight() + 4) -- Mehr Padding für bessere Lesbarkeit
+		pdElement.ilvlBackground:SetSize(textWidth + 6, pdElement.ilvl:GetStringHeight() + 4)
 	end
 	for _, key in ipairs(inspectSlotOrder) do
 		local frameName = inspectSlotFrameNames[key]
@@ -448,18 +456,14 @@ local function onInspect(arg1)
 							if InspectOpt("ilvl") then
 								if not element.ilvlBackground then
 									element.ilvlBackground = element:CreateTexture(nil, "BACKGROUND")
-									element.ilvlBackground:SetColorTexture(0, 0, 0, 0.8) -- Schwarzer Hintergrund mit 80% Transparenz
+									element.ilvlBackground:SetColorTexture(0, 0, 0, 0)
 									element.ilvl = element:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
 								end
 								addon.functions.ApplyItemLevelTextStyle(element.ilvl)
 
 								applyCharIlvlPosition(element, key)
-								element.ilvlBackground:SetSize(30, 16) -- Größe des Hintergrunds (muss ggf. angepasst werden)
-								if isCharIlvlOutsidePosition() then
-									element.ilvlBackground:Hide()
-								else
-									element.ilvlBackground:Show()
-								end
+								element.ilvlBackground:SetSize(30, 16)
+								hideIlvlBackground(element)
 
 								local color = eItem:GetItemQualityColor()
 
@@ -477,7 +481,8 @@ local function onInspect(arg1)
 								addon.functions.ApplyItemLevelTextColor(element.ilvl, color)
 
 								local textWidth = element.ilvl:GetStringWidth()
-								element.ilvlBackground:SetSize(textWidth + 6, element.ilvl:GetStringHeight() + 4) -- Mehr Padding für bessere Lesbarkeit
+								element.ilvlBackground:SetSize(textWidth + 6, element.ilvl:GetStringHeight() + 4)
+								hideIlvlBackground(element)
 							end
 							if InspectOpt("gems") and displayCount > 0 then
 								local outsideWithIlvl = isCharIlvlOutsidePosition() and InspectOpt("ilvl")
@@ -564,6 +569,7 @@ local function onInspect(arg1)
 		else
 			pdElement.ilvl:SetFormattedText("")
 		end
+		hideIlvlBackground(pdElement)
 	end
 end
 
@@ -680,17 +686,14 @@ local function setIlvlText(element, slot)
 					addon.functions.ApplyItemLevelTextStyle(element.ilvl)
 
 					applyCharIlvlPosition(element, slot)
-					if isCharIlvlOutsidePosition() then
-						element.ilvlBackground:Hide()
-					else
-						element.ilvlBackground:Show()
-					end
+					hideIlvlBackground(element)
 
 					element.ilvl:SetFormattedText(itemLevelText)
 					addon.functions.ApplyItemLevelTextColor(element.ilvl, color)
 
 					local textWidth = element.ilvl:GetStringWidth()
-					element.ilvlBackground:SetSize(textWidth + 6, element.ilvl:GetStringHeight() + 4) -- Mehr Padding für bessere Lesbarkeit
+					element.ilvlBackground:SetSize(textWidth + 6, element.ilvl:GetStringHeight() + 4)
+					hideIlvlBackground(element)
 				else
 					element.ilvl:SetFormattedText("")
 					element.ilvlBackground:Hide()
@@ -1665,11 +1668,11 @@ function addon.functions.initItemInventory()
 	if addon.db["showDurabilityOnCharframe"] == false or (addon.functions and addon.functions.IsTimerunner and addon.functions.IsTimerunner()) then addon.general.durabilityIconFrame:Hide() end
 
 	for key, value in pairs(addon.variables.itemSlots) do
-		-- Hintergrund für das Item-Level
 		value.ilvlBackground = value:CreateTexture(nil, "BACKGROUND")
-		value.ilvlBackground:SetColorTexture(0, 0, 0, 0.8) -- Schwarzer Hintergrund mit 80% Transparenz
+		value.ilvlBackground:SetColorTexture(0, 0, 0, 0)
 		value.ilvlBackground:SetPoint("TOPRIGHT", value, "TOPRIGHT", 1, 1)
-		value.ilvlBackground:SetSize(30, 16) -- Größe des Hintergrunds (muss ggf. angepasst werden)
+		value.ilvlBackground:SetSize(30, 16)
+		hideIlvlBackground(value)
 
 		-- Roter Rahmen mit Farbverlauf
 		if addon.variables.shouldEnchanted[key] or addon.variables.shouldEnchantedChecks[key] then
