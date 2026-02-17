@@ -2084,7 +2084,28 @@ local function buildUnitSettings(unit)
 			end)
 		end,
 		colorDefault = { r = 0, g = 0, b = 0, a = 0.6 },
+		isEnabled = function()
+			local isBackdropEnabled = getValue(unit, { "health", "backdrop", "enabled" }, (healthDef.backdrop and healthDef.backdrop.enabled) ~= false) ~= false
+			if not isBackdropEnabled then return false end
+			local useBackdropClassColor = getValue(unit, { "health", "backdrop", "useClassColor" }, healthDef.backdrop and healthDef.backdrop.useClassColor == true) == true
+			return useBackdropClassColor ~= true
+		end,
 	})
+
+	if not isBoss then
+		list[#list + 1] = checkbox(
+			L["UFHealthBackdropUseClassColor"] or "Use class color for health backdrop (players)",
+			function() return getValue(unit, { "health", "backdrop", "useClassColor" }, healthDef.backdrop and healthDef.backdrop.useClassColor == true) == true end,
+			function(val)
+				setValue(unit, { "health", "backdrop", "useClassColor" }, val and true or false)
+				refreshSelf()
+				refreshSettingsUI()
+			end,
+			healthDef.backdrop and healthDef.backdrop.useClassColor == true,
+			"health",
+			function() return getValue(unit, { "health", "backdrop", "enabled" }, (healthDef.backdrop and healthDef.backdrop.enabled) ~= false) ~= false end
+		)
+	end
 
 	if unit ~= "pet" then
 		local function getOverlayHeightFallback()

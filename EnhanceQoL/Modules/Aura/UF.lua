@@ -303,7 +303,7 @@ local defaults = {
 			showSampleHealAbsorb = false,
 			healAbsorbTexture = "SOLID",
 			healAbsorbReverseFill = true,
-			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 } },
+			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 }, useClassColor = false },
 			textLeft = "PERCENT",
 			textCenter = "NONE",
 			textRight = "CURMAX",
@@ -3257,7 +3257,7 @@ local function setBackdrop(frame, borderCfg, borderDef, fallbackEnabled)
 	end
 end
 
-local function applyBarBackdrop(bar, cfg)
+local function applyBarBackdrop(bar, cfg, overrideR, overrideG, overrideB, overrideA)
 	if not bar then return end
 	cfg = cfg or {}
 	local bd = cfg.backdrop or {}
@@ -3270,7 +3270,17 @@ local function applyBarBackdrop(bar, cfg)
 		bar._ufBackdropCache = cache
 		return
 	end
-	local colorR, colorG, colorB, colorA = unpackColor(bd.color, 0, 0, 0, 0.6)
+	local colorR, colorG, colorB, colorA
+	if overrideR ~= nil and overrideG ~= nil and overrideB ~= nil then
+		colorR, colorG, colorB = overrideR, overrideG, overrideB
+		colorA = overrideA
+		if colorA == nil then
+			local _, _, _, fallbackA = unpackColor(bd.color, 0, 0, 0, 0.6)
+			colorA = fallbackA
+		end
+	else
+		colorR, colorG, colorB, colorA = unpackColor(bd.color, 0, 0, 0, 0.6)
+	end
 	local styleChanged = not cache or cache.enabled ~= true or cache.colorR ~= colorR or cache.colorG ~= colorG or cache.colorB ~= colorB or cache.colorA ~= colorA
 	if not styleChanged then return end
 	bar:SetBackdrop(BAR_BACKDROP_STYLE)
@@ -5308,7 +5318,28 @@ local function applyBars(cfg, unit)
 	local reverseHealth = hc.reverseFill
 	if reverseHealth == nil then reverseHealth = defH.reverseFill == true end
 	UFHelper.applyStatusBarReverseFill(st.health, reverseHealth)
-	applyBarBackdrop(st.health, hc)
+	local healthBackdropR, healthBackdropG, healthBackdropB, healthBackdropA
+	do
+		local backdropCfg = hc.backdrop or {}
+		local useBackdropClassColor = backdropCfg.useClassColor
+		if useBackdropClassColor == nil and defH.backdrop then useBackdropClassColor = defH.backdrop.useClassColor end
+		if useBackdropClassColor == true then
+			local class
+			if UnitIsPlayer and UnitIsPlayer(unit) then
+				class = select(2, UnitClass(unit))
+			elseif unit == UNIT.PET then
+				class = select(2, UnitClass(UNIT.PLAYER))
+			end
+			local cr, cg, cb = getClassColor(class)
+			if cr then
+				local backdropColor = backdropCfg.color or (defH.backdrop and defH.backdrop.color) or { 0, 0, 0, 0.6 }
+				healthBackdropR, healthBackdropG, healthBackdropB = cr, cg, cb
+				healthBackdropA = backdropColor[4]
+				if healthBackdropA == nil then healthBackdropA = 0.6 end
+			end
+		end
+	end
+	applyBarBackdrop(st.health, hc, healthBackdropR, healthBackdropG, healthBackdropB, healthBackdropA)
 	if powerEnabled then
 		st.power:SetStatusBarTexture(UFHelper.resolveTexture(pcfg.texture))
 		if unit == UNIT.PLAYER then refreshMainPower(unit) end
