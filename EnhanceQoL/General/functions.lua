@@ -440,6 +440,71 @@ local function getTooltipInfo(bag, slot, classID, tBindType)
 	return bType, bKey, upgradeKey, bAuc
 end
 
+local function normalizeItemLevelOutline(outline)
+	if outline == nil then return "OUTLINE" end
+	if outline == "" or outline == "NONE" then return nil end
+	return outline
+end
+
+local function getItemLevelFontFace()
+	local configured = addon.db and addon.db["ilvlFontFace"]
+	if type(configured) ~= "string" or configured == "" then return addon.variables.defaultFont end
+	if configured == addon.variables.defaultFont then return configured end
+	local LSM = LibStub("LibSharedMedia-3.0", true)
+	if LSM and LSM.IsValid and LSM:IsValid("font", configured) then return configured end
+	return addon.variables.defaultFont
+end
+
+local function getItemLevelFontSize()
+	local value = tonumber(addon.db and addon.db["ilvlFontSize"])
+	if not value then return 14 end
+	value = math.floor(value + 0.5)
+	if value < 8 then value = 8 end
+	if value > 32 then value = 32 end
+	return value
+end
+
+local function getItemLevelCustomColor()
+	local color = addon.db and addon.db["ilvlTextColor"]
+	local r = (color and color.r) or 1
+	local g = (color and color.g) or 1
+	local b = (color and color.b) or 1
+	local a = color and color.a
+	if a == nil then a = 1 end
+	return r, g, b, a
+end
+
+function addon.functions.GetItemLevelTextColor(itemQuality)
+	if addon.db and addon.db["ilvlUseItemQualityColor"] ~= false then
+		if type(itemQuality) == "number" then
+			local r, g, b = C_Item.GetItemQualityColor(itemQuality)
+			if r and g and b then return r, g, b, 1 end
+		elseif type(itemQuality) == "table" then
+			local r = itemQuality.r or itemQuality[1]
+			local g = itemQuality.g or itemQuality[2]
+			local b = itemQuality.b or itemQuality[3]
+			local a = itemQuality.a or itemQuality[4] or 1
+			if r and g and b then return r, g, b, a end
+		end
+	end
+	return getItemLevelCustomColor()
+end
+
+function addon.functions.ApplyItemLevelTextStyle(fontString)
+	if not fontString then return end
+	local face = getItemLevelFontFace()
+	local size = getItemLevelFontSize()
+	local outline = normalizeItemLevelOutline(addon.db and addon.db["ilvlFontOutline"])
+	local ok = fontString:SetFont(face, size, outline)
+	if ok == false then fontString:SetFont(addon.variables.defaultFont, size, outline) end
+end
+
+function addon.functions.ApplyItemLevelTextColor(fontString, itemQuality)
+	if not fontString then return end
+	local r, g, b, a = addon.functions.GetItemLevelTextColor(itemQuality)
+	fontString:SetTextColor(r, g, b, a or 1)
+end
+
 local bagIlvlAnchors = {
 	TOPLEFT = { point = "TOPLEFT", x = 2, y = -2 },
 	TOP = { point = "TOP", x = 0, y = -2 },
@@ -450,6 +515,7 @@ local bagIlvlAnchors = {
 	BOTTOMLEFT = { point = "BOTTOMLEFT", x = 2, y = 2 },
 	BOTTOM = { point = "BOTTOM", x = 0, y = 2 },
 	BOTTOMRIGHT = { point = "BOTTOMRIGHT", x = 0, y = 2 },
+	OUTSIDE = { point = "TOPLEFT", relativePoint = "TOPRIGHT", x = 2, y = -2 },
 }
 
 local bagUpgradeAnchors = {
@@ -466,8 +532,9 @@ local UPGRADE_ICON_GLOW_SIZE = 24
 function addon.functions.ApplyBagItemLevelPosition(target, anchorFrame, position)
 	if not target or not anchorFrame then return end
 	local anchor = bagIlvlAnchors[position] or bagIlvlAnchors.TOPRIGHT
+	local relativePoint = anchor.relativePoint or anchor.point
 	target:ClearAllPoints()
-	target:SetPoint(anchor.point, anchorFrame, anchor.point, anchor.x, anchor.y)
+	target:SetPoint(anchor.point, anchorFrame, relativePoint, anchor.x, anchor.y)
 end
 
 local function resolveBoundAnchor(position)
@@ -763,16 +830,16 @@ local function updateButtonInfo(itemButton, bag, slot, frameName)
 				itemButton.ItemLevelText:SetShadowOffset(2, -2)
 				itemButton.ItemLevelText:SetShadowColor(0, 0, 0, 1)
 			end
+			addon.functions.ApplyItemLevelTextStyle(itemButton.ItemLevelText)
 
 			itemButton.ItemLevelText:ClearAllPoints()
 			local pos = addon.db["bagIlvlPosition"] or "TOPRIGHT"
 			addon.functions.ApplyBagItemLevelPosition(itemButton.ItemLevelText, itemButton, pos)
 			if nil ~= addon.variables.allowedEquipSlotsBagIlvl[itemEquipLoc] then
-				local r, g, b = C_Item.GetItemQualityColor(itemQuality)
 				local itemLevelText = C_Item.GetCurrentItemLevel(ItemLocation:CreateFromBagAndSlot(bag, slot))
 
 				itemButton.ItemLevelText:SetFormattedText(itemLevelText)
-				itemButton.ItemLevelText:SetTextColor(r, g, b, 1)
+				addon.functions.ApplyItemLevelTextColor(itemButton.ItemLevelText, itemQuality)
 
 				itemButton.ItemLevelText:Show()
 

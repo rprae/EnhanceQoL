@@ -750,6 +750,13 @@ local function getVisibilityFadeAlpha(state)
 	return clampVisibilityAlpha(state.fadeAlpha)
 end
 
+local function HasFrameVisibilityRuleBesidesGroupHide(cfg)
+	if type(cfg) ~= "table" then return false end
+	return (cfg.MOUSEOVER or cfg.ALWAYS_IN_COMBAT or cfg.ALWAYS_OUT_OF_COMBAT or cfg.PLAYER_HAS_TARGET or cfg.PLAYER_CASTING or cfg.PLAYER_MOUNTED or cfg.PLAYER_NOT_MOUNTED or cfg.PLAYER_IN_GROUP)
+			and true
+		or false
+end
+
 local function EvaluateFrameVisibility(state)
 	local cfg = state.config
 	if not cfg or not next(cfg) then return false, nil end
@@ -757,9 +764,13 @@ local function EvaluateFrameVisibility(state)
 	if cfg.ALWAYS_HIDDEN then return false, "ALWAYS_HIDDEN" end
 	local context = frameVisibilityContext
 
-	if cfg.ALWAYS_HIDE_IN_GROUP and state.supportsGroupRule and context.inGroup then
-		if cfg.MOUSEOVER and state.isMouseOver then return true, "MOUSEOVER" end
-		return false, "ALWAYS_HIDE_IN_GROUP"
+	if cfg.ALWAYS_HIDE_IN_GROUP and state.supportsGroupRule then
+		if context.inGroup then
+			if cfg.MOUSEOVER and state.isMouseOver then return true, "MOUSEOVER" end
+			return false, "ALWAYS_HIDE_IN_GROUP"
+		end
+		-- If this is the only active rule, keep the frame visible while solo.
+		if not HasFrameVisibilityRuleBesidesGroupHide(cfg) then return true, "ALWAYS_HIDE_IN_GROUP_SOLO" end
 	end
 
 	if cfg.ALWAYS_IN_COMBAT and context.inCombat then return true, "ALWAYS_IN_COMBAT" end
@@ -4329,9 +4340,7 @@ local function initUI()
 
 			if addon.db["useMinimapButtonBinIcon"] then
 				buttonBag:SetScript("OnLeave", function(self)
-					if addon.db["useMinimapButtonBinIcon"] and addon.db["minimapButtonBinIconClickToggle"] ~= true then
-						C_Timer.After(1, function() hoverOutFrame() end)
-					end
+					if addon.db["useMinimapButtonBinIcon"] and addon.db["minimapButtonBinIconClickToggle"] ~= true then C_Timer.After(1, function() hoverOutFrame() end) end
 				end)
 			else
 				if not addon.db["lockMinimapButtonBin"] then
@@ -4392,9 +4401,7 @@ local function initUI()
 						end
 					end,
 					OnLeave = function(self)
-						if addon.db["useMinimapButtonBinIcon"] and addon.db["minimapButtonBinIconClickToggle"] ~= true then
-							C_Timer.After(1, function() hoverOutFrame() end)
-						end
+						if addon.db["useMinimapButtonBinIcon"] and addon.db["minimapButtonBinIconClickToggle"] ~= true then C_Timer.After(1, function() hoverOutFrame() end) end
 					end,
 				}
 				-- Registriere das Icon bei LibDBIcon

@@ -112,6 +112,7 @@ local function normalizeGroupNumberFormat(format)
 	if mapped then return mapped end
 	return text
 end
+
 local function hideDispelTint(st)
 	if not (st and st.dispelTint) then return end
 	if st._dispelTintShown == false then return end
@@ -216,9 +217,6 @@ local function ensureHighlightFrame(st, key)
 		frame:EnableMouse(false)
 		st._highlightFrames[key] = frame
 	end
-	frame:SetFrameStrata(st.barGroup:GetFrameStrata())
-	local baseLevel = st.barGroup:GetFrameLevel() or 0
-	frame:SetFrameLevel(baseLevel + 4)
 	return frame
 end
 
@@ -237,12 +235,15 @@ local function buildHighlightConfig(cfg, def, key)
 	local offset = hcfg.offset
 	if offset == nil then offset = hdef.offset end
 	offset = tonumber(offset) or 0
+	local layer = tostring(hcfg.layer or hdef.layer or "ABOVE_BORDER"):upper()
+	if layer ~= "BEHIND_BORDER" then layer = "ABOVE_BORDER" end
 	return {
 		enabled = true,
 		texture = texture,
 		size = size,
 		color = color,
 		offset = offset,
+		layer = layer,
 	}
 end
 
@@ -258,6 +259,16 @@ local function applyHighlightStyle(st, cfg, key)
 	end
 	frame = ensureHighlightFrame(st, key)
 	if not frame then return end
+	if frame.SetFrameStrata and st.barGroup and st.barGroup.GetFrameStrata then frame:SetFrameStrata(st.barGroup:GetFrameStrata()) end
+	if frame.SetFrameLevel and st.barGroup and st.barGroup.GetFrameLevel then
+		local baseLevel = st.barGroup:GetFrameLevel() or 0
+		local layer = tostring(cfg.layer or "ABOVE_BORDER"):upper()
+		if layer == "BEHIND_BORDER" then
+			frame:SetFrameLevel(baseLevel + 2)
+		else
+			frame:SetFrameLevel(baseLevel + 4)
+		end
+	end
 	local size = cfg.size or 1
 	if size < 1 then size = 1 end
 	local offset = cfg.offset or 0
@@ -1058,6 +1069,7 @@ local DEFAULTS = {
 			texture = "DEFAULT",
 			size = 2,
 			offset = 0,
+			layer = "ABOVE_BORDER",
 			color = { 1, 1, 0, 1 },
 		},
 		health = {
@@ -1454,6 +1466,7 @@ local DEFAULTS = {
 			texture = "DEFAULT",
 			size = 2,
 			offset = 0,
+			layer = "ABOVE_BORDER",
 			color = { 1, 1, 0, 1 },
 		},
 		health = {
@@ -8715,6 +8728,10 @@ local function buildEditModeSettings(kind, editModeId)
 		{ value = "SHIFT", label = "Shift" },
 		{ value = "CTRL", label = "Ctrl" },
 	}
+	local targetHighlightLayerOptions = {
+		{ value = "ABOVE_BORDER", label = L["UFTargetHighlightLayerAboveBorder"] or "Above border" },
+		{ value = "BEHIND_BORDER", label = L["UFTargetHighlightLayerBehindBorder"] or "Behind border" },
+	}
 	local function getTooltipModeValue()
 		local cfg = getCfg(kind)
 		local tc = cfg and cfg.tooltip or {}
@@ -8937,6 +8954,30 @@ local function buildEditModeSettings(kind, editModeId)
 		local enabled = hcfg.enabled
 		if enabled == nil then enabled = def.enabled end
 		return enabled == true
+	end
+	local function getTargetHighlightLayerValue()
+		local hcfg, def = getHighlightCfg("highlightTarget")
+		local layer = tostring(hcfg.layer or def.layer or "ABOVE_BORDER"):upper()
+		if layer ~= "BEHIND_BORDER" then layer = "ABOVE_BORDER" end
+		return layer
+	end
+	local function getTargetHighlightLayerLabel()
+		local layer = getTargetHighlightLayerValue()
+		for _, option in ipairs(targetHighlightLayerOptions) do
+			if option.value == layer then return option.label end
+		end
+		return layer
+	end
+	local function targetHighlightLayerGenerator()
+		return function(_, root, data)
+			for _, option in ipairs(targetHighlightLayerOptions) do
+				root:CreateRadio(option.label, function() return data.get and data.get() == option.value end, function()
+					if data.set then data.set(nil, option.value) end
+					data.customDefaultText = option.label
+					if addon.EditModeLib and addon.EditModeLib.internal and addon.EditModeLib.internal.RequestRefreshSettings then addon.EditModeLib.internal:RequestRefreshSettings() end
+				end)
+			end
+		end
 	end
 	local function auraGrowthGenerator()
 		return function(_, root, data)
@@ -9917,6 +9958,27 @@ local function buildEditModeSettings(kind, editModeId)
 					end)
 				end
 			end,
+			isEnabled = function() return isHighlightEnabled("highlightTarget") end,
+		},
+		{
+			name = L["UFTargetHighlightLayer"] or "Layer",
+			kind = SettingType.Dropdown,
+			field = "targetHighlightLayer",
+			parentId = "targetHighlight",
+			default = (DEFAULTS[kind] and DEFAULTS[kind].highlightTarget and DEFAULTS[kind].highlightTarget.layer) or "ABOVE_BORDER",
+			customDefaultText = getTargetHighlightLayerLabel(),
+			get = function() return getTargetHighlightLayerValue() end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.highlightTarget = cfg.highlightTarget or {}
+				local layer = tostring(value or "ABOVE_BORDER"):upper()
+				if layer ~= "BEHIND_BORDER" then layer = "ABOVE_BORDER" end
+				cfg.highlightTarget.layer = layer
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "targetHighlightLayer", cfg.highlightTarget.layer, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			generator = targetHighlightLayerGenerator(),
 			isEnabled = function() return isHighlightEnabled("highlightTarget") end,
 		},
 		{
@@ -17322,12 +17384,24 @@ local function applyEditModeData(kind, data)
 	if data.hoverHighlightTexture ~= nil then cfg.highlightHover.texture = data.hoverHighlightTexture end
 	if data.hoverHighlightSize ~= nil then cfg.highlightHover.size = clampNumber(data.hoverHighlightSize, 1, 64, cfg.highlightHover.size or 2) end
 	if data.hoverHighlightOffset ~= nil then cfg.highlightHover.offset = clampNumber(data.hoverHighlightOffset, -64, 64, cfg.highlightHover.offset or 0) end
-	if data.targetHighlightEnabled ~= nil or data.targetHighlightColor ~= nil or data.targetHighlightTexture ~= nil or data.targetHighlightSize ~= nil or data.targetHighlightOffset ~= nil then
+	if
+		data.targetHighlightEnabled ~= nil
+		or data.targetHighlightColor ~= nil
+		or data.targetHighlightTexture ~= nil
+		or data.targetHighlightLayer ~= nil
+		or data.targetHighlightSize ~= nil
+		or data.targetHighlightOffset ~= nil
+	then
 		cfg.highlightTarget = cfg.highlightTarget or {}
 	end
 	if data.targetHighlightEnabled ~= nil then cfg.highlightTarget.enabled = data.targetHighlightEnabled and true or false end
 	if data.targetHighlightColor ~= nil then cfg.highlightTarget.color = data.targetHighlightColor end
 	if data.targetHighlightTexture ~= nil then cfg.highlightTarget.texture = data.targetHighlightTexture end
+	if data.targetHighlightLayer ~= nil then
+		local layer = tostring(data.targetHighlightLayer or cfg.highlightTarget.layer or "ABOVE_BORDER"):upper()
+		if layer ~= "BEHIND_BORDER" then layer = "ABOVE_BORDER" end
+		cfg.highlightTarget.layer = layer
+	end
 	if data.targetHighlightSize ~= nil then cfg.highlightTarget.size = clampNumber(data.targetHighlightSize, 1, 64, cfg.highlightTarget.size or 2) end
 	if data.targetHighlightOffset ~= nil then cfg.highlightTarget.offset = clampNumber(data.targetHighlightOffset, -64, 64, cfg.highlightTarget.offset or 0) end
 	if data.showName ~= nil then
@@ -18218,6 +18292,11 @@ function GF:EnsureEditMode()
 				targetHighlightEnabled = (cfg.highlightTarget and cfg.highlightTarget.enabled) == true,
 				targetHighlightColor = (cfg.highlightTarget and cfg.highlightTarget.color) or (def.highlightTarget and def.highlightTarget.color) or { 1, 1, 0, 1 },
 				targetHighlightTexture = (cfg.highlightTarget and cfg.highlightTarget.texture) or (def.highlightTarget and def.highlightTarget.texture) or "DEFAULT",
+				targetHighlightLayer = (function()
+					local layer = tostring((cfg.highlightTarget and cfg.highlightTarget.layer) or (def.highlightTarget and def.highlightTarget.layer) or "ABOVE_BORDER"):upper()
+					if layer ~= "BEHIND_BORDER" then layer = "ABOVE_BORDER" end
+					return layer
+				end)(),
 				targetHighlightSize = (cfg.highlightTarget and cfg.highlightTarget.size) or (def.highlightTarget and def.highlightTarget.size) or 2,
 				targetHighlightOffset = (cfg.highlightTarget and cfg.highlightTarget.offset) or (def.highlightTarget and def.highlightTarget.offset) or 0,
 				tooltipMode = tcfg.mode or defTooltip.mode or "OFF",
