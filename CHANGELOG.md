@@ -1,6 +1,14 @@
 # Changelog
 
-## [7.19.0] - 2026-02-17
+## [7.19.1] - 2026-02-18
+
+### 🐛 Fixed
+
+- Standalone Castbar: removed a debug value that hides the setting to enable it
+
+---
+
+## [7.19.0] - 2026-02-18
 
 ### ✨ Added
 
