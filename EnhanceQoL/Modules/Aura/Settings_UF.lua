@@ -2091,6 +2091,21 @@ local function buildUnitSettings(unit)
 			return useBackdropClassColor ~= true
 		end,
 	})
+	list[#list + 1] = checkbox(
+		L["UFHealthBackdropClampToFill"] or "Clamp backdrop to missing health",
+		function()
+			local value = getValue(unit, { "health", "backdrop", "clampToFill" }, healthDef.backdrop and healthDef.backdrop.clampToFill)
+			if value == nil then value = false end
+			return value == true
+		end,
+		function(val)
+			setValue(unit, { "health", "backdrop", "clampToFill" }, val and true or false)
+			refresh()
+		end,
+		healthDef.backdrop and healthDef.backdrop.clampToFill == true,
+		"health",
+		function() return getValue(unit, { "health", "backdrop", "enabled" }, (healthDef.backdrop and healthDef.backdrop.enabled) ~= false) ~= false end
+	)
 
 	if not isBoss then
 		list[#list + 1] = checkbox(

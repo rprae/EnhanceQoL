@@ -288,39 +288,79 @@ local function applyHighlightStyle(st, cfg, key)
 	frame:Hide()
 end
 
-local function applyBarBackdrop(bar, cfg)
-	if not bar or not bar.SetBackdrop then return end
+local function applyBarBackdrop(bar, cfg, options)
+	if not bar then return end
 	cfg = cfg or {}
+	options = options or {}
 	local bd = cfg.backdrop or {}
+	local clampToFill = options.clampToFill == true
 	local enabled = bd.enabled ~= false
 	local col = bd.color or { 0, 0, 0, 0.6 }
 	local r = col[1] or 0
 	local g = col[2] or 0
 	local b = col[3] or 0
 	local a = col[4] or 0.6
+	local currentStatusTex = (clampToFill and bar.GetStatusBarTexture and bar:GetStatusBarTexture()) or nil
 
 	if not enabled then
-		if bar._eqolBackdropEnabled == false then return end
-		bar:SetBackdrop(nil)
+		if bar._eqolBackdropEnabled == false and bar._eqolBackdropClampToFill == clampToFill then return end
+		if bar.SetBackdrop then bar:SetBackdrop(nil) end
+		if bar._eqolBackdropTexture then bar._eqolBackdropTexture:Hide() end
 		bar._eqolBackdropEnabled = false
 		bar._eqolBackdropR, bar._eqolBackdropG, bar._eqolBackdropB, bar._eqolBackdropA = nil, nil, nil, nil
 		bar._eqolBackdropConfigured = nil
+		bar._eqolBackdropClampToFill = clampToFill
+		bar._eqolBackdropStatusTex = nil
 		return
 	end
-	if bar._eqolBackdropEnabled == true and bar._eqolBackdropConfigured == true and bar._eqolBackdropR == r and bar._eqolBackdropG == g and bar._eqolBackdropB == b and bar._eqolBackdropA == a then
+	if
+		bar._eqolBackdropEnabled == true
+		and bar._eqolBackdropConfigured == true
+		and bar._eqolBackdropR == r
+		and bar._eqolBackdropG == g
+		and bar._eqolBackdropB == b
+		and bar._eqolBackdropA == a
+		and bar._eqolBackdropClampToFill == clampToFill
+		and bar._eqolBackdropStatusTex == currentStatusTex
+	then
 		return
 	end
 
-	if bar._eqolBackdropConfigured ~= true then
+	if clampToFill then
+		if bar.SetBackdrop then bar:SetBackdrop(nil) end
+		local tex = bar._eqolBackdropTexture
+		if not tex then
+			tex = bar:CreateTexture(nil, "BACKGROUND")
+			tex:SetTexture("Interface\\Buttons\\WHITE8x8")
+			bar._eqolBackdropTexture = tex
+		end
+		local htex = bar.GetStatusBarTexture and bar:GetStatusBarTexture()
+		tex:ClearAllPoints()
+		if htex then
+			tex:SetPoint("TOPLEFT", htex, "TOPRIGHT", 0, 0)
+			tex:SetPoint("BOTTOMLEFT", htex, "BOTTOMRIGHT", 0, 0)
+			tex:SetPoint("TOPRIGHT", bar, "TOPRIGHT", 0, 0)
+			tex:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", 0, 0)
+		else
+			tex:SetAllPoints(bar)
+		end
+		tex:SetColorTexture(r, g, b, a)
+		tex:Show()
+	else
+		if not bar.SetBackdrop then return end
+		if bar._eqolBackdropTexture then bar._eqolBackdropTexture:Hide() end
 		bar:SetBackdrop({
 			bgFile = "Interface\\Buttons\\WHITE8x8",
 			edgeFile = nil,
 			tile = false,
 		})
-		bar._eqolBackdropConfigured = true
+		bar:SetBackdropColor(r, g, b, a)
 	end
-	bar:SetBackdropColor(r, g, b, a)
+
 	bar._eqolBackdropEnabled = true
+	bar._eqolBackdropConfigured = true
+	bar._eqolBackdropClampToFill = clampToFill
+	bar._eqolBackdropStatusTex = currentStatusTex
 	bar._eqolBackdropR, bar._eqolBackdropG, bar._eqolBackdropB, bar._eqolBackdropA = r, g, b, a
 end
 
@@ -1104,7 +1144,7 @@ local DEFAULTS = {
 			offsetLeft = { x = 6, y = 0 },
 			offsetCenter = { x = 0, y = 0 },
 			offsetRight = { x = -6, y = 0 },
-			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 } },
+			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 }, clampToFill = false },
 		},
 		power = {
 			texture = "DEFAULT",
@@ -1123,7 +1163,7 @@ local DEFAULTS = {
 			offsetLeft = { x = 6, y = 0 },
 			offsetCenter = { x = 0, y = 0 },
 			offsetRight = { x = -6, y = 0 },
-			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 } },
+			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 }, clampToFill = false },
 			showRoles = { TANK = true, HEALER = true, DAMAGER = false },
 			showSpecs = {},
 		},
@@ -2230,7 +2270,9 @@ function GF:BuildButton(self)
 	local cfg = getCfg(kind)
 	self._eqolCfg = cfg
 	updateButtonConfig(self, cfg)
+	local def = DEFAULTS[kind] or {}
 	local hc = cfg.health or {}
+	local defH = def.health or {}
 	local pcfg = cfg.power or {}
 	local tc = cfg.text or {}
 
@@ -2267,7 +2309,10 @@ function GF:BuildButton(self)
 		st._lastHealthTexture = healthTexKey
 	end
 	stabilizeStatusBarTexture(st.health)
-	applyBarBackdrop(st.health, hc)
+	local healthBackdropClampToFill = (hc.backdrop and hc.backdrop.clampToFill)
+	if healthBackdropClampToFill == nil then healthBackdropClampToFill = defH.backdrop and defH.backdrop.clampToFill end
+	if healthBackdropClampToFill == nil then healthBackdropClampToFill = false end
+	applyBarBackdrop(st.health, hc, { clampToFill = healthBackdropClampToFill == true })
 
 	if not st.absorb then
 		st.absorb = CreateFrame("StatusBar", nil, st.health, "BackdropTemplate")
@@ -2424,6 +2469,9 @@ function GF:LayoutButton(self)
 	local def = DEFAULTS[kind] or {}
 	local hc = cfg.health or {}
 	local defH = def.health or {}
+	local healthBackdropClampToFill = (hc.backdrop and hc.backdrop.clampToFill)
+	if healthBackdropClampToFill == nil then healthBackdropClampToFill = defH.backdrop and defH.backdrop.clampToFill end
+	if healthBackdropClampToFill == nil then healthBackdropClampToFill = false end
 
 	local scale = GFH.GetEffectiveScale(self)
 	if not scale or scale <= 0 then scale = (UIParent and UIParent.GetEffectiveScale and UIParent:GetEffectiveScale()) or 1 end
@@ -2457,7 +2505,7 @@ function GF:LayoutButton(self)
 	st.health:ClearAllPoints()
 	st.health:SetPoint("TOPLEFT", st.barGroup, "TOPLEFT", 0, 0)
 	st.health:SetPoint("BOTTOMRIGHT", st.barGroup, "BOTTOMRIGHT", 0, healthBottomOffset)
-	applyBarBackdrop(st.health, hc)
+	applyBarBackdrop(st.health, hc, { clampToFill = healthBackdropClampToFill == true })
 	applyBarBackdrop(st.power, cfg.power or {})
 
 	self.powerBarUsedHeight = powerH > 0 and powerH or 0
@@ -11045,6 +11093,36 @@ local function buildEditModeSettings(kind, editModeId)
 			end,
 		},
 		{
+			name = "Clamp backdrop to missing health",
+			kind = SettingType.Checkbox,
+			field = "healthBackdropClampToFill",
+			parentId = "health",
+			get = function()
+				local cfg = getCfg(kind)
+				local hc = cfg and cfg.health or {}
+				local def = DEFAULTS[kind] and DEFAULTS[kind].health or {}
+				local defBackdrop = def and def.backdrop or {}
+				local value = hc.backdrop and hc.backdrop.clampToFill
+				if value == nil then value = defBackdrop.clampToFill end
+				if value == nil then value = false end
+				return value == true
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.health = cfg.health or {}
+				cfg.health.backdrop = cfg.health.backdrop or {}
+				cfg.health.backdrop.clampToFill = value and true or false
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "healthBackdropClampToFill", cfg.health.backdrop.clampToFill, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			isEnabled = function()
+				local cfg = getCfg(kind)
+				local hc = cfg and cfg.health or {}
+				return hc.backdrop and hc.backdrop.enabled ~= false
+			end,
+		},
+		{
 			name = "Backdrop color",
 			kind = SettingType.Color,
 			field = "healthBackdropColor",
@@ -17518,6 +17596,11 @@ local function applyEditModeData(kind, data)
 		cfg.health.backdrop = cfg.health.backdrop or {}
 		cfg.health.backdrop.enabled = data.healthBackdropEnabled and true or false
 	end
+	if data.healthBackdropClampToFill ~= nil then
+		cfg.health = cfg.health or {}
+		cfg.health.backdrop = cfg.health.backdrop or {}
+		cfg.health.backdrop.clampToFill = data.healthBackdropClampToFill and true or false
+	end
 	if data.healthBackdropColor ~= nil then
 		cfg.health = cfg.health or {}
 		cfg.health.backdrop = cfg.health.backdrop or {}
@@ -18346,6 +18429,7 @@ function GF:EnsureEditMode()
 				healthFontOutline = hc.fontOutline or defH.fontOutline or "OUTLINE",
 				healthTexture = hc.texture or defH.texture or "DEFAULT",
 				healthBackdropEnabled = (hcBackdrop.enabled ~= nil) and (hcBackdrop.enabled ~= false) or (defHBackdrop.enabled ~= false),
+				healthBackdropClampToFill = (hcBackdrop.clampToFill ~= nil) and (hcBackdrop.clampToFill == true) or ((hcBackdrop.clampToFill == nil) and (defHBackdrop.clampToFill == true)),
 				healthBackdropColor = hcBackdrop.color or defHBackdrop.color or { 0, 0, 0, 0.6 },
 				healthLeftX = (cfg.health and cfg.health.offsetLeft and cfg.health.offsetLeft.x) or 0,
 				healthLeftY = (cfg.health and cfg.health.offsetLeft and cfg.health.offsetLeft.y) or 0,

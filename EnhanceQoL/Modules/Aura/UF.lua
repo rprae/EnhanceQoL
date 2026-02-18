@@ -303,7 +303,7 @@ local defaults = {
 			showSampleHealAbsorb = false,
 			healAbsorbTexture = "SOLID",
 			healAbsorbReverseFill = true,
-			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 }, useClassColor = false },
+			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 }, useClassColor = false, clampToFill = false },
 			textLeft = "PERCENT",
 			textCenter = "NONE",
 			textRight = "CURMAX",
@@ -1901,13 +1901,6 @@ function AuraUtil.ensureAuraButton(container, icons, index, ac)
 			if not self._showTooltip then return end
 			local tooltip = GameTooltip
 			if not tooltip or (tooltip.IsForbidden and tooltip:IsForbidden()) then return end
-			local spellId = self.spellId
-			if spellId and (not issecretvalue or not issecretvalue(spellId)) then
-				tooltip:SetOwner(self, "ANCHOR_BOTTOMRIGHT")
-				tooltip:SetSpellByID(spellId)
-				tooltip:Show()
-				return
-			end
 			local unitToken = self.unitToken
 			local auraInstanceID = self.auraInstanceID
 			if not unitToken or not auraInstanceID then return end
@@ -3259,16 +3252,23 @@ local function setBackdrop(frame, borderCfg, borderDef, fallbackEnabled)
 	end
 end
 
-local function applyBarBackdrop(bar, cfg, overrideR, overrideG, overrideB, overrideA)
+local function applyBarBackdrop(bar, cfg, overrideR, overrideG, overrideB, overrideA, options)
 	if not bar then return end
 	cfg = cfg or {}
+	options = options or {}
 	local bd = cfg.backdrop or {}
+	local clampToFill = options.clampToFill == true
+	local reverseFill = options.reverseFill == true
 	local cache = bar._ufBackdropCache
 	if bd.enabled == false then
-		if cache and cache.enabled == false then return end
-		bar:SetBackdrop(nil)
+		if cache and cache.enabled == false and cache.clampToFill == clampToFill and cache.reverseFill == reverseFill then return end
+		if bar.SetBackdrop then bar:SetBackdrop(nil) end
+		if bar._ufBackdropTexture then bar._ufBackdropTexture:Hide() end
 		cache = cache or {}
 		cache.enabled = false
+		cache.clampToFill = clampToFill
+		cache.reverseFill = reverseFill
+		cache.statusTex = nil
 		bar._ufBackdropCache = cache
 		return
 	end
@@ -3283,16 +3283,58 @@ local function applyBarBackdrop(bar, cfg, overrideR, overrideG, overrideB, overr
 	else
 		colorR, colorG, colorB, colorA = unpackColor(bd.color, 0, 0, 0, 0.6)
 	end
-	local styleChanged = not cache or cache.enabled ~= true or cache.colorR ~= colorR or cache.colorG ~= colorG or cache.colorB ~= colorB or cache.colorA ~= colorA
+	local currentStatusTex = (clampToFill and bar.GetStatusBarTexture and bar:GetStatusBarTexture()) or nil
+	local styleChanged = not cache
+		or cache.enabled ~= true
+		or cache.colorR ~= colorR
+		or cache.colorG ~= colorG
+		or cache.colorB ~= colorB
+		or cache.colorA ~= colorA
+		or cache.clampToFill ~= clampToFill
+		or cache.reverseFill ~= reverseFill
+		or cache.statusTex ~= currentStatusTex
 	if not styleChanged then return end
-	bar:SetBackdrop(BAR_BACKDROP_STYLE)
-	bar:SetBackdropColor(colorR, colorG, colorB, colorA)
+	if clampToFill then
+		if bar.SetBackdrop then bar:SetBackdrop(nil) end
+		local tex = bar._ufBackdropTexture
+		if not tex then
+			tex = bar:CreateTexture(nil, "BACKGROUND")
+			tex:SetTexture("Interface\\Buttons\\WHITE8x8")
+			bar._ufBackdropTexture = tex
+		end
+		local htex = bar.GetStatusBarTexture and bar:GetStatusBarTexture()
+		tex:ClearAllPoints()
+		if htex then
+			if reverseFill then
+				tex:SetPoint("TOPLEFT", bar, "TOPLEFT", 0, 0)
+				tex:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", 0, 0)
+				tex:SetPoint("TOPRIGHT", htex, "TOPLEFT", 0, 0)
+				tex:SetPoint("BOTTOMRIGHT", htex, "BOTTOMLEFT", 0, 0)
+			else
+				tex:SetPoint("TOPLEFT", htex, "TOPRIGHT", 0, 0)
+				tex:SetPoint("BOTTOMLEFT", htex, "BOTTOMRIGHT", 0, 0)
+				tex:SetPoint("TOPRIGHT", bar, "TOPRIGHT", 0, 0)
+				tex:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", 0, 0)
+			end
+		else
+			tex:SetAllPoints(bar)
+		end
+		tex:SetColorTexture(colorR, colorG, colorB, colorA)
+		tex:Show()
+	else
+		if bar._ufBackdropTexture then bar._ufBackdropTexture:Hide() end
+		bar:SetBackdrop(BAR_BACKDROP_STYLE)
+		bar:SetBackdropColor(colorR, colorG, colorB, colorA)
+	end
 	cache = cache or {}
 	cache.enabled = true
 	cache.colorR = colorR
 	cache.colorG = colorG
 	cache.colorB = colorB
 	cache.colorA = colorA
+	cache.clampToFill = clampToFill
+	cache.reverseFill = reverseFill
+	cache.statusTex = currentStatusTex
 	bar._ufBackdropCache = cache
 end
 
@@ -5321,10 +5363,14 @@ local function applyBars(cfg, unit)
 	if reverseHealth == nil then reverseHealth = defH.reverseFill == true end
 	UFHelper.applyStatusBarReverseFill(st.health, reverseHealth)
 	local healthBackdropR, healthBackdropG, healthBackdropB, healthBackdropA
+	local healthBackdropClampToFill
 	do
 		local backdropCfg = hc.backdrop or {}
 		local useBackdropClassColor = backdropCfg.useClassColor
 		if useBackdropClassColor == nil and defH.backdrop then useBackdropClassColor = defH.backdrop.useClassColor end
+		healthBackdropClampToFill = backdropCfg.clampToFill
+		if healthBackdropClampToFill == nil and defH.backdrop then healthBackdropClampToFill = defH.backdrop.clampToFill end
+		if healthBackdropClampToFill == nil then healthBackdropClampToFill = false end
 		if useBackdropClassColor == true then
 			local class
 			if UnitIsPlayer and UnitIsPlayer(unit) then
@@ -5341,7 +5387,10 @@ local function applyBars(cfg, unit)
 			end
 		end
 	end
-	applyBarBackdrop(st.health, hc, healthBackdropR, healthBackdropG, healthBackdropB, healthBackdropA)
+	applyBarBackdrop(st.health, hc, healthBackdropR, healthBackdropG, healthBackdropB, healthBackdropA, {
+		clampToFill = healthBackdropClampToFill == true,
+		reverseFill = reverseHealth,
+	})
 	if powerEnabled then
 		st.power:SetStatusBarTexture(UFHelper.resolveTexture(pcfg.texture))
 		if unit == UNIT.PLAYER then refreshMainPower(unit) end
