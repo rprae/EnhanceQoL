@@ -12,6 +12,7 @@
 - Standalone Castbar: Fixed duration text visibility during Empower casts.
 - Castbars: Releasing Evoker Empower casts now no longer shows an incorrect `Interrupted` message.
 - Castbars: `Interrupted` now uses Blizzard interrupt art only for Blizzard default castbar textures; custom textures keep their own look.
+- Unit Frames (Target): Detached power bar `Grow from center` now stays correctly centered on the full frame when portrait mode is enabled.
 
 ---
 

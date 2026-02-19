@@ -4994,12 +4994,13 @@ local function layoutFrame(cfg, unit)
 		local off = pcfg.offset or {}
 		local ox = off.x or 0
 		local oy = off.y or 0
+		local centerOx = detachedGrowFromCenter and (ox - (st._portraitCenterOffset or 0)) or ox
 		if detachedPowerBorder and st.powerGroup then
 			if st.power.GetParent and st.power:GetParent() ~= st.powerGroup then st.power:SetParent(st.powerGroup) end
 			st.powerGroup:Show()
 			st.powerGroup:SetSize(powerWidth + detachedPowerOffset * 2, powerHeight + detachedPowerOffset * 2)
 			if detachedGrowFromCenter then
-				st.powerGroup:SetPoint("TOP", st.health, "BOTTOM", ox, oy + detachedPowerOffset)
+				st.powerGroup:SetPoint("TOP", st.health, "BOTTOM", centerOx, oy + detachedPowerOffset)
 				st.power:SetPoint("TOP", st.powerGroup, "TOP", 0, -detachedPowerOffset)
 			else
 				st.powerGroup:SetPoint("TOPLEFT", st.health, "BOTTOMLEFT", ox - detachedPowerOffset, oy + detachedPowerOffset)
@@ -5009,7 +5010,7 @@ local function layoutFrame(cfg, unit)
 			if st.powerGroup then st.powerGroup:Hide() end
 			if st.power.GetParent and st.power:GetParent() ~= st.barGroup then st.power:SetParent(st.barGroup) end
 			if detachedGrowFromCenter then
-				st.power:SetPoint("TOP", st.health, "BOTTOM", ox, oy)
+				st.power:SetPoint("TOP", st.health, "BOTTOM", centerOx, oy)
 			else
 				st.power:SetPoint("TOPLEFT", st.health, "BOTTOMLEFT", ox, oy)
 			end
