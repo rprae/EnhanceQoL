@@ -136,7 +136,7 @@ function H.getNPCSelectionKey(unit)
 	if issecretvalue and issecretvalue(t) then t = nil end
 	local key = selectionKeyByType[t]
 
-	local reaction = UnitReaction and UnitReaction("player", unit)
+	local reaction = UnitReaction and UnitReaction(unit, "player")
 	if issecretvalue and issecretvalue(reaction) then reaction = nil end
 	if reaction then
 		if reaction <= 3 then return "enemy" end
