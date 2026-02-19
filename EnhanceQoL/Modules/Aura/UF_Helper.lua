@@ -1095,7 +1095,8 @@ end
 function H.resolveCastInterruptTexture() return BLIZZARD_CAST_INTERRUPTED_TEX end
 
 function H.resolveCastIconTexture(texture)
-	if texture == nil or texture == "" or texture == 0 then return BLIZZARD_CAST_ICON_FALLBACK_TEX end
+	if issecretvalue and issecretvalue(texture) then return texture end
+	if texture == nil then return BLIZZARD_CAST_ICON_FALLBACK_TEX end
 	return texture
 end
 

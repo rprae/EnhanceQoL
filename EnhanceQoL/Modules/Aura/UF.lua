@@ -3619,7 +3619,7 @@ local function configureCastStatic(unit, ccfg, defc)
 	end
 	if st.castIcon then
 		local iconTexture = UFHelper.resolveCastIconTexture(st.castInfo.texture)
-		local showIcon = ccfg.showIcon ~= false and iconTexture ~= nil
+		local showIcon = ccfg.showIcon ~= false
 		st.castIcon:SetShown(showIcon)
 		if showIcon then
 			st.castIcon:SetTexture(iconTexture)
@@ -3841,7 +3841,7 @@ function UF.ShowCastInterrupt(unit, event)
 	end
 	if st.castIcon then
 		local iconTexture = UFHelper.resolveCastIconTexture((st.castInfo and st.castInfo.texture) or st.castIconTexture)
-		local showIcon = ccfg.showIcon ~= false and iconTexture ~= nil
+		local showIcon = ccfg.showIcon ~= false
 		st.castIcon:SetShown(showIcon)
 		if showIcon then
 			st.castIcon:SetTexture(iconTexture)
@@ -4004,7 +4004,7 @@ local function setCastInfoFromUnit(unit)
 			end
 			if st.castIcon then
 				local iconTexture = UFHelper.resolveCastIconTexture(texture)
-				local showIcon = ccfg.showIcon ~= false and iconTexture ~= nil
+				local showIcon = ccfg.showIcon ~= false
 				st.castIcon:SetShown(showIcon)
 				if showIcon then
 					st.castIcon:SetTexture(iconTexture)
