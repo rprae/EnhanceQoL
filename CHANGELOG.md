@@ -8,6 +8,10 @@
 - Economy (Bank): Added automatic gold balancing with the Warband bank.
 - Economy (Bank): Added optional per-character target values and automatic withdraw.
 
+### 🐛 Fixed
+
+- Character Frame: The selected font for item details now applies correctly again (item level, gems, enchants).
+
 ---
 
 ## [7.19.3] - 2026-02-19

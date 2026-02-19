@@ -451,7 +451,18 @@ local function getItemLevelFontFace()
 	if type(configured) ~= "string" or configured == "" then return addon.variables.defaultFont end
 	if configured == addon.variables.defaultFont then return configured end
 	local LSM = LibStub("LibSharedMedia-3.0", true)
-	if LSM and LSM.IsValid and LSM:IsValid("font", configured) then return configured end
+	if LSM then
+		if LSM.IsValid and LSM:IsValid("font", configured) then
+			local fetched = LSM.Fetch and LSM:Fetch("font", configured, true)
+			if type(fetched) == "string" and fetched ~= "" then return fetched end
+			return configured
+		end
+		if LSM.HashTable then
+			for _, path in pairs(LSM:HashTable("font") or {}) do
+				if path == configured then return configured end
+			end
+		end
+	end
 	return addon.variables.defaultFont
 end
 
