@@ -16,6 +16,7 @@
 - Unit Frames: Added missing `Strong drop shadow` font outline option in Unit Frame settings and implemented the stronger shadow rendering for text.
 - Tooltips: Fixed unit info lines (class color, mount, targeting, item level/spec) sometimes using current target data when hovering the Player frame.
 - Tooltips: Re-applied tooltip scale after Login UI scaling on startup to prevent wrong tooltip size after relog/reload.
+- Container Actions: Fixed an infinite auto-open retry loop when a container cannot be looted.
 
 ---
 
