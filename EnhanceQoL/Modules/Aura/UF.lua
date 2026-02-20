@@ -449,6 +449,7 @@ local defaults = {
 			gradientStartColor = { 1, 1, 1, 1 },
 			gradientEndColor = { 1, 1, 1, 1 },
 			gradientDirection = "HORIZONTAL",
+			gradientMode = "CASTBAR",
 			notInterruptibleColor = DEFAULT_NOT_INTERRUPTIBLE_COLOR,
 			showInterruptFeedback = true,
 		},
@@ -627,6 +628,7 @@ local defaults = {
 			gradientStartColor = { 1, 1, 1, 1 },
 			gradientEndColor = { 1, 1, 1, 1 },
 			gradientDirection = "HORIZONTAL",
+			gradientMode = "CASTBAR",
 			notInterruptibleColor = DEFAULT_NOT_INTERRUPTIBLE_COLOR,
 			showInterruptFeedback = true,
 		},
@@ -3613,6 +3615,7 @@ local function configureCastStatic(unit, ccfg, defc)
 	st.castInfo.maxValue = maxValue
 	-- UFHelper.applyStatusBarReverseFill(st.castBar, st.castInfo.isChannel == true and not st.castInfo.isEmpowered)
 	st.castBar:SetMinMaxValues(0, maxValue)
+	UFHelper.RefreshCastbarGradient(st.castBar, isEmpoweredDefault and nil or ccfg)
 	if st.castName then
 		local showName = ccfg.showName ~= false
 		st.castName:SetShown(showName)
@@ -3687,6 +3690,12 @@ local function updateCastBar(unit)
 	if elapsedMs < 0 then elapsedMs = 0 end
 	local value = elapsedMs / 1000
 	st.castBar:SetValue(value)
+	if not (st.castInfo.isEmpowered and st.castUseDefaultArt == true) and ccfg.useGradient == true and type(ccfg.gradientMode) == "string" and ccfg.gradientMode:upper() == "BAR_END" then
+		local maxValue = st.castInfo.maxValue
+		local progress
+		if type(maxValue) == "number" and maxValue > 0 then progress = value / maxValue end
+		UFHelper.RefreshCastbarGradient(st.castBar, ccfg, nil, nil, nil, nil, progress)
+	end
 	if st.castInfo.isEmpowered then
 		local maxValue = st.castInfo.maxValue
 		if not maxValue then
@@ -4024,8 +4033,27 @@ local function setCastInfoFromUnit(unit)
 			local activeColor = notInterruptible and nclr or clr
 			UFHelper.SetCastbarColorWithGradient(st.castBar, ccfg, activeColor[1] or 0.9, activeColor[2] or 0.7, activeColor[3] or 0.2, activeColor[4] or 1)
 			st.castBar:SetStatusBarDesaturated(true)
+			local usesBarEndGradient = not (isEmpowered and st.castUseDefaultArt == true)
+				and ccfg.useGradient == true
+				and type(ccfg.gradientMode) == "string"
+				and ccfg.gradientMode:upper() == "BAR_END"
+			if usesBarEndGradient then
+				local totalDuration = durObj:GetTotalDuration()
+				if totalDuration and totalDuration > 0 then
+					local progress
+					if direction == Enum.StatusBarTimerDirection.RemainingTime then
+						progress = durObj:GetRemainingDuration() / totalDuration
+					else
+						progress = durObj:GetElapsedDuration() / totalDuration
+					end
+					UFHelper.RefreshCastbarGradient(st.castBar, ccfg, nil, nil, nil, nil, progress)
+				else
+					UFHelper.RefreshCastbarGradient(st.castBar, ccfg)
+				end
+			end
 			local showDuration = ccfg.showDuration ~= false and st.castDuration ~= nil
-			if not showDuration then
+			local needsOnUpdate = showDuration or usesBarEndGradient
+			if not needsOnUpdate then
 				if castOnUpdateHandlers[unit] then
 					st.castBar:SetScript("OnUpdate", nil)
 					castOnUpdateHandlers[unit] = nil
@@ -4034,8 +4062,15 @@ local function setCastInfoFromUnit(unit)
 					st.castDuration:SetText("")
 					st.castDuration:Hide()
 				end
-			elseif not castOnUpdateHandlers[unit] then
-				st.castDuration:Show()
+			else
+				if st.castDuration then
+					if showDuration then
+						st.castDuration:Show()
+					else
+						st.castDuration:SetText("")
+						st.castDuration:Hide()
+					end
+				end
 				st.castBar._eqolCastDurationElapsed = 0
 				st.castBar:SetScript("OnUpdate", function(self, elapsed)
 					local timerObj = st.castBarDuration
@@ -4049,12 +4084,25 @@ local function setCastInfoFromUnit(unit)
 					if self._eqolCastDurationElapsed < 0.1 then return end
 					self._eqolCastDurationElapsed = 0
 
+					local totalDuration = timerObj:GetTotalDuration()
+					if type(totalDuration) ~= "number" then totalDuration = 0 end
+					if usesBarEndGradient and totalDuration > 0 then
+						local progress
+						if direction == Enum.StatusBarTimerDirection.RemainingTime then
+							progress = timerObj:GetRemainingDuration() / totalDuration
+						else
+							progress = timerObj:GetElapsedDuration() / totalDuration
+						end
+						UFHelper.RefreshCastbarGradient(st.castBar, ccfg, nil, nil, nil, nil, progress)
+					end
+
+					if not showDuration or not st.castDuration then return end
 					local durationFormat = ccfg.durationFormat or defc.durationFormat or "REMAINING"
 					if durationFormat == "ELAPSED_TOTAL" then
-						st.castDuration:SetText(("%.1f / %.1f"):format(timerObj:GetElapsedDuration(), timerObj:GetTotalDuration()))
+						st.castDuration:SetText(("%.1f / %.1f"):format(timerObj:GetElapsedDuration(), totalDuration))
 						return
 					elseif durationFormat == "REMAINING_TOTAL" then
-						st.castDuration:SetText(("%.1f / %.1f"):format(timerObj:GetRemainingDuration(), timerObj:GetTotalDuration()))
+						st.castDuration:SetText(("%.1f / %.1f"):format(timerObj:GetRemainingDuration(), totalDuration))
 						return
 					else
 						st.castDuration:SetText(("%.1f"):format(timerObj:GetRemainingDuration()))

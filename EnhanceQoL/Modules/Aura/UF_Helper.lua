@@ -1214,65 +1214,66 @@ end
 
 function H.shouldUseDefaultCastArt(st) return st and st.castUseDefaultArt == true end
 
-function H.SetCastbarColorWithGradient(bar, ccfg, r, g, b, a)
+local function clearCastbarGradientState(bar)
 	if not bar then return end
-	local br, bg, bb, ba = r or 1, g or 1, b or 1, a or 1
-	local lastColor = bar._eqolLastColor
-	if not lastColor or lastColor[1] ~= br or lastColor[2] ~= bg or lastColor[3] ~= bb or lastColor[4] ~= ba then
-		bar:SetStatusBarColor(br, bg, bb, ba)
-		bar._eqolLastColor = bar._eqolLastColor or {}
-		bar._eqolLastColor[1], bar._eqolLastColor[2], bar._eqolLastColor[3], bar._eqolLastColor[4] = br, bg, bb, ba
-	end
+	bar._eqolGradientEnabled = nil
+	bar._eqolGradientTex = nil
+	bar._eqolGradDir = nil
+	bar._eqolGradSR = nil
+	bar._eqolGradSG = nil
+	bar._eqolGradSB = nil
+	bar._eqolGradSA = nil
+	bar._eqolGradER = nil
+	bar._eqolGradEG = nil
+	bar._eqolGradEB = nil
+	bar._eqolGradEA = nil
+end
 
-	local function clearState()
-		bar._eqolGradientEnabled = nil
-		bar._eqolGradientTex = nil
-		bar._eqolGradDir = nil
-		bar._eqolGradSR = nil
-		bar._eqolGradSG = nil
-		bar._eqolGradSB = nil
-		bar._eqolGradSA = nil
-		bar._eqolGradER = nil
-		bar._eqolGradEG = nil
-		bar._eqolGradEB = nil
-		bar._eqolGradEA = nil
-	end
+local function normalizeGradientColor(color)
+	if type(color) ~= "table" then return 1, 1, 1, 1 end
+	if color.r ~= nil then return color.r or 1, color.g or 1, color.b or 1, color.a or 1 end
+	return color[1] or 1, color[2] or 1, color[3] or 1, color[4] or 1
+end
 
-	if not ccfg or ccfg.useGradient ~= true then
-		if bar._eqolGradientEnabled then clearState() end
-		return
-	end
+local function normalizeCastbarGradientMode(value)
+	if type(value) == "string" and value:upper() == "BAR_END" then return "BAR_END" end
+	return "CASTBAR"
+end
 
+local function resolveCastbarGradientProgress(bar, progressOverride)
+	local progress = tonumber(progressOverride)
+	if not progress and bar and bar.GetMinMaxValues and bar.GetValue then
+		local minValue, maxValue = bar:GetMinMaxValues()
+		local value = bar:GetValue()
+		if type(value) == "number" and type(minValue) == "number" and type(maxValue) == "number" then
+			local range = maxValue - minValue
+			if range > 0 then progress = (value - minValue) / range end
+		end
+	end
+	if type(progress) ~= "number" then return nil end
+	return H.clamp(progress, 0, 1)
+end
+
+local function applyCastbarGradient(bar, ccfg, baseR, baseG, baseB, baseA, progressOverride)
+	if not bar or not ccfg or ccfg.useGradient ~= true then return false end
 	local tex = bar.GetStatusBarTexture and bar:GetStatusBarTexture()
-	if not tex or not tex.SetGradient then
-		clearState()
-		return
-	end
+	if not tex or not tex.SetGradient then return false end
 
-	local startColor = ccfg.gradientStartColor
-	local endColor = ccfg.gradientEndColor
-	local sr, sg, sb, sa
-	local er, eg, eb, ea
-	if type(startColor) == "table" then
-		if startColor.r ~= nil then
-			sr, sg, sb, sa = startColor.r or 1, startColor.g or 1, startColor.b or 1, startColor.a or 1
-		else
-			sr, sg, sb, sa = startColor[1] or 1, startColor[2] or 1, startColor[3] or 1, startColor[4] or 1
-		end
-	else
-		sr, sg, sb, sa = 1, 1, 1, 1
-	end
-	if type(endColor) == "table" then
-		if endColor.r ~= nil then
-			er, eg, eb, ea = endColor.r or 1, endColor.g or 1, endColor.b or 1, endColor.a or 1
-		else
-			er, eg, eb, ea = endColor[1] or 1, endColor[2] or 1, endColor[3] or 1, endColor[4] or 1
-		end
-	else
-		er, eg, eb, ea = 1, 1, 1, 1
-	end
+	local sr, sg, sb, sa = normalizeGradientColor(ccfg.gradientStartColor)
+	local er, eg, eb, ea = normalizeGradientColor(ccfg.gradientEndColor)
+	local br, bg, bb, ba = baseR or 1, baseG or 1, baseB or 1, baseA or 1
 	sr, sg, sb, sa = br * sr, bg * sg, bb * sb, ba * sa
 	er, eg, eb, ea = br * er, bg * eg, bb * eb, ba * ea
+
+	if normalizeCastbarGradientMode(ccfg.gradientMode) == "BAR_END" then
+		local progress = resolveCastbarGradientProgress(bar, progressOverride)
+		if progress then
+			er = sr + (er - sr) * progress
+			eg = sg + (eg - sg) * progress
+			eb = sb + (eb - sb) * progress
+			ea = sa + (ea - sa) * progress
+		end
+	end
 
 	local direction = ccfg.gradientDirection or "HORIZONTAL"
 	if type(direction) == "string" then direction = direction:upper() end
@@ -1291,7 +1292,7 @@ function H.SetCastbarColorWithGradient(bar, ccfg, r, g, b, a)
 		and bar._eqolGradEB == eb
 		and bar._eqolGradEA == ea
 	then
-		return
+		return true
 	end
 
 	tex:SetGradient(direction, CreateColor(sr, sg, sb, sa), CreateColor(er, eg, eb, ea))
@@ -1300,6 +1301,40 @@ function H.SetCastbarColorWithGradient(bar, ccfg, r, g, b, a)
 	bar._eqolGradDir = direction
 	bar._eqolGradSR, bar._eqolGradSG, bar._eqolGradSB, bar._eqolGradSA = sr, sg, sb, sa
 	bar._eqolGradER, bar._eqolGradEG, bar._eqolGradEB, bar._eqolGradEA = er, eg, eb, ea
+	return true
+end
+
+function H.SetCastbarColorWithGradient(bar, ccfg, r, g, b, a, progressOverride)
+	if not bar then return end
+	local br, bg, bb, ba = r or 1, g or 1, b or 1, a or 1
+	local lastColor = bar._eqolLastColor
+	if not lastColor or lastColor[1] ~= br or lastColor[2] ~= bg or lastColor[3] ~= bb or lastColor[4] ~= ba then
+		bar:SetStatusBarColor(br, bg, bb, ba)
+		bar._eqolLastColor = bar._eqolLastColor or {}
+		bar._eqolLastColor[1], bar._eqolLastColor[2], bar._eqolLastColor[3], bar._eqolLastColor[4] = br, bg, bb, ba
+	end
+	if ccfg and ccfg.useGradient == true then
+		if not applyCastbarGradient(bar, ccfg, br, bg, bb, ba, progressOverride) then clearCastbarGradientState(bar) end
+	elseif bar._eqolGradientEnabled then
+		clearCastbarGradientState(bar)
+	end
+end
+
+function H.RefreshCastbarGradient(bar, ccfg, r, g, b, a, progressOverride)
+	if not bar then return end
+	local br, bg, bb, ba = r, g, b, a
+	if br == nil then
+		if bar._eqolLastColor then
+			br, bg, bb, ba = bar._eqolLastColor[1], bar._eqolLastColor[2], bar._eqolLastColor[3], bar._eqolLastColor[4]
+		elseif bar.GetStatusBarColor then
+			br, bg, bb, ba = bar:GetStatusBarColor()
+		end
+	end
+	if ccfg and ccfg.useGradient == true then
+		if not applyCastbarGradient(bar, ccfg, br or 1, bg or 1, bb or 1, ba or 1, progressOverride) then clearCastbarGradientState(bar) end
+	elseif bar._eqolGradientEnabled then
+		clearCastbarGradientState(bar)
+	end
 end
 
 local CAST_SPARK_WIDTH = 8

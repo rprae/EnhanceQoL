@@ -3665,6 +3665,24 @@ local function buildUnitSettings(unit)
 			refreshSettingsUI()
 		end, castDef.useGradient == true, "cast", isCastEnabled)
 
+		local castGradientModeOptions = {
+			{ value = "CASTBAR", label = L["Gradient with castbar"] or "Gradient with castbar" },
+			{ value = "BAR_END", label = L["Gradient at end of bar"] or "Gradient at end of bar" },
+		}
+		local castGradientMode = checkboxDropdown(
+			L["Gradient mode"] or "Gradient mode",
+			castGradientModeOptions,
+			function() return getValue(unit, { "cast", "gradientMode" }, castDef.gradientMode or "CASTBAR") end,
+			function(val)
+				setValue(unit, { "cast", "gradientMode" }, val or "CASTBAR")
+				refresh()
+			end,
+			castDef.gradientMode or "CASTBAR",
+			"cast"
+		)
+		castGradientMode.isEnabled = function() return isCastEnabled() and isCastGradientEnabled() end
+		list[#list + 1] = castGradientMode
+
 		list[#list + 1] = {
 			name = L["Gradient start color"] or "Gradient start color",
 			kind = settingType.Color,
