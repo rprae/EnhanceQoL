@@ -191,6 +191,7 @@ local COSMETIC_BAR_KEYS = {
 	"staggerExtremeColor",
 	"useMaelstromFiveColor",
 	"useMaelstromTenStacks",
+	"useMaelstromCarryFill",
 	"maelstromFiveColor",
 	"useHolyThreeColor",
 	"holyThreeColor",
@@ -208,6 +209,7 @@ local COSMETIC_BAR_KEYS = {
 	"showSeparator",
 	"separatorColor",
 	"separatorThickness",
+	"separatedOffset",
 	"showThresholds",
 	"useAbsoluteThresholds",
 	"thresholds",
@@ -637,6 +639,7 @@ local function ensureMaelstromWeaponDefaults(cfg)
 	if not cfg then return end
 	if cfg.useMaelstromFiveColor == nil then cfg.useMaelstromFiveColor = true end
 	if cfg.useMaelstromTenStacks == nil then cfg.useMaelstromTenStacks = cfg.visualSegments == RB.MAELSTROM_WEAPON_MAX_STACKS end
+	if cfg.useMaelstromCarryFill == nil then cfg.useMaelstromCarryFill = false end
 	if cfg.useMaxColor == nil then cfg.useMaxColor = true end
 	if not cfg.maxColor then cfg.maxColor = CopyTable(RB.DEFAULT_MAX_COLOR) end
 	if not cfg.maelstromFiveColor then cfg.maelstromFiveColor = CopyTable(ResourcebarVars.DEFAULT_MAELSTROM_WEAPON_FIVE_COLOR) end
@@ -647,6 +650,7 @@ local function ensureMaelstromWeaponDefaults(cfg)
 	end
 	if cfg.showSeparator == nil then cfg.showSeparator = true end
 	if not cfg.separatorThickness then cfg.separatorThickness = RB.SEPARATOR_THICKNESS end
+	if cfg.separatedOffset == nil then cfg.separatedOffset = 0 end
 	if not cfg.separatorColor then cfg.separatorColor = CopyTable(RB.SEP_DEFAULT) end
 end
 
@@ -661,6 +665,7 @@ local function ensureAuraPowerDefaults(pType, cfg)
 		end
 	end
 	if not cfg.separatorThickness then cfg.separatorThickness = RB.SEPARATOR_THICKNESS end
+	if cfg.separatedOffset == nil then cfg.separatedOffset = 0 end
 	if not cfg.separatorColor then cfg.separatorColor = CopyTable(RB.SEP_DEFAULT) end
 	if def and not cfg.visualSegments then cfg.visualSegments = def.visualSegments end
 	if def and def.useMaxColorDefault and cfg.useMaxColor == nil then cfg.useMaxColor = true end
@@ -3376,7 +3381,7 @@ function updatePowerBar(type, runeSlot)
 		end
 		bar._usingMaxColor = flag == "max"
 		bar._usingMaelstromFiveColor = flag == "mid"
-		local usingDiscreteSegments = refreshDiscreteSegmentsForBar(type, bar, cfg, shownStacks, visualMax)
+		local usingDiscreteSegments = refreshDiscreteSegmentsForBar(type, bar, cfg, shownStacks, visualMax, stacks)
 		configureSpecialTexture(bar, type, cfg)
 		if usingDiscreteSegments then
 			setParentBarTextureVisible(bar, false)
@@ -3675,7 +3680,7 @@ shouldUseDiscreteSeparatorSegments = function(pType, cfg)
 	return cfg.useGradient == true
 end
 
-refreshDiscreteSegmentsForBar = function(pType, bar, cfg, value, maxValue)
+refreshDiscreteSegmentsForBar = function(pType, bar, cfg, value, maxValue, rawValue)
 	if not bar then return false end
 	if not shouldUseDiscreteSeparatorSegments(pType, cfg) then
 		if ResourceBars.HideDiscreteSegments then ResourceBars.HideDiscreteSegments(bar) end
@@ -3693,6 +3698,7 @@ refreshDiscreteSegmentsForBar = function(pType, bar, cfg, value, maxValue)
 	local scaledValue = tonumber(value) or 0
 	local sourceMax = tonumber(maxValue) or segments
 	if sourceMax > 0 and sourceMax ~= segments then scaledValue = (scaledValue / sourceMax) * segments end
+	bar._rbDiscreteRawValue = tonumber(rawValue) or tonumber(value) or 0
 
 	if ResourceBars.UpdateDiscreteSegments then
 		local separatorThickness = (cfg and cfg.showSeparator == true and ((cfg and cfg.separatorThickness) or RB.SEPARATOR_THICKNESS)) or 0
@@ -5542,6 +5548,7 @@ ResourceBars.DEFAULT_HEALTH_HEIGHT = RB.DEFAULT_HEALTH_HEIGHT
 ResourceBars.DEFAULT_POWER_WIDTH = RB.DEFAULT_POWER_WIDTH
 ResourceBars.DEFAULT_POWER_HEIGHT = RB.DEFAULT_POWER_HEIGHT or RB.DEFAULT_HEALTH_HEIGHT
 ResourceBars.MIN_RESOURCE_BAR_WIDTH = RB.MIN_RESOURCE_BAR_WIDTH
+ResourceBars.MAELSTROM_WEAPON_SEGMENTS = RB.MAELSTROM_WEAPON_SEGMENTS
 ResourceBars.THRESHOLD_THICKNESS = RB.THRESHOLD_THICKNESS
 ResourceBars.THRESHOLD_DEFAULT = RB.THRESHOLD_DEFAULT
 ResourceBars.DEFAULT_THRESHOLDS = RB.DEFAULT_THRESHOLDS

@@ -1105,6 +1105,38 @@ local function registerEditModeBars()
 					end,
 					parentId = "frame",
 				}
+
+				settingsList[#settingsList + 1] = {
+					name = L["Separated offset"] or "Separated offset",
+					kind = settingType.Slider,
+					allowInput = true,
+					field = "separatedOffset",
+					minValue = 0,
+					maxValue = 30,
+					valueStep = 1,
+					get = function()
+						local c = curSpecCfg()
+						return (c and c.separatedOffset) or 0
+					end,
+					set = function(_, value)
+						local c = curSpecCfg()
+						if not c then return end
+						local new = tonumber(value) or 0
+						if new < 0 then new = 0 end
+						new = math.floor(new + 0.5)
+						if c.separatedOffset == new then return end
+						c.separatedOffset = new
+						queueRefresh()
+					end,
+					default = (cfg and cfg.separatedOffset) or 0,
+					isShown = function() return barType ~= "RUNES" and barType ~= "ESSENCE" end,
+					isEnabled = function()
+						local c = curSpecCfg()
+						if not c then return false end
+						return c.showSeparator == true or c.useGradient == true
+					end,
+					parentId = "frame",
+				}
 			end
 
 			-- Threshold controls (all non-health bars)
@@ -2341,6 +2373,28 @@ local function registerEditModeBars()
 						end,
 						hasOpacity = true,
 						parentId = "colorsetting",
+					}
+
+					settingsList[#settingsList + 1] = {
+						name = "Keep 5-stack fill above 5",
+						kind = settingType.Checkbox,
+						field = "useMaelstromCarryFill",
+						default = false,
+						parentId = "colorsetting",
+						get = function()
+							local c = curSpecCfg()
+							return c and c.useMaelstromCarryFill == true
+						end,
+						set = function(_, value)
+							local c = curSpecCfg()
+							if not c then return end
+							c.useMaelstromCarryFill = value and true or false
+							queueRefresh()
+						end,
+						isEnabled = function()
+							local c = curSpecCfg()
+							return c and c.useMaelstromFiveColor ~= false
+						end,
 					}
 				end
 
