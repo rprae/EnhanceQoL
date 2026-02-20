@@ -10,4 +10,9 @@ addon.variables.NewVersionTableEQOL = {
 	["EQOL_autoWarbandGoldTargetCharacter"] = true,
 	["EQOL_autoWarbandGoldTargetGoldPerCharacter"] = true,
 	["EQOL_autoWarbandGoldWithdraw"] = true,
+
+	-- Interface -> Map Navigation -> Square Minimap Stats
+	["EQOL_UI"] = true,
+	["EQOL_MapNavigation"] = true,
+	["EQOL_enableSquareMinimapStats"] = true,
 }
