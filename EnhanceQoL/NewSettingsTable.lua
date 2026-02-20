@@ -15,4 +15,8 @@ addon.variables.NewVersionTableEQOL = {
 	["EQOL_UI"] = true,
 	["EQOL_MapNavigation"] = true,
 	["EQOL_enableSquareMinimapStats"] = true,
+
+	-- Interface -> Mover -> Activities -> Queue Status Button
+	["EQOL_Mover"] = true,
+	["EQOL_moverFrame_QueueStatusButton"] = true,
 }

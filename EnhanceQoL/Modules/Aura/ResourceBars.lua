@@ -1388,11 +1388,13 @@ local function configureSpecialTexture(bar, pType, cfg)
 	end
 	local shouldNormalize = shouldNormalizeAtlasColor(cfg, pType, bar)
 	local tex = bar.GetStatusBarTexture and bar:GetStatusBarTexture() or nil
+	local currentAlpha = tex and tex.GetAlpha and tex:GetAlpha() or nil
 	local currentAtlas = tex and tex.GetAtlas and tex:GetAtlas() or nil
 	if bar._eqolSpecialAtlas == atlas and bar._eqolSpecialAtlasNormalized == shouldNormalize and currentAtlas == atlas then return end
 	if bar.SetStatusBarTexture then bar:SetStatusBarTexture(atlas) end
 	tex = bar.GetStatusBarTexture and bar:GetStatusBarTexture() or nil
 	if tex and tex.SetAtlas then
+		if currentAlpha ~= nil and tex.SetAlpha then tex:SetAlpha(currentAlpha) end
 		currentAtlas = tex.GetAtlas and tex:GetAtlas()
 		if currentAtlas ~= atlas then tex:SetAtlas(atlas, true) end
 		if tex.SetHorizTile then tex:SetHorizTile(false) end
@@ -3374,9 +3376,13 @@ function updatePowerBar(type, runeSlot)
 		end
 		bar._usingMaxColor = flag == "max"
 		bar._usingMaelstromFiveColor = flag == "mid"
-		refreshDiscreteSegmentsForBar(type, bar, cfg, shownStacks, visualMax)
+		local usingDiscreteSegments = refreshDiscreteSegmentsForBar(type, bar, cfg, shownStacks, visualMax)
 		configureSpecialTexture(bar, type, cfg)
-		if ResourceBars.RefreshStatusBarGradient then ResourceBars.RefreshStatusBarGradient(bar, cfg) end
+		if usingDiscreteSegments then
+			setParentBarTextureVisible(bar, false)
+		elseif ResourceBars.RefreshStatusBarGradient then
+			ResourceBars.RefreshStatusBarGradient(bar, cfg)
+		end
 		return
 	end
 	local pType = POWER_ENUM[type]
