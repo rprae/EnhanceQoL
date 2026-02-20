@@ -1,6 +1,7 @@
 local addonName, addon = ...
 
 local AceGUI = LibStub("AceGUI-3.0")
+local SharedMedia = LibStub("LibSharedMedia-3.0", true)
 
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL")
 
@@ -17,6 +18,48 @@ local UnitHealth, UnitHealthMax = UnitHealth, UnitHealthMax
 local UnitPower, UnitPowerMax = UnitPower, UnitPowerMax
 local UnitHealthPercent = UnitHealthPercent
 local UnitPowerPercent = UnitPowerPercent
+
+local function normalizeMediaValue(value)
+	if type(value) ~= "string" or value == "" then return nil end
+	return value
+end
+
+local function defaultFontFace() return (addon.variables and addon.variables.defaultFont) or STANDARD_TEXT_FONT end
+
+function addon.functions.ResolveLSMMedia(mediaType, configured, fallback, allowPath)
+	local mediaKind = normalizeMediaValue(mediaType)
+	local fallbackValue = normalizeMediaValue(fallback)
+	local configuredValue = normalizeMediaValue(configured)
+	if not configuredValue then return fallbackValue end
+	if configuredValue == fallbackValue then return configuredValue end
+	if not mediaKind then
+		if allowPath ~= false and (configuredValue:find("\\", 1, true) or configuredValue:find("/", 1, true)) then return configuredValue end
+		return fallbackValue
+	end
+	local lsm = SharedMedia or LibStub("LibSharedMedia-3.0", true)
+	if lsm then
+		if lsm.IsValid and lsm:IsValid(mediaKind, configuredValue) then
+			local fetched = lsm.Fetch and lsm:Fetch(mediaKind, configuredValue, true)
+			if type(fetched) == "string" and fetched ~= "" then return fetched end
+			return configuredValue
+		end
+		if lsm.HashTable then
+			local hash = lsm:HashTable(mediaKind) or {}
+			local byName = hash[configuredValue]
+			if type(byName) == "string" and byName ~= "" then return byName end
+			for _, path in pairs(hash) do
+				if path == configuredValue then return configuredValue end
+			end
+		end
+	end
+	if allowPath ~= false and (configuredValue:find("\\", 1, true) or configuredValue:find("/", 1, true)) then return configuredValue end
+	return fallbackValue
+end
+
+function addon.functions.ResolveFontFace(configured, fallback)
+	local fallbackFace = normalizeMediaValue(fallback) or defaultFontFace()
+	return addon.functions.ResolveLSMMedia("font", configured, fallbackFace, true) or fallbackFace
+end
 
 function addon.functions.InitDBValue(key, defaultValue)
 	if addon.db[key] == nil then addon.db[key] = defaultValue end
@@ -448,22 +491,7 @@ end
 
 local function getItemLevelFontFace()
 	local configured = addon.db and addon.db["ilvlFontFace"]
-	if type(configured) ~= "string" or configured == "" then return addon.variables.defaultFont end
-	if configured == addon.variables.defaultFont then return configured end
-	local LSM = LibStub("LibSharedMedia-3.0", true)
-	if LSM then
-		if LSM.IsValid and LSM:IsValid("font", configured) then
-			local fetched = LSM.Fetch and LSM:Fetch("font", configured, true)
-			if type(fetched) == "string" and fetched ~= "" then return fetched end
-			return configured
-		end
-		if LSM.HashTable then
-			for _, path in pairs(LSM:HashTable("font") or {}) do
-				if path == configured then return configured end
-			end
-		end
-	end
-	return addon.variables.defaultFont
+	return addon.functions.ResolveFontFace(configured, defaultFontFace())
 end
 
 local function getItemLevelFontSize()

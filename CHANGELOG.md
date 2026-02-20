@@ -12,6 +12,7 @@
 ### 🐛 Fixed
 
 - Character Frame: The selected font for item details now applies correctly again (item level, gems, enchants).
+- Data Panels: Time stream font and text scale updates now apply reliably.
 
 ---
 

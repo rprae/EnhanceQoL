@@ -126,6 +126,16 @@ local function normalizeFontFace(value)
 	return value
 end
 
+local function resolveFontFace(value, fallback)
+	local fallbackFace = normalizeFontFace(fallback) or defaultFontFace()
+	local resolver = addon.functions and addon.functions.ResolveFontFace
+	if resolver then
+		local resolved = resolver(value, fallbackFace)
+		if type(resolved) == "string" and resolved ~= "" then return resolved end
+	end
+	return normalizeFontFace(value) or fallbackFace
+end
+
 local function normalizeMediaKey(value, fallback)
 	if type(value) ~= "string" or value == "" then return fallback end
 	return value
@@ -671,7 +681,7 @@ local function registerEditModePanel(panel)
 		fontShadow = panel.info.fontShadow == true,
 		streamFontScale = normalizeStreamFontScale(panel.info.streamFontScale, DEFAULT_STREAM_FONT_SCALE),
 		useClassTextColor = panel.info.useClassTextColor == true,
-		fontFace = normalizeFontFace(panel.info.fontFace) or defaultFontFace(),
+		fontFace = resolveFontFace(panel.info.fontFace, defaultFontFace()),
 		backgroundTexture = normalizeMediaKey(panel.info.backgroundTexture, "DEFAULT"),
 		backgroundColor = normalizeColorTable(panel.info.backgroundColor, DEFAULT_BACKDROP_COLOR),
 		borderTexture = normalizeMediaKey(panel.info.borderTexture, "DEFAULT"),
@@ -936,14 +946,16 @@ local function registerEditModePanel(panel)
 				default = defaults.fontFace,
 				height = 200,
 				get = function(layoutName)
-					if EditMode and EditMode.GetValue then return EditMode:GetValue(id, "fontFace", layoutName) end
-					return panel.info and panel.info.fontFace or defaults.fontFace
+					if EditMode and EditMode.GetValue then
+						return resolveFontFace(EditMode:GetValue(id, "fontFace", layoutName), defaults.fontFace)
+					end
+					return resolveFontFace(panel.info and panel.info.fontFace, defaults.fontFace)
 				end,
 				set = function(layoutName, value)
 					if EditMode and EditMode.SetValue then
 						EditMode:SetValue(id, "fontFace", value, layoutName)
 					elseif panel.info then
-						panel.info.fontFace = normalizeFontFace(value) or defaultFontFace()
+						panel.info.fontFace = resolveFontFace(value, panel.info.fontFace or defaultFontFace())
 						panel:ApplyTextStyle()
 					end
 				end,
@@ -1143,7 +1155,7 @@ local function ensureSettings(id, name)
 		if info.fontShadow == nil then info.fontShadow = DEFAULT_FONT_SHADOW end
 		info.streamFontScale = normalizeStreamFontScale(info.streamFontScale, DEFAULT_STREAM_FONT_SCALE)
 		if info.useClassTextColor == nil then info.useClassTextColor = false end
-		if not info.fontFace or info.fontFace == "" then info.fontFace = defaultFontFace() end
+		info.fontFace = resolveFontFace(info.fontFace, defaultFontFace())
 		info.backgroundTexture = normalizeMediaKey(info.backgroundTexture, "DEFAULT")
 		info.backgroundColor = normalizeColorTable(info.backgroundColor, DEFAULT_BACKDROP_COLOR)
 		info.borderTexture = normalizeMediaKey(info.borderTexture, "DEFAULT")
@@ -1320,11 +1332,20 @@ function DataPanel.Create(id, name, existingOnly)
 		return "OUTLINE"
 	end
 
-	function panel:GetFontFace() return (self.info and self.info.fontFace) or defaultFontFace() end
+	function panel:GetFontFace() return resolveFontFace(self.info and self.info.fontFace, defaultFontFace()) end
 
 	function panel:ApplyFontStyle(fontString, font, size)
-		if not fontString or not fontString.SetFont or not font or not size then return end
-		fontString:SetFont(font, size, self:GetFontFlags())
+		if not fontString or not fontString.SetFont or not size then return end
+		local targetFont = resolveFontFace(font, self:GetFontFace())
+		if not targetFont then return end
+		local fontFlags = self:GetFontFlags()
+		local ok = fontString:SetFont(targetFont, size, fontFlags)
+		if ok == false then
+			local fallback = resolveFontFace(defaultFontFace(), STANDARD_TEXT_FONT)
+			local fallbackOk
+			if fallback then fallbackOk = fontString:SetFont(fallback, size, fontFlags) end
+			if fallbackOk == false and STANDARD_TEXT_FONT and STANDARD_TEXT_FONT ~= fallback then fontString:SetFont(STANDARD_TEXT_FONT, size, fontFlags) end
+		end
 		if fontString.SetShadowColor then
 			if self.info and self.info.fontShadow then
 				fontString:SetShadowColor(0, 0, 0, SHADOW_ALPHA)
@@ -1636,7 +1657,7 @@ function DataPanel.Create(id, name, existingOnly)
 			end
 		end
 		if data.fontFace ~= nil then
-			local desired = normalizeFontFace(data.fontFace) or defaultFontFace()
+			local desired = resolveFontFace(data.fontFace, info.fontFace or defaultFontFace())
 			if info.fontFace ~= desired then
 				info.fontFace = desired
 				fontFaceChanged = true
