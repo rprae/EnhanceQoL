@@ -5,9 +5,11 @@
 ### ✨ Added
 
 - Castbars (Unit Frames + Standalone): Added `Use gradient` with `Gradient start color` and `Gradient end color` for cast fill colors.
+- Unit Frames: Added import support for Unhalted Unit Frames (`!UUF_` profile strings). The importer maps as many supported Unit Frame settings as possible to EnhanceQoL (layout offsets, dimensions, colors, text/tag-derived values, status/name settings, aura layout, and textures).
 - Economy (Bank): Added automatic gold balancing with the Warband bank.
 - Economy (Bank): Added optional per-character target values and automatic withdraw.
 - Cooldown Panels: Keybind display now supports Dominos, Bartender4 and ElvUI action bars (in addition to Blizzard).
+- Mover: Added `Queue Status Button` as movable frame entry (default: off).
 
 ### 🐛 Fixed
 

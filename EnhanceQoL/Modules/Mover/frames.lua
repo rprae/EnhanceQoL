@@ -232,6 +232,15 @@ local frames = {
 		defaultEnabled = true,
 	},
 	{
+		id = "QueueStatusButton",
+		label = L["Queue Status Button"] or "Queue Status Button",
+		group = "activities",
+		names = { "QueueStatusButton" },
+		addon = "Blizzard_QueueStatusFrame",
+		skipOnHide = true,
+		defaultEnabled = false,
+	},
+	{
 		id = "EncounterJournal",
 		label = ADVENTURE_JOURNAL,
 		group = "activities",
