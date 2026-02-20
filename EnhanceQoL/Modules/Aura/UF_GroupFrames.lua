@@ -2443,7 +2443,7 @@ function GF:BuildButton(self)
 
 	if not st._sizeHooked then
 		st._sizeHooked = true
-		self:HookScript("OnSizeChanged", function(btn) GF:LayoutButton(btn) end)
+		self:HookScript("OnSizeChanged", function(btn) GF:OnUnitButtonSizeChanged(btn) end)
 	end
 
 	self:SetClampedToScreen(true)
@@ -2457,6 +2457,23 @@ function GF:BuildButton(self)
 	GF:LayoutAuras(self)
 	hookTextFrameLevels(st)
 	GF:LayoutButton(self)
+end
+
+function GF:OnUnitButtonSizeChanged(self)
+	if not self then return end
+	GF:LayoutButton(self)
+
+	local unit = getUnit(self)
+	local st = getState(self)
+	if not (unit and st) then return end
+
+	GF:UpdateHealthStyle(self)
+	GF:UpdateHealthValue(self, unit, st)
+	GF:UpdatePowerValue(self, unit, st)
+	GF:UpdateName(self, unit, st)
+	GF:UpdateStatusText(self, unit, st)
+	GF:UpdateLevel(self, unit, st)
+	GF:UpdateRange(self)
 end
 
 function GF:LayoutButton(self)
@@ -6470,6 +6487,41 @@ function GF:RefreshStatusText()
 			end
 		end
 	end
+end
+
+function GF:RefreshConnectionState(unit)
+	if not isFeatureEnabled() then return 0 end
+	local refreshed = 0
+	local unitToken = (type(unit) == "string") and unit or nil
+	local function refreshChild(child)
+		if not (child and child._eqolUFState) then return end
+		local childUnit = getUnit(child)
+		if not childUnit then return end
+		if unitToken and childUnit ~= unitToken then return end
+
+		local st = getState(child)
+		GF:CacheUnitStatic(child)
+		GF:UpdateHealthStyle(child)
+		GF:UpdateHealthValue(child, childUnit, st)
+		GF:UpdatePowerValue(child, childUnit, st)
+		GF:UpdateName(child, childUnit, st)
+		GF:UpdateStatusText(child, childUnit, st)
+		GF:UpdateLevel(child, childUnit, st)
+		GF:UpdateRange(child)
+		refreshed = refreshed + 1
+	end
+
+	for _, header in pairs(GF.headers or {}) do
+		forEachChild(header, function(child) refreshChild(child) end)
+	end
+
+	if GF._raidGroupHeaders then
+		for _, header in ipairs(GF._raidGroupHeaders) do
+			if header and not header._eqolSpecialHide then forEachChild(header, function(child) refreshChild(child) end) end
+		end
+	end
+
+	return refreshed
 end
 
 function GF:RefreshGroupIndicators()
@@ -18844,6 +18896,7 @@ registerFeatureEvents = function(frame)
 		frame:RegisterEvent("PLAYER_ENTERING_WORLD")
 		frame:RegisterEvent("PLAYER_REGEN_ENABLED")
 		frame:RegisterEvent("PLAYER_FLAGS_CHANGED")
+		frame:RegisterEvent("UNIT_CONNECTION")
 		frame:RegisterEvent("GROUP_ROSTER_UPDATE")
 		frame:RegisterEvent("UNIT_NAME_UPDATE")
 		frame:RegisterEvent("PARTY_LEADER_CHANGED")
@@ -18864,6 +18917,7 @@ unregisterFeatureEvents = function(frame)
 		frame:UnregisterEvent("PLAYER_ENTERING_WORLD")
 		frame:UnregisterEvent("PLAYER_REGEN_ENABLED")
 		frame:UnregisterEvent("PLAYER_FLAGS_CHANGED")
+		frame:UnregisterEvent("UNIT_CONNECTION")
 		frame:UnregisterEvent("GROUP_ROSTER_UPDATE")
 		frame:UnregisterEvent("UNIT_NAME_UPDATE")
 		frame:UnregisterEvent("PARTY_LEADER_CHANGED")
@@ -18960,8 +19014,11 @@ do
 			GF:RefreshReadyCheckIcons(event)
 		elseif event == "PLAYER_TARGET_CHANGED" then
 			GF:RefreshTargetHighlights()
+		elseif event == "UNIT_CONNECTION" then
+			GF:RefreshConnectionState(...)
 		elseif event == "PLAYER_FLAGS_CHANGED" then
-			GF:RefreshStatusText()
+			local refreshed = GF:RefreshConnectionState(...)
+			if refreshed == 0 then GF:RefreshStatusText() end
 		elseif event == "INSPECT_READY" then
 			if GFH and GFH.OnInspectReady then
 				local updated = GFH.OnInspectReady(...)
@@ -18974,11 +19031,11 @@ do
 			local rosterChanged, modeChanged, countChanged = GF:DidRosterStateChange()
 			if not rosterChanged then return end
 			local needsFullRefresh = modeChanged
+			local inRaidNow = IsInRaid and IsInRaid()
 			local cfg = getCfg("raid")
 			local custom = cfg and GFH and GFH.EnsureCustomSortConfig and GFH.EnsureCustomSortConfig(cfg)
 			local sortMethod = cfg and resolveSortMethod(cfg) or "INDEX"
-			local useGroupedHeaders = cfg and GF:IsRaidGroupedLayout(cfg) and (sortMethod ~= "NAMELIST" or (custom and custom.enabled == true))
-			if not needsFullRefresh and useGroupedHeaders and countChanged then needsFullRefresh = true end
+			if not needsFullRefresh and inRaidNow and countChanged then needsFullRefresh = true end
 			local updatedCount = 0
 			if needsFullRefresh then
 				GF.Refresh()

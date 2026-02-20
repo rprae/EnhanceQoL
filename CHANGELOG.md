@@ -13,6 +13,8 @@
 
 - Character Frame: The selected font for item details now applies correctly again (item level, gems, enchants).
 - Data Panels: Time stream font and text scale updates now apply reliably.
+- Group Frames (Raid): Dynamic layout/viewport scaling now refreshes immediately when roster count crosses `unitsPerColumn`/`maxColumns` thresholds.
+- Group Frames: Offline/DC visuals (name/status/range fade) now refresh reliably.
 
 ---
 
