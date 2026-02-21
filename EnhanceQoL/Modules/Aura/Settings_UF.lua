@@ -6162,7 +6162,12 @@ local function registerSettingsUI()
 			focus = L["UFFocusFrame"] or FOCUS,
 			pet = L["UFPetFrame"] or PET,
 			boss = L["UFBossFrame"] or BOSS or "Boss Frame",
+			party = PARTY or "Party",
+			raid = RAID or "Raid",
+			mt = MAINTANK or "Main Tank",
+			ma = MAINASSIST or "Main Assist",
 		}
+		local scopeOrder = { "ALL", "player", "target", "targettarget", "focus", "pet", "boss", "party", "raid", "mt", "ma" }
 		local function getScope()
 			addon.db = addon.db or {}
 			local cur = addon.db.ufProfileScope or "ALL"
@@ -6186,6 +6191,7 @@ local function registerSettingsUI()
 			var = "ufProfileScope",
 			text = L["ProfileScope"] or (L["Apply to"] or "Apply to"),
 			list = scopeOptions,
+			order = scopeOrder,
 			get = getScope,
 			set = setScope,
 			default = "ALL",
@@ -6237,7 +6243,6 @@ local function registerSettingsUI()
 			func = function()
 				local importText = (L["UFImportProfileTitle"] or "Import Unit Frames")
 				if L["UFImportProfileReloadHint"] then importText = importText .. "\n\n" .. L["UFImportProfileReloadHint"] end
-				importText = importText .. "\n\n" .. (L["UFImportProfileExternalHint"] or "Supports Enhance QoL and UnhaltedUnitFrames (!UUF_) codes.")
 				StaticPopupDialogs["EQOL_UF_IMPORT_SETTINGS"] = StaticPopupDialogs["EQOL_UF_IMPORT_SETTINGS"]
 					or {
 						text = importText,

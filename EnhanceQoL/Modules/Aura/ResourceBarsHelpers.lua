@@ -340,7 +340,11 @@ local function resolveDiscreteSegmentOffset(cfg)
 	return math.max(0, math.floor(offset + 0.5))
 end
 
-local function resolveDiscreteSegmentGap(cfg, separatorThickness) return resolveDiscreteSeparatorSize(cfg, separatorThickness) + resolveDiscreteSegmentOffset(cfg) end
+local function resolveDiscreteSegmentGap(cfg, separatorThickness)
+	local offset = resolveDiscreteSegmentOffset(cfg)
+	if offset > 0 then return offset end
+	return resolveDiscreteSeparatorSize(cfg, separatorThickness)
+end
 
 local function resolveMaelstromCarryMode(bar, cfg, count, clamped)
 	if not (bar and cfg and cfg.useMaelstromCarryFill == true and cfg.useMaelstromTenStacks ~= true) then return false end
@@ -386,6 +390,7 @@ function ResourceBars.LayoutDiscreteSegments(bar, cfg, count, texturePath, separ
 	local reverse = cfg and cfg.reverseFill == true
 
 	local separatorSize = resolveDiscreteSeparatorSize(cfg, separatorThickness)
+	local segmentOffset = resolveDiscreteSegmentOffset(cfg)
 	local requestedGap = resolveDiscreteSegmentGap(cfg, separatorThickness)
 	local gap = requestedGap
 	if count < 2 then
@@ -466,7 +471,7 @@ function ResourceBars.LayoutDiscreteSegments(bar, cfg, count, texturePath, separ
 	end
 
 	local neededGaps = count - 1
-	local showSeparatorRequested = cfg and cfg.showSeparator == true and separatorSize > 0 and count > 1
+	local showSeparatorRequested = cfg and cfg.showSeparator == true and separatorSize > 0 and count > 1 and segmentOffset == 0
 	if showSeparatorRequested and markerThickness > 0 and neededGaps > 0 then
 		local markOffset = floor((gap - markerThickness) * 0.5)
 		for i = 1, neededGaps do
@@ -521,9 +526,10 @@ function ResourceBars.UpdateDiscreteSegments(bar, cfg, count, value, color, text
 	local vertical = cfg and cfg.verticalFill == true
 	local reverse = cfg and cfg.reverseFill == true
 	local separatorSize = resolveDiscreteSeparatorSize(cfg, separatorThickness)
+	local segmentOffset = resolveDiscreteSegmentOffset(cfg)
 	local gap = resolveDiscreteSegmentGap(cfg, separatorThickness)
 	if count < 2 then gap = 0 end
-	local showSeparatorRequested = cfg and cfg.showSeparator == true and separatorSize > 0 and count > 1
+	local showSeparatorRequested = cfg and cfg.showSeparator == true and separatorSize > 0 and count > 1 and segmentOffset == 0
 
 	if
 		not bar._rbDiscreteSegments

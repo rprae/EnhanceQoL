@@ -780,15 +780,6 @@ local function ensureDB(unit)
 	return udb
 end
 
--- Shared context for external Unit Frame importers (see UF_Importers.lua).
-UF._ensureDB = ensureDB
-UF._defaultsFor = defaultsFor
-UF._isBossUnit = isBossUnit
-UF._maxBossFrames = maxBossFrames
-UF._frameNames = UF_FRAME_NAMES
-UF._minWidth = MIN_WIDTH
-UF._unitTokens = UNIT
-
 local function hasVisibilityRules(cfg)
 	if not cfg then return false end
 	local raw = cfg.visibility
@@ -1533,27 +1524,46 @@ function UF.ExportProfile(scopeKey, profileName)
 		if isBossUnit(key) then return "boss" end
 		return key
 	end
+	local function isGroupScopeKey(key)
+		return key == "party" or key == "raid" or key == "mt" or key == "ma"
+	end
+	local function hasExportableEntries(tbl)
+		if type(tbl) ~= "table" then return false end
+		for _, value in pairs(tbl) do
+			if type(value) == "table" then return true end
+		end
+		return false
+	end
 	scopeKey = normalize(scopeKey)
 	local db, externalProfile = resolveProfileDB(profileName)
 	if type(db) ~= "table" then return nil, "NO_DATA" end
-	local cfg = db.ufFrames
-	if not cfg and not externalProfile then
+	local frameCfg = db.ufFrames
+	if not frameCfg and not externalProfile then
 		db.ufFrames = {}
-		cfg = db.ufFrames
+		frameCfg = db.ufFrames
 	end
-	if type(cfg) ~= "table" then return nil, "NO_DATA" end
+	local groupCfg = db.ufGroupFrames
 
 	local payload = {
 		kind = UF_PROFILE_SHARE_KIND,
-		version = 1,
+		version = 2,
 		frames = {},
+		groupFrames = {},
 	}
 
 	if scopeKey == "ALL" then
-		if not next(cfg) then return nil, "EMPTY" end
-		payload.frames = CopyTable(cfg)
+		local hasUnitFrames = hasExportableEntries(frameCfg)
+		local hasGroupFrames = hasExportableEntries(groupCfg)
+		if not hasUnitFrames and not hasGroupFrames then return nil, "EMPTY" end
+		if hasUnitFrames then payload.frames = CopyTable(frameCfg) end
+		if hasGroupFrames then payload.groupFrames = CopyTable(groupCfg) end
+	elseif isGroupScopeKey(scopeKey) then
+		local src = type(groupCfg) == "table" and groupCfg[scopeKey] or nil
+		if type(src) ~= "table" then return nil, "SCOPE_EMPTY" end
+		payload.groupFrames[scopeKey] = CopyTable(src)
 	else
-		local src = cfg[scopeKey]
+		local src = type(frameCfg) == "table" and frameCfg[scopeKey] or nil
+		if type(frameCfg) ~= "table" and externalProfile then return nil, "NO_DATA" end
 		if type(src) ~= "table" then return nil, "SCOPE_EMPTY" end
 		payload.frames[scopeKey] = CopyTable(src)
 	end
@@ -1572,13 +1582,12 @@ function UF.ImportProfile(encoded, scopeKey)
 		if isBossUnit(key) then return "boss" end
 		return key
 	end
+	local function isGroupScopeKey(key)
+		return key == "party" or key == "raid" or key == "mt" or key == "ma"
+	end
 	scopeKey = normalize(scopeKey)
 	encoded = UFHelper.trim(encoded or "")
 	if not encoded or encoded == "" then return false, "NO_INPUT" end
-	if encoded:sub(1, 5) == "!UUF_" then
-		if type(UF.ImportUnhaltedProfile) ~= "function" then return false, "WRONG_KIND" end
-		return UF.ImportUnhaltedProfile(encoded, scopeKey)
-	end
 
 	local deflate = LibStub("LibDeflate")
 	local serializer = LibStub("AceSerializer-3.0")
@@ -1590,29 +1599,57 @@ function UF.ImportProfile(encoded, scopeKey)
 	if not ok or type(data) ~= "table" then return false, "DESERIALIZE" end
 
 	if data.kind ~= UF_PROFILE_SHARE_KIND then return false, "WRONG_KIND" end
-	if type(data.frames) ~= "table" then return false, "NO_FRAMES" end
+	local sourceFrames = type(data.frames) == "table" and data.frames or nil
+	local sourceGroupFrames = type(data.groupFrames) == "table" and data.groupFrames or nil
+	if not sourceFrames and not sourceGroupFrames then return false, "NO_FRAMES" end
 
 	addon.db = addon.db or {}
 	addon.db.ufFrames = addon.db.ufFrames or {}
-	local target = addon.db.ufFrames
+	addon.db.ufGroupFrames = addon.db.ufGroupFrames or {}
+	local targetFrames = addon.db.ufFrames
+	local targetGroupFrames = addon.db.ufGroupFrames
 	local applied = {}
+	local appliedSet = {}
+	local function markApplied(key)
+		if not appliedSet[key] then
+			appliedSet[key] = true
+			applied[#applied + 1] = key
+		end
+	end
+	local function applyFrameConfig(key, frameCfg)
+		if isGroupScopeKey(key) then
+			targetGroupFrames[key] = CopyTable(frameCfg)
+		else
+			targetFrames[key] = CopyTable(frameCfg)
+		end
+		markApplied(key)
+	end
 
 	if scopeKey == "ALL" then
-		for unit, frameCfg in pairs(data.frames) do
+		for unit, frameCfg in pairs(sourceFrames or {}) do
 			if type(frameCfg) == "table" then
 				local key = normalize(unit)
-				target[key] = CopyTable(frameCfg)
-				applied[#applied + 1] = key
+				applyFrameConfig(key, frameCfg)
+			end
+		end
+		for unit, frameCfg in pairs(sourceGroupFrames or {}) do
+			if type(frameCfg) == "table" then
+				local key = normalize(unit)
+				applyFrameConfig(key, frameCfg)
 			end
 		end
 		if #applied == 0 then return false, "NO_FRAMES" end
 	else
 		local key = scopeKey
-		local source = data.frames[key] or data.frames[normalize(key)]
-		if not source and isBossUnit(key) then source = data.frames["boss1"] or data.frames["boss"] end
+		local source
+		if isGroupScopeKey(key) then
+			source = (sourceGroupFrames and sourceGroupFrames[key]) or (sourceFrames and (sourceFrames[key] or sourceFrames[normalize(key)]))
+		else
+			source = sourceFrames and (sourceFrames[key] or sourceFrames[normalize(key)])
+			if not source and isBossUnit(key) and sourceFrames then source = sourceFrames["boss1"] or sourceFrames["boss"] end
+		end
 		if type(source) ~= "table" then return false, "SCOPE_MISSING" end
-		target[key] = CopyTable(source)
-		applied[#applied + 1] = key
+		applyFrameConfig(key, source)
 	end
 
 	table.sort(applied, function(a, b) return tostring(a) < tostring(b) end)

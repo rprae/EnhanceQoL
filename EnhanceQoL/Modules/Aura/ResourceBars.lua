@@ -1728,6 +1728,17 @@ local function applyBackdrop(frame, cfg)
 	state.insets = copyInsetValues(contentInset, state.insets)
 	applyStatusBarInsets(frame, state.insets, true)
 
+	local separatedOffset = tonumber(cfg and cfg.separatedOffset) or 0
+	local hideParentBackdropForSeparated = separatedOffset > 0 and frame._rbType and shouldUseDiscreteSeparatorSegments and shouldUseDiscreteSeparatorSegments(frame._rbType, cfg)
+	if hideParentBackdropForSeparated then
+		if bgFrame:IsShown() then bgFrame:Hide() end
+		if borderFrame:IsShown() then borderFrame:Hide() end
+		state.enabled = false
+		state.separatedDiscrete = true
+		return
+	end
+	if state.separatedDiscrete then state.separatedDiscrete = nil end
+
 	if bd.enabled == false then
 		if bgFrame:IsShown() then bgFrame:Hide() end
 		if borderFrame:IsShown() then borderFrame:Hide() end
