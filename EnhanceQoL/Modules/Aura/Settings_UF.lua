@@ -3658,80 +3658,82 @@ local function buildUnitSettings(unit)
 			refreshSettingsUI()
 		end, castDef.useClassColor == true, "cast", isCastEnabled)
 
-		local function isCastGradientEnabled() return getValue(unit, { "cast", "useGradient" }, castDef.useGradient == true) == true end
-		list[#list + 1] = checkbox(L["Use gradient"] or "Use gradient", isCastGradientEnabled, function(val)
-			setValue(unit, { "cast", "useGradient" }, val and true or false)
-			refresh()
-			refreshSettingsUI()
-		end, castDef.useGradient == true, "cast", isCastEnabled)
+		if unit == "player" then
+			local function isCastGradientEnabled() return getValue(unit, { "cast", "useGradient" }, castDef.useGradient == true) == true end
+			list[#list + 1] = checkbox(L["Use gradient"] or "Use gradient", isCastGradientEnabled, function(val)
+				setValue(unit, { "cast", "useGradient" }, val and true or false)
+				refresh()
+				refreshSettingsUI()
+			end, castDef.useGradient == true, "cast", isCastEnabled)
 
-		local castGradientModeOptions = {
-			{ value = "CASTBAR", label = L["Gradient with castbar"] or "Gradient with castbar" },
-			{ value = "BAR_END", label = L["Gradient at end of bar"] or "Gradient at end of bar" },
-		}
-		local castGradientMode = checkboxDropdown(
-			L["Gradient mode"] or "Gradient mode",
-			castGradientModeOptions,
-			function() return getValue(unit, { "cast", "gradientMode" }, castDef.gradientMode or "CASTBAR") end,
-			function(val)
-				setValue(unit, { "cast", "gradientMode" }, val or "CASTBAR")
-				refresh()
-			end,
-			castDef.gradientMode or "CASTBAR",
-			"cast"
-		)
-		castGradientMode.isEnabled = function() return isCastEnabled() and isCastGradientEnabled() end
-		list[#list + 1] = castGradientMode
+			local castGradientModeOptions = {
+				{ value = "CASTBAR", label = L["Gradient with castbar"] or "Gradient with castbar" },
+				{ value = "BAR_END", label = L["Gradient at end of bar"] or "Gradient at end of bar" },
+			}
+			local castGradientMode = checkboxDropdown(
+				L["Gradient mode"] or "Gradient mode",
+				castGradientModeOptions,
+				function() return getValue(unit, { "cast", "gradientMode" }, castDef.gradientMode or "CASTBAR") end,
+				function(val)
+					setValue(unit, { "cast", "gradientMode" }, val or "CASTBAR")
+					refresh()
+				end,
+				castDef.gradientMode or "CASTBAR",
+				"cast"
+			)
+			castGradientMode.isEnabled = function() return isCastEnabled() and isCastGradientEnabled() end
+			list[#list + 1] = castGradientMode
 
-		list[#list + 1] = {
-			name = L["Gradient start color"] or "Gradient start color",
-			kind = settingType.Color,
-			parentId = "cast",
-			isEnabled = function() return isCastEnabled() and isCastGradientEnabled() end,
-			get = function() return getValue(unit, { "cast", "gradientStartColor" }, castDef.gradientStartColor or { 1, 1, 1, 1 }) end,
-			set = function(_, color)
-				setColor(unit, { "cast", "gradientStartColor" }, color.r, color.g, color.b, color.a)
-				refresh()
-			end,
-			colorGet = function() return getValue(unit, { "cast", "gradientStartColor" }, castDef.gradientStartColor or { 1, 1, 1, 1 }) end,
-			colorSet = function(_, color)
-				setColor(unit, { "cast", "gradientStartColor" }, color.r, color.g, color.b, color.a)
-				refresh()
-			end,
-			colorDefault = {
-				r = (castDef.gradientStartColor and castDef.gradientStartColor[1]) or 1,
-				g = (castDef.gradientStartColor and castDef.gradientStartColor[2]) or 1,
-				b = (castDef.gradientStartColor and castDef.gradientStartColor[3]) or 1,
-				a = (castDef.gradientStartColor and castDef.gradientStartColor[4]) or 1,
-			},
-			hasOpacity = true,
-		}
+			list[#list + 1] = {
+				name = L["Gradient start color"] or "Gradient start color",
+				kind = settingType.Color,
+				parentId = "cast",
+				isEnabled = function() return isCastEnabled() and isCastGradientEnabled() end,
+				get = function() return getValue(unit, { "cast", "gradientStartColor" }, castDef.gradientStartColor or { 1, 1, 1, 1 }) end,
+				set = function(_, color)
+					setColor(unit, { "cast", "gradientStartColor" }, color.r, color.g, color.b, color.a)
+					refresh()
+				end,
+				colorGet = function() return getValue(unit, { "cast", "gradientStartColor" }, castDef.gradientStartColor or { 1, 1, 1, 1 }) end,
+				colorSet = function(_, color)
+					setColor(unit, { "cast", "gradientStartColor" }, color.r, color.g, color.b, color.a)
+					refresh()
+				end,
+				colorDefault = {
+					r = (castDef.gradientStartColor and castDef.gradientStartColor[1]) or 1,
+					g = (castDef.gradientStartColor and castDef.gradientStartColor[2]) or 1,
+					b = (castDef.gradientStartColor and castDef.gradientStartColor[3]) or 1,
+					a = (castDef.gradientStartColor and castDef.gradientStartColor[4]) or 1,
+				},
+				hasOpacity = true,
+			}
 
-		list[#list + 1] = {
-			name = L["Gradient end color"] or "Gradient end color",
-			kind = settingType.Color,
-			parentId = "cast",
-			isEnabled = function() return isCastEnabled() and isCastGradientEnabled() end,
-			get = function() return getValue(unit, { "cast", "gradientEndColor" }, castDef.gradientEndColor or { 1, 1, 1, 1 }) end,
-			set = function(_, color)
-				setColor(unit, { "cast", "gradientEndColor" }, color.r, color.g, color.b, color.a)
-				refresh()
-			end,
-			colorGet = function() return getValue(unit, { "cast", "gradientEndColor" }, castDef.gradientEndColor or { 1, 1, 1, 1 }) end,
-			colorSet = function(_, color)
-				setColor(unit, { "cast", "gradientEndColor" }, color.r, color.g, color.b, color.a)
-				refresh()
-			end,
-			colorDefault = {
-				r = (castDef.gradientEndColor and castDef.gradientEndColor[1]) or 1,
-				g = (castDef.gradientEndColor and castDef.gradientEndColor[2]) or 1,
-				b = (castDef.gradientEndColor and castDef.gradientEndColor[3]) or 1,
-				a = (castDef.gradientEndColor and castDef.gradientEndColor[4]) or 1,
-			},
-			hasOpacity = true,
-		}
+			list[#list + 1] = {
+				name = L["Gradient end color"] or "Gradient end color",
+				kind = settingType.Color,
+				parentId = "cast",
+				isEnabled = function() return isCastEnabled() and isCastGradientEnabled() end,
+				get = function() return getValue(unit, { "cast", "gradientEndColor" }, castDef.gradientEndColor or { 1, 1, 1, 1 }) end,
+				set = function(_, color)
+					setColor(unit, { "cast", "gradientEndColor" }, color.r, color.g, color.b, color.a)
+					refresh()
+				end,
+				colorGet = function() return getValue(unit, { "cast", "gradientEndColor" }, castDef.gradientEndColor or { 1, 1, 1, 1 }) end,
+				colorSet = function(_, color)
+					setColor(unit, { "cast", "gradientEndColor" }, color.r, color.g, color.b, color.a)
+					refresh()
+				end,
+				colorDefault = {
+					r = (castDef.gradientEndColor and castDef.gradientEndColor[1]) or 1,
+					g = (castDef.gradientEndColor and castDef.gradientEndColor[2]) or 1,
+					b = (castDef.gradientEndColor and castDef.gradientEndColor[3]) or 1,
+					a = (castDef.gradientEndColor and castDef.gradientEndColor[4]) or 1,
+				},
+				hasOpacity = true,
+			}
 
-		list[#list + 1] = { name = "", kind = settingType.Divider, parentId = "cast" }
+			list[#list + 1] = { name = "", kind = settingType.Divider, parentId = "cast" }
+		end
 
 		list[#list + 1] = {
 			name = L["Not interruptible color"] or "Not interruptible color",

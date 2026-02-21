@@ -1524,9 +1524,7 @@ function UF.ExportProfile(scopeKey, profileName)
 		if isBossUnit(key) then return "boss" end
 		return key
 	end
-	local function isGroupScopeKey(key)
-		return key == "party" or key == "raid" or key == "mt" or key == "ma"
-	end
+	local function isGroupScopeKey(key) return key == "party" or key == "raid" or key == "mt" or key == "ma" end
 	local function hasExportableEntries(tbl)
 		if type(tbl) ~= "table" then return false end
 		for _, value in pairs(tbl) do
@@ -1582,9 +1580,7 @@ function UF.ImportProfile(encoded, scopeKey)
 		if isBossUnit(key) then return "boss" end
 		return key
 	end
-	local function isGroupScopeKey(key)
-		return key == "party" or key == "raid" or key == "mt" or key == "ma"
-	end
+	local function isGroupScopeKey(key) return key == "party" or key == "raid" or key == "mt" or key == "ma" end
 	scopeKey = normalize(scopeKey)
 	encoded = UFHelper.trim(encoded or "")
 	if not encoded or encoded == "" then return false, "NO_INPUT" end
@@ -3635,6 +3631,7 @@ local function configureCastStatic(unit, ccfg, defc)
 	if not st or not st.castBar or not st.castInfo then return end
 	ccfg = ccfg or st.castCfg or {}
 	defc = defc or (defaultsFor(unit) and defaultsFor(unit).cast) or {}
+	local gradientCfg = unit == UNIT.PLAYER and ccfg or nil
 	local isEmpoweredDefault = st.castInfo.isEmpowered and st.castUseDefaultArt == true
 	local clr = ccfg.color or defc.color or { 0.9, 0.7, 0.2, 1 }
 	local useClassColor = ccfg.useClassColor
@@ -3655,17 +3652,17 @@ local function configureCastStatic(unit, ccfg, defc)
 	elseif st.castInfo.notInterruptible then
 		clr = ccfg.notInterruptibleColor or defc.notInterruptibleColor or clr
 		st.castBar:SetStatusBarDesaturated(true)
-		UFHelper.SetCastbarColorWithGradient(st.castBar, ccfg, clr[1] or 0.9, clr[2] or 0.7, clr[3] or 0.2, clr[4] or 1)
+		UFHelper.SetCastbarColorWithGradient(st.castBar, gradientCfg, clr[1] or 0.9, clr[2] or 0.7, clr[3] or 0.2, clr[4] or 1)
 	else
 		st.castBar:SetStatusBarDesaturated(false)
-		UFHelper.SetCastbarColorWithGradient(st.castBar, ccfg, clr[1] or 0.9, clr[2] or 0.7, clr[3] or 0.2, clr[4] or 1)
+		UFHelper.SetCastbarColorWithGradient(st.castBar, gradientCfg, clr[1] or 0.9, clr[2] or 0.7, clr[3] or 0.2, clr[4] or 1)
 	end
 	local duration = (st.castInfo.endTime or 0) - (st.castInfo.startTime or 0)
 	local maxValue = duration and duration > 0 and duration / 1000 or 1
 	st.castInfo.maxValue = maxValue
 	-- UFHelper.applyStatusBarReverseFill(st.castBar, st.castInfo.isChannel == true and not st.castInfo.isEmpowered)
 	st.castBar:SetMinMaxValues(0, maxValue)
-	UFHelper.RefreshCastbarGradient(st.castBar, isEmpoweredDefault and nil or ccfg)
+	UFHelper.RefreshCastbarGradient(st.castBar, isEmpoweredDefault and nil or gradientCfg)
 	if st.castName then
 		local showName = ccfg.showName ~= false
 		st.castName:SetShown(showName)
@@ -3740,7 +3737,13 @@ local function updateCastBar(unit)
 	if elapsedMs < 0 then elapsedMs = 0 end
 	local value = elapsedMs / 1000
 	st.castBar:SetValue(value)
-	if not (st.castInfo.isEmpowered and st.castUseDefaultArt == true) and ccfg.useGradient == true and type(ccfg.gradientMode) == "string" and ccfg.gradientMode:upper() == "BAR_END" then
+	if
+		unit == UNIT.PLAYER
+		and not (st.castInfo.isEmpowered and st.castUseDefaultArt == true)
+		and ccfg.useGradient == true
+		and type(ccfg.gradientMode) == "string"
+		and ccfg.gradientMode:upper() == "BAR_END"
+	then
 		local maxValue = st.castInfo.maxValue
 		local progress
 		if type(maxValue) == "number" and maxValue > 0 then progress = value / maxValue end
@@ -4080,29 +4083,14 @@ local function setCastInfoFromUnit(unit)
 			end
 			local clr = ccfg.color or defc.color or { 0.9, 0.7, 0.2, 1 }
 			local nclr = ccfg.notInterruptibleColor or defc.notInterruptibleColor or { 204 / 255, 204 / 255, 204 / 255, 1 }
-			local activeColor = notInterruptible and nclr or clr
-			UFHelper.SetCastbarColorWithGradient(st.castBar, ccfg, activeColor[1] or 0.9, activeColor[2] or 0.7, activeColor[3] or 0.2, activeColor[4] or 1)
+			st.castBar:GetStatusBarTexture():SetVertexColorFromBoolean(
+				notInterruptible,
+				CreateColor(nclr[1] or 0.9, nclr[2] or 0.7, nclr[3] or 0.2, nclr[4] or 1),
+				CreateColor(clr[1] or 0.9, clr[2] or 0.7, clr[3] or 0.2, clr[4] or 1)
+			)
 			st.castBar:SetStatusBarDesaturated(true)
-			local usesBarEndGradient = not (isEmpowered and st.castUseDefaultArt == true)
-				and ccfg.useGradient == true
-				and type(ccfg.gradientMode) == "string"
-				and ccfg.gradientMode:upper() == "BAR_END"
-			if usesBarEndGradient then
-				local totalDuration = durObj:GetTotalDuration()
-				if totalDuration and totalDuration > 0 then
-					local progress
-					if direction == Enum.StatusBarTimerDirection.RemainingTime then
-						progress = durObj:GetRemainingDuration() / totalDuration
-					else
-						progress = durObj:GetElapsedDuration() / totalDuration
-					end
-					UFHelper.RefreshCastbarGradient(st.castBar, ccfg, nil, nil, nil, nil, progress)
-				else
-					UFHelper.RefreshCastbarGradient(st.castBar, ccfg)
-				end
-			end
 			local showDuration = ccfg.showDuration ~= false and st.castDuration ~= nil
-			local needsOnUpdate = showDuration or usesBarEndGradient
+			local needsOnUpdate = showDuration
 			if not needsOnUpdate then
 				if castOnUpdateHandlers[unit] then
 					st.castBar:SetScript("OnUpdate", nil)
@@ -4136,15 +4124,6 @@ local function setCastInfoFromUnit(unit)
 
 					local totalDuration = timerObj:GetTotalDuration()
 					if type(totalDuration) ~= "number" then totalDuration = 0 end
-					if usesBarEndGradient and totalDuration > 0 then
-						local progress
-						if direction == Enum.StatusBarTimerDirection.RemainingTime then
-							progress = timerObj:GetRemainingDuration() / totalDuration
-						else
-							progress = timerObj:GetElapsedDuration() / totalDuration
-						end
-						UFHelper.RefreshCastbarGradient(st.castBar, ccfg, nil, nil, nil, nil, progress)
-					end
 
 					if not showDuration or not st.castDuration then return end
 					local durationFormat = ccfg.durationFormat or defc.durationFormat or "REMAINING"
