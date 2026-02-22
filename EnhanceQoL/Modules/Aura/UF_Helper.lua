@@ -34,6 +34,10 @@ local UnitThreatSituation = UnitThreatSituation
 local UnitExists = UnitExists
 local UnitGetTotalAbsorbs = UnitGetTotalAbsorbs
 local UnitHealthPercent = UnitHealthPercent
+local UnitHealthMax = UnitHealthMax
+local UnitPower = UnitPower
+local UnitPowerMax = UnitPowerMax
+local UnitStagger = UnitStagger
 local C_UnitAuras = C_UnitAuras
 local UIParent = UIParent
 
@@ -1200,6 +1204,419 @@ function H.configureSpecialTexture(bar, pType, texKey, cfg, powerEnum)
 end
 
 H.getCanonicalPowerToken = getCanonicalPowerToken
+
+local powerEnumByToken = {
+	MANA = (EnumPowerType and EnumPowerType.MANA) or 0,
+	RAGE = (EnumPowerType and EnumPowerType.RAGE) or 1,
+	FOCUS = (EnumPowerType and EnumPowerType.FOCUS) or 2,
+	ENERGY = (EnumPowerType and EnumPowerType.ENERGY) or 3,
+	COMBO_POINTS = (EnumPowerType and EnumPowerType.COMBO_POINTS) or 4,
+	RUNES = (EnumPowerType and EnumPowerType.RUNES) or 5,
+	RUNIC_POWER = (EnumPowerType and EnumPowerType.RUNIC_POWER) or 6,
+	SOUL_SHARDS = (EnumPowerType and EnumPowerType.SOUL_SHARDS) or 7,
+	LUNAR_POWER = (EnumPowerType and EnumPowerType.LUNAR_POWER) or (EnumPowerType and EnumPowerType.ALTERNATE) or 8,
+	HOLY_POWER = (EnumPowerType and EnumPowerType.HOLY_POWER) or 9,
+	MAELSTROM = (EnumPowerType and EnumPowerType.MAELSTROM) or 11,
+	CHI = (EnumPowerType and EnumPowerType.CHI) or 12,
+	INSANITY = (EnumPowerType and EnumPowerType.INSANITY) or 13,
+	ARCANE_CHARGES = (EnumPowerType and EnumPowerType.ARCANE_CHARGES) or 16,
+	FURY = (EnumPowerType and EnumPowerType.FURY) or 17,
+	PAIN = (EnumPowerType and EnumPowerType.PAIN) or 18,
+	ESSENCE = (EnumPowerType and EnumPowerType.ESSENCE) or 19,
+}
+
+local auraPowerTokenSet = {
+	MAELSTROM_WEAPON = true,
+	VOID_METAMORPHOSIS = true,
+}
+
+local SECONDARY_TRACKED_TOKENS = {
+	"MANA",
+	"STAGGER",
+	"VOID_METAMORPHOSIS",
+}
+
+local secondaryTrackedTokenSet = {
+	MANA = true,
+	STAGGER = true,
+	VOID_METAMORPHOSIS = true,
+}
+
+local secondaryNeverTrackSet = {
+	RUNES = true,
+	COMBO_POINTS = true,
+	ENERGY = true,
+	RAGE = true,
+}
+
+local primaryPowerExcludedSet = {
+	ARCANE_CHARGES = true,
+	CHI = true,
+	ESSENCE = true,
+	HOLY_POWER = true,
+	MAELSTROM_WEAPON = true,
+	RUNIC_POWER = true,
+	SOUL_SHARDS = true,
+	VOID_METAMORPHOSIS = true,
+}
+
+local primaryPowerTokenCache
+local primaryPowerTokenSetCache
+local secondaryPowerTokenCache
+
+local function normalizePrimaryPowerToken(powerEnum, powerToken)
+	local normalized = getCanonicalPowerToken(powerEnum, powerToken)
+	if type(normalized) ~= "string" then return nil end
+	normalized = string.upper(normalized)
+	if normalized == "" or normalized == "NONE" then return nil end
+	return normalized
+end
+
+local function normalizeSecondaryPowerToken(token)
+	if type(token) ~= "string" then return nil end
+	local normalized = getCanonicalPowerToken(nil, token)
+	if type(normalized) ~= "string" then return nil end
+	normalized = string.upper(normalized)
+	if normalized == "" or normalized == "NONE" then return nil end
+	return normalized
+end
+
+local function appendSecondaryToken(list, seen, token)
+	local normalized = normalizeSecondaryPowerToken(token)
+	if not normalized or seen[normalized] then return end
+	seen[normalized] = true
+	list[#list + 1] = normalized
+end
+
+local function isTrackedSecondaryToken(token)
+	local normalized = normalizeSecondaryPowerToken(token)
+	if not normalized then return false end
+	if secondaryNeverTrackSet[normalized] then return false end
+	return secondaryTrackedTokenSet[normalized] == true
+end
+
+function H.getPowerLabel(token)
+	local normalized = normalizeSecondaryPowerToken(token)
+	if not normalized then return "" end
+	local rb = addon.Aura and addon.Aura.ResourceBars
+	local labels = rb and rb.PowerLabels
+	local fromRB = labels and labels[normalized]
+	if type(fromRB) == "string" and fromRB ~= "" then return fromRB end
+	local fromGlobal = _G[normalized]
+	if type(fromGlobal) == "string" and fromGlobal ~= "" then return fromGlobal end
+	return normalized:gsub("_", " ")
+end
+
+local function appendPrimaryPowerToken(list, seen, token)
+	local normalized = normalizePrimaryPowerToken(nil, token)
+	if not normalized or seen[normalized] then return end
+	if primaryPowerExcludedSet[normalized] then return end
+	seen[normalized] = true
+	list[#list + 1] = normalized
+end
+
+local function getPrimaryPowerTokens()
+	if primaryPowerTokenCache then return primaryPowerTokenCache end
+	local list = {}
+	local seen = {}
+	local rb = addon.Aura and addon.Aura.ResourceBars
+	local powertypeClasses = rb and rb.powertypeClasses
+	if type(powertypeClasses) == "table" then
+		for _, specs in pairs(powertypeClasses) do
+			if type(specs) == "table" then
+				for _, info in pairs(specs) do
+					if type(info) == "table" then appendPrimaryPowerToken(list, seen, info.MAIN) end
+				end
+			end
+		end
+	end
+	if #list == 0 then
+		appendPrimaryPowerToken(list, seen, "MANA")
+		appendPrimaryPowerToken(list, seen, "RAGE")
+		appendPrimaryPowerToken(list, seen, "FOCUS")
+		appendPrimaryPowerToken(list, seen, "ENERGY")
+		appendPrimaryPowerToken(list, seen, "RUNIC_POWER")
+		appendPrimaryPowerToken(list, seen, "LUNAR_POWER")
+		appendPrimaryPowerToken(list, seen, "HOLY_POWER")
+		appendPrimaryPowerToken(list, seen, "MAELSTROM")
+		appendPrimaryPowerToken(list, seen, "MAELSTROM_WEAPON")
+		appendPrimaryPowerToken(list, seen, "SOUL_SHARDS")
+		appendPrimaryPowerToken(list, seen, "CHI")
+		appendPrimaryPowerToken(list, seen, "INSANITY")
+		appendPrimaryPowerToken(list, seen, "ARCANE_CHARGES")
+		appendPrimaryPowerToken(list, seen, "FURY")
+		appendPrimaryPowerToken(list, seen, "ESSENCE")
+		appendPrimaryPowerToken(list, seen, "VOID_METAMORPHOSIS")
+	end
+	table.sort(list, function(a, b)
+		return tostring(H.getPowerLabel(a)) < tostring(H.getPowerLabel(b))
+	end)
+	primaryPowerTokenCache = list
+	primaryPowerTokenSetCache = {}
+	for i = 1, #list do
+		primaryPowerTokenSetCache[list[i]] = true
+	end
+	return primaryPowerTokenCache
+end
+
+local function getPrimaryPowerTokenSet()
+	if primaryPowerTokenSetCache then return primaryPowerTokenSetCache end
+	getPrimaryPowerTokens()
+	return primaryPowerTokenSetCache or {}
+end
+
+function H.GetPrimaryPowerTokens()
+	local src = getPrimaryPowerTokens()
+	local out = {}
+	for i = 1, #src do
+		out[i] = src[i]
+	end
+	return out
+end
+
+function H.GetPrimaryPowerTokenOptions()
+	local options = {}
+	for _, token in ipairs(getPrimaryPowerTokens()) do
+		options[#options + 1] = { value = token, label = H.getPowerLabel(token) }
+	end
+	return options
+end
+
+function H.GetDefaultPrimaryPowerAllowedTypes()
+	local defaults = {}
+	for _, token in ipairs(getPrimaryPowerTokens()) do
+		defaults[token] = true
+	end
+	return defaults
+end
+
+local function getPrimaryAllowedTypes(cfg, def)
+	local src = cfg and cfg.allowedTypes
+	local allowed = {}
+	if type(src) == "table" then
+		for _, token in ipairs(getPrimaryPowerTokens()) do
+			if src[token] == true then allowed[token] = true end
+		end
+		return allowed
+	end
+	src = def and def.allowedTypes
+	if type(src) == "table" then
+		for _, token in ipairs(getPrimaryPowerTokens()) do
+			if src[token] == true then allowed[token] = true end
+		end
+		return allowed
+	end
+	return H.GetDefaultPrimaryPowerAllowedTypes()
+end
+
+function H.IsPrimaryPowerAllowed(cfg, def, powerToken, powerEnum, unitToken)
+	if unitToken and unitToken ~= "player" then return true end
+	local normalized = normalizePrimaryPowerToken(powerEnum, powerToken)
+	if not normalized then return true end
+	if not getPrimaryPowerTokenSet()[normalized] then return true end
+	local allowed = getPrimaryAllowedTypes(cfg, def)
+	return allowed[normalized] == true
+end
+
+local function getSecondaryPowerTokens()
+	if secondaryPowerTokenCache then return secondaryPowerTokenCache end
+	local list = {}
+	local seen = {}
+	for i = 1, #SECONDARY_TRACKED_TOKENS do
+		appendSecondaryToken(list, seen, SECONDARY_TRACKED_TOKENS[i])
+	end
+	table.sort(list, function(a, b)
+		return tostring(H.getPowerLabel(a)) < tostring(H.getPowerLabel(b))
+	end)
+	secondaryPowerTokenCache = list
+	return secondaryPowerTokenCache
+end
+
+local function getSpecPowerInfo(classTag, specIndex)
+	local rb = addon.Aura and addon.Aura.ResourceBars
+	local class = classTag or addon.variables.unitClass
+	local spec = tonumber(specIndex or addon.variables.unitSpec)
+	if not class or not spec then return nil end
+	local classTable = rb and rb.powertypeClasses and rb.powertypeClasses[class]
+	if type(classTable) ~= "table" then return nil end
+	local info = classTable[spec]
+	if type(info) ~= "table" then return nil end
+	return info
+end
+
+function H.GetSpecMainPowerToken(classTag, specIndex)
+	local info = getSpecPowerInfo(classTag, specIndex)
+	return normalizeSecondaryPowerToken(info and info.MAIN)
+end
+
+function H.GetSpecSecondaryPowerTokens(classTag, specIndex)
+	local rb = addon.Aura and addon.Aura.ResourceBars
+	local classPowerTypes = rb and rb.classPowerTypes
+	local info = getSpecPowerInfo(classTag, specIndex)
+	local list = {}
+	if not info then return list end
+	local main = normalizeSecondaryPowerToken(info.MAIN)
+	if type(classPowerTypes) ~= "table" then return list end
+	for i = 1, #classPowerTypes do
+		local token = normalizeSecondaryPowerToken(classPowerTypes[i])
+		if token and token ~= main and info[token] == true then list[#list + 1] = token end
+	end
+	return list
+end
+
+function H.GetDefaultSecondaryPowerAllowedTypes()
+	local defaults = {}
+	for _, token in ipairs(getSecondaryPowerTokens()) do
+		defaults[token] = true
+	end
+	return defaults
+end
+
+local function getSecondaryAllowedTypes(cfg, def)
+	local src = cfg and cfg.allowedTypes
+	local allowed = {}
+	if type(src) == "table" then
+		for _, token in ipairs(getSecondaryPowerTokens()) do
+			if src[token] == true then allowed[token] = true end
+		end
+		return allowed
+	end
+	src = def and def.allowedTypes
+	if type(src) == "table" then
+		for _, token in ipairs(getSecondaryPowerTokens()) do
+			if src[token] == true then allowed[token] = true end
+		end
+		return allowed
+	end
+	return H.GetDefaultSecondaryPowerAllowedTypes()
+end
+
+function H.IsSecondaryPowerSupportedForSpec(powerToken, classTag, specIndex)
+	local normalized = normalizeSecondaryPowerToken(powerToken)
+	if not normalized then return false end
+	if not isTrackedSecondaryToken(normalized) then return false end
+	local class = classTag or addon.variables.unitClass
+	local spec = tonumber(specIndex or addon.variables.unitSpec)
+	if class == "DRUID" then
+		if spec == 4 then return false end
+		return normalized == "MANA"
+	end
+	if class == "DEMONHUNTER" and spec == 3 then return normalized == "VOID_METAMORPHOSIS" end
+	local info = getSpecPowerInfo(classTag, specIndex)
+	if not info then return false end
+	local secondaries = H.GetSpecSecondaryPowerTokens(classTag, specIndex)
+	for i = 1, #secondaries do
+		if secondaries[i] == normalized then return true end
+	end
+	return false
+end
+
+local function resolveAutoSecondaryToken(classTag, specIndex)
+	local class = classTag or addon.variables.unitClass
+	local spec = tonumber(specIndex or addon.variables.unitSpec)
+	local info = getSpecPowerInfo(class, spec)
+	if not info then return nil end
+
+	if class == "DRUID" then
+		if spec == 4 then return nil end
+		if info.MAIN == "MANA" then return nil end
+		if info.MANA == true then return "MANA" end
+		return nil
+	end
+
+	if class == "DEMONHUNTER" and spec == 3 then return "VOID_METAMORPHOSIS" end
+
+	local secondaries = H.GetSpecSecondaryPowerTokens(class, spec)
+	for i = 1, #secondaries do
+		local token = secondaries[i]
+		if isTrackedSecondaryToken(token) then return token end
+	end
+	return nil
+end
+
+local function getCurrentPlayerPrimaryPowerToken()
+	if type(UnitPowerType) ~= "function" then return nil end
+	local _, token = UnitPowerType("player")
+	return normalizeSecondaryPowerToken(token)
+end
+
+function H.ResolveSecondaryPowerToken(cfg, def, classTag, specIndex)
+	local normalized = normalizeSecondaryPowerToken(resolveAutoSecondaryToken(classTag, specIndex))
+	if not normalized then return nil end
+	if not isTrackedSecondaryToken(normalized) then return nil end
+	local currentPrimary = getCurrentPlayerPrimaryPowerToken()
+	if currentPrimary and currentPrimary == normalized then return nil end
+	local allowed = getSecondaryAllowedTypes(cfg, def)
+	if allowed[normalized] == true then return normalized end
+	return nil
+end
+
+function H.GetSecondaryPowerTokenOptions(includeNone)
+	local options = {}
+	if includeNone == true then
+		options[#options + 1] = { value = "NONE", label = _G.NONE or "None" }
+	end
+	for _, token in ipairs(getSecondaryPowerTokens()) do
+		options[#options + 1] = { value = token, label = H.getPowerLabel(token) }
+	end
+	return options
+end
+
+function H.GetPowerEnumByToken(powerToken)
+	local normalized = normalizeSecondaryPowerToken(powerToken)
+	if not normalized then return nil end
+	return powerEnumByToken[normalized]
+end
+
+function H.IsAuraPowerToken(powerToken)
+	local normalized = normalizeSecondaryPowerToken(powerToken)
+	if not normalized then return false end
+	return auraPowerTokenSet[normalized] == true
+end
+
+function H.IsSecondaryPowerTokenSpecial(powerToken)
+	local normalized = normalizeSecondaryPowerToken(powerToken)
+	if not normalized then return false end
+	return normalized == "STAGGER" or auraPowerTokenSet[normalized] == true
+end
+
+function H.GetPowerValuesForToken(unit, powerToken)
+	local normalized = normalizeSecondaryPowerToken(powerToken)
+	if not normalized then return nil, nil, nil, nil end
+	local unitToken = unit or "player"
+	if normalized == "STAGGER" then
+		local cur = UnitStagger and UnitStagger(unitToken) or 0
+		local maxv = UnitHealthMax and UnitHealthMax(unitToken) or 0
+		return cur or 0, maxv or 0, nil, normalized
+	end
+	if auraPowerTokenSet[normalized] then
+		local rb = addon.Aura and addon.Aura.ResourceBars
+		local getCounts = rb and rb.GetAuraPowerCounts
+		if type(getCounts) == "function" then
+			local cur, maxv = getCounts(normalized)
+			return cur or 0, maxv or 0, nil, normalized
+		end
+		return 0, 0, nil, normalized
+	end
+	local enumId = powerEnumByToken[normalized]
+	if enumId == nil then return nil, nil, nil, normalized end
+	local cur = UnitPower and UnitPower(unitToken, enumId) or 0
+	local maxv = UnitPowerMax and UnitPowerMax(unitToken, enumId) or 0
+	return cur or 0, maxv or 0, enumId, normalized
+end
+
+function H.GetPowerPercentByToken(unit, powerToken, cur, maxv)
+	local normalized = normalizeSecondaryPowerToken(powerToken)
+	if not normalized then return 0 end
+	local enumId = powerEnumByToken[normalized]
+	if enumId ~= nil and addon.functions and addon.functions.GetPowerPercent then
+		return addon.functions.GetPowerPercent(unit or "player", enumId, cur, maxv, true)
+	end
+	local current = tonumber(cur) or 0
+	local maxValue = tonumber(maxv) or 0
+	if maxValue > 0 then return (current / maxValue) * 100 end
+	return 0
+end
 
 local reverseStyle = Enum.StatusBarFillStyle and Enum.StatusBarFillStyle.Reverse or "REVERSE"
 local standardStyle = Enum.StatusBarFillStyle and Enum.StatusBarFillStyle.Standard or "STANDARD"

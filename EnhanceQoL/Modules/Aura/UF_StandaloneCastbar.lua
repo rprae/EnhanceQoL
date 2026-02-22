@@ -834,6 +834,7 @@ local function applyCastLayout(castCfg, castDefaults)
 	local height = castCfg.height or castDefaults.height or 16
 	local width = resolveCastbarWidth(castCfg, castDefaults, height)
 	if width < MIN_CASTBAR_WIDTH then width = MIN_CASTBAR_WIDTH end
+	local defaultBackdropInset = ((tonumber(height) or 0) <= 20) and 0 or 1
 	state.castBar:SetSize(width, height)
 	local castStrata = normalizeStrataToken(castCfg.strata) or normalizeStrataToken(castDefaults.strata) or ((state.frame and state.frame.GetFrameStrata and state.frame:GetFrameStrata()) or "MEDIUM")
 	local castLevelOffset = tonumber(castCfg.frameLevelOffset)
@@ -904,31 +905,31 @@ local function applyCastLayout(castCfg, castDefaults)
 	state.castBar:SetStatusBarTexture(castTexture)
 	state.castUseDefaultArt = useDefaultArt
 
-	do -- Cast backdrop
-		local bd = castCfg.backdrop or castDefaults.backdrop or { enabled = true, color = { 0, 0, 0, 0.6 } }
-		if state.castBar.SetBackdrop then state.castBar:SetBackdrop(nil) end
-		local bg = state.castBar.backdropTexture
-		if bd.enabled == false then
-			if bg then bg:Hide() end
-		else
-			if not bg then
-				bg = state.castBar:CreateTexture(nil, "BACKGROUND")
-				state.castBar.backdropTexture = bg
-			end
-			local col = bd.color or { 0, 0, 0, 0.6 }
-			bg:ClearAllPoints()
-			if useDefaultArt and bg.SetAtlas then
-				bg:SetAtlas("ui-castingbar-background", false)
-				bg:SetPoint("TOPLEFT", state.castBar, "TOPLEFT", -1, 1)
-				bg:SetPoint("BOTTOMRIGHT", state.castBar, "BOTTOMRIGHT", 1, -1)
+		do -- Cast backdrop
+			local bd = castCfg.backdrop or castDefaults.backdrop or { enabled = true, color = { 0, 0, 0, 0.6 } }
+			if state.castBar.SetBackdrop then state.castBar:SetBackdrop(nil) end
+			local bg = state.castBar.backdropTexture
+			if bd.enabled == false then
+				if bg then bg:Hide() end
 			else
-				bg:SetTexture(castTexture)
-				bg:SetAllPoints(state.castBar)
+				if not bg then
+					bg = state.castBar:CreateTexture(nil, "BACKGROUND")
+					state.castBar.backdropTexture = bg
+				end
+				local col = bd.color or { 0, 0, 0, 0.6 }
+				bg:ClearAllPoints()
+				if useDefaultArt and bg.SetAtlas then
+					bg:SetAtlas("ui-castingbar-background", false)
+					bg:SetPoint("TOPLEFT", state.castBar, "TOPLEFT", -defaultBackdropInset, defaultBackdropInset)
+					bg:SetPoint("BOTTOMRIGHT", state.castBar, "BOTTOMRIGHT", defaultBackdropInset, -defaultBackdropInset)
+				else
+					bg:SetTexture(castTexture)
+					bg:SetAllPoints(state.castBar)
+				end
+				bg:SetVertexColor(col[1] or 0, col[2] or 0, col[3] or 0, col[4] or 0.6)
+				bg:Show()
 			end
-			bg:SetVertexColor(col[1] or 0, col[2] or 0, col[3] or 0, col[4] or 0.6)
-			bg:Show()
 		end
-	end
 	applyCastBorder(castCfg, castDefaults)
 
 	if state.castName then

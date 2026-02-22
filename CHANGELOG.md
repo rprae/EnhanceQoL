@@ -4,6 +4,8 @@
 
 ### ✨ Added
 
+- Unit Frames (Player): Added a primary power type multi-select in Power settings to control which primary resources are allowed to show.
+- Unit Frames (Player): Added a secondary power section with the same bar options as Power settings (including detach options) plus a secondary type multi-select.
 - Castbars (Unit Frames + Standalone): Added `Use gradient` with `Gradient start color` and `Gradient end color` for cast fill colors.
 - Economy (Bank): Added automatic gold balancing with the Warband bank.
 - Economy (Bank): Added optional per-character target values and automatic withdraw.

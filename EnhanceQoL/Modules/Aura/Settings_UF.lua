@@ -245,6 +245,10 @@ end
 
 local function getPowerLabel(token)
 	if not token then return "" end
+	if UFHelper and UFHelper.getPowerLabel then
+		local helperLabel = UFHelper.getPowerLabel(token)
+		if helperLabel and helperLabel ~= "" then return helperLabel end
+	end
 	local label = _G[token]
 	if not label or label == "" then label = token:gsub("_", " ") end
 	return label
@@ -281,6 +285,62 @@ local function getMainPowerTokens()
 	table.sort(list, function(a, b) return tostring(getPowerLabel(a)) < tostring(getPowerLabel(b)) end)
 	mainPowerTokenCache = list
 	return list
+end
+
+local primaryPowerTokenOptionsCache
+local function getPrimaryPowerTokenOptions()
+	if primaryPowerTokenOptionsCache then return primaryPowerTokenOptionsCache end
+	if UFHelper and UFHelper.GetPrimaryPowerTokenOptions then
+		primaryPowerTokenOptionsCache = UFHelper.GetPrimaryPowerTokenOptions()
+		return primaryPowerTokenOptionsCache
+	end
+	local excluded = {
+		ARCANE_CHARGES = true,
+		CHI = true,
+		ESSENCE = true,
+		HOLY_POWER = true,
+		MAELSTROM_WEAPON = true,
+		RUNIC_POWER = true,
+		SOUL_SHARDS = true,
+		VOID_METAMORPHOSIS = true,
+	}
+	local options = {}
+	local seen = {}
+	local powertypeClasses = addon.Aura and addon.Aura.ResourceBars and addon.Aura.ResourceBars.powertypeClasses
+	if type(powertypeClasses) == "table" then
+		for _, specs in pairs(powertypeClasses) do
+			if type(specs) == "table" then
+				for _, info in pairs(specs) do
+					local token = info and info.MAIN
+					if type(token) == "string" and token ~= "" and not excluded[token] and not seen[token] then
+						seen[token] = true
+						options[#options + 1] = { value = token, label = getPowerLabel(token) }
+					end
+				end
+			end
+		end
+	end
+	table.sort(options, function(a, b) return tostring(a.label) < tostring(b.label) end)
+	primaryPowerTokenOptionsCache = options
+	return primaryPowerTokenOptionsCache
+end
+
+local secondaryPowerTokenOptionsCache
+local function getSecondaryPowerTokenOptions()
+	if secondaryPowerTokenOptionsCache then return secondaryPowerTokenOptionsCache end
+	if UFHelper and UFHelper.GetSecondaryPowerTokenOptions then
+		secondaryPowerTokenOptionsCache = UFHelper.GetSecondaryPowerTokenOptions(false)
+		return secondaryPowerTokenOptionsCache
+	end
+	local options = {}
+	local fallbackTokens = { "MANA", "STAGGER", "VOID_METAMORPHOSIS" }
+	for i = 1, #fallbackTokens do
+		local token = fallbackTokens[i]
+		options[#options + 1] = { value = token, label = getPowerLabel(token) }
+	end
+	table.sort(options, function(a, b) return tostring(a.label) < tostring(b.label) end)
+	secondaryPowerTokenOptionsCache = options
+	return secondaryPowerTokenOptionsCache
 end
 
 local function getPowerOverride(token)
@@ -891,7 +951,9 @@ local function multiDropdown(name, options, isSelected, setSelected, default, pa
 			local opts = type(options) == "function" and options() or options
 			if type(opts) ~= "table" then return end
 			for _, opt in ipairs(opts) do
-				root:CreateCheckbox(opt.label, function() return isSelected(opt.value) end, function() setSelected(opt.value, not isSelected(opt.value)) end)
+				local value = opt.value
+				local label = opt.label
+				root:CreateCheckbox(label, function() return isSelected(value) end, function() setSelected(value, not isSelected(value)) end)
 			end
 		end,
 		isEnabled = isEnabled,
@@ -1094,9 +1156,22 @@ local function calcLayout(unit, frame)
 	local cfg = ensureConfig(unit)
 	local def = defaultsFor(unit)
 	local anchor = cfg.anchor or def.anchor or {}
-	local powerEnabled = getValue(unit, { "power", "enabled" }, (def.power and def.power.enabled) ~= false)
 	local pcfg = cfg.power or {}
+	local powerDef = def.power or {}
+	local powerEnabled = getValue(unit, { "power", "enabled" }, powerDef.enabled ~= false)
+	if unit == "player" and powerEnabled and UFHelper and UFHelper.IsPrimaryPowerAllowed and UnitPowerType then
+		local enumId, token = UnitPowerType("player")
+		powerEnabled = UFHelper.IsPrimaryPowerAllowed(pcfg, powerDef, token, enumId, "player") ~= false
+	end
 	local powerDetached = powerEnabled and pcfg.detached == true
+	local secondaryDef = def.secondaryPower or {}
+	local secondaryCfg = cfg.secondaryPower or {}
+	local secondaryToken
+	if unit == "player" and UFHelper and UFHelper.ResolveSecondaryPowerToken then
+		secondaryToken = UFHelper.ResolveSecondaryPowerToken(secondaryCfg, secondaryDef, addon.variables and addon.variables.unitClass, addon.variables and addon.variables.unitSpec)
+	end
+	local secondaryPowerEnabled = unit == "player" and getValue(unit, { "secondaryPower", "enabled" }, secondaryDef.enabled == true) ~= false and secondaryToken ~= nil
+	local secondaryPowerDetached = secondaryPowerEnabled and secondaryCfg.detached == true
 	local statusDef = def.status or {}
 	local showName = getValue(unit, { "status", "enabled" }, statusDef.enabled ~= false) ~= false
 	local showLevel = getValue(unit, { "status", "levelEnabled" }, statusDef.levelEnabled ~= false) ~= false
@@ -1121,7 +1196,8 @@ local function calcLayout(unit, frame)
 
 	local healthHeight = cfg.healthHeight or def.healthHeight or 24
 	local powerHeight = powerEnabled and (cfg.powerHeight or def.powerHeight or 16) or 0
-	local stackHeight = healthHeight + (powerDetached and 0 or powerHeight)
+	local secondaryPowerHeight = secondaryPowerEnabled and (cfg.secondaryPowerHeight or def.secondaryPowerHeight or cfg.powerHeight or def.powerHeight or 16) or 0
+	local stackHeight = healthHeight + (powerDetached and 0 or powerHeight) + (secondaryPowerDetached and 0 or secondaryPowerHeight)
 	local portraitInnerHeight = stackHeight
 	local portraitSize = portraitEnabled and math.max(1, portraitInnerHeight) or 0
 
@@ -1157,6 +1233,625 @@ local function calcLayout(unit, frame)
 		height = height,
 	}
 end
+
+local function appendSecondaryPowerSettings(list, unit, def, textureOpts, addDivider, refresh, refreshSelf)
+	if unit ~= "player" then return end
+	list[#list + 1] = { name = (_G.SECONDARY or "Secondary") .. " " .. (L["PowerBar"] or "Power Bar"), kind = settingType.Collapsible, id = "secondaryPower", defaultCollapsed = true }
+	local secondaryDef = def.secondaryPower or {}
+	local defaultSecondaryAllowedTypes = (UFHelper and UFHelper.GetDefaultSecondaryPowerAllowedTypes and UFHelper.GetDefaultSecondaryPowerAllowedTypes())
+		or {
+			MANA = true,
+			STAGGER = true,
+			VOID_METAMORPHOSIS = true,
+		}
+	local function normalizeSecondaryTypeToken(token)
+		if type(token) ~= "string" then return nil end
+		local normalized = string.upper(token)
+		if normalized == "" or normalized == "NONE" then return nil end
+		return normalized
+	end
+	local function resolveSecondaryAllowedForDisplay()
+		local cfgAllowed = getValue(unit, { "secondaryPower", "allowedTypes" }, nil)
+		if type(cfgAllowed) == "table" then return cfgAllowed end
+		local defAllowed = secondaryDef.allowedTypes
+		if type(defAllowed) == "table" then return defAllowed end
+		return defaultSecondaryAllowedTypes
+	end
+	local function isSecondaryAllowedTypeSelected(token)
+		local normalized = normalizeSecondaryTypeToken(token)
+		if not normalized then return false end
+		local allowed = resolveSecondaryAllowedForDisplay()
+		return type(allowed) == "table" and allowed[normalized] == true
+	end
+	local function setSecondaryAllowedType(token, enabled)
+		local normalized = normalizeSecondaryTypeToken(token)
+		if not normalized then return end
+		local source = resolveSecondaryAllowedForDisplay()
+		local allowed = {}
+		if type(source) == "table" then
+			for key, isAllowed in pairs(source) do
+				if isAllowed == true then allowed[key] = true end
+			end
+		end
+		if enabled then
+			allowed[normalized] = true
+		else
+			allowed[normalized] = nil
+		end
+		setValue(unit, { "secondaryPower", "allowedTypes" }, allowed)
+		refreshSelf()
+		refreshSettingsUI()
+	end
+	local function isSecondaryPowerEnabled() return getValue(unit, { "secondaryPower", "enabled" }, secondaryDef.enabled == true) ~= false end
+	local function isSecondaryPowerDetached() return getValue(unit, { "secondaryPower", "detached" }, secondaryDef.detached == true) == true end
+	local function isSecondaryPowerDetachedEnabled() return isSecondaryPowerEnabled() and isSecondaryPowerDetached() end
+	local function isDetachedSecondaryWidthMatched() return getValue(unit, { "secondaryPower", "detachedMatchHealthWidth" }, secondaryDef.detachedMatchHealthWidth == true) == true end
+	local function isDetachedSecondaryBorderEnabled()
+		local border = getValue(unit, { "border" }, def.border or {})
+		return isSecondaryPowerDetachedEnabled() and border.detachedSecondaryPower == true
+	end
+	local detachedStrataOptions = { { value = "", label = DEFAULT } }
+	for i = 1, #strataOptions do
+		detachedStrataOptions[#detachedStrataOptions + 1] = strataOptions[i]
+	end
+
+	list[#list + 1] = checkbox(L["Show power bar"] or "Show power bar", isSecondaryPowerEnabled, function(val)
+		setValue(unit, { "secondaryPower", "enabled" }, val and true or false)
+		refreshSelf()
+		refreshSettingsUI()
+	end, secondaryDef.enabled == true, "secondaryPower")
+
+	local secondaryType = multiDropdown(TYPE or "Type", getSecondaryPowerTokenOptions, isSecondaryAllowedTypeSelected, setSecondaryAllowedType, nil, "secondaryPower")
+	secondaryType.isEnabled = isSecondaryPowerEnabled
+	list[#list + 1] = secondaryType
+
+	local secondaryDetachedSetting = checkbox(L["UFPowerDetached"] or "Detach power bar", isSecondaryPowerDetached, function(val)
+		setValue(unit, { "secondaryPower", "detached" }, val and true or false)
+		refresh()
+		refreshSettingsUI()
+	end, secondaryDef.detached == true, "secondaryPower", isSecondaryPowerEnabled)
+	list[#list + 1] = secondaryDetachedSetting
+	addDivider("secondaryPower", isSecondaryPowerDetachedEnabled)
+
+	local secondaryEmptyFallbackSetting = checkbox(
+		L["UFPowerEmptyFallback"] or "Handle empty power bars (max 0)",
+		function() return getValue(unit, { "secondaryPower", "emptyMaxFallback" }, secondaryDef.emptyMaxFallback == true) == true end,
+		function(val)
+			setValue(unit, { "secondaryPower", "emptyMaxFallback" }, val and true or false)
+			refresh()
+		end,
+		secondaryDef.emptyMaxFallback == true,
+		"secondaryPower",
+		isSecondaryPowerEnabled
+	)
+	secondaryEmptyFallbackSetting.isEnabled = isSecondaryPowerDetachedEnabled
+	secondaryEmptyFallbackSetting.isShown = isSecondaryPowerDetachedEnabled
+	list[#list + 1] = secondaryEmptyFallbackSetting
+
+	local secondaryMatchWidthSetting = checkbox(L["UFPowerDetachedMatchHealthWidth"] or "Match health width", isDetachedSecondaryWidthMatched, function(val)
+		setValue(unit, { "secondaryPower", "detachedMatchHealthWidth" }, val and true or false)
+		refresh()
+		refreshSettingsUI()
+	end, secondaryDef.detachedMatchHealthWidth == true, "secondaryPower", isSecondaryPowerDetachedEnabled)
+	secondaryMatchWidthSetting.isEnabled = isSecondaryPowerDetachedEnabled
+	secondaryMatchWidthSetting.isShown = isSecondaryPowerDetachedEnabled
+	list[#list + 1] = secondaryMatchWidthSetting
+
+	local secondaryWidthSetting = slider(L["UFPowerWidth"] or "Power width", MIN_WIDTH, 800, 1, function()
+		local fallback = getValue(unit, { "width" }, def.width or MIN_WIDTH)
+		return getValue(unit, { "secondaryPower", "width" }, fallback)
+	end, function(val)
+		debounced(unit .. "_secondaryPowerWidth", function()
+			setValue(unit, { "secondaryPower", "width" }, math.max(MIN_WIDTH, val or MIN_WIDTH))
+			refresh()
+		end)
+	end, def.width or MIN_WIDTH, "secondaryPower", true)
+	secondaryWidthSetting.isEnabled = function() return isSecondaryPowerDetachedEnabled() and not isDetachedSecondaryWidthMatched() end
+	secondaryWidthSetting.isShown = isSecondaryPowerDetachedEnabled
+	list[#list + 1] = secondaryWidthSetting
+
+	local secondaryGrowFromCenterSetting = checkbox(
+		L["UFPowerDetachedGrowFromCenter"] or "Grow from center",
+		function() return getValue(unit, { "secondaryPower", "detachedGrowFromCenter" }, secondaryDef.detachedGrowFromCenter == true) == true end,
+		function(val)
+			setValue(unit, { "secondaryPower", "detachedGrowFromCenter" }, val and true or false)
+			refresh()
+		end,
+		secondaryDef.detachedGrowFromCenter == true,
+		"secondaryPower",
+		isSecondaryPowerDetachedEnabled
+	)
+	secondaryGrowFromCenterSetting.isEnabled = isSecondaryPowerDetachedEnabled
+	secondaryGrowFromCenterSetting.isShown = isSecondaryPowerDetachedEnabled
+	list[#list + 1] = secondaryGrowFromCenterSetting
+
+	local secondaryOffsetX = slider(L["Offset X"] or "Offset X", -OFFSET_RANGE, OFFSET_RANGE, 1, function() return getValue(unit, { "secondaryPower", "offset", "x" }, 0) end, function(val)
+		debounced(unit .. "_secondaryPowerOffsetX", function()
+			setValue(unit, { "secondaryPower", "offset", "x" }, val or 0)
+			refresh()
+		end)
+	end, 0, "secondaryPower", true)
+	secondaryOffsetX.isEnabled = isSecondaryPowerDetachedEnabled
+	secondaryOffsetX.isShown = isSecondaryPowerDetachedEnabled
+	list[#list + 1] = secondaryOffsetX
+
+	local secondaryOffsetY = slider(L["Offset Y"] or "Offset Y", -OFFSET_RANGE, OFFSET_RANGE, 1, function() return getValue(unit, { "secondaryPower", "offset", "y" }, 0) end, function(val)
+		debounced(unit .. "_secondaryPowerOffsetY", function()
+			setValue(unit, { "secondaryPower", "offset", "y" }, val or 0)
+			refresh()
+		end)
+	end, 0, "secondaryPower", true)
+	secondaryOffsetY.isEnabled = isSecondaryPowerDetachedEnabled
+	secondaryOffsetY.isShown = isSecondaryPowerDetachedEnabled
+	list[#list + 1] = secondaryOffsetY
+	addDivider("secondaryPower", isSecondaryPowerDetachedEnabled)
+
+	local detachedSecondaryStrata = radioDropdown(
+		L["UFDetachedPowerStrata"] or "Strata",
+		detachedStrataOptions,
+		function() return getValue(unit, { "secondaryPower", "detachedStrata" }, secondaryDef.detachedStrata or "") end,
+		function(val)
+			if val == "" then val = nil end
+			setValue(unit, { "secondaryPower", "detachedStrata" }, val)
+			refresh()
+		end,
+		secondaryDef.detachedStrata or "",
+		"secondaryPower",
+		true
+	)
+	detachedSecondaryStrata.isEnabled = isSecondaryPowerDetachedEnabled
+	detachedSecondaryStrata.isShown = isSecondaryPowerDetachedEnabled
+	list[#list + 1] = detachedSecondaryStrata
+
+	local detachedSecondaryLevelOffset = slider(
+		L["UFDetachedPowerLevelOffset"] or "Frame level offset",
+		0,
+		50,
+		1,
+		function() return getValue(unit, { "secondaryPower", "detachedFrameLevelOffset" }, secondaryDef.detachedFrameLevelOffset or 5) end,
+		function(val)
+			debounced(unit .. "_detachedSecondaryPowerLevelOffset", function()
+				setValue(unit, { "secondaryPower", "detachedFrameLevelOffset" }, val or secondaryDef.detachedFrameLevelOffset or 5)
+				refresh()
+			end)
+		end,
+		secondaryDef.detachedFrameLevelOffset or 5,
+		"secondaryPower",
+		true
+	)
+	detachedSecondaryLevelOffset.isEnabled = isSecondaryPowerDetachedEnabled
+	detachedSecondaryLevelOffset.isShown = isSecondaryPowerDetachedEnabled
+	list[#list + 1] = detachedSecondaryLevelOffset
+	addDivider("secondaryPower", isSecondaryPowerDetachedEnabled)
+
+	local detachedSecondaryBorderToggle = checkbox(
+		L["UFDetachedPowerBorder"] or "Show border",
+		function() return getValue(unit, { "border", "detachedSecondaryPower" }, def.border and def.border.detachedSecondaryPower == true) == true end,
+		function(val)
+			local border = getValue(unit, { "border" }, def.border or {})
+			border.detachedSecondaryPower = val and true or false
+			setValue(unit, { "border" }, border)
+			refresh()
+			refreshSettingsUI()
+		end,
+		def.border and def.border.detachedSecondaryPower == true,
+		"secondaryPower"
+	)
+	detachedSecondaryBorderToggle.isEnabled = isSecondaryPowerDetachedEnabled
+	detachedSecondaryBorderToggle.isShown = isSecondaryPowerDetachedEnabled
+	list[#list + 1] = detachedSecondaryBorderToggle
+
+	local detachedSecondaryBorderTexture = checkboxDropdown(L["UFDetachedPowerBorderTexture"] or "Border texture", borderOptions, function()
+		local border = getValue(unit, { "border" }, def.border or {})
+		return border.detachedSecondaryPowerTexture or border.texture or (def.border and def.border.texture) or "DEFAULT"
+	end, function(val)
+		local border = getValue(unit, { "border" }, def.border or {})
+		border.detachedSecondaryPowerTexture = val or "DEFAULT"
+		setValue(unit, { "border" }, border)
+		refresh()
+	end, (def.border and def.border.detachedSecondaryPowerTexture) or (def.border and def.border.texture) or "DEFAULT", "secondaryPower")
+	detachedSecondaryBorderTexture.isEnabled = isDetachedSecondaryBorderEnabled
+	detachedSecondaryBorderTexture.isShown = isSecondaryPowerDetachedEnabled
+	list[#list + 1] = detachedSecondaryBorderTexture
+
+	local detachedSecondaryBorderSize = slider(L["UFDetachedPowerBorderSize"] or "Border size", 1, 64, 1, function()
+		local border = getValue(unit, { "border" }, def.border or {})
+		return border.detachedSecondaryPowerSize or border.edgeSize or 1
+	end, function(val)
+		debounced(unit .. "_detachedSecondaryPowerBorderSize", function()
+			local border = getValue(unit, { "border" }, def.border or {})
+			border.detachedSecondaryPowerSize = val or 1
+			setValue(unit, { "border" }, border)
+			refresh()
+		end)
+	end, (def.border and def.border.detachedSecondaryPowerSize) or (def.border and def.border.edgeSize) or 1, "secondaryPower", true)
+	detachedSecondaryBorderSize.isEnabled = isDetachedSecondaryBorderEnabled
+	detachedSecondaryBorderSize.isShown = isSecondaryPowerDetachedEnabled
+	list[#list + 1] = detachedSecondaryBorderSize
+
+	local detachedSecondaryBorderOffset = slider(L["UFDetachedPowerBorderOffset"] or "Border offset", 0, 64, 1, function()
+		local border = getValue(unit, { "border" }, def.border or {})
+		if border.detachedSecondaryPowerOffset == nil then
+			if border.offset ~= nil then return border.offset end
+			return border.edgeSize or 1
+		end
+		return border.detachedSecondaryPowerOffset
+	end, function(val)
+		debounced(unit .. "_detachedSecondaryPowerBorderOffset", function()
+			local border = getValue(unit, { "border" }, def.border or {})
+			border.detachedSecondaryPowerOffset = val or 0
+			setValue(unit, { "border" }, border)
+			refresh()
+		end)
+	end, (def.border and def.border.detachedSecondaryPowerOffset) or (def.border and def.border.offset) or (def.border and def.border.edgeSize) or 1, "secondaryPower", true)
+	detachedSecondaryBorderOffset.isEnabled = isDetachedSecondaryBorderEnabled
+	detachedSecondaryBorderOffset.isShown = isSecondaryPowerDetachedEnabled
+	list[#list + 1] = detachedSecondaryBorderOffset
+	addDivider("secondaryPower", isSecondaryPowerDetachedEnabled)
+
+	list[#list + 1] = checkbox(L["Reverse fill"] or "Reverse fill", function() return getValue(unit, { "secondaryPower", "reverseFill" }, secondaryDef.reverseFill == true) == true end, function(val)
+		setValue(unit, { "secondaryPower", "reverseFill" }, val and true or false)
+		refresh()
+	end, secondaryDef.reverseFill == true, "secondaryPower", isSecondaryPowerEnabled)
+
+	local secondaryPowerHeightSetting = slider(
+		L["UFPowerHeight"] or "Power height",
+		6,
+		60,
+		1,
+		function() return getValue(unit, { "secondaryPowerHeight" }, def.secondaryPowerHeight or def.powerHeight or 16) end,
+		function(val)
+			debounced(unit .. "_secondaryPowerHeight", function()
+				setValue(unit, { "secondaryPowerHeight" }, val or def.secondaryPowerHeight or def.powerHeight or 16)
+				refresh()
+			end)
+		end,
+		def.secondaryPowerHeight or def.powerHeight or 16,
+		"secondaryPower",
+		true
+	)
+	secondaryPowerHeightSetting.isEnabled = isSecondaryPowerEnabled
+	list[#list + 1] = secondaryPowerHeightSetting
+	addDivider("secondaryPower")
+
+	local secondaryTextLeft = radioDropdown(
+		L["TextLeft"] or "Left text",
+		textOptions,
+		function() return normalizeTextMode(getValue(unit, { "secondaryPower", "textLeft" }, secondaryDef.textLeft or "PERCENT")) end,
+		function(val)
+			setValue(unit, { "secondaryPower", "textLeft" }, val)
+			refreshSelf()
+			refreshSettingsUI()
+		end,
+		secondaryDef.textLeft or "PERCENT",
+		"secondaryPower"
+	)
+	secondaryTextLeft.isEnabled = isSecondaryPowerEnabled
+	list[#list + 1] = secondaryTextLeft
+
+	local secondaryTextCenter = radioDropdown(
+		L["TextCenter"] or "Center text",
+		textOptions,
+		function() return normalizeTextMode(getValue(unit, { "secondaryPower", "textCenter" }, secondaryDef.textCenter or "NONE")) end,
+		function(val)
+			setValue(unit, { "secondaryPower", "textCenter" }, val)
+			refreshSelf()
+			refreshSettingsUI()
+		end,
+		secondaryDef.textCenter or "NONE",
+		"secondaryPower"
+	)
+	secondaryTextCenter.isEnabled = isSecondaryPowerEnabled
+	list[#list + 1] = secondaryTextCenter
+
+	local secondaryTextRight = radioDropdown(
+		L["TextRight"] or "Right text",
+		textOptions,
+		function() return normalizeTextMode(getValue(unit, { "secondaryPower", "textRight" }, secondaryDef.textRight or "CURMAX")) end,
+		function(val)
+			setValue(unit, { "secondaryPower", "textRight" }, val)
+			refreshSelf()
+			refreshSettingsUI()
+		end,
+		secondaryDef.textRight or "CURMAX",
+		"secondaryPower"
+	)
+	secondaryTextRight.isEnabled = isSecondaryPowerEnabled
+	list[#list + 1] = secondaryTextRight
+
+	local secondaryDelimiter = radioDropdown(
+		L["Delimiter"] or "Delimiter",
+		delimiterOptions,
+		function() return getValue(unit, { "secondaryPower", "textDelimiter" }, secondaryDef.textDelimiter or " ") end,
+		function(val)
+			setValue(unit, { "secondaryPower", "textDelimiter" }, val)
+			refreshSelf()
+		end,
+		secondaryDef.textDelimiter or " ",
+		"secondaryPower"
+	)
+	local function secondaryDelimiterCount()
+		local leftMode = getValue(unit, { "secondaryPower", "textLeft" }, secondaryDef.textLeft or "PERCENT")
+		local centerMode = getValue(unit, { "secondaryPower", "textCenter" }, secondaryDef.textCenter or "NONE")
+		local rightMode = getValue(unit, { "secondaryPower", "textRight" }, secondaryDef.textRight or "CURMAX")
+		return maxDelimiterCount(leftMode, centerMode, rightMode)
+	end
+	secondaryDelimiter.isShown = function() return secondaryDelimiterCount() >= 1 end
+	secondaryDelimiter.isEnabled = isSecondaryPowerEnabled
+	list[#list + 1] = secondaryDelimiter
+
+	local secondaryDelimiterSecondary = radioDropdown(L["Secondary Delimiter"] or "Secondary delimiter", delimiterOptions, function()
+		local primary = getValue(unit, { "secondaryPower", "textDelimiter" }, secondaryDef.textDelimiter or " ")
+		return getValue(unit, { "secondaryPower", "textDelimiterSecondary" }, primary)
+	end, function(val)
+		setValue(unit, { "secondaryPower", "textDelimiterSecondary" }, val)
+		refreshSelf()
+	end, secondaryDef.textDelimiterSecondary or secondaryDef.textDelimiter or " ", "secondaryPower")
+	secondaryDelimiterSecondary.isShown = function() return secondaryDelimiterCount() >= 2 end
+	secondaryDelimiterSecondary.isEnabled = isSecondaryPowerEnabled
+	list[#list + 1] = secondaryDelimiterSecondary
+
+	local secondaryDelimiterTertiary = radioDropdown(L["Tertiary Delimiter"] or "Tertiary delimiter", delimiterOptions, function()
+		local primary = getValue(unit, { "secondaryPower", "textDelimiter" }, secondaryDef.textDelimiter or " ")
+		local secondary = getValue(unit, { "secondaryPower", "textDelimiterSecondary" }, primary)
+		return getValue(unit, { "secondaryPower", "textDelimiterTertiary" }, secondary)
+	end, function(val)
+		setValue(unit, { "secondaryPower", "textDelimiterTertiary" }, val)
+		refreshSelf()
+	end, secondaryDef.textDelimiterTertiary or secondaryDef.textDelimiterSecondary or secondaryDef.textDelimiter or " ", "secondaryPower")
+	secondaryDelimiterTertiary.isShown = function() return secondaryDelimiterCount() >= 3 end
+	secondaryDelimiterTertiary.isEnabled = isSecondaryPowerEnabled
+	list[#list + 1] = secondaryDelimiterTertiary
+
+	list[#list + 1] = checkbox(
+		L["Hide % symbol"] or "Hide % symbol",
+		function() return getValue(unit, { "secondaryPower", "hidePercentSymbol" }, secondaryDef.hidePercentSymbol == true) == true end,
+		function(val)
+			setValue(unit, { "secondaryPower", "hidePercentSymbol" }, val and true or false)
+			refresh()
+		end,
+		secondaryDef.hidePercentSymbol == true,
+		"secondaryPower",
+		isSecondaryPowerEnabled
+	)
+
+	list[#list + 1] = checkbox(
+		L["Round percent values"] or "Round percent values",
+		function() return getValue(unit, { "secondaryPower", "roundPercent" }, secondaryDef.roundPercent == true) == true end,
+		function(val)
+			setValue(unit, { "secondaryPower", "roundPercent" }, val and true or false)
+			refresh()
+		end,
+		secondaryDef.roundPercent == true,
+		"secondaryPower",
+		isSecondaryPowerEnabled
+	)
+
+	local secondaryFontSize = slider(L["FontSize"] or "Font size", 8, 30, 1, function() return getValue(unit, { "secondaryPower", "fontSize" }, secondaryDef.fontSize or 14) end, function(val)
+		debounced(unit .. "_secondaryPowerFontSize", function()
+			setValue(unit, { "secondaryPower", "fontSize" }, val or secondaryDef.fontSize or 14)
+			refreshSelf()
+		end)
+	end, secondaryDef.fontSize or 14, "secondaryPower", true)
+	secondaryFontSize.isEnabled = isSecondaryPowerEnabled
+	list[#list + 1] = secondaryFontSize
+
+	if #fontOptions() > 0 then
+		local secondaryFont = checkboxDropdown(
+			L["Font"] or "Font",
+			fontOptions,
+			function() return getValue(unit, { "secondaryPower", "font" }, secondaryDef.font or defaultFontPath()) end,
+			function(val)
+				setValue(unit, { "secondaryPower", "font" }, val)
+				refreshSelf()
+			end,
+			secondaryDef.font or defaultFontPath(),
+			"secondaryPower"
+		)
+		secondaryFont.isEnabled = isSecondaryPowerEnabled
+		list[#list + 1] = secondaryFont
+	end
+
+	local secondaryFontOutline = checkboxDropdown(
+		L["Font outline"] or "Font outline",
+		outlineOptions,
+		function() return getValue(unit, { "secondaryPower", "fontOutline" }, secondaryDef.fontOutline or "OUTLINE") end,
+		function(val)
+			setValue(unit, { "secondaryPower", "fontOutline" }, val)
+			refresh()
+		end,
+		secondaryDef.fontOutline or "OUTLINE",
+		"secondaryPower"
+	)
+	secondaryFontOutline.isEnabled = isSecondaryPowerEnabled
+	list[#list + 1] = secondaryFontOutline
+
+	local function showSecondaryTextOffsets(key, fallback)
+		local mode = normalizeTextMode(getValue(unit, { "secondaryPower", key }, fallback))
+		return mode ~= "NONE"
+	end
+
+	local secondaryLeftX = slider(
+		L["TextLeftOffsetX"] or "Left text X offset",
+		-OFFSET_RANGE,
+		OFFSET_RANGE,
+		1,
+		function() return getValue(unit, { "secondaryPower", "offsetLeft", "x" }, (secondaryDef.offsetLeft and secondaryDef.offsetLeft.x) or 0) end,
+		function(val)
+			debounced(unit .. "_secondaryPowerLeftX", function()
+				setValue(unit, { "secondaryPower", "offsetLeft", "x" }, val or 0)
+				refresh()
+			end)
+		end,
+		(secondaryDef.offsetLeft and secondaryDef.offsetLeft.x) or 0,
+		"secondaryPower",
+		true
+	)
+	secondaryLeftX.isEnabled = isSecondaryPowerEnabled
+	secondaryLeftX.isShown = function() return showSecondaryTextOffsets("textLeft", secondaryDef.textLeft or "PERCENT") end
+	list[#list + 1] = secondaryLeftX
+
+	local secondaryLeftY = slider(
+		L["TextLeftOffsetY"] or "Left text Y offset",
+		-OFFSET_RANGE,
+		OFFSET_RANGE,
+		1,
+		function() return getValue(unit, { "secondaryPower", "offsetLeft", "y" }, (secondaryDef.offsetLeft and secondaryDef.offsetLeft.y) or 0) end,
+		function(val)
+			debounced(unit .. "_secondaryPowerLeftY", function()
+				setValue(unit, { "secondaryPower", "offsetLeft", "y" }, val or 0)
+				refresh()
+			end)
+		end,
+		(secondaryDef.offsetLeft and secondaryDef.offsetLeft.y) or 0,
+		"secondaryPower",
+		true
+	)
+	secondaryLeftY.isEnabled = isSecondaryPowerEnabled
+	secondaryLeftY.isShown = function() return showSecondaryTextOffsets("textLeft", secondaryDef.textLeft or "PERCENT") end
+	list[#list + 1] = secondaryLeftY
+
+	local secondaryCenterX = slider(
+		L["TextCenterOffsetX"] or "Center text X offset",
+		-OFFSET_RANGE,
+		OFFSET_RANGE,
+		1,
+		function() return getValue(unit, { "secondaryPower", "offsetCenter", "x" }, (secondaryDef.offsetCenter and secondaryDef.offsetCenter.x) or 0) end,
+		function(val)
+			debounced(unit .. "_secondaryPowerCenterX", function()
+				setValue(unit, { "secondaryPower", "offsetCenter", "x" }, val or 0)
+				refresh()
+			end)
+		end,
+		(secondaryDef.offsetCenter and secondaryDef.offsetCenter.x) or 0,
+		"secondaryPower",
+		true
+	)
+	secondaryCenterX.isEnabled = isSecondaryPowerEnabled
+	secondaryCenterX.isShown = function() return showSecondaryTextOffsets("textCenter", secondaryDef.textCenter or "NONE") end
+	list[#list + 1] = secondaryCenterX
+
+	local secondaryCenterY = slider(
+		L["TextCenterOffsetY"] or "Center text Y offset",
+		-OFFSET_RANGE,
+		OFFSET_RANGE,
+		1,
+		function() return getValue(unit, { "secondaryPower", "offsetCenter", "y" }, (secondaryDef.offsetCenter and secondaryDef.offsetCenter.y) or 0) end,
+		function(val)
+			debounced(unit .. "_secondaryPowerCenterY", function()
+				setValue(unit, { "secondaryPower", "offsetCenter", "y" }, val or 0)
+				refresh()
+			end)
+		end,
+		(secondaryDef.offsetCenter and secondaryDef.offsetCenter.y) or 0,
+		"secondaryPower",
+		true
+	)
+	secondaryCenterY.isEnabled = isSecondaryPowerEnabled
+	secondaryCenterY.isShown = function() return showSecondaryTextOffsets("textCenter", secondaryDef.textCenter or "NONE") end
+	list[#list + 1] = secondaryCenterY
+
+	local secondaryRightX = slider(
+		L["TextRightOffsetX"] or "Right text X offset",
+		-OFFSET_RANGE,
+		OFFSET_RANGE,
+		1,
+		function() return getValue(unit, { "secondaryPower", "offsetRight", "x" }, (secondaryDef.offsetRight and secondaryDef.offsetRight.x) or 0) end,
+		function(val)
+			debounced(unit .. "_secondaryPowerRightX", function()
+				setValue(unit, { "secondaryPower", "offsetRight", "x" }, val or 0)
+				refresh()
+			end)
+		end,
+		(secondaryDef.offsetRight and secondaryDef.offsetRight.x) or 0,
+		"secondaryPower",
+		true
+	)
+	secondaryRightX.isEnabled = isSecondaryPowerEnabled
+	secondaryRightX.isShown = function() return showSecondaryTextOffsets("textRight", secondaryDef.textRight or "CURMAX") end
+	list[#list + 1] = secondaryRightX
+
+	local secondaryRightY = slider(
+		L["TextRightOffsetY"] or "Right text Y offset",
+		-OFFSET_RANGE,
+		OFFSET_RANGE,
+		1,
+		function() return getValue(unit, { "secondaryPower", "offsetRight", "y" }, (secondaryDef.offsetRight and secondaryDef.offsetRight.y) or 0) end,
+		function(val)
+			debounced(unit .. "_secondaryPowerRightY", function()
+				setValue(unit, { "secondaryPower", "offsetRight", "y" }, val or 0)
+				refresh()
+			end)
+		end,
+		(secondaryDef.offsetRight and secondaryDef.offsetRight.y) or 0,
+		"secondaryPower",
+		true
+	)
+	secondaryRightY.isEnabled = isSecondaryPowerEnabled
+	secondaryRightY.isShown = function() return showSecondaryTextOffsets("textRight", secondaryDef.textRight or "CURMAX") end
+	list[#list + 1] = secondaryRightY
+
+	list[#list + 1] = checkbox(
+		L["Use short numbers"] or "Use short numbers",
+		function() return getValue(unit, { "secondaryPower", "useShortNumbers" }, secondaryDef.useShortNumbers ~= false) end,
+		function(val)
+			setValue(unit, { "secondaryPower", "useShortNumbers" }, val and true or false)
+			refresh()
+		end,
+		secondaryDef.useShortNumbers ~= false,
+		"secondaryPower",
+		isSecondaryPowerEnabled
+	)
+	addDivider("secondaryPower")
+
+	local secondaryTexture = checkboxDropdown(
+		L["Bar Texture"] or "Bar Texture",
+		textureOpts,
+		function() return getValue(unit, { "secondaryPower", "texture" }, secondaryDef.texture or "DEFAULT") end,
+		function(val)
+			setValue(unit, { "secondaryPower", "texture" }, val)
+			refresh()
+		end,
+		secondaryDef.texture or "DEFAULT",
+		"secondaryPower"
+	)
+	secondaryTexture.isEnabled = isSecondaryPowerEnabled
+	list[#list + 1] = secondaryTexture
+
+	list[#list + 1] = checkboxColor({
+		name = L["UFBarBackdrop"] or "Show bar backdrop",
+		parentId = "secondaryPower",
+		defaultChecked = (secondaryDef.backdrop and secondaryDef.backdrop.enabled) ~= false,
+		isChecked = function() return getValue(unit, { "secondaryPower", "backdrop", "enabled" }, (secondaryDef.backdrop and secondaryDef.backdrop.enabled) ~= false) ~= false end,
+		onChecked = function(val)
+			debounced(unit .. "_secondaryPowerBackdrop", function()
+				setValue(unit, { "secondaryPower", "backdrop", "enabled" }, val and true or false)
+				refresh()
+				refreshSettingsUI()
+			end)
+		end,
+		getColor = function()
+			return toRGBA(
+				getValue(unit, { "secondaryPower", "backdrop", "color" }, secondaryDef.backdrop and secondaryDef.backdrop.color),
+				secondaryDef.backdrop and secondaryDef.backdrop.color or { 0, 0, 0, 0.6 }
+			)
+		end,
+		onColor = function(color)
+			debounced(unit .. "_secondaryPowerBackdropColor", function()
+				setColor(unit, { "secondaryPower", "backdrop", "color" }, color.r, color.g, color.b, color.a)
+				refresh()
+			end)
+		end,
+		colorDefault = { r = 0, g = 0, b = 0, a = 0.6 },
+		isEnabled = isSecondaryPowerEnabled,
+	})
+end
+
+addon.Aura = addon.Aura or {}
+addon.Aura.AppendUFSecondaryPowerSettings = appendSecondaryPowerSettings
+addon.Aura.GetUFPrimaryPowerTokenOptions = getPrimaryPowerTokenOptions
+addon.Aura.GetUFMainPowerTokens = getMainPowerTokens
+addon.Aura.GetUFPowerLabel = getPowerLabel
 
 local function buildUnitSettings(unit)
 	local def = defaultsFor(unit)
@@ -2295,12 +2990,63 @@ local function buildUnitSettings(unit)
 		local border = getValue(unit, { "border" }, def.border or {})
 		return isPowerDetachedEnabled() and border.detachedPower == true
 	end
+	local defaultPrimaryAllowedTypes = (UFHelper and UFHelper.GetDefaultPrimaryPowerAllowedTypes and UFHelper.GetDefaultPrimaryPowerAllowedTypes()) or {}
+	local function normalizePrimaryTypeToken(token)
+		if type(token) ~= "string" then return nil end
+		local normalized = token
+		if UFHelper and UFHelper.getCanonicalPowerToken then normalized = UFHelper.getCanonicalPowerToken(nil, token) or token end
+		normalized = string.upper(normalized)
+		if normalized == "" or normalized == "NONE" then return nil end
+		return normalized
+	end
+	local function resolvePrimaryAllowedForDisplay()
+		local cfgAllowed = getValue(unit, { "power", "allowedTypes" }, nil)
+		if type(cfgAllowed) == "table" then return cfgAllowed end
+		local defAllowed = powerDef.allowedTypes
+		if type(defAllowed) == "table" then return defAllowed end
+		return defaultPrimaryAllowedTypes
+	end
+	local function isPrimaryAllowedTypeSelected(token)
+		local normalized = normalizePrimaryTypeToken(token)
+		if not normalized then return false end
+		local allowed = resolvePrimaryAllowedForDisplay()
+		return type(allowed) == "table" and allowed[normalized] == true
+	end
+	local function setPrimaryAllowedType(token, enabled)
+		local normalized = normalizePrimaryTypeToken(token)
+		if not normalized then return end
+		local source = resolvePrimaryAllowedForDisplay()
+		local allowed = {}
+		if type(source) == "table" then
+			for key, isAllowed in pairs(source) do
+				if isAllowed == true then allowed[key] = true end
+			end
+		end
+		if enabled then
+			allowed[normalized] = true
+		else
+			allowed[normalized] = nil
+		end
+		setValue(unit, { "power", "allowedTypes" }, allowed)
+		refreshSelf()
+		refreshSettingsUI()
+	end
 
 	list[#list + 1] = checkbox(L["Show power bar"] or "Show power bar", isPowerEnabled, function(val)
 		setValue(unit, { "power", "enabled" }, val and true or false)
 		refreshSelf()
 		refreshSettingsUI()
 	end, powerDef.enabled ~= false, "power")
+
+	if unit == "player" then
+		local powerTypeSetting = multiDropdown(TYPE or "Type", function()
+			local provider = addon.Aura and addon.Aura.GetUFPrimaryPowerTokenOptions
+			if type(provider) == "function" then return provider() end
+			return {}
+		end, isPrimaryAllowedTypeSelected, setPrimaryAllowedType, nil, "power")
+		powerTypeSetting.isEnabled = isPowerEnabled
+		list[#list + 1] = powerTypeSetting
+	end
 
 	local powerDetachedSetting = checkbox(L["UFPowerDetached"] or "Detach power bar", isPowerDetached, function(val)
 		setValue(unit, { "power", "detached" }, val and true or false)
@@ -2384,7 +3130,7 @@ local function buildUnitSettings(unit)
 	addDivider("power", isPowerDetachedEnabled)
 
 	local detachedPowerStrata = radioDropdown(
-		L["UFDetachedPowerStrata"] or "Detached power bar strata",
+		L["UFDetachedPowerStrata"] or "Strata",
 		detachedStrataOptions,
 		function() return getValue(unit, { "power", "detachedStrata" }, powerDef.detachedStrata or "") end,
 		function(val)
@@ -2401,7 +3147,7 @@ local function buildUnitSettings(unit)
 	list[#list + 1] = detachedPowerStrata
 
 	local detachedPowerLevelOffset = slider(
-		L["UFDetachedPowerLevelOffset"] or "Detached power bar level offset",
+		L["UFDetachedPowerLevelOffset"] or "Frame level offset",
 		0,
 		50,
 		1,
@@ -2422,7 +3168,7 @@ local function buildUnitSettings(unit)
 	addDivider("power", isPowerDetachedEnabled)
 
 	local detachedBorderToggle = checkbox(
-		L["UFDetachedPowerBorder"] or "Show border for detached power bar",
+		L["UFDetachedPowerBorder"] or "Show border",
 		function() return getValue(unit, { "border", "detachedPower" }, def.border and def.border.detachedPower == true) == true end,
 		function(val)
 			local border = getValue(unit, { "border" }, def.border or {})
@@ -2438,7 +3184,7 @@ local function buildUnitSettings(unit)
 	detachedBorderToggle.isShown = isPowerDetachedEnabled
 	list[#list + 1] = detachedBorderToggle
 
-	local detachedBorderTexture = checkboxDropdown(L["UFDetachedPowerBorderTexture"] or "Detached power border texture", borderOptions, function()
+	local detachedBorderTexture = checkboxDropdown(L["UFDetachedPowerBorderTexture"] or "Border texture", borderOptions, function()
 		local border = getValue(unit, { "border" }, def.border or {})
 		return border.detachedPowerTexture or border.texture or (def.border and def.border.texture) or "DEFAULT"
 	end, function(val)
@@ -2451,7 +3197,7 @@ local function buildUnitSettings(unit)
 	detachedBorderTexture.isShown = isPowerDetachedEnabled
 	list[#list + 1] = detachedBorderTexture
 
-	local detachedBorderSize = slider(L["UFDetachedPowerBorderSize"] or "Detached power border size", 1, 64, 1, function()
+	local detachedBorderSize = slider(L["UFDetachedPowerBorderSize"] or "Border size", 1, 64, 1, function()
 		local border = getValue(unit, { "border" }, def.border or {})
 		return border.detachedPowerSize or border.edgeSize or 1
 	end, function(val)
@@ -2466,7 +3212,7 @@ local function buildUnitSettings(unit)
 	detachedBorderSize.isShown = isPowerDetachedEnabled
 	list[#list + 1] = detachedBorderSize
 
-	local detachedBorderOffset = slider(L["UFDetachedPowerBorderOffset"] or "Detached power border offset", 0, 64, 1, function()
+	local detachedBorderOffset = slider(L["UFDetachedPowerBorderOffset"] or "Border offset", 0, 64, 1, function()
 		local border = getValue(unit, { "border" }, def.border or {})
 		if border.detachedPowerOffset == nil then
 			if border.offset ~= nil then return border.offset end
@@ -2802,11 +3548,21 @@ local function buildUnitSettings(unit)
 		isEnabled = isPowerEnabled,
 	})
 
-	local mainPowerTokens = getMainPowerTokens()
+	if addon.Aura and addon.Aura.AppendUFSecondaryPowerSettings then addon.Aura.AppendUFSecondaryPowerSettings(list, unit, def, textureOpts, addDivider, refresh, refreshSelf) end
+
+	local mainPowerTokens = {}
+	do
+		local provider = addon.Aura and addon.Aura.GetUFMainPowerTokens
+		if type(provider) == "function" then mainPowerTokens = provider() or {} end
+	end
 	if #mainPowerTokens > 0 then
 		list[#list + 1] = { name = L["UFMainPowerColors"] or "Main power colors", kind = settingType.Collapsible, id = "mainPowerColors", defaultCollapsed = true }
 		for _, token in ipairs(mainPowerTokens) do
-			local label = getPowerLabel(token)
+			local label = token
+			do
+				local labelProvider = addon.Aura and addon.Aura.GetUFPowerLabel
+				if type(labelProvider) == "function" then label = labelProvider(token) end
+			end
 			local dr, dg, db, da = getDefaultPowerColor(token)
 			local defaultColor = { dr, dg, db, da }
 			list[#list + 1] = checkboxColor({

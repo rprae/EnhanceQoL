@@ -88,6 +88,7 @@ local UF_FRAME_NAMES = {
 		frame = "EQOLUFPlayerFrame",
 		health = "EQOLUFPlayerHealth",
 		power = "EQOLUFPlayerPower",
+		secondaryPower = "EQOLUFPlayerSecondaryPower",
 		status = "EQOLUFPlayerStatus",
 	},
 	target = {
@@ -202,6 +203,7 @@ local UNITS = {
 		frameName = UF_FRAME_NAMES.player.frame,
 		healthName = UF_FRAME_NAMES.player.health,
 		powerName = UF_FRAME_NAMES.player.power,
+		secondaryPowerName = UF_FRAME_NAMES.player.secondaryPower,
 		statusName = UF_FRAME_NAMES.player.status,
 		dropdown = function(self) ToggleDropDownMenu(1, nil, PlayerFrameDropDown, self, 0, 0) end,
 	},
@@ -261,6 +263,7 @@ local defaults = {
 		width = 220,
 		healthHeight = 24,
 		powerHeight = 16,
+		secondaryPowerHeight = 16,
 		statusHeight = 18,
 		anchor = { point = "CENTER", relativeTo = "UIParent", relativePoint = "CENTER", x = 0, y = -200 },
 		strata = "LOW",
@@ -275,6 +278,10 @@ local defaults = {
 			detachedPowerTexture = nil,
 			detachedPowerSize = nil,
 			detachedPowerOffset = nil,
+			detachedSecondaryPower = false,
+			detachedSecondaryPowerTexture = nil,
+			detachedSecondaryPowerSize = nil,
+			detachedSecondaryPowerOffset = nil,
 		},
 		highlight = {
 			enabled = false,
@@ -321,6 +328,37 @@ local defaults = {
 		},
 		power = {
 			enabled = true,
+			detached = false,
+			detachedGrowFromCenter = false,
+			detachedMatchHealthWidth = false,
+			detachedFrameLevelOffset = 5,
+			detachedStrata = nil,
+			emptyMaxFallback = false,
+			color = { 0.1, 0.45, 1, 1 },
+			backdrop = { enabled = true, color = { 0, 0, 0, 0.6 } },
+			useCustomColor = false,
+			textLeft = "PERCENT",
+			textCenter = "NONE",
+			textRight = "CURMAX",
+			textDelimiter = " ",
+			fontSize = 14,
+			font = nil,
+			offsetLeft = { x = 6, y = 0 },
+			offsetCenter = { x = 0, y = 0 },
+			offsetRight = { x = -6, y = 0 },
+			useShortNumbers = true,
+			hidePercentSymbol = false,
+			roundPercent = false,
+			texture = "DEFAULT",
+			reverseFill = false,
+		},
+		secondaryPower = {
+			enabled = false,
+			allowedTypes = {
+				MANA = true,
+				STAGGER = true,
+				VOID_METAMORPHOSIS = true,
+			},
 			detached = false,
 			detachedGrowFromCenter = false,
 			detachedMatchHealthWidth = false,
@@ -950,6 +988,8 @@ local function copySettings(fromUnit, toUnit, opts)
 			{ "highlight" },
 			{ "power", "detachedStrata" },
 			{ "power", "detachedFrameLevelOffset" },
+			{ "secondaryPower", "detachedStrata" },
+			{ "secondaryPower", "detachedFrameLevelOffset" },
 		},
 		portrait = {
 			{ "portrait" },
@@ -979,6 +1019,12 @@ local function copySettings(fromUnit, toUnit, opts)
 		power = {
 			{ "powerHeight" },
 			{ "power" },
+			{ "secondaryPowerHeight" },
+			{ "secondaryPower" },
+			{ "border", "detachedSecondaryPower" },
+			{ "border", "detachedSecondaryPowerTexture" },
+			{ "border", "detachedSecondaryPowerSize" },
+			{ "border", "detachedSecondaryPowerOffset" },
 		},
 		classResource = {
 			{ "classResource" },
@@ -3513,6 +3559,7 @@ local function applyCastLayout(cfg, unit)
 	local hc = (cfg and cfg.health) or {}
 	local width = ccfg.width or (cfg and cfg.width) or defc.width or (def and def.width) or 220
 	local height = ccfg.height or defc.height or 16
+	local defaultBackdropInset = ((tonumber(height) or 0) <= 20) and 0 or 1
 	st.castBar:SetSize(width, height)
 	local anchor = (ccfg.anchor or defc.anchor or "BOTTOM")
 	local off = ccfg.offset or defc.offset or { x = 0, y = -4 }
@@ -3575,8 +3622,8 @@ local function applyCastLayout(cfg, unit)
 			bg:ClearAllPoints()
 			if useDefaultArt and bg.SetAtlas then
 				bg:SetAtlas("ui-castingbar-background", false)
-				bg:SetPoint("TOPLEFT", st.castBar, "TOPLEFT", -1, 1)
-				bg:SetPoint("BOTTOMRIGHT", st.castBar, "BOTTOMRIGHT", 1, -1)
+				bg:SetPoint("TOPLEFT", st.castBar, "TOPLEFT", -defaultBackdropInset, defaultBackdropInset)
+				bg:SetPoint("BOTTOMRIGHT", st.castBar, "BOTTOMRIGHT", defaultBackdropInset, -defaultBackdropInset)
 			else
 				bg:SetTexture(castTexture)
 				bg:SetAllPoints(st.castBar)
@@ -4377,55 +4424,128 @@ local function updatePower(cfg, unit)
 	local st = states[unit]
 	if not st then return end
 	local bar = st.power
-	if not bar then return end
+	local secondaryBar = st.secondaryPower
+	if not bar and not secondaryBar then return end
 	local def = defaultsFor(unit) or {}
 	local interpolation = getSmoothInterpolation(cfg, def)
 	local pcfg = cfg.power or {}
-	local powerDetached = pcfg.detached == true
-	if pcfg.enabled == false then
-		bar:Hide()
-		bar:SetValue(0, interpolation)
-		if st.powerTextLeft then st.powerTextLeft:SetText("") end
-		if st.powerTextCenter then st.powerTextCenter:SetText("") end
-		if st.powerTextRight then st.powerTextRight:SetText("") end
-		st._powerTextDirty = nil
-		return
-	end
-	bar:Show()
-	local powerEnum, powerToken = getMainPower(unit)
-	powerEnum = powerEnum or 0
-	local cur = UnitPower(unit, powerEnum)
-	local maxv = UnitPowerMax(unit, powerEnum)
-	if issecretvalue and issecretvalue(maxv) then
-		bar:SetMinMaxValues(0, maxv or 1)
-	else
-		bar:SetMinMaxValues(0, maxv > 0 and maxv or 1)
-	end
-	bar:SetValue(cur or 0, interpolation)
-	local powerColorDirty = st._powerColorDirty
-	if not powerColorDirty and st._powerColorEnum ~= powerEnum then powerColorDirty = true end
-	if not powerColorDirty and st._powerColorToken ~= powerToken then powerColorDirty = true end
-	if powerColorDirty or st._powerColorR == nil then
-		local cr, cg, cb, ca = UFHelper.getPowerColor(powerEnum, powerToken)
-		st._powerColorR, st._powerColorG, st._powerColorB, st._powerColorA = cr, cg, cb, ca
-		st._powerColorDesaturated = UFHelper.isPowerDesaturated(powerEnum, powerToken)
-		st._powerColorEnum = powerEnum
-		st._powerColorToken = powerToken
-		st._powerColorDirty = nil
-	end
-	bar:SetStatusBarColor(st._powerColorR or 0.1, st._powerColorG or 0.45, st._powerColorB or 1, st._powerColorA or 1)
-	if bar.SetStatusBarDesaturated then bar:SetStatusBarDesaturated(st._powerColorDesaturated == true) end
-	local emptyFallback = pcfg.emptyMaxFallback == true
-	if emptyFallback then
-		if powerDetached then
-			if bar.SetAlpha then bar:SetAlpha(maxv) end
-			if st.powerGroup and st.powerGroup.SetAlpha then st.powerGroup:SetAlpha(maxv) end
+	local powerDef = def.power or {}
+	local powerEnabled = pcfg.enabled ~= false
+	local powerEnum, powerToken
+	if powerEnabled then
+		if unit == UNIT.PLAYER then refreshMainPower(unit) end
+		powerEnum, powerToken = getMainPower(unit)
+		if unit == UNIT.PLAYER and UFHelper and UFHelper.IsPrimaryPowerAllowed then
+			powerEnabled = UFHelper.IsPrimaryPowerAllowed(pcfg, powerDef, powerToken, powerEnum, unit) ~= false
 		end
-	elseif powerDetached then
-		if bar.SetAlpha then bar:SetAlpha(1) end
-		if st.powerGroup and st.powerGroup.SetAlpha then st.powerGroup:SetAlpha(1) end
 	end
-	st._powerTextDirty = true
+	local powerDetached = powerEnabled and pcfg.detached == true
+	if bar then
+		if not powerEnabled then
+			bar:Hide()
+			bar:SetValue(0, interpolation)
+			if st.powerTextLeft then st.powerTextLeft:SetText("") end
+			if st.powerTextCenter then st.powerTextCenter:SetText("") end
+			if st.powerTextRight then st.powerTextRight:SetText("") end
+			st._powerTextDirty = nil
+		else
+			bar:Show()
+			powerEnum = powerEnum or 0
+			local cur = UnitPower(unit, powerEnum)
+			local maxv = UnitPowerMax(unit, powerEnum)
+			if issecretvalue and issecretvalue(maxv) then
+				bar:SetMinMaxValues(0, maxv or 1)
+			else
+				bar:SetMinMaxValues(0, maxv > 0 and maxv or 1)
+			end
+			bar:SetValue(cur or 0, interpolation)
+			local powerColorDirty = st._powerColorDirty
+			if not powerColorDirty and st._powerColorEnum ~= powerEnum then powerColorDirty = true end
+			if not powerColorDirty and st._powerColorToken ~= powerToken then powerColorDirty = true end
+			if powerColorDirty or st._powerColorR == nil then
+				local cr, cg, cb, ca = UFHelper.getPowerColor(powerEnum, powerToken)
+				st._powerColorR, st._powerColorG, st._powerColorB, st._powerColorA = cr, cg, cb, ca
+				st._powerColorDesaturated = UFHelper.isPowerDesaturated(powerEnum, powerToken)
+				st._powerColorEnum = powerEnum
+				st._powerColorToken = powerToken
+				st._powerColorDirty = nil
+			end
+			bar:SetStatusBarColor(st._powerColorR or 0.1, st._powerColorG or 0.45, st._powerColorB or 1, st._powerColorA or 1)
+			if bar.SetStatusBarDesaturated then bar:SetStatusBarDesaturated(st._powerColorDesaturated == true) end
+			local emptyFallback = pcfg.emptyMaxFallback == true
+			if emptyFallback then
+				if powerDetached then
+					if bar.SetAlpha then bar:SetAlpha(maxv) end
+					if st.powerGroup and st.powerGroup.SetAlpha then st.powerGroup:SetAlpha(maxv) end
+				end
+			elseif powerDetached then
+				if bar.SetAlpha then bar:SetAlpha(1) end
+				if st.powerGroup and st.powerGroup.SetAlpha then st.powerGroup:SetAlpha(1) end
+			end
+			st._powerTextDirty = true
+		end
+	end
+	if secondaryBar then
+		local secondaryCfg = cfg.secondaryPower or {}
+		local secondaryDef = def.secondaryPower or {}
+		local secondaryToken
+		if unit == UNIT.PLAYER and UFHelper and UFHelper.ResolveSecondaryPowerToken then
+			secondaryToken = UFHelper.ResolveSecondaryPowerToken(secondaryCfg, secondaryDef, addon.variables and addon.variables.unitClass, addon.variables and addon.variables.unitSpec)
+		end
+		local secondaryEnabled = unit == UNIT.PLAYER and secondaryCfg.enabled ~= false and secondaryToken ~= nil
+		local secondaryDetached = secondaryEnabled and secondaryCfg.detached == true
+		if not secondaryEnabled then
+			secondaryBar:Hide()
+			secondaryBar:SetValue(0, interpolation)
+			if st.secondaryPowerTextLeft then st.secondaryPowerTextLeft:SetText("") end
+			if st.secondaryPowerTextCenter then st.secondaryPowerTextCenter:SetText("") end
+			if st.secondaryPowerTextRight then st.secondaryPowerTextRight:SetText("") end
+			st._secondaryPowerEnum = nil
+			st._secondaryPowerToken = nil
+			st._secondaryPowerTextDirty = nil
+		else
+			secondaryBar:Show()
+			local cur, maxv, enumId, resolvedToken
+			if UFHelper and UFHelper.GetPowerValuesForToken then
+				cur, maxv, enumId, resolvedToken = UFHelper.GetPowerValuesForToken(unit, secondaryToken)
+			end
+			resolvedToken = resolvedToken or secondaryToken
+			cur = cur or 0
+			maxv = maxv or 0
+			if issecretvalue and issecretvalue(maxv) then
+				secondaryBar:SetMinMaxValues(0, maxv or 1)
+			else
+				secondaryBar:SetMinMaxValues(0, maxv > 0 and maxv or 1)
+			end
+			secondaryBar:SetValue(cur, interpolation)
+			local secondaryColorDirty = st._secondaryPowerColorDirty
+			if not secondaryColorDirty and st._secondaryPowerColorEnum ~= enumId then secondaryColorDirty = true end
+			if not secondaryColorDirty and st._secondaryPowerColorToken ~= resolvedToken then secondaryColorDirty = true end
+			if secondaryColorDirty or st._secondaryPowerColorR == nil then
+				local cr, cg, cb, ca = UFHelper.getPowerColor(enumId, resolvedToken)
+				st._secondaryPowerColorR, st._secondaryPowerColorG, st._secondaryPowerColorB, st._secondaryPowerColorA = cr, cg, cb, ca
+				st._secondaryPowerColorDesaturated = UFHelper.isPowerDesaturated(enumId, resolvedToken)
+				st._secondaryPowerColorEnum = enumId
+				st._secondaryPowerColorToken = resolvedToken
+				st._secondaryPowerColorDirty = nil
+			end
+			secondaryBar:SetStatusBarColor(st._secondaryPowerColorR or 0.1, st._secondaryPowerColorG or 0.45, st._secondaryPowerColorB or 1, st._secondaryPowerColorA or 1)
+			if secondaryBar.SetStatusBarDesaturated then secondaryBar:SetStatusBarDesaturated(st._secondaryPowerColorDesaturated == true) end
+			local emptyFallback = secondaryCfg.emptyMaxFallback == true
+			if emptyFallback then
+				if secondaryDetached then
+					if secondaryBar.SetAlpha then secondaryBar:SetAlpha(maxv) end
+					if st.secondaryPowerGroup and st.secondaryPowerGroup.SetAlpha then st.secondaryPowerGroup:SetAlpha(maxv) end
+				end
+			elseif secondaryDetached then
+				if secondaryBar.SetAlpha then secondaryBar:SetAlpha(1) end
+				if st.secondaryPowerGroup and st.secondaryPowerGroup.SetAlpha then st.secondaryPowerGroup:SetAlpha(1) end
+			end
+			st._secondaryPowerEnum = enumId
+			st._secondaryPowerToken = resolvedToken
+			st._secondaryPowerTextDirty = true
+		end
+	end
 end
 
 local function layoutTexts(bar, leftFS, centerFS, rightFS, cfg, width)
@@ -4527,6 +4647,7 @@ local function syncTextFrameLevels(st)
 	local statusAnchor = getHealthTextAnchor(st, true) or st.status or healthAnchor
 	setFrameLevelAbove(st.healthTextLayer, healthAnchor, 5)
 	setFrameLevelAbove(st.powerTextLayer, st.power, 5)
+	if st.secondaryPowerTextLayer and st.secondaryPower then setFrameLevelAbove(st.secondaryPowerTextLayer, st.secondaryPower, 5) end
 	setFrameLevelAbove(st.statusTextLayer, statusAnchor, 5)
 	local levelLayer = st.levelTextLayer or st.statusTextLayer
 	local levelOffset = tonumber(scfg.levelFrameLevelOffset)
@@ -4560,6 +4681,7 @@ local function hookTextFrameLevels(st)
 	hookFrame(st.barGroup)
 	hookFrame(st.health)
 	hookFrame(st.power)
+	hookFrame(st.secondaryPower)
 	hookFrame(st.status)
 	hookFrame(st.castBar)
 	syncTextFrameLevels(st)
@@ -4960,13 +5082,27 @@ local function layoutFrame(cfg, unit)
 	local showStatus = showName or showLevel or showUnitStatus or (unit == UNIT.PLAYER and ciCfg.enabled ~= false)
 	local pcfg = cfg.power or {}
 	local powerDef = def.power or {}
+	local secondaryCfg = cfg.secondaryPower or {}
+	local secondaryDef = def.secondaryPower or {}
+	local secondaryPowerToken
+	if unit == UNIT.PLAYER and UFHelper and UFHelper.ResolveSecondaryPowerToken then
+		secondaryPowerToken = UFHelper.ResolveSecondaryPowerToken(secondaryCfg, secondaryDef, addon.variables and addon.variables.unitClass, addon.variables and addon.variables.unitSpec)
+	end
 	local powerEnabled = pcfg.enabled ~= false
+	if unit == UNIT.PLAYER and powerEnabled and UFHelper and UFHelper.IsPrimaryPowerAllowed then
+		refreshMainPower(unit)
+		local powerEnum, powerToken = getMainPower(unit)
+		powerEnabled = UFHelper.IsPrimaryPowerAllowed(pcfg, powerDef, powerToken, powerEnum, unit) ~= false
+	end
 	local powerDetached = powerEnabled and pcfg.detached == true
+	local secondaryPowerEnabled = unit == UNIT.PLAYER and st.secondaryPower and secondaryCfg.enabled ~= false and secondaryPowerToken ~= nil
+	local secondaryPowerDetached = secondaryPowerEnabled and secondaryCfg.detached == true
 	local width = max(MIN_WIDTH, cfg.width or def.width)
 	local statusHeight = showStatus and (cfg.statusHeight or def.statusHeight) or 0
 	local healthHeight = cfg.healthHeight or def.healthHeight
 	local powerHeight = powerEnabled and (cfg.powerHeight or def.powerHeight) or 0
-	local stackHeight = healthHeight + (powerDetached and 0 or powerHeight)
+	local secondaryPowerHeight = secondaryPowerEnabled and (cfg.secondaryPowerHeight or def.secondaryPowerHeight or cfg.powerHeight or def.powerHeight) or 0
+	local stackHeight = healthHeight + (powerDetached and 0 or powerHeight) + (secondaryPowerDetached and 0 or secondaryPowerHeight)
 	local borderCfg = cfg.border or {}
 	local borderDef = def.border or {}
 	local borderEnabled = UF._isFrameBorderEnabled(borderCfg, borderDef, true)
@@ -4983,6 +5119,14 @@ local function layoutFrame(cfg, unit)
 		if detachedPowerOffset == nil then detachedPowerOffset = borderCfg.offset end
 		if detachedPowerOffset == nil then detachedPowerOffset = borderCfg.edgeSize or borderDef.edgeSize or 1 end
 		detachedPowerOffset = max(0, detachedPowerOffset or 0)
+	end
+	local detachedSecondaryPowerBorder = secondaryPowerDetached and secondaryPowerEnabled and borderCfg.detachedSecondaryPower == true
+	local detachedSecondaryPowerOffset = 0
+	if detachedSecondaryPowerBorder then
+		detachedSecondaryPowerOffset = borderCfg.detachedSecondaryPowerOffset
+		if detachedSecondaryPowerOffset == nil then detachedSecondaryPowerOffset = borderCfg.offset end
+		if detachedSecondaryPowerOffset == nil then detachedSecondaryPowerOffset = borderCfg.edgeSize or borderDef.edgeSize or 1 end
+		detachedSecondaryPowerOffset = max(0, detachedSecondaryPowerOffset or 0)
 	end
 	local portraitEnabled, portraitSide, portraitSquareBackground = getPortraitConfig(cfg, unit)
 	local portraitInnerHeight = stackHeight
@@ -5034,12 +5178,22 @@ local function layoutFrame(cfg, unit)
 	if powerDetached and not detachedMatchHealthWidth and pcfg.width and pcfg.width > 0 then powerWidth = pcfg.width end
 	st.power:SetSize(powerWidth, powerHeight)
 	st.power:SetShown(powerEnabled)
+	local secondaryDetachedGrowFromCenter = secondaryPowerDetached and secondaryCfg.detachedGrowFromCenter == true
+	local secondaryDetachedMatchHealthWidth = secondaryPowerDetached and secondaryCfg.detachedMatchHealthWidth == true
+	local secondaryPowerWidth = width
+	if secondaryPowerDetached and not secondaryDetachedMatchHealthWidth and secondaryCfg.width and secondaryCfg.width > 0 then secondaryPowerWidth = secondaryCfg.width end
+	if st.secondaryPower then
+		st.secondaryPower:SetSize(secondaryPowerWidth, secondaryPowerHeight)
+		st.secondaryPower:SetShown(secondaryPowerEnabled)
+	end
 
 	st.status:ClearAllPoints()
 	if st.barGroup then st.barGroup:ClearAllPoints() end
 	st.health:ClearAllPoints()
 	st.power:ClearAllPoints()
 	if st.powerGroup then st.powerGroup:ClearAllPoints() end
+	if st.secondaryPower then st.secondaryPower:ClearAllPoints() end
+	if st.secondaryPowerGroup then st.secondaryPowerGroup:ClearAllPoints() end
 
 	local anchor = cfg.anchor or def.anchor or defaults.player.anchor
 	if isBossUnit(unit) then
@@ -5105,6 +5259,41 @@ local function layoutFrame(cfg, unit)
 		st.power:SetPoint("TOPLEFT", st.health, "BOTTOMLEFT", 0, 0)
 		st.power:SetPoint("TOPRIGHT", st.health, "BOTTOMRIGHT", 0, 0)
 	end
+	if st.secondaryPower then
+		if secondaryPowerDetached then
+			local soff = secondaryCfg.offset or {}
+			local sox = soff.x or 0
+			local soy = soff.y or 0
+			local secondaryCenterOx = secondaryDetachedGrowFromCenter and (sox - (st._portraitCenterOffset or 0)) or sox
+			if detachedSecondaryPowerBorder and st.secondaryPowerGroup then
+				if st.secondaryPower.GetParent and st.secondaryPower:GetParent() ~= st.secondaryPowerGroup then st.secondaryPower:SetParent(st.secondaryPowerGroup) end
+				st.secondaryPowerGroup:Show()
+				st.secondaryPowerGroup:SetSize(secondaryPowerWidth + detachedSecondaryPowerOffset * 2, secondaryPowerHeight + detachedSecondaryPowerOffset * 2)
+				if secondaryDetachedGrowFromCenter then
+					st.secondaryPowerGroup:SetPoint("TOP", st.health, "BOTTOM", secondaryCenterOx, soy + detachedSecondaryPowerOffset)
+					st.secondaryPower:SetPoint("TOP", st.secondaryPowerGroup, "TOP", 0, -detachedSecondaryPowerOffset)
+				else
+					st.secondaryPowerGroup:SetPoint("TOPLEFT", st.health, "BOTTOMLEFT", sox - detachedSecondaryPowerOffset, soy + detachedSecondaryPowerOffset)
+					st.secondaryPower:SetPoint("TOPLEFT", st.secondaryPowerGroup, "TOPLEFT", detachedSecondaryPowerOffset, -detachedSecondaryPowerOffset)
+				end
+			else
+				if st.secondaryPowerGroup then st.secondaryPowerGroup:Hide() end
+				if st.secondaryPower.GetParent and st.secondaryPower:GetParent() ~= st.barGroup then st.secondaryPower:SetParent(st.barGroup) end
+				if secondaryDetachedGrowFromCenter then
+					st.secondaryPower:SetPoint("TOP", st.health, "BOTTOM", secondaryCenterOx, soy)
+				else
+					st.secondaryPower:SetPoint("TOPLEFT", st.health, "BOTTOMLEFT", sox, soy)
+				end
+			end
+		else
+			if st.secondaryPowerGroup then st.secondaryPowerGroup:Hide() end
+			if st.secondaryPower.GetParent and st.secondaryPower:GetParent() ~= st.barGroup then st.secondaryPower:SetParent(st.barGroup) end
+			local secondaryAnchor = st.health
+			if powerEnabled and not powerDetached then secondaryAnchor = st.power end
+			st.secondaryPower:SetPoint("TOPLEFT", secondaryAnchor, "BOTTOMLEFT", 0, 0)
+			st.secondaryPower:SetPoint("TOPRIGHT", secondaryAnchor, "BOTTOMRIGHT", 0, 0)
+		end
+	end
 	local powerStrata = frameStrata
 	if powerDetached then
 		local detachedStrata = pcfg.detachedStrata
@@ -5114,6 +5303,15 @@ local function layoutFrame(cfg, unit)
 	end
 	if st.power.SetFrameStrata and st.power:GetFrameStrata() ~= powerStrata then st.power:SetFrameStrata(powerStrata) end
 	if st.powerGroup and st.powerGroup.SetFrameStrata and st.powerGroup:GetFrameStrata() ~= powerStrata then st.powerGroup:SetFrameStrata(powerStrata) end
+	local secondaryPowerStrata = frameStrata
+	if secondaryPowerDetached then
+		local detachedStrata = secondaryCfg.detachedStrata
+		if detachedStrata == nil then detachedStrata = secondaryDef.detachedStrata end
+		detachedStrata = normalizeStrataToken(detachedStrata)
+		if detachedStrata then secondaryPowerStrata = detachedStrata end
+	end
+	if st.secondaryPower and st.secondaryPower.SetFrameStrata and st.secondaryPower:GetFrameStrata() ~= secondaryPowerStrata then st.secondaryPower:SetFrameStrata(secondaryPowerStrata) end
+	if st.secondaryPowerGroup and st.secondaryPowerGroup.SetFrameStrata and st.secondaryPowerGroup:GetFrameStrata() ~= secondaryPowerStrata then st.secondaryPowerGroup:SetFrameStrata(secondaryPowerStrata) end
 	local healthLevel = (st.health and st.health.GetFrameLevel and st.health:GetFrameLevel()) or (frameLevel + 2)
 	local powerLevel = healthLevel
 	if powerDetached then
@@ -5128,6 +5326,22 @@ local function layoutFrame(cfg, unit)
 		local groupLevel = powerLevel
 		if powerDetached then groupLevel = max(0, powerLevel - 1) end
 		st.powerGroup:SetFrameLevel(groupLevel)
+	end
+	local secondaryPowerLevel = healthLevel
+	if secondaryPowerDetached then
+		local levelOffset = secondaryCfg.detachedFrameLevelOffset
+		if levelOffset == nil then levelOffset = secondaryDef.detachedFrameLevelOffset end
+		levelOffset = levelOffset or 0
+		secondaryPowerLevel = max(0, frameLevel + levelOffset)
+		if secondaryPowerLevel <= healthLevel then secondaryPowerLevel = healthLevel + 1 end
+	else
+		secondaryPowerLevel = powerEnabled and not powerDetached and (powerLevel + 1) or (healthLevel + 1)
+	end
+	if st.secondaryPower and st.secondaryPower.SetFrameLevel then st.secondaryPower:SetFrameLevel(secondaryPowerLevel) end
+	if st.secondaryPowerGroup and st.secondaryPowerGroup.SetFrameLevel then
+		local groupLevel = secondaryPowerLevel
+		if secondaryPowerDetached then groupLevel = max(0, secondaryPowerLevel - 1) end
+		st.secondaryPowerGroup:SetFrameLevel(groupLevel)
 	end
 
 	st._portraitSide = portraitSide
@@ -5178,6 +5392,9 @@ local function layoutFrame(cfg, unit)
 
 	layoutTexts(st.health, st.healthTextLeft, st.healthTextCenter, st.healthTextRight, cfg.health, width)
 	layoutTexts(st.power, st.powerTextLeft, st.powerTextCenter, st.powerTextRight, cfg.power, width)
+	if st.secondaryPower then
+		layoutTexts(st.secondaryPower, st.secondaryPowerTextLeft, st.secondaryPowerTextCenter, st.secondaryPowerTextRight, cfg.secondaryPower, width)
+	end
 	if st.castBar and unit == UNIT.TARGET then applyCastLayout(cfg, unit) end
 
 	-- Apply border only around the bar region wrapper
@@ -5198,6 +5415,23 @@ local function layoutFrame(cfg, unit)
 			}
 		end
 		setBackdrop(st.powerGroup, powerBorderCfg, nil, false)
+	end
+	if st.secondaryPowerGroup then
+		local showSecondaryBorder = detachedSecondaryPowerBorder and secondaryPowerEnabled
+		local secondaryBorderCfg
+		if showSecondaryBorder then
+			local borderTexture = borderCfg.detachedSecondaryPowerTexture or borderCfg.texture or borderDef.texture or "DEFAULT"
+			local borderSize = borderCfg.detachedSecondaryPowerSize
+			if borderSize == nil then borderSize = borderCfg.edgeSize or borderDef.edgeSize or 1 end
+			secondaryBorderCfg = {
+				enabled = true,
+				texture = borderTexture,
+				edgeSize = borderSize,
+				color = borderCfg.color or borderDef.color,
+				inset = borderCfg.inset or borderDef.inset,
+			}
+		end
+		setBackdrop(st.secondaryPowerGroup, secondaryBorderCfg, nil, false)
 	end
 	UF.syncAbsorbFrameLevels(st)
 	UFHelper.applyHighlightStyle(st, st._highlightCfg)
@@ -5303,8 +5537,19 @@ local function ensureFrames(unit)
 	st.power = _G[info.powerName] or CreateFrame("StatusBar", info.powerName, st.barGroup, "BackdropTemplate")
 	st.powerGroup = st.powerGroup or CreateFrame("Frame", nil, st.frame, "BackdropTemplate")
 	st.powerGroup:Hide()
+	if info.secondaryPowerName then
+		st.secondaryPower = _G[info.secondaryPowerName] or CreateFrame("StatusBar", info.secondaryPowerName, st.barGroup, "BackdropTemplate")
+		st.secondaryPowerGroup = st.secondaryPowerGroup or CreateFrame("Frame", nil, st.frame, "BackdropTemplate")
+		st.secondaryPowerGroup:Hide()
+	else
+		if st.secondaryPower then st.secondaryPower:Hide() end
+		if st.secondaryPowerGroup then st.secondaryPowerGroup:Hide() end
+		st.secondaryPower = nil
+		st.secondaryPowerGroup = nil
+	end
 	local powerEnum, powerToken = getMainPower(unit)
 	if st.power.SetStatusBarDesaturated then st.power:SetStatusBarDesaturated(UFHelper.isPowerDesaturated(powerEnum, powerToken)) end
+	if st.secondaryPower and st.secondaryPower.SetStatusBarDesaturated then st.secondaryPower:SetStatusBarDesaturated(false) end
 	if not st.portraitHolder then
 		st.portraitHolder = CreateFrame("Frame", nil, st.barGroup or st.frame, "BackdropTemplate")
 		st.portraitHolder:EnableMouse(false)
@@ -5375,6 +5620,12 @@ local function ensureFrames(unit)
 	st.healthTextLayer:SetAllPoints(st.health)
 	st.powerTextLayer = st.powerTextLayer or CreateFrame("Frame", nil, st.power)
 	st.powerTextLayer:SetAllPoints(st.power)
+	if st.secondaryPower then
+		st.secondaryPowerTextLayer = st.secondaryPowerTextLayer or CreateFrame("Frame", nil, st.secondaryPower)
+		st.secondaryPowerTextLayer:SetAllPoints(st.secondaryPower)
+	elseif st.secondaryPowerTextLayer then
+		st.secondaryPowerTextLayer:Hide()
+	end
 	st.statusTextLayer = st.statusTextLayer or CreateFrame("Frame", nil, st.status)
 	st.statusTextLayer:SetAllPoints(st.status)
 	st.levelTextLayer = st.levelTextLayer or CreateFrame("Frame", nil, st.status)
@@ -5391,6 +5642,11 @@ local function ensureFrames(unit)
 	st.powerTextLeft = st.powerTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	st.powerTextCenter = st.powerTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	st.powerTextRight = st.powerTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	if st.secondaryPowerTextLayer then
+		st.secondaryPowerTextLeft = st.secondaryPowerTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+		st.secondaryPowerTextCenter = st.secondaryPowerTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+		st.secondaryPowerTextRight = st.secondaryPowerTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	end
 	st.nameText = st.statusTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	st.levelText = st.levelTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	st.unitStatusText = st.statusTextLayer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
@@ -5446,9 +5702,19 @@ local function applyBars(cfg, unit)
 	local def = defaultsFor(unit) or {}
 	local defH = def.health or {}
 	local defP = def.power or {}
+	local defSP = def.secondaryPower or {}
 	local interpolation = getSmoothInterpolation(cfg, def)
 	local pcfg = cfg.power or {}
+	local secondaryCfg = cfg.secondaryPower or {}
 	local powerEnabled = pcfg.enabled ~= false
+	local powerEnum, powerToken
+	if powerEnabled then
+		if unit == UNIT.PLAYER then refreshMainPower(unit) end
+		powerEnum, powerToken = getMainPower(unit)
+		if unit == UNIT.PLAYER and UFHelper and UFHelper.IsPrimaryPowerAllowed then
+			powerEnabled = UFHelper.IsPrimaryPowerAllowed(pcfg, defP, powerToken, powerEnum, unit) ~= false
+		end
+	end
 	local healthHeight = cfg.healthHeight or def.healthHeight or (st.health.GetHeight and st.health:GetHeight()) or 0
 	st.health:SetStatusBarTexture(UFHelper.resolveTexture(hc.texture))
 	if st.health.SetStatusBarDesaturated then st.health:SetStatusBarDesaturated(true) end
@@ -5487,8 +5753,7 @@ local function applyBars(cfg, unit)
 	})
 	if powerEnabled then
 		st.power:SetStatusBarTexture(UFHelper.resolveTexture(pcfg.texture))
-		if unit == UNIT.PLAYER then refreshMainPower(unit) end
-		local powerEnum, powerToken = getMainPower(unit)
+		if not powerEnum then powerEnum, powerToken = getMainPower(unit) end
 		if st.power.SetStatusBarDesaturated then st.power:SetStatusBarDesaturated(UFHelper.isPowerDesaturated(powerEnum, powerToken)) end
 		UFHelper.configureSpecialTexture(st.power, powerToken, pcfg.texture, pcfg, powerEnum)
 		local reversePower = pcfg.reverseFill
@@ -5501,6 +5766,39 @@ local function applyBars(cfg, unit)
 		if st.powerTextLeft then st.powerTextLeft:SetText("") end
 		if st.powerTextCenter then st.powerTextCenter:SetText("") end
 		if st.powerTextRight then st.powerTextRight:SetText("") end
+	end
+
+	if st.secondaryPower then
+		local secondaryToken
+		if unit == UNIT.PLAYER and UFHelper and UFHelper.ResolveSecondaryPowerToken then
+			secondaryToken = UFHelper.ResolveSecondaryPowerToken(secondaryCfg, defSP, addon.variables and addon.variables.unitClass, addon.variables and addon.variables.unitSpec)
+		end
+		local secondaryEnabled = unit == UNIT.PLAYER and secondaryCfg.enabled ~= false and secondaryToken ~= nil
+		if secondaryEnabled then
+			st.secondaryPower:SetStatusBarTexture(UFHelper.resolveTexture(secondaryCfg.texture))
+			local secEnum, secResolved = nil, secondaryToken
+			if UFHelper and UFHelper.GetPowerValuesForToken then
+				local _, _, enumId, tokenId = UFHelper.GetPowerValuesForToken(unit, secondaryToken)
+				secEnum, secResolved = enumId, tokenId
+			end
+			secResolved = secResolved or secondaryToken
+			if st.secondaryPower.SetStatusBarDesaturated then st.secondaryPower:SetStatusBarDesaturated(UFHelper.isPowerDesaturated(secEnum, secResolved)) end
+			UFHelper.configureSpecialTexture(st.secondaryPower, secResolved, secondaryCfg.texture, secondaryCfg, secEnum)
+			local reverseSecondary = secondaryCfg.reverseFill
+			if reverseSecondary == nil then reverseSecondary = defSP.reverseFill == true end
+			UFHelper.applyStatusBarReverseFill(st.secondaryPower, reverseSecondary)
+			applyBarBackdrop(st.secondaryPower, secondaryCfg)
+			st.secondaryPower:Show()
+			st._secondaryPowerToken = secResolved
+			st._secondaryPowerEnum = secEnum
+		else
+			st.secondaryPower:Hide()
+			if st.secondaryPowerTextLeft then st.secondaryPowerTextLeft:SetText("") end
+			if st.secondaryPowerTextCenter then st.secondaryPowerTextCenter:SetText("") end
+			if st.secondaryPowerTextRight then st.secondaryPowerTextRight:SetText("") end
+			st._secondaryPowerToken = nil
+			st._secondaryPowerEnum = nil
+		end
 	end
 	if allowAbsorb and st.absorb then
 		local absorbTextureKey = hc.absorbTexture or hc.texture
@@ -5601,6 +5899,11 @@ local function applyBars(cfg, unit)
 	UFHelper.applyFont(st.powerTextLeft, pcfg.font, pcfg.fontSize or 14, pcfg.fontOutline)
 	UFHelper.applyFont(st.powerTextCenter, pcfg.font, pcfg.fontSize or 14, pcfg.fontOutline)
 	UFHelper.applyFont(st.powerTextRight, pcfg.font, pcfg.fontSize or 14, pcfg.fontOutline)
+	if st.secondaryPowerTextLeft then
+		UFHelper.applyFont(st.secondaryPowerTextLeft, secondaryCfg.font, secondaryCfg.fontSize or 14, secondaryCfg.fontOutline)
+		UFHelper.applyFont(st.secondaryPowerTextCenter, secondaryCfg.font, secondaryCfg.fontSize or 14, secondaryCfg.fontOutline)
+		UFHelper.applyFont(st.secondaryPowerTextRight, secondaryCfg.font, secondaryCfg.fontSize or 14, secondaryCfg.fontOutline)
+	end
 	syncTextFrameLevels(st)
 end
 
@@ -5680,8 +5983,10 @@ local function applyConfig(unit)
 	st.cfg = cfg
 	st._healthColorDirty = true
 	st._powerColorDirty = true
+	st._secondaryPowerColorDirty = true
 	st._healthTextDirty = true
 	st._powerTextDirty = true
+	st._secondaryPowerTextDirty = true
 	if unit == UNIT.TARGET then syncTargetRangeFadeConfig(cfg, def) end
 	if not cfg.enabled then
 		if st and st.frame then
@@ -5725,6 +6030,8 @@ local function applyConfig(unit)
 		local defH = (def and def.health) or {}
 		local pcfg = (cfg and cfg.power) or {}
 		local defP = (def and def.power) or {}
+		local secondaryCfg = (cfg and cfg.secondaryPower) or {}
+		local defSecondary = (def and def.secondaryPower) or {}
 
 		local h1 = UFHelper.getTextDelimiter(hc, defH)
 		local h2 = UFHelper.getTextDelimiterSecondary(hc, defH, h1)
@@ -5742,6 +6049,15 @@ local function applyConfig(unit)
 			st._powerTextDelimiter1, st._powerTextDelimiter2, st._powerTextDelimiter3 = UFHelper.resolveTextDelimiters(p1, p2, p3)
 		else
 			st._powerTextDelimiter1, st._powerTextDelimiter2, st._powerTextDelimiter3 = p1, p2, p3
+		end
+
+		local sp1 = UFHelper.getTextDelimiter(secondaryCfg, defSecondary)
+		local sp2 = UFHelper.getTextDelimiterSecondary(secondaryCfg, defSecondary, sp1)
+		local sp3 = UFHelper.getTextDelimiterTertiary(secondaryCfg, defSecondary, sp1, sp2)
+		if UFHelper.resolveTextDelimiters then
+			st._secondaryPowerTextDelimiter1, st._secondaryPowerTextDelimiter2, st._secondaryPowerTextDelimiter3 = UFHelper.resolveTextDelimiters(sp1, sp2, sp3)
+		else
+			st._secondaryPowerTextDelimiter1, st._secondaryPowerTextDelimiter2, st._secondaryPowerTextDelimiter3 = sp1, sp2, sp3
 		end
 	end
 	st._highlightCfg = UFHelper.buildHighlightConfig(cfg, def)
@@ -6386,6 +6702,11 @@ local function ensureToTTicker()
 	end)
 end
 
+local function reapplyPlayerFrameAfterSpecChange()
+	refreshMainPower(UNIT.PLAYER)
+	applyConfig(UNIT.PLAYER)
+end
+
 local function updateTargetTargetFrame(cfg, forceApply)
 	cfg = cfg or ensureDB(UNIT.TARGET_TARGET)
 	local st = states[UNIT.TARGET_TARGET]
@@ -6508,12 +6829,13 @@ end
 function UF.UpdateUnitTexts(unit, force)
 	local st = states[unit]
 	if not st then return end
-	if not force and not (st._healthTextDirty or st._powerTextDirty) then return end
+	if not force and not (st._healthTextDirty or st._powerTextDirty or st._secondaryPowerTextDirty) then return end
 
 	local cfg = st.cfg or ensureDB(unit)
 	if not cfg or cfg.enabled == false then
 		st._healthTextDirty = nil
 		st._powerTextDirty = nil
+		st._secondaryPowerTextDirty = nil
 		return
 	end
 
@@ -6526,8 +6848,12 @@ function UF.UpdateUnitTexts(unit, force)
 		if st.powerTextLeft then st.powerTextLeft:SetText("") end
 		if st.powerTextCenter then st.powerTextCenter:SetText("") end
 		if st.powerTextRight then st.powerTextRight:SetText("") end
+		if st.secondaryPowerTextLeft then st.secondaryPowerTextLeft:SetText("") end
+		if st.secondaryPowerTextCenter then st.secondaryPowerTextCenter:SetText("") end
+		if st.secondaryPowerTextRight then st.secondaryPowerTextRight:SetText("") end
 		st._healthTextDirty = nil
 		st._powerTextDirty = nil
+		st._secondaryPowerTextDirty = nil
 		return
 	end
 
@@ -6600,7 +6926,14 @@ function UF.UpdateUnitTexts(unit, force)
 
 	if st._powerTextDirty and (st.powerTextLeft or st.powerTextCenter or st.powerTextRight) then
 		local pcfg = cfg.power or {}
-		if pcfg.enabled == false then
+		local defP = def.power or {}
+		if unit == UNIT.PLAYER then refreshMainPower(unit) end
+		local powerEnum, powerToken = getMainPower(unit)
+		local powerAllowed = true
+		if unit == UNIT.PLAYER and UFHelper and UFHelper.IsPrimaryPowerAllowed then
+			powerAllowed = UFHelper.IsPrimaryPowerAllowed(pcfg, defP, powerToken, powerEnum, unit) ~= false
+		end
+		if pcfg.enabled == false or not powerAllowed then
 			if st.powerTextLeft then st.powerTextLeft:SetText("") end
 			if st.powerTextCenter then st.powerTextCenter:SetText("") end
 			if st.powerTextRight then st.powerTextRight:SetText("") end
@@ -6608,11 +6941,10 @@ function UF.UpdateUnitTexts(unit, force)
 			return
 		end
 
-		local defP = def.power or {}
 		local leftMode = pcfg.textLeft or "PERCENT"
 		local centerMode = pcfg.textCenter or "NONE"
 		local rightMode = pcfg.textRight or "CURMAX"
-		local powerEnum = (getMainPower(unit) or 0)
+		powerEnum = powerEnum or 0
 		local cur = UnitPower(unit, powerEnum)
 		local maxv = UnitPowerMax(unit, powerEnum)
 		local percentVal
@@ -6672,6 +7004,97 @@ function UF.UpdateUnitTexts(unit, force)
 		end
 
 		st._powerTextDirty = nil
+	end
+
+	if st._secondaryPowerTextDirty and (st.secondaryPowerTextLeft or st.secondaryPowerTextCenter or st.secondaryPowerTextRight) then
+		local secondaryCfg = cfg.secondaryPower or {}
+		local secondaryDef = def.secondaryPower or {}
+		local secondaryToken
+		if unit == UNIT.PLAYER and UFHelper and UFHelper.ResolveSecondaryPowerToken then
+			secondaryToken = UFHelper.ResolveSecondaryPowerToken(secondaryCfg, secondaryDef, addon.variables and addon.variables.unitClass, addon.variables and addon.variables.unitSpec)
+		end
+		if secondaryCfg.enabled == false or not secondaryToken then
+			if st.secondaryPowerTextLeft then st.secondaryPowerTextLeft:SetText("") end
+			if st.secondaryPowerTextCenter then st.secondaryPowerTextCenter:SetText("") end
+			if st.secondaryPowerTextRight then st.secondaryPowerTextRight:SetText("") end
+			st._secondaryPowerTextDirty = nil
+			return
+		end
+
+		local cur, maxv, enumId, resolvedToken
+		if UFHelper and UFHelper.GetPowerValuesForToken then
+			cur, maxv, enumId, resolvedToken = UFHelper.GetPowerValuesForToken(unit, secondaryToken)
+		end
+		cur = cur or 0
+		maxv = maxv or 0
+		local leftMode = secondaryCfg.textLeft or "PERCENT"
+		local centerMode = secondaryCfg.textCenter or "NONE"
+		local rightMode = secondaryCfg.textRight or "CURMAX"
+		local percentVal
+		if addon.variables and addon.variables.isMidnight then
+			if UFHelper and UFHelper.GetPowerPercentByToken then
+				percentVal = UFHelper.GetPowerPercentByToken(unit, resolvedToken or secondaryToken, cur, maxv)
+			else
+				percentVal = getPowerPercent(unit, enumId or 0, cur, maxv)
+			end
+		elseif not issecretvalue or (not issecretvalue(cur) and not issecretvalue(maxv)) then
+			if UFHelper and UFHelper.GetPowerPercentByToken then
+				percentVal = UFHelper.GetPowerPercentByToken(unit, resolvedToken or secondaryToken, cur, maxv)
+			else
+				percentVal = getPowerPercent(unit, enumId or 0, cur, maxv)
+			end
+		end
+
+		local delimiter, delimiter2, delimiter3 = st._secondaryPowerTextDelimiter1, st._secondaryPowerTextDelimiter2, st._secondaryPowerTextDelimiter3
+		if not delimiter or not delimiter2 or not delimiter3 then
+			local d1 = UFHelper.getTextDelimiter(secondaryCfg, secondaryDef)
+			local d2 = UFHelper.getTextDelimiterSecondary(secondaryCfg, secondaryDef, d1)
+			local d3 = UFHelper.getTextDelimiterTertiary(secondaryCfg, secondaryDef, d1, d2)
+			if UFHelper.resolveTextDelimiters then
+				delimiter, delimiter2, delimiter3 = UFHelper.resolveTextDelimiters(d1, d2, d3)
+			else
+				delimiter, delimiter2, delimiter3 = d1, d2, d3
+			end
+		end
+
+		local maxZero = false
+		if not (issecretvalue and issecretvalue(maxv)) then maxZero = (maxv == 0) end
+		local hidePercentSymbol = secondaryCfg.hidePercentSymbol == true
+		local roundPercent = secondaryCfg.roundPercent == true
+		local levelText
+		if UFHelper.textModeUsesLevel(leftMode) or UFHelper.textModeUsesLevel(centerMode) or UFHelper.textModeUsesLevel(rightMode) then
+			levelText = UFHelper.getUnitLevelText(unit, nil, shouldHideClassificationText(cfg, unit))
+		end
+
+		if st.secondaryPowerTextLeft then
+			if maxZero or leftMode == "NONE" then
+				st.secondaryPowerTextLeft:SetText("")
+			else
+				st.secondaryPowerTextLeft:SetText(
+					UFHelper.formatText(leftMode, cur, maxv, secondaryCfg.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, nil, roundPercent, true)
+				)
+			end
+		end
+		if st.secondaryPowerTextCenter then
+			if maxZero or centerMode == "NONE" then
+				st.secondaryPowerTextCenter:SetText("")
+			else
+				st.secondaryPowerTextCenter:SetText(
+					UFHelper.formatText(centerMode, cur, maxv, secondaryCfg.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, nil, roundPercent, true)
+				)
+			end
+		end
+		if st.secondaryPowerTextRight then
+			if maxZero or rightMode == "NONE" then
+				st.secondaryPowerTextRight:SetText("")
+			else
+				st.secondaryPowerTextRight:SetText(
+					UFHelper.formatText(rightMode, cur, maxv, secondaryCfg.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, nil, roundPercent, true)
+				)
+			end
+		end
+
+		st._secondaryPowerTextDirty = nil
 	end
 end
 
@@ -6738,6 +7161,10 @@ onEvent = function(self, event, unit, ...)
 	end
 	if event == "SPELLS_CHANGED" or event == "PLAYER_TALENT_UPDATE" or event == "ACTIVE_PLAYER_SPECIALIZATION_CHANGED" or event == "TRAIT_CONFIG_UPDATED" then
 		refreshRangeFadeSpells(true)
+		if event == "PLAYER_TALENT_UPDATE" or event == "ACTIVE_PLAYER_SPECIALIZATION_CHANGED" or event == "TRAIT_CONFIG_UPDATED" then
+			reapplyPlayerFrameAfterSpecChange()
+			if After then After(0, reapplyPlayerFrameAfterSpecChange) end
+		end
 		return
 	end
 	if event == "PLAYER_LOGIN" then
@@ -6885,6 +7312,14 @@ onEvent = function(self, event, unit, ...)
 		local cfg = getCfg(unit)
 		if not cfg or cfg.enabled == false then return end
 		local def = defaultsFor(unit)
+		if unit == UNIT.PLAYER then
+			local secondaryCfg = cfg.secondaryPower or {}
+			local secondaryDef = (def and def.secondaryPower) or {}
+			if secondaryCfg.enabled ~= false and UFHelper and UFHelper.ResolveSecondaryPowerToken then
+				local token = UFHelper.ResolveSecondaryPowerToken(secondaryCfg, secondaryDef, addon.variables and addon.variables.unitClass, addon.variables and addon.variables.unitSpec)
+				if token and UFHelper.IsSecondaryPowerTokenSpecial and UFHelper.IsSecondaryPowerTokenSpecial(token) then updatePower(cfg, unit) end
+			end
+		end
 		local ac = cfg.auraIcons or (def and def.auraIcons) or defaults.target.auraIcons or { size = 24, padding = 2, max = 16, showCooldown = true }
 		if not AuraUtil.isAuraIconsEnabled(ac, def) then return end
 		local showBuffs = ac.showBuffs ~= false
@@ -6992,7 +7427,15 @@ onEvent = function(self, event, unit, ...)
 				st._healAbsorbAmount = UnitGetTotalHealAbsorbs and UnitGetTotalHealAbsorbs(unit) or 0
 			end
 		end
-		if unit == UNIT.PLAYER then updateHealth(getCfg(UNIT.PLAYER), UNIT.PLAYER) end
+		if unit == UNIT.PLAYER then
+			local playerCfg = getCfg(UNIT.PLAYER)
+			updateHealth(playerCfg, UNIT.PLAYER)
+			local secondaryCfg = playerCfg and playerCfg.secondaryPower or {}
+			if secondaryCfg.enabled ~= false and UFHelper and UFHelper.ResolveSecondaryPowerToken then
+				local token = UFHelper.ResolveSecondaryPowerToken(secondaryCfg, defaultsFor(UNIT.PLAYER).secondaryPower, addon.variables and addon.variables.unitClass, addon.variables and addon.variables.unitSpec)
+				if token and UFHelper.IsSecondaryPowerTokenSpecial and UFHelper.IsSecondaryPowerTokenSpecial(token) then updatePower(playerCfg, UNIT.PLAYER) end
+			end
+		end
 		if unit == UNIT.TARGET then updateHealth(getCfg(UNIT.TARGET), UNIT.TARGET) end
 		if unit == UNIT.PET then updateHealth(getCfg(UNIT.PET), UNIT.PET) end
 		if unit == UNIT.FOCUS then updateHealth(getCfg(UNIT.FOCUS), UNIT.FOCUS) end
