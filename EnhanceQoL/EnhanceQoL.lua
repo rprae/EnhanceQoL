@@ -382,7 +382,7 @@ local visibilityRuleMetadata = {
 		key = "PLAYER_HAS_TARGET",
 		label = L["visibilityRule_playerHasTarget"] or "When I have a target",
 		description = L["visibilityRule_playerHasTarget_desc"],
-		appliesTo = { frame = true },
+		appliesTo = { actionbar = true, frame = true },
 		unitRequirement = "player",
 		order = 45,
 	},
@@ -1773,6 +1773,7 @@ local function GetActionBarVisibilityConfig(variable, incoming, persistLegacy)
 				or source.PLAYER_CASTING == true
 				or source.PLAYER_MOUNTED == true
 				or source.PLAYER_NOT_MOUNTED == true
+				or source.PLAYER_HAS_TARGET == true
 				or source.PLAYER_IN_GROUP == true
 				or source.ALWAYS_HIDDEN == true
 			then
@@ -1794,6 +1795,7 @@ local function GetActionBarVisibilityConfig(variable, incoming, persistLegacy)
 			PLAYER_CASTING = source.PLAYER_CASTING == true,
 			PLAYER_MOUNTED = source.PLAYER_MOUNTED == true,
 			PLAYER_NOT_MOUNTED = source.PLAYER_NOT_MOUNTED == true,
+			PLAYER_HAS_TARGET = source.PLAYER_HAS_TARGET == true,
 			PLAYER_IN_GROUP = source.PLAYER_IN_GROUP == true,
 			ALWAYS_HIDDEN = source.ALWAYS_HIDDEN == true,
 		}
@@ -1807,6 +1809,7 @@ local function GetActionBarVisibilityConfig(variable, incoming, persistLegacy)
 			PLAYER_CASTING = false,
 			PLAYER_MOUNTED = false,
 			PLAYER_NOT_MOUNTED = false,
+			PLAYER_HAS_TARGET = false,
 			PLAYER_IN_GROUP = false,
 			ALWAYS_HIDDEN = false,
 		}
@@ -1829,6 +1832,7 @@ local function GetActionBarVisibilityConfig(variable, incoming, persistLegacy)
 			or config.PLAYER_CASTING
 			or config.PLAYER_MOUNTED
 			or config.PLAYER_NOT_MOUNTED
+			or config.PLAYER_HAS_TARGET
 			or config.PLAYER_IN_GROUP
 			or config.ALWAYS_HIDDEN
 		)
@@ -1849,6 +1853,7 @@ local function GetActionBarVisibilityConfig(variable, incoming, persistLegacy)
 			if config.PLAYER_CASTING then stored.PLAYER_CASTING = true end
 			if config.PLAYER_MOUNTED then stored.PLAYER_MOUNTED = true end
 			if config.PLAYER_NOT_MOUNTED then stored.PLAYER_NOT_MOUNTED = true end
+			if config.PLAYER_HAS_TARGET then stored.PLAYER_HAS_TARGET = true end
 			if config.PLAYER_IN_GROUP then stored.PLAYER_IN_GROUP = true end
 			if config.ALWAYS_HIDDEN then stored.ALWAYS_HIDDEN = true end
 			addon.db[variable] = stored
@@ -1893,6 +1898,7 @@ local function ActionBarShouldForceShowByConfig(config, context, combatOverride)
 	if config.PLAYER_CASTING and ctx.isCasting then return true end
 	if config.PLAYER_MOUNTED and ctx.mounted then return true end
 	if config.PLAYER_NOT_MOUNTED and not ctx.mounted then return true end
+	if config.PLAYER_HAS_TARGET and ctx.hasTarget then return true end
 	if config.PLAYER_IN_GROUP and ctx.inGroup then return true end
 	return false
 end
@@ -1984,6 +1990,7 @@ local function ApplyActionBarAlpha(bar, variable, config, combatOverride, skipFa
 		or cfg.PLAYER_CASTING
 		or cfg.PLAYER_MOUNTED
 		or cfg.PLAYER_NOT_MOUNTED
+		or cfg.PLAYER_HAS_TARGET
 		or cfg.PLAYER_IN_GROUP
 
 	if cfg.SKYRIDING_INACTIVE then
@@ -2399,6 +2406,7 @@ local ACTIONBAR_VISIBILITY_EVENTS = {
 	"PLAYER_MOUNT_DISPLAY_CHANGED",
 	"UPDATE_SHAPESHIFT_FORM",
 	"GROUP_ROSTER_UPDATE",
+	"PLAYER_TARGET_CHANGED",
 	"ACTIONBAR_SHOWGRID",
 	"ACTIONBAR_HIDEGRID",
 }

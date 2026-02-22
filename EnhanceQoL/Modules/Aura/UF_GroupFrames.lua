@@ -6080,7 +6080,19 @@ function GF:UpdatePreviewLayout(kind)
 				else
 					groupGrowth = (GFH.NormalizeGrowthDirection and GFH.NormalizeGrowthDirection(cfg and cfg.groupGrowth, nil)) or ((growth == "RIGHT" or growth == "LEFT") and "DOWN" or "RIGHT")
 				end
-				startPoint = (GFH.GetGroupGrowthStartPoint and GFH.GetGroupGrowthStartPoint(groupGrowth)) or getGrowthStartPoint(groupGrowth)
+				local unitIsHorizontal = (growth == "LEFT" or growth == "RIGHT")
+				local groupIsHorizontal = (groupGrowth == "LEFT" or groupGrowth == "RIGHT")
+				if unitIsHorizontal == groupIsHorizontal then
+					startPoint = getGrowthStartPoint(groupGrowth)
+				elseif unitIsHorizontal then
+					local horizontalPoint = (growth == "LEFT") and "RIGHT" or "LEFT"
+					local verticalPoint = (groupGrowth == "UP") and "BOTTOM" or "TOP"
+					startPoint = verticalPoint .. horizontalPoint
+				else
+					local horizontalPoint = (groupGrowth == "LEFT") and "RIGHT" or "LEFT"
+					local verticalPoint = (growth == "UP") and "BOTTOM" or "TOP"
+					startPoint = verticalPoint .. horizontalPoint
+				end
 			end
 		end
 	end

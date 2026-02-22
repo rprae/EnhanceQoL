@@ -1,6 +1,6 @@
 # Changelog
 
-## [7.20.0] - 2026-02-21
+## [7.20.0] - 2026-02-22
 
 ### ✨ Added
 
@@ -8,6 +8,7 @@
 - Economy (Bank): Added automatic gold balancing with the Warband bank.
 - Economy (Bank): Added optional per-character target values and automatic withdraw.
 - Cooldown Panels: Keybind display now supports Dominos, Bartender4 and ElvUI action bars (in addition to Blizzard).
+- Action Bars (Visibility): Added `When I have a target` as a show rule.
 - UI (Frames): Added `Unclamp Blizzard damage meter` to allow moving Blizzard damage meter windows beyond screen edges.
 - Mover: Added `Queue Status Button` as movable frame entry (default: off).
 - Resource Bars (Maelstrom Weapon): Added `Separated offset` for segmented/separated bar spacing.
@@ -20,6 +21,7 @@
 - Group Frames (Raid): Dynamic layout/viewport scaling now refreshes immediately when roster count crosses `unitsPerColumn`/`maxColumns` thresholds.
 - Group Frames: Offline/DC visuals (name/status/range fade) now refresh reliably.
 - Group Frames (Party/Raid): `CompactRaidFrameManager` is no longer hard-hidden while EQoL group frames are enabled, so Blizzard raid tools can auto-show again based on group state.
+- Group Frames (Raid, Edit Mode): `Toggle sample frames` now uses the correct start corner for combined `Growth` + `Group Growth` directions (e.g. `Left` + `Up` starts at bottom-right, matching live raid layout).
 - Resource Bars: `Separated offset` now separates segment frames.
 - Unit Frames (Profiles): `Profile scope` now includes Party/Raid/Main Tank/Main Assist, and import/export correctly handles Group Frame settings.
 
