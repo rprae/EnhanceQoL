@@ -19,4 +19,16 @@ addon.variables.NewVersionTableEQOL = {
 	-- Interface -> Mover -> Activities -> Queue Status Button
 	["EQOL_Mover"] = true,
 	["EQOL_moverFrame_QueueStatusButton"] = true,
+
+	-- General -> Mouse -> Ring progress (Cast/GCD)
+	["EQOL_GENERAL"] = true,
+	["EQOL_MouseAndAccessibility"] = true,
+	["EQOL_mouseRingCastProgress"] = true,
+	["EQOL_mouseRingCastProgressColor"] = true,
+	["EQOL_mouseRingGCDProgress"] = true,
+	["EQOL_mouseRingGCDProgressColor"] = true,
+	["EQOL_mouseRingGCDProgressMode"] = true,
+	["EQOL_mouseRingProgressStyle"] = true,
+	["EQOL_mouseRingProgressShowEdge"] = true,
+	["EQOL_mouseRingProgressHideDuringSwipe"] = true,
 }

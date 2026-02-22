@@ -16,6 +16,7 @@ local cMouse = addon.SettingsLayout.rootGENERAL
 
 local expandable = addon.functions.SettingsCreateExpandableSection(cMouse, {
 	name = (LMain and LMain["MouseAndAccessibility"]) or "Mouse & Accessibility",
+	newTagID = "MouseAndAccessibility",
 	expanded = false,
 	colorizeTitle = false,
 })
@@ -30,6 +31,17 @@ addon.functions.SettingsCreateCheckbox(cMouse, {
 })
 
 addon.functions.SettingsCreateHeadline(cMouse, L["mouseRing"], { parentSection = expandable })
+
+local function isRingEnabledSetting()
+	return addon.SettingsLayout.elements["mouseRingEnabled"]
+		and addon.SettingsLayout.elements["mouseRingEnabled"].setting
+		and addon.SettingsLayout.elements["mouseRingEnabled"].setting:GetValue() == true
+end
+
+local function isRingSwipeStyleSetting()
+	local db = addon.db or {}
+	return (db["mouseRingProgressStyle"] or "DOT") == "RING"
+end
 
 local data = {
 	{
@@ -46,6 +58,7 @@ local data = {
 			else
 				addon.Mouse.functions.removeMouseRing()
 			end
+			if addon.Mouse.functions.syncRingProgressState then addon.Mouse.functions.syncRingProgressState() end
 			if addon.Mouse.functions.updateRunnerState then addon.Mouse.functions.updateRunnerState() end
 		end,
 		parentSection = expandable,
@@ -303,10 +316,171 @@ local data = {
 				sType = "colorpicker",
 				parentSection = expandable,
 			},
+			{
+				text = "",
+				sType = "hint",
+				parentCheck = function() return isRingEnabledSetting() end,
+				parentSection = expandable,
+			},
+			{
+				list = {
+					DOT = L["mouseRingProgressStyleDot"],
+					RING = L["mouseRingProgressStyleRing"],
+				},
+				order = { "DOT", "RING" },
+				text = L["mouseRingProgressStyle"],
+				get = function() return addon.db["mouseRingProgressStyle"] or "DOT" end,
+				set = function(key)
+					addon.db["mouseRingProgressStyle"] = key
+					if addon.Mouse.functions.refreshRingStyle then addon.Mouse.functions.refreshRingStyle() end
+				end,
+				parentCheck = function() return isRingEnabledSetting() end,
+				parent = true,
+				default = "DOT",
+				var = "mouseRingProgressStyle",
+				type = Settings.VarType.String,
+				sType = "dropdown",
+				parentSection = expandable,
+			},
+			{
+				var = "mouseRingProgressShowEdge",
+				text = L["mouseRingProgressShowEdge"],
+				func = function(v)
+					addon.db["mouseRingProgressShowEdge"] = v
+					if addon.Mouse.functions.refreshRingStyle then addon.Mouse.functions.refreshRingStyle() end
+				end,
+				parentCheck = function()
+					return isRingEnabledSetting() and isRingSwipeStyleSetting() and (addon.db and (addon.db["mouseRingCastProgress"] == true or addon.db["mouseRingGCDProgress"] == true))
+				end,
+				parent = true,
+				default = true,
+				type = Settings.VarType.Boolean,
+				sType = "checkbox",
+				parentSection = expandable,
+			},
+			{
+				var = "mouseRingProgressHideDuringSwipe",
+				text = L["mouseRingProgressHideDuringSwipe"],
+				get = function() return addon.db and addon.db.mouseRingProgressHideDuringSwipe or 35 end,
+				set = function(v)
+					addon.db["mouseRingProgressHideDuringSwipe"] = v
+					if addon.Mouse.functions.refreshRingStyle then addon.Mouse.functions.refreshRingStyle() end
+				end,
+				parentCheck = function()
+					return isRingEnabledSetting() and isRingSwipeStyleSetting() and (addon.db and (addon.db["mouseRingCastProgress"] == true or addon.db["mouseRingGCDProgress"] == true))
+				end,
+				min = 0,
+				max = 100,
+				step = 1,
+				parent = true,
+				default = 35,
+				sType = "slider",
+				parentSection = expandable,
+			},
+			{
+				text = "",
+				sType = "hint",
+				parentCheck = function() return isRingEnabledSetting() end,
+				parentSection = expandable,
+			},
+			{
+				var = "mouseRingCastProgress",
+				text = L["mouseRingCastProgress"],
+				func = function(v)
+					addon.db["mouseRingCastProgress"] = v
+					if addon.Mouse.functions.syncRingProgressState then addon.Mouse.functions.syncRingProgressState() end
+					if addon.Mouse.functions.refreshRingStyle then addon.Mouse.functions.refreshRingStyle() end
+				end,
+				parentCheck = function() return isRingEnabledSetting() end,
+				parent = true,
+				default = false,
+				type = Settings.VarType.Boolean,
+				sType = "checkbox",
+				parentSection = expandable,
+			},
+			{
+				var = "mouseRingCastProgressColor",
+				text = L["mouseRingCastProgressColor"],
+				parentCheck = function()
+					return isRingEnabledSetting()
+						and addon.SettingsLayout.elements["mouseRingCastProgress"]
+						and addon.SettingsLayout.elements["mouseRingCastProgress"].setting
+						and addon.SettingsLayout.elements["mouseRingCastProgress"].setting:GetValue() == true
+				end,
+				callback = function(r, g, b, a)
+					if addon.Mouse.functions.refreshRingStyle then addon.Mouse.functions.refreshRingStyle() end
+				end,
+				parent = true,
+				sType = "colorpicker",
+				parentSection = expandable,
+			},
+			{
+				text = "",
+				sType = "hint",
+				parentCheck = function() return isRingEnabledSetting() end,
+				parentSection = expandable,
+			},
+			{
+				var = "mouseRingGCDProgress",
+				text = L["mouseRingGCDProgress"],
+				func = function(v)
+					addon.db["mouseRingGCDProgress"] = v
+					if addon.Mouse.functions.syncRingProgressState then addon.Mouse.functions.syncRingProgressState() end
+					if addon.Mouse.functions.refreshRingStyle then addon.Mouse.functions.refreshRingStyle() end
+				end,
+				parentCheck = function() return isRingEnabledSetting() end,
+				parent = true,
+				default = false,
+				type = Settings.VarType.Boolean,
+				sType = "checkbox",
+				parentSection = expandable,
+				children = {
+					{
+						var = "mouseRingGCDProgressColor",
+						text = L["mouseRingGCDProgressColor"],
+						parentCheck = function()
+							return isRingEnabledSetting()
+								and addon.SettingsLayout.elements["mouseRingGCDProgress"]
+								and addon.SettingsLayout.elements["mouseRingGCDProgress"].setting
+								and addon.SettingsLayout.elements["mouseRingGCDProgress"].setting:GetValue() == true
+						end,
+						callback = function(r, g, b, a)
+							if addon.Mouse.functions.refreshRingStyle then addon.Mouse.functions.refreshRingStyle() end
+						end,
+						parent = true,
+						sType = "colorpicker",
+						parentSection = expandable,
+					},
+					{
+						list = {
+							REMAINING = L["mouseRingProgressModeRemaining"],
+							ELAPSED = L["mouseRingProgressModeElapsed"],
+						},
+						order = { "REMAINING", "ELAPSED" },
+						text = L["mouseRingGCDProgressMode"],
+						get = function() return addon.db["mouseRingGCDProgressMode"] or "REMAINING" end,
+						set = function(key)
+							addon.db["mouseRingGCDProgressMode"] = key
+							if addon.Mouse.functions.refreshRingStyle then addon.Mouse.functions.refreshRingStyle() end
+						end,
+						parentCheck = function()
+							return isRingEnabledSetting()
+								and addon.SettingsLayout.elements["mouseRingGCDProgress"]
+								and addon.SettingsLayout.elements["mouseRingGCDProgress"].setting
+								and addon.SettingsLayout.elements["mouseRingGCDProgress"].setting:GetValue() == true
+						end,
+						parent = true,
+						default = "REMAINING",
+						var = "mouseRingGCDProgressMode",
+						type = Settings.VarType.String,
+						sType = "dropdown",
+						parentSection = expandable,
+					},
+				},
+			},
 		},
 	},
 }
-table.sort(data[1].children, function(a, b) return a.text < b.text end)
 addon.functions.SettingsCreateCheckboxes(cMouse, data)
 
 addon.functions.SettingsCreateHeadline(cMouse, L["mouseTrail"], { parentSection = expandable })

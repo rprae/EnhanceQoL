@@ -2037,10 +2037,11 @@ local function applySquareMinimapLayout(self, underneath)
 
 	local headerUnderneath = underneath
 	if headerUnderneath == nil then
-		if MinimapCluster.GetHeaderUnderneath then
-			headerUnderneath = MinimapCluster:GetHeaderUnderneath()
-		elseif MinimapCluster.headerUnderneath ~= nil then
-			headerUnderneath = MinimapCluster.headerUnderneath
+		local headerSetting = Enum and Enum.EditModeMinimapSetting and Enum.EditModeMinimapSetting.HeaderUnderneath
+		if headerSetting and MinimapCluster.GetSettingValueBool and MinimapCluster.IsInitialized and MinimapCluster:IsInitialized() then
+			headerUnderneath = MinimapCluster:GetSettingValueBool(headerSetting)
+		else
+			headerUnderneath = false
 		end
 	end
 
