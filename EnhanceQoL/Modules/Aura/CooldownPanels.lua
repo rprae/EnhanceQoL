@@ -18,6 +18,7 @@ local SettingType = EditMode and EditMode.lib and EditMode.lib.SettingType
 local L = LibStub("AceLocale-3.0"):GetLocale("EnhanceQoL_Aura")
 local LSM = LibStub("LibSharedMedia-3.0", true)
 local LBG = LibStub("LibButtonGlow-1.0")
+local GetVisibilityRuleMetadata = addon.functions and addon.functions.GetVisibilityRuleMetadata
 local Masque
 
 CooldownPanels.ENTRY_TYPE = {
@@ -186,6 +187,209 @@ local function getRuntime(panelId)
 	end
 	return runtime
 end
+
+local PanelVisibility = (function()
+	local fallbackOptions = {
+		{ value = "ALWAYS_IN_COMBAT", label = "In combat", order = 10 },
+		{ value = "ALWAYS_OUT_OF_COMBAT", label = "Out of combat", order = 11 },
+		{ value = "SKYRIDING_ACTIVE", label = "While skyriding", order = 25 },
+		{ value = "SKYRIDING_INACTIVE", label = "Hide while skyriding", order = 26 },
+		{ value = "PLAYER_CASTING", label = "While casting", order = 35 },
+		{ value = "PLAYER_MOUNTED", label = "Mounted", order = 36 },
+		{ value = "PLAYER_NOT_MOUNTED", label = "Not mounted", order = 37 },
+		{ value = "PLAYER_HAS_TARGET", label = "When I have a target", order = 45 },
+		{ value = "PLAYER_IN_GROUP", label = "In party/raid", order = 46 },
+		{ value = "ALWAYS_HIDDEN", label = "Always hidden", order = 100 },
+	}
+	local optionCache
+	local ruleMapCache
+	local druidTravelFormSpellIds = {
+		[783] = true,
+		[1066] = true,
+		[33943] = true,
+		[40120] = true,
+		[210053] = true,
+	}
+
+	local function copySelectionMap(selection)
+		if type(selection) ~= "table" then return nil end
+		local out
+		for key, value in pairs(selection) do
+			if value == true then
+				out = out or {}
+				out[key] = true
+			end
+		end
+		return out
+	end
+
+	local function getRuleMap()
+		if ruleMapCache then return ruleMapCache end
+		local allowed = {}
+		local metadata = GetVisibilityRuleMetadata and GetVisibilityRuleMetadata() or nil
+		if type(metadata) == "table" then
+			for key, data in pairs(metadata) do
+				local applies = data and data.appliesTo
+				if applies and applies.actionbar and key ~= "MOUSEOVER" then allowed[key] = true end
+			end
+		end
+		if not next(allowed) then
+			for _, option in ipairs(fallbackOptions) do
+				if option and option.value ~= "MOUSEOVER" then allowed[option.value] = true end
+			end
+		end
+		ruleMapCache = allowed
+		return allowed
+	end
+
+	local function normalizeConfig(config)
+		if type(config) ~= "table" then return nil end
+		local allowed = getRuleMap()
+		local out
+		for key in pairs(allowed) do
+			if config[key] == true then
+				out = out or {}
+				out[key] = true
+			end
+		end
+		if not out then return nil end
+		if out.ALWAYS_HIDDEN then return { ALWAYS_HIDDEN = true } end
+		return out
+	end
+
+	local function getRuleOptions()
+		if optionCache then return optionCache end
+		local options = {}
+		local seen = {}
+		local metadata = GetVisibilityRuleMetadata and GetVisibilityRuleMetadata() or nil
+		if type(metadata) == "table" then
+			for key, data in pairs(metadata) do
+				local applies = data and data.appliesTo
+				if applies and applies.actionbar and key ~= "MOUSEOVER" then
+					options[#options + 1] = {
+						value = key,
+						label = data.label or key,
+						text = data.label or key,
+						order = data.order or 999,
+					}
+					seen[key] = true
+				end
+			end
+		end
+		for _, option in ipairs(fallbackOptions) do
+			if option and option.value and not seen[option.value] and option.value ~= "MOUSEOVER" then
+				options[#options + 1] = {
+					value = option.value,
+					label = option.label or option.value,
+					text = option.label or option.value,
+					order = option.order or 999,
+				}
+				seen[option.value] = true
+			end
+		end
+		table.sort(options, function(a, b)
+			if a.order == b.order then
+				local left = tostring(a.label or a.value or "")
+				local right = tostring(b.label or b.value or "")
+				if strcmputf8i then return strcmputf8i(left, right) < 0 end
+				return left:lower() < right:lower()
+			end
+			return a.order < b.order
+		end)
+		optionCache = options
+		return options
+	end
+
+	local function isInDruidTravelForm()
+		local class = addon.variables and addon.variables.unitClass
+		if class ~= "DRUID" then
+			local _, eng = UnitClass and UnitClass("player")
+			if eng ~= "DRUID" then return false end
+		end
+		if not GetShapeshiftForm then return false end
+		local form = GetShapeshiftForm()
+		if not form or form == 0 then return false end
+		if GetShapeshiftFormID then
+			local formID = GetShapeshiftFormID()
+			if formID == DRUID_TRAVEL_FORM or formID == DRUID_ACQUATIC_FORM or formID == DRUID_FLIGHT_FORM or formID == 29 then return true end
+		end
+		local spellID = select(4, GetShapeshiftFormInfo(form))
+		if spellID and druidTravelFormSpellIds[spellID] then return true end
+		return form == 3
+	end
+
+	local function isPlayerMounted()
+		if IsMounted and IsMounted() then return true end
+		return isInDruidTravelForm()
+	end
+
+	local function isPlayerCasting()
+		if UnitCastingInfo and UnitCastingInfo("player") then return true end
+		if UnitChannelInfo and UnitChannelInfo("player") then return true end
+		return false
+	end
+
+	local function isPlayerSkyriding()
+		if SecureCmdOptionParse then
+			if addon.variables and addon.variables.unitClass == "DRUID" then return SecureCmdOptionParse("[advflyable, mounted] 1; [advflyable, stance:3] 1; 0") == "1" end
+			return SecureCmdOptionParse("[advflyable, mounted] 1; 0") == "1"
+		end
+		return addon.variables and addon.variables.isPlayerSkyriding == true
+	end
+
+	local function hasShowRules(config)
+		if not config then return false end
+		return config.ALWAYS_IN_COMBAT
+			or config.ALWAYS_OUT_OF_COMBAT
+			or config.SKYRIDING_ACTIVE
+			or config.PLAYER_CASTING
+			or config.PLAYER_MOUNTED
+			or config.PLAYER_NOT_MOUNTED
+			or config.PLAYER_HAS_TARGET
+			or config.PLAYER_IN_GROUP
+	end
+
+	local function shouldShow(config)
+		local cfg = normalizeConfig(config)
+		if not cfg then return true end
+		if cfg.ALWAYS_HIDDEN then return false end
+
+		local inCombat = false
+		if InCombatLockdown and InCombatLockdown() then
+			inCombat = true
+		elseif UnitAffectingCombat then
+			inCombat = UnitAffectingCombat("player") == true
+		end
+		local hasTarget = UnitExists and UnitExists("target") == true
+		local inGroup = IsInGroup and IsInGroup() == true
+		local mounted = isPlayerMounted()
+		local casting = isPlayerCasting()
+		local skyriding = isPlayerSkyriding()
+
+		if cfg.SKYRIDING_INACTIVE then
+			if skyriding then return false end
+			if not hasShowRules(cfg) then return true end
+		end
+
+		if cfg.SKYRIDING_ACTIVE and skyriding then return true end
+		if cfg.ALWAYS_IN_COMBAT and inCombat then return true end
+		if cfg.ALWAYS_OUT_OF_COMBAT and not inCombat then return true end
+		if cfg.PLAYER_CASTING and casting then return true end
+		if cfg.PLAYER_MOUNTED and mounted then return true end
+		if cfg.PLAYER_NOT_MOUNTED and not mounted then return true end
+		if cfg.PLAYER_HAS_TARGET and hasTarget then return true end
+		if cfg.PLAYER_IN_GROUP and inGroup then return true end
+
+		return false
+	end
+
+	return {
+		CopySelectionMap = copySelectionMap,
+		NormalizeConfig = normalizeConfig,
+		GetRuleOptions = getRuleOptions,
+		ShouldShow = shouldShow,
+	}
+end)()
 
 local updatePowerEventRegistration
 local updateRangeCheckSpells
@@ -2664,6 +2868,7 @@ local function copyPanelSettings(targetPanelId, sourcePanelId)
 			data.iconBorderColor = layout.iconBorderColor or Helper.PANEL_LAYOUT_DEFAULTS.iconBorderColor
 			data.hideOnCooldown = layout.hideOnCooldown == true
 			data.showOnCooldown = layout.showOnCooldown == true
+			data.visibility = PanelVisibility.CopySelectionMap(PanelVisibility.NormalizeConfig(layout.visibility))
 			data.cooldownTextFont = layout.cooldownTextFont or data.cooldownTextFont
 			data.cooldownTextSize = layout.cooldownTextSize or data.cooldownTextSize
 			data.cooldownTextStyle = Helper.NormalizeFontStyleChoice(layout.cooldownTextStyle, data.cooldownTextStyle)
@@ -4923,6 +5128,7 @@ function CooldownPanels:ShouldShowPanel(panelId)
 	local hideInClientScene = panel.layout.hideInClientScene
 	if hideInClientScene == nil then hideInClientScene = Helper.PANEL_LAYOUT_DEFAULTS.hideInClientScene == true end
 	if hideInClientScene and isClientSceneActive() then return false end
+	if not PanelVisibility.ShouldShow(panel.layout.visibility) then return false end
 	local runtime = getRuntime(panelId)
 	return runtime.visibleCount and runtime.visibleCount > 0
 end
@@ -5213,6 +5419,8 @@ local function applyEditLayout(panelId, field, value, skipRefresh)
 		layout.hideInPetBattle = value == true
 	elseif field == "hideInClientScene" then
 		layout.hideInClientScene = value == true
+	elseif field == "visibility" then
+		layout.visibility = PanelVisibility.NormalizeConfig(value)
 	elseif field == "cooldownTextFont" then
 		if type(value) == "string" and value ~= "" then layout.cooldownTextFont = value end
 	elseif field == "cooldownTextSize" then
@@ -5243,6 +5451,7 @@ local function applyEditLayout(panelId, field, value, skipRefresh)
 	if field == "iconSize" then CooldownPanels:ReskinMasque() end
 
 	local syncValue = layout[field]
+	if field == "visibility" then syncValue = PanelVisibility.CopySelectionMap(layout.visibility) end
 	if rowSizeIndex then
 		local base = Helper.ClampInt(layout.iconSize, 12, 128, Helper.PANEL_LAYOUT_DEFAULTS.iconSize)
 		local idx = tonumber(rowSizeIndex)
@@ -5332,6 +5541,7 @@ function CooldownPanels:ApplyEditMode(panelId, data)
 	applyEditLayout(panelId, "hideInVehicle", data.hideInVehicle, true)
 	applyEditLayout(panelId, "hideInPetBattle", data.hideInPetBattle, true)
 	applyEditLayout(panelId, "hideInClientScene", data.hideInClientScene, true)
+	applyEditLayout(panelId, "visibility", data.visibility, true)
 	applyEditLayout(panelId, "cooldownTextFont", data.cooldownTextFont, true)
 	applyEditLayout(panelId, "cooldownTextSize", data.cooldownTextSize, true)
 	applyEditLayout(panelId, "cooldownTextStyle", data.cooldownTextStyle, true)
@@ -5536,6 +5746,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 		local rows, primaryHorizontal = getPanelRowCount(panel, layout)
 		return primaryHorizontal and rows >= index
 	end
+	local visibilityRuleOptions = PanelVisibility.GetRuleOptions()
 	local settings
 	if SettingType then
 		local function relativeFrameEntries()
@@ -6169,6 +6380,35 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 				default = layout.showOnCooldown == true,
 				get = function() return layout.showOnCooldown == true end,
 				set = function(_, value) applyEditLayout(panelId, "showOnCooldown", value) end,
+			},
+			{
+				name = L["Show when"] or "Show when",
+				kind = SettingType.MultiDropdown,
+				field = "visibility",
+				parentId = "cooldownPanelDisplay",
+				height = 220,
+				values = visibilityRuleOptions,
+				hideSummary = true,
+				default = PanelVisibility.CopySelectionMap(PanelVisibility.NormalizeConfig(layout.visibility)),
+				isSelected = function(_, value)
+					local cfg = PanelVisibility.NormalizeConfig(layout.visibility)
+					return cfg and cfg[value] == true or false
+				end,
+				setSelected = function(_, value, state)
+					local cfg = PanelVisibility.NormalizeConfig(layout.visibility) or {}
+					if value == "ALWAYS_HIDDEN" and state then
+						cfg = { ALWAYS_HIDDEN = true }
+					elseif state then
+						cfg[value] = true
+						cfg.ALWAYS_HIDDEN = nil
+					else
+						cfg[value] = nil
+					end
+					if not next(cfg) then cfg = nil end
+					applyEditLayout(panelId, "visibility", cfg)
+				end,
+				isShown = function() return visibilityRuleOptions and #visibilityRuleOptions > 0 end,
+				isEnabled = function() return visibilityRuleOptions and #visibilityRuleOptions > 0 end,
 			},
 			{
 				name = L["CooldownPanelHideInVehicle"] or "Hide in vehicles",
@@ -6950,6 +7190,7 @@ function CooldownPanels:RegisterEditModePanel(panelId)
 			hideInVehicle = layout.hideInVehicle == true,
 			hideInPetBattle = layout.hideInPetBattle == true,
 			hideInClientScene = layout.hideInClientScene ~= false,
+			visibility = PanelVisibility.CopySelectionMap(PanelVisibility.NormalizeConfig(layout.visibility)),
 			cooldownTextFont = layout.cooldownTextFont,
 			cooldownTextSize = layout.cooldownTextSize or 12,
 			cooldownTextStyle = Helper.NormalizeFontStyleChoice(layout.cooldownTextStyle, "NONE"),
@@ -7504,6 +7745,10 @@ local UPDATE_FRAME_EVENTS = {
 	"ACTIVE_TALENT_GROUP_CHANGED",
 	"PLAYER_TALENT_UPDATE",
 	"PLAYER_EQUIPMENT_CHANGED",
+	"PLAYER_MOUNT_DISPLAY_CHANGED",
+	"UPDATE_SHAPESHIFT_FORM",
+	"GROUP_ROSTER_UPDATE",
+	"PLAYER_TARGET_CHANGED",
 	"BAG_UPDATE_DELAYED",
 	"BAG_UPDATE_COOLDOWN",
 	"UPDATE_BINDINGS",
@@ -7549,6 +7794,12 @@ local function setUpdateFrameEnabled(frame, enabled)
 			frame:RegisterEvent(event)
 		end
 		frame:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
+		frame:RegisterUnitEvent("UNIT_SPELLCAST_START", "player")
+		frame:RegisterUnitEvent("UNIT_SPELLCAST_STOP", "player")
+		frame:RegisterUnitEvent("UNIT_SPELLCAST_FAILED", "player")
+		frame:RegisterUnitEvent("UNIT_SPELLCAST_INTERRUPTED", "player")
+		frame:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_START", "player")
+		frame:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_STOP", "player")
 		frame:RegisterUnitEvent("PLAYER_SPECIALIZATION_CHANGED", "player")
 		frame:RegisterUnitEvent("UNIT_ENTERED_VEHICLE", "player")
 		frame:RegisterUnitEvent("UNIT_EXITED_VEHICLE", "player")
