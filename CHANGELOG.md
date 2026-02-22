@@ -8,6 +8,7 @@
 - Economy (Bank): Added automatic gold balancing with the Warband bank.
 - Economy (Bank): Added optional per-character target values and automatic withdraw.
 - Cooldown Panels: Keybind display now supports Dominos, Bartender4 and ElvUI action bars (in addition to Blizzard).
+- UI (Frames): Added `Unclamp Blizzard damage meter` to allow moving Blizzard damage meter windows beyond screen edges.
 - Mover: Added `Queue Status Button` as movable frame entry (default: off).
 - Resource Bars (Maelstrom Weapon): Added `Separated offset` for segmented/separated bar spacing.
 - Resource Bars (Maelstrom Weapon): Added `Keep 5-stack fill above 5` option under `Use 5-stack color` (only enabled when `Use 5-stack color` is active).
