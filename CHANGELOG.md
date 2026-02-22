@@ -21,6 +21,7 @@
 - Character Frame: The selected font for item details now applies correctly again (item level, gems, enchants).
 - Data Panels: Time stream font and text scale updates now apply reliably.
 - Group Frames (Raid): Dynamic layout/viewport scaling now refreshes immediately when roster count crosses `unitsPerColumn`/`maxColumns` thresholds.
+- Group Frames: Added missing `Absorb overlay height` and `Heal absorb overlay height` support in Edit Mode settings; both overlay heights now apply correctly and are included in copy/import/export flows.
 - Group Frames: Offline/DC visuals (name/status/range fade) now refresh reliably.
 - Group Frames (Party/Raid): `CompactRaidFrameManager` is no longer hard-hidden while EQoL group frames are enabled, so Blizzard raid tools can auto-show again based on group state.
 - Group Frames (Raid, Edit Mode): `Toggle sample frames` now uses the correct start corner for combined `Growth` + `Group Growth` directions (e.g. `Left` + `Up` starts at bottom-right, matching live raid layout).

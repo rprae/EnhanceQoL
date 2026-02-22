@@ -4435,9 +4435,7 @@ local function updatePower(cfg, unit)
 	if powerEnabled then
 		if unit == UNIT.PLAYER then refreshMainPower(unit) end
 		powerEnum, powerToken = getMainPower(unit)
-		if unit == UNIT.PLAYER and UFHelper and UFHelper.IsPrimaryPowerAllowed then
-			powerEnabled = UFHelper.IsPrimaryPowerAllowed(pcfg, powerDef, powerToken, powerEnum, unit) ~= false
-		end
+		if unit == UNIT.PLAYER and UFHelper and UFHelper.IsPrimaryPowerAllowed then powerEnabled = UFHelper.IsPrimaryPowerAllowed(pcfg, powerDef, powerToken, powerEnum, unit) ~= false end
 	end
 	local powerDetached = powerEnabled and pcfg.detached == true
 	if bar then
@@ -5311,7 +5309,9 @@ local function layoutFrame(cfg, unit)
 		if detachedStrata then secondaryPowerStrata = detachedStrata end
 	end
 	if st.secondaryPower and st.secondaryPower.SetFrameStrata and st.secondaryPower:GetFrameStrata() ~= secondaryPowerStrata then st.secondaryPower:SetFrameStrata(secondaryPowerStrata) end
-	if st.secondaryPowerGroup and st.secondaryPowerGroup.SetFrameStrata and st.secondaryPowerGroup:GetFrameStrata() ~= secondaryPowerStrata then st.secondaryPowerGroup:SetFrameStrata(secondaryPowerStrata) end
+	if st.secondaryPowerGroup and st.secondaryPowerGroup.SetFrameStrata and st.secondaryPowerGroup:GetFrameStrata() ~= secondaryPowerStrata then
+		st.secondaryPowerGroup:SetFrameStrata(secondaryPowerStrata)
+	end
 	local healthLevel = (st.health and st.health.GetFrameLevel and st.health:GetFrameLevel()) or (frameLevel + 2)
 	local powerLevel = healthLevel
 	if powerDetached then
@@ -5392,9 +5392,7 @@ local function layoutFrame(cfg, unit)
 
 	layoutTexts(st.health, st.healthTextLeft, st.healthTextCenter, st.healthTextRight, cfg.health, width)
 	layoutTexts(st.power, st.powerTextLeft, st.powerTextCenter, st.powerTextRight, cfg.power, width)
-	if st.secondaryPower then
-		layoutTexts(st.secondaryPower, st.secondaryPowerTextLeft, st.secondaryPowerTextCenter, st.secondaryPowerTextRight, cfg.secondaryPower, width)
-	end
+	if st.secondaryPower then layoutTexts(st.secondaryPower, st.secondaryPowerTextLeft, st.secondaryPowerTextCenter, st.secondaryPowerTextRight, cfg.secondaryPower, width) end
 	if st.castBar and unit == UNIT.TARGET then applyCastLayout(cfg, unit) end
 
 	-- Apply border only around the bar region wrapper
@@ -5711,9 +5709,7 @@ local function applyBars(cfg, unit)
 	if powerEnabled then
 		if unit == UNIT.PLAYER then refreshMainPower(unit) end
 		powerEnum, powerToken = getMainPower(unit)
-		if unit == UNIT.PLAYER and UFHelper and UFHelper.IsPrimaryPowerAllowed then
-			powerEnabled = UFHelper.IsPrimaryPowerAllowed(pcfg, defP, powerToken, powerEnum, unit) ~= false
-		end
+		if unit == UNIT.PLAYER and UFHelper and UFHelper.IsPrimaryPowerAllowed then powerEnabled = UFHelper.IsPrimaryPowerAllowed(pcfg, defP, powerToken, powerEnum, unit) ~= false end
 	end
 	local healthHeight = cfg.healthHeight or def.healthHeight or (st.health.GetHeight and st.health:GetHeight()) or 0
 	st.health:SetStatusBarTexture(UFHelper.resolveTexture(hc.texture))
@@ -5753,7 +5749,9 @@ local function applyBars(cfg, unit)
 	})
 	if powerEnabled then
 		st.power:SetStatusBarTexture(UFHelper.resolveTexture(pcfg.texture))
-		if not powerEnum then powerEnum, powerToken = getMainPower(unit) end
+		if not powerEnum then
+			powerEnum, powerToken = getMainPower(unit)
+		end
 		if st.power.SetStatusBarDesaturated then st.power:SetStatusBarDesaturated(UFHelper.isPowerDesaturated(powerEnum, powerToken)) end
 		UFHelper.configureSpecialTexture(st.power, powerToken, pcfg.texture, pcfg, powerEnum)
 		local reversePower = pcfg.reverseFill
@@ -6930,9 +6928,7 @@ function UF.UpdateUnitTexts(unit, force)
 		if unit == UNIT.PLAYER then refreshMainPower(unit) end
 		local powerEnum, powerToken = getMainPower(unit)
 		local powerAllowed = true
-		if unit == UNIT.PLAYER and UFHelper and UFHelper.IsPrimaryPowerAllowed then
-			powerAllowed = UFHelper.IsPrimaryPowerAllowed(pcfg, defP, powerToken, powerEnum, unit) ~= false
-		end
+		if unit == UNIT.PLAYER and UFHelper and UFHelper.IsPrimaryPowerAllowed then powerAllowed = UFHelper.IsPrimaryPowerAllowed(pcfg, defP, powerToken, powerEnum, unit) ~= false end
 		if pcfg.enabled == false or not powerAllowed then
 			if st.powerTextLeft then st.powerTextLeft:SetText("") end
 			if st.powerTextCenter then st.powerTextCenter:SetText("") end
@@ -7071,7 +7067,21 @@ function UF.UpdateUnitTexts(unit, force)
 				st.secondaryPowerTextLeft:SetText("")
 			else
 				st.secondaryPowerTextLeft:SetText(
-					UFHelper.formatText(leftMode, cur, maxv, secondaryCfg.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, nil, roundPercent, true)
+					UFHelper.formatText(
+						leftMode,
+						cur,
+						maxv,
+						secondaryCfg.useShortNumbers ~= false,
+						percentVal,
+						delimiter,
+						delimiter2,
+						delimiter3,
+						hidePercentSymbol,
+						levelText,
+						nil,
+						roundPercent,
+						true
+					)
 				)
 			end
 		end
@@ -7080,7 +7090,21 @@ function UF.UpdateUnitTexts(unit, force)
 				st.secondaryPowerTextCenter:SetText("")
 			else
 				st.secondaryPowerTextCenter:SetText(
-					UFHelper.formatText(centerMode, cur, maxv, secondaryCfg.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, nil, roundPercent, true)
+					UFHelper.formatText(
+						centerMode,
+						cur,
+						maxv,
+						secondaryCfg.useShortNumbers ~= false,
+						percentVal,
+						delimiter,
+						delimiter2,
+						delimiter3,
+						hidePercentSymbol,
+						levelText,
+						nil,
+						roundPercent,
+						true
+					)
 				)
 			end
 		end
@@ -7089,7 +7113,21 @@ function UF.UpdateUnitTexts(unit, force)
 				st.secondaryPowerTextRight:SetText("")
 			else
 				st.secondaryPowerTextRight:SetText(
-					UFHelper.formatText(rightMode, cur, maxv, secondaryCfg.useShortNumbers ~= false, percentVal, delimiter, delimiter2, delimiter3, hidePercentSymbol, levelText, nil, roundPercent, true)
+					UFHelper.formatText(
+						rightMode,
+						cur,
+						maxv,
+						secondaryCfg.useShortNumbers ~= false,
+						percentVal,
+						delimiter,
+						delimiter2,
+						delimiter3,
+						hidePercentSymbol,
+						levelText,
+						nil,
+						roundPercent,
+						true
+					)
 				)
 			end
 		end
@@ -7230,6 +7268,10 @@ onEvent = function(self, event, unit, ...)
 			if bossHidePending then hideBossFrames(true) end
 			if bossShowPending or bossInitPending then updateBossFrames(true) end
 			bossLayoutDirty, bossHidePending, bossShowPending, bossInitPending = nil, nil, nil, nil
+			if UF._playerDisplayPowerLayoutPending then
+				UF._playerDisplayPowerLayoutPending = nil
+				reapplyPlayerFrameAfterSpecChange()
+			end
 		end
 	elseif event == "PLAYER_TARGET_CHANGED" then
 		if UFHelper and UFHelper.RangeFadeReset then UFHelper.RangeFadeReset() end
@@ -7432,7 +7474,12 @@ onEvent = function(self, event, unit, ...)
 			updateHealth(playerCfg, UNIT.PLAYER)
 			local secondaryCfg = playerCfg and playerCfg.secondaryPower or {}
 			if secondaryCfg.enabled ~= false and UFHelper and UFHelper.ResolveSecondaryPowerToken then
-				local token = UFHelper.ResolveSecondaryPowerToken(secondaryCfg, defaultsFor(UNIT.PLAYER).secondaryPower, addon.variables and addon.variables.unitClass, addon.variables and addon.variables.unitSpec)
+				local token = UFHelper.ResolveSecondaryPowerToken(
+					secondaryCfg,
+					defaultsFor(UNIT.PLAYER).secondaryPower,
+					addon.variables and addon.variables.unitClass,
+					addon.variables and addon.variables.unitSpec
+				)
 				if token and UFHelper.IsSecondaryPowerTokenSpecial and UFHelper.IsSecondaryPowerTokenSpecial(token) then updatePower(playerCfg, UNIT.PLAYER) end
 			end
 		end
@@ -7456,16 +7503,22 @@ onEvent = function(self, event, unit, ...)
 		if unit == UNIT.PLAYER then
 			local playerCfg = getCfg(UNIT.PLAYER)
 			if playerCfg.enabled == false then return end
-			refreshMainPower(unit)
-			local st = states[unit]
-			local pcfg = playerCfg.power or {}
-			if st and st.power and pcfg.enabled ~= false then
-				local powerEnum, powerToken = getMainPower(unit)
-				UFHelper.configureSpecialTexture(st.power, powerToken, (playerCfg.power or {}).texture, playerCfg.power, powerEnum)
-			elseif st and st.power then
-				st.power:Hide()
+			if InCombatLockdown() then
+				refreshMainPower(unit)
+				local st = states[unit]
+				local pcfg = playerCfg.power or {}
+				if st and st.power and pcfg.enabled ~= false then
+					local powerEnum, powerToken = getMainPower(unit)
+					UFHelper.configureSpecialTexture(st.power, powerToken, (playerCfg.power or {}).texture, playerCfg.power, powerEnum)
+				elseif st and st.power then
+					st.power:Hide()
+				end
+				updatePower(playerCfg, UNIT.PLAYER)
+				UF._playerDisplayPowerLayoutPending = true
+			else
+				UF._playerDisplayPowerLayoutPending = nil
+				reapplyPlayerFrameAfterSpecChange()
 			end
-			updatePower(playerCfg, UNIT.PLAYER)
 		elseif unit == UNIT.TARGET then
 			local targetCfg = getCfg(UNIT.TARGET)
 			if targetCfg.enabled == false then return end

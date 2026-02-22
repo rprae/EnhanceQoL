@@ -1348,9 +1348,7 @@ local function getPrimaryPowerTokens()
 		appendPrimaryPowerToken(list, seen, "ESSENCE")
 		appendPrimaryPowerToken(list, seen, "VOID_METAMORPHOSIS")
 	end
-	table.sort(list, function(a, b)
-		return tostring(H.getPowerLabel(a)) < tostring(H.getPowerLabel(b))
-	end)
+	table.sort(list, function(a, b) return tostring(H.getPowerLabel(a)) < tostring(H.getPowerLabel(b)) end)
 	primaryPowerTokenCache = list
 	primaryPowerTokenSetCache = {}
 	for i = 1, #list do
@@ -1409,9 +1407,19 @@ local function getPrimaryAllowedTypes(cfg, def)
 	return H.GetDefaultPrimaryPowerAllowedTypes()
 end
 
+local function getEffectivePlayerPrimaryPowerToken(powerToken, powerEnum)
+	local normalized = normalizePrimaryPowerToken(powerEnum, powerToken)
+	if addon.variables and addon.variables.unitClass == "DRUID" then
+		local specMain = H.GetSpecMainPowerToken and H.GetSpecMainPowerToken("DRUID", addon.variables.unitSpec)
+		specMain = normalizePrimaryPowerToken(nil, specMain)
+		if specMain and specMain ~= "MANA" then normalized = specMain end
+	end
+	return normalized
+end
+
 function H.IsPrimaryPowerAllowed(cfg, def, powerToken, powerEnum, unitToken)
 	if unitToken and unitToken ~= "player" then return true end
-	local normalized = normalizePrimaryPowerToken(powerEnum, powerToken)
+	local normalized = getEffectivePlayerPrimaryPowerToken(powerToken, powerEnum)
 	if not normalized then return true end
 	if not getPrimaryPowerTokenSet()[normalized] then return true end
 	local allowed = getPrimaryAllowedTypes(cfg, def)
@@ -1425,9 +1433,7 @@ local function getSecondaryPowerTokens()
 	for i = 1, #SECONDARY_TRACKED_TOKENS do
 		appendSecondaryToken(list, seen, SECONDARY_TRACKED_TOKENS[i])
 	end
-	table.sort(list, function(a, b)
-		return tostring(H.getPowerLabel(a)) < tostring(H.getPowerLabel(b))
-	end)
+	table.sort(list, function(a, b) return tostring(H.getPowerLabel(a)) < tostring(H.getPowerLabel(b)) end)
 	secondaryPowerTokenCache = list
 	return secondaryPowerTokenCache
 end
@@ -1536,8 +1542,8 @@ end
 
 local function getCurrentPlayerPrimaryPowerToken()
 	if type(UnitPowerType) ~= "function" then return nil end
-	local _, token = UnitPowerType("player")
-	return normalizeSecondaryPowerToken(token)
+	local enumId, token = UnitPowerType("player")
+	return getEffectivePlayerPrimaryPowerToken(token, enumId)
 end
 
 function H.ResolveSecondaryPowerToken(cfg, def, classTag, specIndex)
@@ -1553,9 +1559,7 @@ end
 
 function H.GetSecondaryPowerTokenOptions(includeNone)
 	local options = {}
-	if includeNone == true then
-		options[#options + 1] = { value = "NONE", label = _G.NONE or "None" }
-	end
+	if includeNone == true then options[#options + 1] = { value = "NONE", label = _G.NONE or "None" } end
 	for _, token in ipairs(getSecondaryPowerTokens()) do
 		options[#options + 1] = { value = token, label = H.getPowerLabel(token) }
 	end
@@ -1609,9 +1613,7 @@ function H.GetPowerPercentByToken(unit, powerToken, cur, maxv)
 	local normalized = normalizeSecondaryPowerToken(powerToken)
 	if not normalized then return 0 end
 	local enumId = powerEnumByToken[normalized]
-	if enumId ~= nil and addon.functions and addon.functions.GetPowerPercent then
-		return addon.functions.GetPowerPercent(unit or "player", enumId, cur, maxv, true)
-	end
+	if enumId ~= nil and addon.functions and addon.functions.GetPowerPercent then return addon.functions.GetPowerPercent(unit or "player", enumId, cur, maxv, true) end
 	local current = tonumber(cur) or 0
 	local maxValue = tonumber(maxv) or 0
 	if maxValue > 0 then return (current / maxValue) * 100 end
