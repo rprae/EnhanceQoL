@@ -3203,12 +3203,13 @@ function GF:UpdateRaidIcon(self)
 	end
 end
 
-local function getUnitRaidRole(unit)
-	if not (UnitInRaid and GetRaidRosterInfo and unit) then return nil end
+local function isUnitMainAssist(unit)
+	if not (unit and UnitInRaid and UnitInRaid(unit)) then return false end
+	if GetPartyAssignment then return GetPartyAssignment("MAINASSIST", unit) and true or false end
+	if not GetRaidRosterInfo then return false end
 	local raidID = UnitInRaid(unit)
-	if not raidID then return nil end
-	local role = select(10, GetRaidRosterInfo(raidID))
-	return role
+	if not raidID then return false end
+	return select(10, GetRaidRosterInfo(raidID)) == "MAINASSIST"
 end
 
 function GF:UpdateGroupIcons(self)
@@ -3236,8 +3237,7 @@ function GF:UpdateGroupIcons(self)
 	if self._eqolGroupKind == "party" or acfg.enabled == false then
 		st.assistIcon:Hide()
 	else
-		local raidRole = getUnitRaidRole(unit)
-		local isMainAssist = raidRole == "MAINASSIST"
+		local isMainAssist = isUnitMainAssist(unit)
 		local isAssistant = unit and UnitIsGroupAssistant and UnitIsGroupAssistant(unit)
 		local showAssist = isMainAssist or isAssistant
 		if not showAssist and isEditModeActive() then showAssist = true end
@@ -19228,7 +19228,11 @@ do
 			end
 		elseif event == "GROUP_ROSTER_UPDATE" then
 			local rosterChanged, modeChanged, countChanged = GF:DidRosterStateChange()
-			if not rosterChanged then return end
+			if not rosterChanged then
+				-- Assistant/main-assist assignments can change without GUID/count deltas.
+				GF:RefreshGroupIcons()
+				return
+			end
 			local needsFullRefresh = modeChanged
 			local inRaidNow = IsInRaid and IsInRaid()
 			local cfg = getCfg("raid")
@@ -19245,6 +19249,7 @@ do
 			if sortMethod == "NAMELIST" then GF:RefreshCustomSortNameList("raid") end
 			local partyCfg = getCfg("party")
 			if partyCfg and resolveSortMethod(partyCfg) == "NAMELIST" then GF:RefreshCustomSortNameList("party") end
+			GF:RefreshGroupIcons()
 			if needsFullRefresh or updatedCount > 0 then
 				GF:RefreshStatusIcons()
 				GF:RefreshGroupIndicators()
