@@ -2588,11 +2588,48 @@ function GF:LayoutButton(self)
 			if UFHelper.configureSpecialTexture then UFHelper.configureSpecialTexture(st.absorb, "HEALTH", absorbTextureKey, hc) end
 		end
 		if st.absorb.SetStatusBarDesaturated then st.absorb:SetStatusBarDesaturated(false) end
-		if UFHelper and UFHelper.applyStatusBarReverseFill then UFHelper.applyStatusBarReverseFill(st.absorb, hc.absorbReverseFill == true) end
+		local reverseAbsorb = hc.absorbReverseFill
+		if reverseAbsorb == nil then reverseAbsorb = defH.absorbReverseFill == true end
+		if UFHelper and UFHelper.applyStatusBarReverseFill then UFHelper.applyStatusBarReverseFill(st.absorb, reverseAbsorb) end
+		if reverseAbsorb then
+			st.absorb2 = st.absorb2 or CreateFrame("StatusBar", nil, st.health, "BackdropTemplate")
+			if st.absorb2.SetStatusBarDesaturated then st.absorb2:SetStatusBarDesaturated(false) end
+			st.absorb2:Hide()
+		elseif st.absorb2 then
+			st.absorb2:Hide()
+		end
 		stabilizeStatusBarTexture(st.absorb)
 		st.absorb:ClearAllPoints()
 		st.absorb:SetAllPoints(st.health)
 		setFrameLevelAbove(st.absorb, st.health, 1)
+		local absorbHeight = hc.absorbOverlayHeight
+		if absorbHeight == nil then absorbHeight = defH.absorbOverlayHeight end
+		local healthHeight = st.health.GetHeight and st.health:GetHeight() or (h - powerH)
+		if reverseAbsorb and st.absorb2 then
+			if st.absorb2.SetStatusBarTexture and UFHelper and UFHelper.resolveTexture then
+				st.absorb2:SetStatusBarTexture(UFHelper.resolveTexture(absorbTextureKey))
+				if UFHelper.configureSpecialTexture then UFHelper.configureSpecialTexture(st.absorb2, "HEALTH", absorbTextureKey, hc) end
+			end
+			if st.absorb2.SetStatusBarDesaturated then st.absorb2:SetStatusBarDesaturated(false) end
+			if st.absorb2.SetOrientation then st.absorb2:SetOrientation("HORIZONTAL") end
+			if UFHelper and UFHelper.applyAbsorbClampLayout then
+				local reverseHealth = hc.reverseFill
+				if reverseHealth == nil then reverseHealth = defH.reverseFill == true end
+				if reverseHealth then
+					if UFHelper.setupAbsorbClampReverseAware then UFHelper.setupAbsorbClampReverseAware(st.health, st.absorb2) end
+				else
+					if UFHelper.setupAbsorbClamp then UFHelper.setupAbsorbClamp(st.health, st.absorb2) end
+					if UFHelper.setupAbsorbOverShift then UFHelper.setupAbsorbOverShift(st.health, st.absorb, absorbHeight, healthHeight) end
+				end
+				UFHelper.applyAbsorbClampLayout(st.absorb2, st.health, absorbHeight, healthHeight, reverseHealth)
+				syncTextFrameLevels(st)
+			end
+			stabilizeStatusBarTexture(st.absorb2)
+			setFrameLevelAbove(st.absorb2, st.health, 1)
+			st.absorb2:SetMinMaxValues(0, 1)
+			st.absorb2:SetValue(0)
+			st.absorb2:Hide()
+		end
 	end
 	if st.healAbsorb then
 		local healAbsorbTextureKey = hc.healAbsorbTexture or healthTexKey
@@ -4912,6 +4949,7 @@ function GF:UpdateHealthValue(self, unit, st)
 		st.health:SetMinMaxValues(0, 1)
 		st.health:SetValue(0)
 		if st.absorb then st.absorb:Hide() end
+		if st.absorb2 then st.absorb2:Hide() end
 		if st.healAbsorb then st.healAbsorb:Hide() end
 		return
 	end
@@ -4986,14 +5024,28 @@ function GF:UpdateHealthValue(self, unit, st)
 		else
 			if not absSecret then absValue = tonumber(abs) or 0 end
 		end
-		st.absorb:SetMinMaxValues(0, (sampleAbsorb and sampleMax) or maxForValue or 1)
+		local absorbMax = (sampleAbsorb and sampleMax) or maxForValue or 1
+		st.absorb:SetMinMaxValues(0, absorbMax)
 		st.absorb:SetValue(absValue or 0)
-		if absSecret then
+		local reverseAbsorb = hc.absorbReverseFill
+		if reverseAbsorb == nil then reverseAbsorb = defH.absorbReverseFill == true end
+		if reverseAbsorb and st.absorb2 then
+			local _, maxHealth = st.health:GetMinMaxValues()
+			if maxHealth == nil then maxHealth = absorbMax end
+			st.absorb2:SetMinMaxValues(0, maxHealth or 1)
+			st.absorb2:SetValue(absValue or 0)
+		end
+		if reverseAbsorb and st.absorb2 then
+			st.absorb2:SetAlpha(1)
+			st.absorb2:Show()
+			if st.absorb then st.absorb:Show() end
+		elseif st.absorb then
+			st.absorb:SetAlpha(1)
 			st.absorb:Show()
-		elseif absValue and absValue > 0 then
-			st.absorb:Show()
-		else
-			st.absorb:Hide()
+			if st.absorb2 then
+				st.absorb2:SetAlpha(0)
+				st.absorb2:Show()
+			end
 		end
 		local ar, ag, ab, aa
 		if UFHelper and UFHelper.getAbsorbColor then
@@ -5005,8 +5057,10 @@ function GF:UpdateHealthValue(self, unit, st)
 			st._lastAbsorbR, st._lastAbsorbG, st._lastAbsorbB, st._lastAbsorbA = ar, ag, ab, aa
 			st.absorb:SetStatusBarColor(ar or 0.85, ag or 0.95, ab or 1, aa or 0.7)
 		end
+		if reverseAbsorb and st.absorb2 then st.absorb2:SetStatusBarColor(ar or 0.85, ag or 0.95, ab or 1, aa or 0.7) end
 	elseif st.absorb then
 		st.absorb:Hide()
+		if st.absorb2 then st.absorb2:Hide() end
 	end
 
 	if healAbsorbEnabled and st.healAbsorb then
