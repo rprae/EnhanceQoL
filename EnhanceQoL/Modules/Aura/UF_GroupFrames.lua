@@ -364,6 +364,40 @@ local function applyBarBackdrop(bar, cfg, options)
 	bar._eqolBackdropR, bar._eqolBackdropG, bar._eqolBackdropB, bar._eqolBackdropA = r, g, b, a
 end
 
+function GF._applyOverlayHeight(bar, anchor, height, maxHeight)
+	if not bar or not anchor then return end
+	bar:ClearAllPoints()
+	local desired = tonumber(height)
+	if not desired or desired <= 0 then
+		bar:SetAllPoints(anchor)
+		return
+	end
+	local limit = tonumber(maxHeight)
+	if not limit or limit <= 0 then limit = anchor.GetHeight and anchor:GetHeight() or 0 end
+	if limit and limit > 0 and desired > limit then desired = limit end
+	bar:SetPoint("BOTTOMLEFT", anchor, "BOTTOMLEFT", 0, 0)
+	bar:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMRIGHT", 0, 0)
+	bar:SetHeight(desired)
+end
+
+function GF._computeOverlayHeightFallback(frameHeight, powerHeight)
+	local totalHeight = clampNumber(tonumber(frameHeight) or 24, 10, 200, 24)
+	local power = clampNumber(tonumber(powerHeight) or 6, 0, 50, 6)
+	if power > totalHeight - 4 then power = max(0, totalHeight * 0.25) end
+	if power > totalHeight then power = totalHeight end
+	local fallback = totalHeight - power
+	if fallback < 1 then fallback = 1 end
+	if fallback > 80 then fallback = 80 end
+	return fallback
+end
+
+function GF._resolveOverlayHeightSetting(value, fallback)
+	local v = tonumber(value)
+	if not v or v <= 0 then return fallback end
+	if v > fallback then return fallback end
+	return v
+end
+
 local function getEffectiveBarTexture(cfg, barCfg)
 	local tex = cfg and cfg.barTexture
 	if tex == nil or tex == "" then tex = barCfg and barCfg.texture end
@@ -2581,6 +2615,7 @@ function GF:LayoutButton(self)
 		end
 	end
 
+	local healthHeight = st.health.GetHeight and st.health:GetHeight() or (h - powerH)
 	if st.absorb then
 		local absorbTextureKey = hc.absorbTexture or healthTexKey
 		if st.absorb.SetStatusBarTexture and UFHelper and UFHelper.resolveTexture then
@@ -2599,12 +2634,10 @@ function GF:LayoutButton(self)
 			st.absorb2:Hide()
 		end
 		stabilizeStatusBarTexture(st.absorb)
-		st.absorb:ClearAllPoints()
-		st.absorb:SetAllPoints(st.health)
-		setFrameLevelAbove(st.absorb, st.health, 1)
 		local absorbHeight = hc.absorbOverlayHeight
 		if absorbHeight == nil then absorbHeight = defH.absorbOverlayHeight end
-		local healthHeight = st.health.GetHeight and st.health:GetHeight() or (h - powerH)
+		GF._applyOverlayHeight(st.absorb, st.health, absorbHeight, healthHeight)
+		setFrameLevelAbove(st.absorb, st.health, 1)
 		if reverseAbsorb and st.absorb2 then
 			if st.absorb2.SetStatusBarTexture and UFHelper and UFHelper.resolveTexture then
 				st.absorb2:SetStatusBarTexture(UFHelper.resolveTexture(absorbTextureKey))
@@ -2640,8 +2673,9 @@ function GF:LayoutButton(self)
 		if st.healAbsorb.SetStatusBarDesaturated then st.healAbsorb:SetStatusBarDesaturated(false) end
 		if UFHelper and UFHelper.applyStatusBarReverseFill then UFHelper.applyStatusBarReverseFill(st.healAbsorb, hc.healAbsorbReverseFill == true) end
 		stabilizeStatusBarTexture(st.healAbsorb)
-		st.healAbsorb:ClearAllPoints()
-		st.healAbsorb:SetAllPoints(st.health)
+		local healAbsorbHeight = hc.healAbsorbOverlayHeight
+		if healAbsorbHeight == nil then healAbsorbHeight = defH.healAbsorbOverlayHeight end
+		GF._applyOverlayHeight(st.healAbsorb, st.health, healAbsorbHeight, healthHeight)
 		setFrameLevelAbove(st.healAbsorb, st.absorb or st.health, 1)
 	end
 
@@ -7760,6 +7794,7 @@ GF._groupCopySectionRules = {
 		{ "health", "showSampleAbsorb" },
 		{ "health", "absorbTexture" },
 		{ "health", "absorbReverseFill" },
+		{ "health", "absorbOverlayHeight" },
 		{ "health", "absorbUseCustomColor" },
 		{ "health", "absorbColor" },
 	},
@@ -7768,6 +7803,7 @@ GF._groupCopySectionRules = {
 		{ "health", "showSampleHealAbsorb" },
 		{ "health", "healAbsorbTexture" },
 		{ "health", "healAbsorbReverseFill" },
+		{ "health", "healAbsorbOverlayHeight" },
 		{ "health", "healAbsorbUseCustomColor" },
 		{ "health", "healAbsorbColor" },
 	},
@@ -8386,7 +8422,7 @@ function GF._copyUnitSourceSectionToGroup(sectionId, src, dest)
 		if type(hc) ~= "table" then return false end
 		dest.health = dest.health or {}
 		local copied = false
-		for _, field in ipairs({ "absorbEnabled", "showSampleAbsorb", "absorbTexture", "absorbReverseFill", "absorbUseCustomColor", "absorbColor" }) do
+		for _, field in ipairs({ "absorbEnabled", "showSampleAbsorb", "absorbTexture", "absorbReverseFill", "absorbOverlayHeight", "absorbUseCustomColor", "absorbColor" }) do
 			if hc[field] ~= nil then
 				dest.health[field] = GF._groupCopyCloneValue(hc[field])
 				copied = true
@@ -8398,7 +8434,15 @@ function GF._copyUnitSourceSectionToGroup(sectionId, src, dest)
 		if type(hc) ~= "table" then return false end
 		dest.health = dest.health or {}
 		local copied = false
-		for _, field in ipairs({ "healAbsorbEnabled", "showSampleHealAbsorb", "healAbsorbTexture", "healAbsorbReverseFill", "healAbsorbUseCustomColor", "healAbsorbColor" }) do
+		for _, field in ipairs({
+			"healAbsorbEnabled",
+			"showSampleHealAbsorb",
+			"healAbsorbTexture",
+			"healAbsorbReverseFill",
+			"healAbsorbOverlayHeight",
+			"healAbsorbUseCustomColor",
+			"healAbsorbColor",
+		}) do
 			if hc[field] ~= nil then
 				dest.health[field] = GF._groupCopyCloneValue(hc[field])
 				copied = true
@@ -11386,6 +11430,44 @@ local function buildEditModeSettings(kind, editModeId)
 			end,
 		},
 		{
+			name = "Absorb overlay height",
+			kind = SettingType.Slider,
+			allowInput = true,
+			field = "absorbOverlayHeight",
+			parentId = "absorb",
+			minValue = 1,
+			maxValue = 80,
+			valueStep = 1,
+			default = GF._computeOverlayHeightFallback((DEFAULTS[kind] and DEFAULTS[kind].height) or 24, (DEFAULTS[kind] and DEFAULTS[kind].powerHeight) or 6),
+			get = function()
+				local cfg = getCfg(kind)
+				local hc = cfg and cfg.health or {}
+				local def = DEFAULTS[kind] or {}
+				local defH = def.health or {}
+				local fallback = GF._computeOverlayHeightFallback((cfg and cfg.height) or def.height, (cfg and cfg.powerHeight) or def.powerHeight)
+				local value = hc.absorbOverlayHeight
+				if value == nil then value = defH.absorbOverlayHeight end
+				return GF._resolveOverlayHeightSetting(value, fallback)
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.health = cfg.health or {}
+				local def = DEFAULTS[kind] or {}
+				local fallback = GF._computeOverlayHeightFallback((cfg and cfg.height) or def.height, (cfg and cfg.powerHeight) or def.powerHeight)
+				local v = clampNumber(value, 1, 80, fallback)
+				if not v or v <= 0 then v = fallback end
+				cfg.health.absorbOverlayHeight = v
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "absorbOverlayHeight", v, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			isEnabled = function()
+				local cfg = getCfg(kind)
+				local hc = cfg and cfg.health or {}
+				return hc.absorbEnabled ~= false
+			end,
+		},
+		{
 			name = "Custom absorb color",
 			kind = SettingType.Checkbox,
 			field = "absorbUseCustomColor",
@@ -11545,6 +11627,44 @@ local function buildEditModeSettings(kind, editModeId)
 				cfg.health = cfg.health or {}
 				cfg.health.healAbsorbReverseFill = value and true or false
 				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "healAbsorbReverse", cfg.health.healAbsorbReverseFill, nil, true) end
+				GF:ApplyHeaderAttributes(kind)
+			end,
+			isEnabled = function()
+				local cfg = getCfg(kind)
+				local hc = cfg and cfg.health or {}
+				return hc.healAbsorbEnabled ~= false
+			end,
+		},
+		{
+			name = "Heal absorb overlay height",
+			kind = SettingType.Slider,
+			allowInput = true,
+			field = "healAbsorbOverlayHeight",
+			parentId = "healabsorb",
+			minValue = 1,
+			maxValue = 80,
+			valueStep = 1,
+			default = GF._computeOverlayHeightFallback((DEFAULTS[kind] and DEFAULTS[kind].height) or 24, (DEFAULTS[kind] and DEFAULTS[kind].powerHeight) or 6),
+			get = function()
+				local cfg = getCfg(kind)
+				local hc = cfg and cfg.health or {}
+				local def = DEFAULTS[kind] or {}
+				local defH = def.health or {}
+				local fallback = GF._computeOverlayHeightFallback((cfg and cfg.height) or def.height, (cfg and cfg.powerHeight) or def.powerHeight)
+				local value = hc.healAbsorbOverlayHeight
+				if value == nil then value = defH.healAbsorbOverlayHeight end
+				return GF._resolveOverlayHeightSetting(value, fallback)
+			end,
+			set = function(_, value)
+				local cfg = getCfg(kind)
+				if not cfg then return end
+				cfg.health = cfg.health or {}
+				local def = DEFAULTS[kind] or {}
+				local fallback = GF._computeOverlayHeightFallback((cfg and cfg.height) or def.height, (cfg and cfg.powerHeight) or def.powerHeight)
+				local v = clampNumber(value, 1, 80, fallback)
+				if not v or v <= 0 then v = fallback end
+				cfg.health.healAbsorbOverlayHeight = v
+				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "healAbsorbOverlayHeight", v, nil, true) end
 				GF:ApplyHeaderAttributes(kind)
 			end,
 			isEnabled = function()
@@ -17760,6 +17880,10 @@ local function applyEditModeData(kind, data)
 		cfg.health = cfg.health or {}
 		cfg.health.absorbReverseFill = data.absorbReverse and true or false
 	end
+	if data.absorbOverlayHeight ~= nil then
+		cfg.health = cfg.health or {}
+		cfg.health.absorbOverlayHeight = clampNumber(data.absorbOverlayHeight, 1, 80, GF._computeOverlayHeightFallback(cfg.height, cfg.powerHeight))
+	end
 	if data.absorbUseCustomColor ~= nil then
 		cfg.health = cfg.health or {}
 		cfg.health.absorbUseCustomColor = data.absorbUseCustomColor and true or false
@@ -17783,6 +17907,10 @@ local function applyEditModeData(kind, data)
 	if data.healAbsorbReverse ~= nil then
 		cfg.health = cfg.health or {}
 		cfg.health.healAbsorbReverseFill = data.healAbsorbReverse and true or false
+	end
+	if data.healAbsorbOverlayHeight ~= nil then
+		cfg.health = cfg.health or {}
+		cfg.health.healAbsorbOverlayHeight = clampNumber(data.healAbsorbOverlayHeight, 1, 80, GF._computeOverlayHeightFallback(cfg.height, cfg.powerHeight))
 	end
 	if data.healAbsorbUseCustomColor ~= nil then
 		cfg.health = cfg.health or {}
@@ -18460,6 +18588,10 @@ function GF:EnsureEditMode()
 			local externalAnchor = ac.externals.anchorPoint or "TOPRIGHT"
 			local _, externalPrimary, externalSecondary = resolveAuraGrowth(externalAnchor, ac.externals.growth, ac.externals.growthX, ac.externals.growthY)
 			local externalGrowth = growthPairToString(externalPrimary, externalSecondary)
+			local overlayHeightFallback = GF._computeOverlayHeightFallback((cfg.height ~= nil and cfg.height) or def.height, (cfg.powerHeight ~= nil and cfg.powerHeight) or def.powerHeight)
+			local absorbOverlayHeightValue = GF._resolveOverlayHeightSetting(hc.absorbOverlayHeight ~= nil and hc.absorbOverlayHeight or defH.absorbOverlayHeight, overlayHeightFallback)
+			local healAbsorbOverlayHeightValue =
+				GF._resolveOverlayHeightSetting(hc.healAbsorbOverlayHeight ~= nil and hc.healAbsorbOverlayHeight or defH.healAbsorbOverlayHeight, overlayHeightFallback)
 			local defaults = {
 				point = cfg.point or "CENTER",
 				relativePoint = cfg.relativePoint or cfg.point or "CENTER",
@@ -18561,12 +18693,14 @@ function GF:EnsureEditMode()
 				absorbSample = hc.showSampleAbsorb == true,
 				absorbTexture = (cfg.health and cfg.health.absorbTexture) or "SOLID",
 				absorbReverse = (cfg.health and cfg.health.absorbReverseFill) == true,
+				absorbOverlayHeight = absorbOverlayHeightValue,
 				absorbUseCustomColor = (cfg.health and cfg.health.absorbUseCustomColor) == true,
 				absorbColor = (cfg.health and cfg.health.absorbColor) or { 0.85, 0.95, 1, 0.7 },
 				healAbsorbEnabled = (cfg.health and cfg.health.healAbsorbEnabled) ~= false,
 				healAbsorbSample = hc.showSampleHealAbsorb == true,
 				healAbsorbTexture = (cfg.health and cfg.health.healAbsorbTexture) or "SOLID",
 				healAbsorbReverse = (cfg.health and cfg.health.healAbsorbReverseFill) == true,
+				healAbsorbOverlayHeight = healAbsorbOverlayHeightValue,
 				healAbsorbUseCustomColor = (cfg.health and cfg.health.healAbsorbUseCustomColor) == true,
 				healAbsorbColor = (cfg.health and cfg.health.healAbsorbColor) or { 1, 0.3, 0.3, 0.7 },
 				nameColorMode = sc.nameColorMode or (((cfg.text and cfg.text.useClassColor) ~= false) and "CLASS" or "CUSTOM"),

@@ -6397,6 +6397,7 @@ local function buildUnitSettings(unit)
 		"absorb",
 		"healAbsorb",
 		"power",
+		"secondaryPower",
 		"mainPowerColors",
 		"npcColors",
 		"classResource",
