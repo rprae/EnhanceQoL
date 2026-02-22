@@ -2009,7 +2009,6 @@ function GF:DisableBlizzardFrames()
 	end
 	if wantRaid or pending.raid then
 		hideFrameLocked(_G.CompactRaidFrameContainer)
-		hideFrameLocked(_G.CompactRaidFrameManager)
 		if CompactRaidFrameManager_SetSetting then pcall(CompactRaidFrameManager_SetSetting, "IsShown", "0") end
 	end
 end

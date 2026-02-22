@@ -18,6 +18,7 @@
 - Data Panels: Time stream font and text scale updates now apply reliably.
 - Group Frames (Raid): Dynamic layout/viewport scaling now refreshes immediately when roster count crosses `unitsPerColumn`/`maxColumns` thresholds.
 - Group Frames: Offline/DC visuals (name/status/range fade) now refresh reliably.
+- Group Frames (Party/Raid): `CompactRaidFrameManager` is no longer hard-hidden while EQoL group frames are enabled, so Blizzard raid tools can auto-show again based on group state.
 - Resource Bars: `Separated offset` now separates segment frames.
 - Unit Frames (Profiles): `Profile scope` now includes Party/Raid/Main Tank/Main Assist, and import/export correctly handles Group Frame settings.
 
