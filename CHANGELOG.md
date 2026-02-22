@@ -21,6 +21,7 @@
 
 - Character Frame: The selected font for item details now applies correctly again (item level, gems, enchants).
 - Data Panels: Time stream font and text scale updates now apply reliably.
+- Mythic+ (World Map Dungeon Portals): Equippable teleport items now restore the previously worn gear after teleport/zone transition instead of staying equipped.
 - Group Frames (Raid): Dynamic layout/viewport scaling now refreshes immediately when roster count crosses `unitsPerColumn`/`maxColumns` thresholds.
 - Group Frames: Added missing `Absorb overlay height` and `Heal absorb overlay height` support in Edit Mode settings; both overlay heights now apply correctly and are included in copy/import/export flows.
 - Group Frames: Offline/DC visuals (name/status/range fade) now refresh reliably.
