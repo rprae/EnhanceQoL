@@ -303,7 +303,10 @@ local PanelVisibility = (function()
 	local function isInDruidTravelForm()
 		local class = addon.variables and addon.variables.unitClass
 		if class ~= "DRUID" then
-			local _, eng = UnitClass and UnitClass("player")
+			local _, eng
+			if UnitClass then
+				_, eng = UnitClass("player")
+			end
 			if eng ~= "DRUID" then return false end
 		end
 		if not GetShapeshiftForm then return false end
