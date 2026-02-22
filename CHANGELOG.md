@@ -16,6 +16,7 @@
 - Mover: Added `Queue Status Button` as movable frame entry (default: off).
 - Resource Bars (Maelstrom Weapon): Added `Separated offset` for segmented/separated bar spacing.
 - Resource Bars (Maelstrom Weapon): Added `Keep 5-stack fill above 5` option under `Use 5-stack color` (only enabled when `Use 5-stack color` is active).
+- Macros & Consumables (Flask Macro): Added role/spec Flask preferences with `Use role setting` overrides, fleeting-first selection via `Prefer cauldrons`, and usable rank fallback across legacy + Midnight flask tiers.
 
 ### 🐛 Fixed
 

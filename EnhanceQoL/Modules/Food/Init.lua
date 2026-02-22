@@ -11,6 +11,11 @@ addon.Drinks.functions = addon.Drinks.functions or {}
 addon.Drinks.filteredDrinks = addon.Drinks.filteredDrinks or {} -- Used for the filtered List later
 addon.LDrinkMacro = addon.LDrinkMacro or {} -- Locales for drink macro
 
+-- Flask macro module scaffolding
+addon.Flasks = addon.Flasks or {}
+addon.Flasks.functions = addon.Flasks.functions or {}
+addon.Flasks.filteredFlasks = addon.Flasks.filteredFlasks or {}
+
 -- Health macro module scaffolding
 addon.Health = addon.Health or {}
 addon.Health.functions = addon.Health.functions or {}

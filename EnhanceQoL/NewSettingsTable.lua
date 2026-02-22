@@ -31,4 +31,9 @@ addon.variables.NewVersionTableEQOL = {
 	["EQOL_mouseRingProgressStyle"] = true,
 	["EQOL_mouseRingProgressShowEdge"] = true,
 	["EQOL_mouseRingProgressHideDuringSwipe"] = true,
+
+	-- Gameplay -> Macros & Consumables -> Flask Macro
+	["EQOL_GAMEPLAY"] = true,
+	["EQOL_MacrosAndConsumables"] = true,
+	["EQOL_flaskMacroEnabled"] = true,
 }

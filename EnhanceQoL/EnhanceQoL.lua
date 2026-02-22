@@ -5399,6 +5399,7 @@ local function setAllHooks()
 		if addon.Drinks.functions.InitFoodReminder then addon.Drinks.functions.InitFoodReminder() end
 	end
 	if addon.Health and addon.Health.functions and addon.Health.functions.InitHealthMacro then addon.Health.functions.InitHealthMacro() end
+	if addon.Flasks and addon.Flasks.functions and addon.Flasks.functions.InitFlaskMacro then addon.Flasks.functions.InitFlaskMacro() end
 	if addon.Mouse and addon.Mouse.functions then
 		if addon.Mouse.functions.InitDB then addon.Mouse.functions.InitDB() end
 		if addon.Mouse.functions.InitState then addon.Mouse.functions.InitState() end

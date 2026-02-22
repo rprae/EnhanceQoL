@@ -4,6 +4,8 @@
 	<Script file="FoodReminder.lua" />
 	<Script file="Food.lua" />
 	<Script file="Health.lua" />
+	<Script file="Flasks.lua" />
 	<Script file="EnhanceQoLHealthMacro.lua" />
+	<Script file="EnhanceQoLFlaskMacro.lua" />
 	<Script file="Settings_DrinkMacro.lua" />
 </Ui>
