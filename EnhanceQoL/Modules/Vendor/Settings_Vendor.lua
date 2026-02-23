@@ -240,6 +240,7 @@ local function buildSettings()
 
 	local autoSellExpandable = addon.functions.SettingsCreateExpandableSection(cVendor, {
 		name = L["vendorAutoSellRules"] or "Vendor - Auto-Sell Rules",
+		newTagID = "AutoSellRules",
 		expanded = false,
 		colorizeTitle = false,
 	})
@@ -346,6 +347,18 @@ local function buildSettings()
 				text = L["vendorIgnoreUpgradable"],
 				func = function(value)
 					addon.db["vendor" .. tabName .. "IgnoreUpgradable"] = value and true or false
+					refreshSellMarks()
+				end,
+				parent = true,
+				element = enable.element,
+				parentCheck = parentCheck,
+			})
+			table.insert(qualityCheckboxes, {
+				var = "vendor" .. tabName .. "IgnoreEquipmentSets",
+				text = L["vendorIgnoreEquipmentSets"],
+				desc = L["vendorIgnoreEquipmentSetsDesc"],
+				func = function(value)
+					addon.db["vendor" .. tabName .. "IgnoreEquipmentSets"] = value and true or false
 					refreshSellMarks()
 				end,
 				parent = true,

@@ -832,6 +832,7 @@ local function updateLegend(value, value2)
 	if addon.db["vendor" .. value .. "IgnoreWarbound"] then table.insert(text, L["vendorIgnoreWarbound"]) end
 	if addon.db["vendor" .. value .. "IgnoreBoE"] then table.insert(text, L["vendorIgnoreBoE"]) end
 	if addon.db["vendor" .. value .. "IgnoreUpgradable"] then table.insert(text, L["vendorIgnoreUpgradable"]) end
+	if addon.db["vendor" .. value .. "IgnoreEquipmentSets"] then table.insert(text, L["vendorIgnoreEquipmentSets"]) end
 
 	addon.Vendor.variables["labelExplained" .. value .. "line"]:SetText(
 		string.format(L["labelExplained" .. value .. "line"], (addon.Vendor.variables.avgItemLevelEquipped - value2), table.concat(text, "\n"))
@@ -901,6 +902,16 @@ local function getTooltipInfo(bag, slot, quality)
 
 	tooltipCache[key] = { bType, canUpgrade, isIgnoredUpgradeTrack }
 	return bType, canUpgrade, isIgnoredUpgradeTrack
+end
+
+local function isItemInEquipmentSet(bag, slot, quality)
+	if quality == nil or quality < 2 or quality > 4 then return false end
+	local tabName = addon.Vendor.variables.tabNames[quality]
+	if not tabName then return false end
+	if not addon.db["vendor" .. tabName .. "IgnoreEquipmentSets"] then return false end
+	if not (C_Container and C_Container.GetContainerItemEquipmentSetInfo) then return false end
+	local inSet = C_Container.GetContainerItemEquipmentSetInfo(bag, slot)
+	return inSet == true
 end
 
 local function lookupDestroyItemsFast()
@@ -998,7 +1009,9 @@ local function lookupItems()
 								end
 							end
 						elseif sellPrice and sellPrice > 0 then
-							if quality == 0 and addon.Vendor.variables.itemQualityFilter[quality] then
+							if isItemInEquipmentSet(bag, slot, quality) then
+								-- Keep items that are assigned to an equipment set.
+							elseif quality == 0 and addon.Vendor.variables.itemQualityFilter[quality] then
 								local bType = select(1, getTooltipInfo(bag, slot, quality))
 								local effectiveBindType = bindType or 0
 								if bType and effectiveBindType < bType then effectiveBindType = bType end
@@ -1091,6 +1104,10 @@ local eventHandlers = {
 		updateSellMarks(nil, true)
 		if addon.db["vendorDestroyEnable"] then scheduleDestroyButtonUpdate() end
 	end,
+	["EQUIPMENT_SETS_CHANGED"] = function()
+		wipe(tooltipCache)
+		updateSellMarks(nil, true)
+	end,
 	["ADDON_LOADED"] = function(loadedAddonName)
 		if loadedAddonName ~= "Baganator" then return end
 		ensureBaganatorIntegration()
@@ -1169,6 +1186,7 @@ local function addVendorFrame(container, type)
 		if addon.db["vendor" .. sValue .. "IgnoreWarbound"] then table.insert(text, L["vendorIgnoreWarbound"]) end
 		if addon.db["vendor" .. sValue .. "IgnoreBoE"] then table.insert(text, L["vendorIgnoreBoE"]) end
 		if addon.db["vendor" .. sValue .. "IgnoreUpgradable"] then table.insert(text, L["vendorIgnoreUpgradable"]) end
+		if addon.db["vendor" .. sValue .. "IgnoreEquipmentSets"] then table.insert(text, L["vendorIgnoreEquipmentSets"]) end
 
 		if addon.db["vendor" .. sValue .. "IgnoreHeroicTrack"] then table.insert(uText, L["upgradeLevelHero"]) end
 		if addon.db["vendor" .. sValue .. "IgnoreMythTrack"] then table.insert(uText, L["upgradeLevelMythic"]) end
@@ -1216,6 +1234,7 @@ local function addVendorFrame(container, type)
 		}
 		if type > 1 then
 			table.insert(data, { text = L["vendorIgnoreUpgradable"], var = "vendor" .. value .. "IgnoreUpgradable" })
+			table.insert(data, { text = L["vendorIgnoreEquipmentSets"], desc = L["vendorIgnoreEquipmentSetsDesc"], var = "vendor" .. value .. "IgnoreEquipmentSets" })
 			if type == 4 then
 				table.insert(data, { text = L["vendorIgnoreHeroicTrack"], var = "vendor" .. value .. "IgnoreHeroicTrack" })
 				table.insert(data, { text = L["vendorIgnoreMythTrack"], var = "vendor" .. value .. "IgnoreMythTrack" })
@@ -1233,7 +1252,7 @@ local function addVendorFrame(container, type)
 					end
 				end
 				updateLegend(value, addon.db["vendor" .. value .. "MinIlvlDif"])
-			end)
+			end, cbData.desc)
 			groupCore:AddChild(cbElement)
 		end
 
@@ -1274,6 +1293,7 @@ local function addVendorFrame(container, type)
 		if addon.db["vendor" .. value .. "IgnoreWarbound"] then table.insert(text, L["vendorIgnoreWarbound"]) end
 		if addon.db["vendor" .. value .. "IgnoreBoE"] then table.insert(text, L["vendorIgnoreBoE"]) end
 		if addon.db["vendor" .. value .. "IgnoreUpgradable"] then table.insert(text, L["vendorIgnoreUpgradable"]) end
+		if addon.db["vendor" .. value .. "IgnoreEquipmentSets"] then table.insert(text, L["vendorIgnoreEquipmentSets"]) end
 
 		if addon.db["vendor" .. value .. "IgnoreHeroicTrack"] then table.insert(uText, L["upgradeLevelHero"]) end
 		if addon.db["vendor" .. value .. "IgnoreMythTrack"] then table.insert(uText, L["upgradeLevelMythic"]) end

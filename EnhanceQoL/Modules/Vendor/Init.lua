@@ -47,6 +47,7 @@ function addon.Vendor.functions.InitDB()
 	init("vendorShowDestroyOverlay", true)
 	init("vendorDestroyShowMessages", true)
 	init("vendorCraftShopperEnable", false)
+	local legacyIgnoreEquipmentSets = addon.db["vendorIgnoreEquipmentSets"]
 
 	for key, value in pairs(addon.Vendor.variables.tabNames) do
 		init("vendor" .. value .. "Enable", false)
@@ -57,6 +58,10 @@ function addon.Vendor.functions.InitDB()
 		init("vendor" .. value .. "CraftingExpansions", {})
 
 		if key > 1 then
+			if addon.db["vendor" .. value .. "IgnoreEquipmentSets"] == nil and legacyIgnoreEquipmentSets ~= nil then
+				addon.db["vendor" .. value .. "IgnoreEquipmentSets"] = legacyIgnoreEquipmentSets and true or false
+			end
+			init("vendor" .. value .. "IgnoreEquipmentSets", true)
 			init("vendor" .. value .. "IgnoreUpgradable", false)
 			if key == 4 then
 				init("vendor" .. value .. "IgnoreHeroicTrack", false)

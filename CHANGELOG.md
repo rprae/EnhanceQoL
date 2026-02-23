@@ -10,6 +10,7 @@
 - Castbars (Unit Frames + Standalone): Added interrupt feedback options for `Show interrupt feedback glow` and `Interrupt feedback color` (default: glow enabled, red feedback color).
 - Economy (Bank): Added automatic gold balancing with the Warband bank.
 - Economy (Bank): Added optional per-character target values and automatic withdraw.
+- Economy (Vendor): Added `Ignore Equipment Sets` to Auto-Sell Rules (Uncommon/Rare/Epic) to prevent selling items assigned to equipment sets.
 - Cooldown Panels: Keybind display now supports Dominos, Bartender4 and ElvUI action bars (in addition to Blizzard).
 - Cooldown Panels (Edit Mode): Added per-panel `Show when` multi-select visibility rules (`combat`, `target`, `group`, `casting`, `mounted`, `skyriding`, `always hidden`).
 - Action Bars (Visibility): Added `When I have a target` as a show rule.

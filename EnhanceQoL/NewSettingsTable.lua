@@ -36,4 +36,10 @@ addon.variables.NewVersionTableEQOL = {
 	["EQOL_GAMEPLAY"] = true,
 	["EQOL_MacrosAndConsumables"] = true,
 	["EQOL_flaskMacroEnabled"] = true,
+
+	-- Economy -> Vendor - Auto-Sell Rules (Uncommon/Rare/Epic)
+	["EQOL_AutoSellRules"] = true,
+	["EQOL_vendorUncommonIgnoreEquipmentSets"] = true,
+	["EQOL_vendorRareIgnoreEquipmentSets"] = true,
+	["EQOL_vendorEpicIgnoreEquipmentSets"] = true,
 }
