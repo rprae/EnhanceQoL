@@ -16,6 +16,7 @@
 - Cooldown Panels (Edit Mode): Added per-panel `Show when` multi-select visibility rules (`combat`, `target`, `group`, `casting`, `mounted`, `skyriding`, `always hidden`).
 - Action Bars (Visibility): Added `When I have a target` as a show rule.
 - UI (Frames): Added `Unclamp Blizzard damage meter` to allow moving Blizzard damage meter windows beyond screen edges.
+- UI (Frames): Added `Buff Frame` and `Debuff Frame` visibility rules (`No override`, `Mouseover`, `Always hide`).
 - Mover: Added `Queue Status Button` as movable frame entry (default: off).
 - Resource Bars (Maelstrom Weapon): Added `Separated offset` for segmented/separated bar spacing.
 - Resource Bars (Maelstrom Weapon): Added `Keep 5-stack fill above 5` option under `Use 5-stack color` (only enabled when `Use 5-stack color` is active).

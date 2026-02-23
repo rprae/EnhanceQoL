@@ -519,6 +519,8 @@ local function MigrateLegacyVisibilityFlags()
 	MigrateLegacyVisibilityFlag("hidePlayerFrame", "unitframeSettingPlayerFrame")
 	MigrateLegacyVisibilityFlag("hideMicroMenu", "unitframeSettingMicroMenu")
 	MigrateLegacyVisibilityFlag("hideBagsBar", "unitframeSettingBagsBar")
+	MigrateLegacyVisibilityFlag("hideBuffFrame", "unitframeSettingBuffFrame")
+	MigrateLegacyVisibilityFlag("hideDebuffFrame", "unitframeSettingDebuffFrame")
 end
 
 local function StopFrameFade(target)

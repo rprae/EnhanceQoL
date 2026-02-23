@@ -829,6 +829,22 @@ addon.variables.unitFrameNames = {
 		children = { BagsBar:GetChildren() },
 		revealAllChilds = true,
 	},
+	{
+		name = "BuffFrame",
+		var = "unitframeSettingBuffFrame",
+		text = addon.L["BuffFrame"],
+		allowedVisibility = { "NONE", "MOUSEOVER", "HIDE" },
+		children = { BuffFrame:GetChildren() },
+		revealAllChilds = true,
+	},
+	{
+		name = "DebuffFrame",
+		var = "unitframeSettingDebuffFrame",
+		text = addon.L["DebuffFrame"],
+		allowedVisibility = { "NONE", "MOUSEOVER", "HIDE" },
+		children = { DebuffFrame:GetChildren() },
+		revealAllChilds = true,
+	},
 }
 
 table.sort(addon.variables.actionBarNames, function(a, b) return a.text < b.text end)
