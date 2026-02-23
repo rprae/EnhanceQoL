@@ -14,6 +14,7 @@
 - Economy (Vendor): Added `Ignore Equipment Sets` to Auto-Sell Rules (Uncommon/Rare/Epic) to prevent selling items assigned to equipment sets.
 - Cooldown Panels: Keybind display now supports Dominos, Bartender4 and ElvUI action bars (in addition to Blizzard).
 - Cooldown Panels (Edit Mode): Added per-panel `Show when` multi-select visibility rules (`combat`, `target`, `group`, `casting`, `mounted`, `skyriding`, `always hidden`).
+- Cooldown Panels (Edit Mode): Added visibility rules for `flying` and `not flying`.
 - Action Bars (Visibility): Added `When I have a target` as a show rule.
 - UI (Frames): Added `Unclamp Blizzard damage meter` to allow moving Blizzard damage meter windows beyond screen edges.
 - UI (Frames): Added `Buff Frame` and `Debuff Frame` visibility rules (`No override`, `Mouseover`, `Always hide`).

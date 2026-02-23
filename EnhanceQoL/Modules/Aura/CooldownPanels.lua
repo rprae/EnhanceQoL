@@ -194,6 +194,8 @@ local PanelVisibility = (function()
 		{ value = "ALWAYS_OUT_OF_COMBAT", label = "Out of combat", order = 11 },
 		{ value = "SKYRIDING_ACTIVE", label = "While skyriding", order = 25 },
 		{ value = "SKYRIDING_INACTIVE", label = "Hide while skyriding", order = 26 },
+		{ value = "FLYING_ACTIVE", label = L["visibilityRule_flying"] or "While flying", order = 27 },
+		{ value = "FLYING_INACTIVE", label = L["visibilityRule_hideFlying"] or "Hide while flying", order = 28 },
 		{ value = "PLAYER_CASTING", label = "While casting", order = 35 },
 		{ value = "PLAYER_MOUNTED", label = "Mounted", order = 36 },
 		{ value = "PLAYER_NOT_MOUNTED", label = "Not mounted", order = 37 },
@@ -233,10 +235,8 @@ local PanelVisibility = (function()
 				if applies and applies.actionbar and key ~= "MOUSEOVER" then allowed[key] = true end
 			end
 		end
-		if not next(allowed) then
-			for _, option in ipairs(fallbackOptions) do
-				if option and option.value ~= "MOUSEOVER" then allowed[option.value] = true end
-			end
+		for _, option in ipairs(fallbackOptions) do
+			if option and option.value ~= "MOUSEOVER" then allowed[option.value] = true end
 		end
 		ruleMapCache = allowed
 		return allowed
@@ -333,6 +333,10 @@ local PanelVisibility = (function()
 	end
 
 	local function isPlayerSkyriding()
+		if C_PlayerInfo and C_PlayerInfo.GetGlidingInfo then
+			local _, canGlide = C_PlayerInfo.GetGlidingInfo()
+			if canGlide ~= nil then return canGlide == true end
+		end
 		if SecureCmdOptionParse then
 			if addon.variables and addon.variables.unitClass == "DRUID" then return SecureCmdOptionParse("[advflyable, mounted] 1; [advflyable, stance:3] 1; 0") == "1" end
 			return SecureCmdOptionParse("[advflyable, mounted] 1; 0") == "1"
@@ -340,11 +344,21 @@ local PanelVisibility = (function()
 		return addon.variables and addon.variables.isPlayerSkyriding == true
 	end
 
+	local function isPlayerFlying()
+		if C_PlayerInfo and C_PlayerInfo.GetGlidingInfo then
+			local isGliding = C_PlayerInfo.GetGlidingInfo()
+			if isGliding ~= nil then return isGliding == true end
+		end
+		if IsFlying and IsFlying() then return true end
+		return false
+	end
+
 	local function hasShowRules(config)
 		if not config then return false end
 		return config.ALWAYS_IN_COMBAT
 			or config.ALWAYS_OUT_OF_COMBAT
 			or config.SKYRIDING_ACTIVE
+			or config.FLYING_ACTIVE
 			or config.PLAYER_CASTING
 			or config.PLAYER_MOUNTED
 			or config.PLAYER_NOT_MOUNTED
@@ -368,13 +382,19 @@ local PanelVisibility = (function()
 		local mounted = isPlayerMounted()
 		local casting = isPlayerCasting()
 		local skyriding = isPlayerSkyriding()
+		local flying = isPlayerFlying()
 
 		if cfg.SKYRIDING_INACTIVE then
 			if skyriding then return false end
 			if not hasShowRules(cfg) then return true end
 		end
+		if cfg.FLYING_INACTIVE then
+			if flying then return false end
+			if not hasShowRules(cfg) then return true end
+		end
 
 		if cfg.SKYRIDING_ACTIVE and skyriding then return true end
+		if cfg.FLYING_ACTIVE and flying then return true end
 		if cfg.ALWAYS_IN_COMBAT and inCombat then return true end
 		if cfg.ALWAYS_OUT_OF_COMBAT and not inCombat then return true end
 		if cfg.PLAYER_CASTING and casting then return true end
@@ -7750,6 +7770,8 @@ local UPDATE_FRAME_EVENTS = {
 	"PLAYER_EQUIPMENT_CHANGED",
 	"PLAYER_MOUNT_DISPLAY_CHANGED",
 	"UPDATE_SHAPESHIFT_FORM",
+	"PLAYER_CAN_GLIDE_CHANGED",
+	"PLAYER_IS_GLIDING_CHANGED",
 	"GROUP_ROSTER_UPDATE",
 	"PLAYER_TARGET_CHANGED",
 	"BAG_UPDATE_DELAYED",

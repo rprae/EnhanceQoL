@@ -4526,6 +4526,7 @@ local function setPowerbars(opts)
 	for pType, wantVisible in pairs(desiredVisibility) do
 		local bar = powerbar[pType]
 		if bar then
+			bar._cfg = specCfg and specCfg[pType] or nil
 			if wantVisible then
 				if not bar:IsShown() then bar:Show() end
 			else
@@ -4536,7 +4537,9 @@ local function setPowerbars(opts)
 
 	-- Toggle Health visibility according to config
 	if healthBar then
-		local showHealth = specCfg and specCfg.HEALTH and specCfg.HEALTH.enabled == true
+		local healthCfg = specCfg and specCfg.HEALTH or nil
+		healthBar._cfg = healthCfg
+		local showHealth = healthCfg and healthCfg.enabled == true
 		if showHealth then
 			if not healthBar:IsShown() then healthBar:Show() end
 		else
