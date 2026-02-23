@@ -834,11 +834,50 @@ function CastbarSettings.BuildStandaloneCastbarSettings(ctx)
 		function(val)
 			setCast({ "cast", "showInterruptFeedback" }, val and true or false)
 			refreshCastbar()
+			refreshSettingsUI()
 		end,
 		castDef.showInterruptFeedback ~= false,
 		section.colors,
 		isCastEnabled
 	)
+
+	local function isInterruptFeedbackEnabled() return isCastEnabled() and getCast({ "cast", "showInterruptFeedback" }, castDef.showInterruptFeedback ~= false) ~= false end
+
+	list[#list + 1] = checkbox(
+		L["Show interrupt feedback glow"] or "Show interrupt feedback glow",
+		function() return getCast({ "cast", "showInterruptFeedbackGlow" }, castDef.showInterruptFeedbackGlow ~= false) ~= false end,
+		function(val)
+			setCast({ "cast", "showInterruptFeedbackGlow" }, val and true or false)
+			refreshCastbar()
+		end,
+		castDef.showInterruptFeedbackGlow ~= false,
+		section.colors,
+		isInterruptFeedbackEnabled
+	)
+
+	list[#list + 1] = {
+		name = L["Interrupt feedback color"] or "Interrupt feedback color",
+		kind = settingType.Color,
+		parentId = section.colors,
+		isEnabled = isInterruptFeedbackEnabled,
+		get = function() return getCast({ "cast", "interruptFeedbackColor" }, castDef.interruptFeedbackColor or { 0.85, 0.12, 0.12, 1 }) end,
+		set = function(_, color)
+			setCastColor({ "cast", "interruptFeedbackColor" }, color.r, color.g, color.b, color.a)
+			refreshCastbar()
+		end,
+		colorGet = function() return getCast({ "cast", "interruptFeedbackColor" }, castDef.interruptFeedbackColor or { 0.85, 0.12, 0.12, 1 }) end,
+		colorSet = function(_, color)
+			setCastColor({ "cast", "interruptFeedbackColor" }, color.r, color.g, color.b, color.a)
+			refreshCastbar()
+		end,
+		colorDefault = {
+			r = (castDef.interruptFeedbackColor and castDef.interruptFeedbackColor[1]) or 0.85,
+			g = (castDef.interruptFeedbackColor and castDef.interruptFeedbackColor[2]) or 0.12,
+			b = (castDef.interruptFeedbackColor and castDef.interruptFeedbackColor[3]) or 0.12,
+			a = (castDef.interruptFeedbackColor and castDef.interruptFeedbackColor[4]) or 1,
+		},
+		hasOpacity = true,
+	}
 
 	return list
 end

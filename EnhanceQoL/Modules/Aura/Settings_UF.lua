@@ -4521,11 +4521,50 @@ local function buildUnitSettings(unit)
 			function(val)
 				setValue(unit, { "cast", "showInterruptFeedback" }, val and true or false)
 				refresh()
+				refreshSettingsUI()
 			end,
 			castDef.showInterruptFeedback ~= false,
 			"cast",
 			isCastEnabled
 		)
+
+		local function isInterruptFeedbackEnabled() return isCastEnabled() and getValue(unit, { "cast", "showInterruptFeedback" }, castDef.showInterruptFeedback ~= false) ~= false end
+
+		list[#list + 1] = checkbox(
+			L["Show interrupt feedback glow"] or "Show interrupt feedback glow",
+			function() return getValue(unit, { "cast", "showInterruptFeedbackGlow" }, castDef.showInterruptFeedbackGlow ~= false) ~= false end,
+			function(val)
+				setValue(unit, { "cast", "showInterruptFeedbackGlow" }, val and true or false)
+				refresh()
+			end,
+			castDef.showInterruptFeedbackGlow ~= false,
+			"cast",
+			isInterruptFeedbackEnabled
+		)
+
+		list[#list + 1] = {
+			name = L["Interrupt feedback color"] or "Interrupt feedback color",
+			kind = settingType.Color,
+			parentId = "cast",
+			isEnabled = isInterruptFeedbackEnabled,
+			get = function() return getValue(unit, { "cast", "interruptFeedbackColor" }, castDef.interruptFeedbackColor or { 0.85, 0.12, 0.12, 1 }) end,
+			set = function(_, color)
+				setColor(unit, { "cast", "interruptFeedbackColor" }, color.r, color.g, color.b, color.a)
+				refresh()
+			end,
+			colorGet = function() return getValue(unit, { "cast", "interruptFeedbackColor" }, castDef.interruptFeedbackColor or { 0.85, 0.12, 0.12, 1 }) end,
+			colorSet = function(_, color)
+				setColor(unit, { "cast", "interruptFeedbackColor" }, color.r, color.g, color.b, color.a)
+				refresh()
+			end,
+			colorDefault = {
+				r = (castDef.interruptFeedbackColor and castDef.interruptFeedbackColor[1]) or 0.85,
+				g = (castDef.interruptFeedbackColor and castDef.interruptFeedbackColor[2]) or 0.12,
+				b = (castDef.interruptFeedbackColor and castDef.interruptFeedbackColor[3]) or 0.12,
+				a = (castDef.interruptFeedbackColor and castDef.interruptFeedbackColor[4]) or 1,
+			},
+			hasOpacity = true,
+		}
 	end
 
 	list[#list + 1] = { name = L["UFStatusLine"] or "Status line", kind = settingType.Collapsible, id = "status", defaultCollapsed = true }

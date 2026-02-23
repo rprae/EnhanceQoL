@@ -490,6 +490,8 @@ local defaults = {
 			gradientMode = "CASTBAR",
 			notInterruptibleColor = DEFAULT_NOT_INTERRUPTIBLE_COLOR,
 			showInterruptFeedback = true,
+			showInterruptFeedbackGlow = true,
+			interruptFeedbackColor = { 0.85, 0.12, 0.12, 1 },
 		},
 		resting = {
 			enabled = true,
@@ -669,6 +671,8 @@ local defaults = {
 			gradientMode = "CASTBAR",
 			notInterruptibleColor = DEFAULT_NOT_INTERRUPTIBLE_COLOR,
 			showInterruptFeedback = true,
+			showInterruptFeedbackGlow = true,
+			interruptFeedbackColor = { 0.85, 0.12, 0.12, 1 },
 		},
 		portrait = {
 			enabled = false,
@@ -3678,6 +3682,38 @@ local function configureCastStatic(unit, ccfg, defc)
 	if not st or not st.castBar or not st.castInfo then return end
 	ccfg = ccfg or st.castCfg or {}
 	defc = defc or (defaultsFor(unit) and defaultsFor(unit).cast) or {}
+
+	local showInterruptFeedback = ccfg.showInterruptFeedback
+	if showInterruptFeedback == nil then showInterruptFeedback = defc.showInterruptFeedback end
+	if showInterruptFeedback == nil then showInterruptFeedback = true end
+	st.castInterruptFeedbackEnabled = showInterruptFeedback ~= false
+
+	local showInterruptFeedbackGlow = ccfg.showInterruptFeedbackGlow
+	if showInterruptFeedbackGlow == nil then showInterruptFeedbackGlow = defc.showInterruptFeedbackGlow end
+	if showInterruptFeedbackGlow == nil then showInterruptFeedbackGlow = true end
+	st.castInterruptFeedbackGlow = showInterruptFeedbackGlow ~= false
+
+	local interruptColor = ccfg.interruptFeedbackColor
+	if type(interruptColor) ~= "table" then interruptColor = defc.interruptFeedbackColor end
+	local ir
+	local ig
+	local ib
+	local ia
+	if type(interruptColor) == "table" then
+		ir = interruptColor.r or interruptColor[1]
+		ig = interruptColor.g or interruptColor[2]
+		ib = interruptColor.b or interruptColor[3]
+		ia = interruptColor.a or interruptColor[4]
+	end
+	if ir == nil then ir = 0.85 end
+	if ig == nil then ig = 0.12 end
+	if ib == nil then ib = 0.12 end
+	if ia == nil then ia = 1 end
+	st.castInterruptFeedbackR = ir
+	st.castInterruptFeedbackG = ig
+	st.castInterruptFeedbackB = ib
+	st.castInterruptFeedbackA = ia
+
 	local gradientCfg = unit == UNIT.PLAYER and ccfg or nil
 	local isEmpoweredDefault = st.castInfo.isEmpowered and st.castUseDefaultArt == true
 	local clr = ccfg.color or defc.color or { 0.9, 0.7, 0.2, 1 }
@@ -3910,8 +3946,14 @@ function UF.ShowCastInterrupt(unit, event)
 	local defc = (defaultsFor(unit) and defaultsFor(unit).cast) or {}
 	if ccfg.enabled == false then return end
 	if not st.castBar:IsShown() and not st.castInfo then return end
-	local showInterruptFeedback = ccfg.showInterruptFeedback
-	if showInterruptFeedback == nil then showInterruptFeedback = defc.showInterruptFeedback end
+	local showInterruptFeedback = st.castInterruptFeedbackEnabled
+	if showInterruptFeedback == nil then
+		showInterruptFeedback = ccfg.showInterruptFeedback
+		if showInterruptFeedback == nil then showInterruptFeedback = defc.showInterruptFeedback end
+		if showInterruptFeedback == nil then showInterruptFeedback = true end
+		showInterruptFeedback = showInterruptFeedback ~= false
+		st.castInterruptFeedbackEnabled = showInterruptFeedback
+	end
 	if showInterruptFeedback == false then
 		stopCast(unit)
 		if shouldShowSampleCast(unit) then setSampleCast(unit) end
@@ -3940,11 +3982,29 @@ function UF.ShowCastInterrupt(unit, event)
 	end
 	if interruptTex then st.castBar:SetStatusBarTexture(interruptTex) end
 	if st.castBar.SetStatusBarDesaturated then st.castBar:SetStatusBarDesaturated(false) end
-	if useDefault then
-		UFHelper.SetCastbarColorWithGradient(st.castBar, nil, 1, 1, 1, 1)
-	else
-		UFHelper.SetCastbarColorWithGradient(st.castBar, nil, 0.85, 0.12, 0.12, 1)
+	local ir = st.castInterruptFeedbackR
+	local ig = st.castInterruptFeedbackG
+	local ib = st.castInterruptFeedbackB
+	local ia = st.castInterruptFeedbackA
+	if ir == nil then
+		local interruptColor = ccfg.interruptFeedbackColor
+		if type(interruptColor) ~= "table" then interruptColor = defc.interruptFeedbackColor end
+		if type(interruptColor) == "table" then
+			ir = interruptColor.r or interruptColor[1]
+			ig = interruptColor.g or interruptColor[2]
+			ib = interruptColor.b or interruptColor[3]
+			ia = interruptColor.a or interruptColor[4]
+		end
+		if ir == nil then ir = 0.85 end
+		if ig == nil then ig = 0.12 end
+		if ib == nil then ib = 0.12 end
+		if ia == nil then ia = 1 end
+		st.castInterruptFeedbackR = ir
+		st.castInterruptFeedbackG = ig
+		st.castInterruptFeedbackB = ib
+		st.castInterruptFeedbackA = ia
 	end
+	UFHelper.SetCastbarColorWithGradient(st.castBar, nil, ir, ig, ib, ia)
 	st.castBar:SetMinMaxValues(0, 1)
 	st.castBar:SetValue(1)
 	if st.castDuration then
@@ -3966,42 +4026,61 @@ function UF.ShowCastInterrupt(unit, event)
 		end
 	end
 
-	local glowAlpha = useDefault and 0.4 or 0.25
-	if not st.castInterruptGlow then
-		st.castInterruptGlow = st.castBar:CreateTexture(nil, "OVERLAY")
-		if st.castInterruptGlow.SetAtlas then
-			st.castInterruptGlow:SetAtlas("cast_interrupt_outerglow", true)
-		else
-			st.castInterruptGlow:SetTexture("Interface\\CastingBar\\UI-CastingBar-Border")
+	local showInterruptFeedbackGlow = st.castInterruptFeedbackGlow
+	if showInterruptFeedbackGlow == nil then
+		showInterruptFeedbackGlow = ccfg.showInterruptFeedbackGlow
+		if showInterruptFeedbackGlow == nil then showInterruptFeedbackGlow = defc.showInterruptFeedbackGlow end
+		if showInterruptFeedbackGlow == nil then showInterruptFeedbackGlow = true end
+		showInterruptFeedbackGlow = showInterruptFeedbackGlow ~= false
+		st.castInterruptFeedbackGlow = showInterruptFeedbackGlow
+	end
+	if showInterruptFeedbackGlow ~= false then
+		local glowAlpha = (useDefault and 0.4 or 0.25) * (ia or 1)
+		if glowAlpha < 0 then
+			glowAlpha = 0
+		elseif glowAlpha > 1 then
+			glowAlpha = 1
 		end
-		if st.castInterruptGlow.SetBlendMode then st.castInterruptGlow:SetBlendMode("ADD") end
-		st.castInterruptGlow:SetPoint("CENTER", st.castBar, "CENTER", 0, 0)
-		st.castInterruptGlow:SetAlpha(0)
-	end
-	do
-		local w, h = st.castBar:GetSize()
-		if w and h and w > 0 and h > 0 then
-			st.castInterruptGlow:SetSize(w + (h * 0.5), h * 2.2)
-			if st.castInterruptGlow.SetScale then st.castInterruptGlow:SetScale(1) end
-		elseif st.castInterruptGlow.SetScale then
-			st.castInterruptGlow:SetScale(0.5)
+		if not st.castInterruptGlow then
+			st.castInterruptGlow = st.castBar:CreateTexture(nil, "OVERLAY")
+			if st.castInterruptGlow.SetAtlas then
+				st.castInterruptGlow:SetAtlas("cast_interrupt_outerglow", true)
+			else
+				st.castInterruptGlow:SetTexture("Interface\\CastingBar\\UI-CastingBar-Border")
+			end
+			if st.castInterruptGlow.SetBlendMode then st.castInterruptGlow:SetBlendMode("ADD") end
+			st.castInterruptGlow:SetPoint("CENTER", st.castBar, "CENTER", 0, 0)
+			st.castInterruptGlow:SetAlpha(0)
 		end
+		if st.castInterruptGlow.SetVertexColor then st.castInterruptGlow:SetVertexColor(ir, ig, ib, 1) end
+		do
+			local w, h = st.castBar:GetSize()
+			if w and h and w > 0 and h > 0 then
+				st.castInterruptGlow:SetSize(w + (h * 0.5), h * 2.2)
+				if st.castInterruptGlow.SetScale then st.castInterruptGlow:SetScale(1) end
+			elseif st.castInterruptGlow.SetScale then
+				st.castInterruptGlow:SetScale(0.5)
+			end
+		end
+		if not st.castInterruptGlowAnim then
+			st.castInterruptGlowAnim = st.castInterruptGlow:CreateAnimationGroup()
+			local fade = st.castInterruptGlowAnim:CreateAnimation("Alpha")
+			fade:SetFromAlpha(glowAlpha)
+			fade:SetToAlpha(0)
+			fade:SetDuration(1.0)
+			st.castInterruptGlowAnim.fade = fade
+			st.castInterruptGlowAnim:SetScript("OnFinished", function() st.castInterruptGlow:Hide() end)
+		elseif st.castInterruptGlowAnim.fade and st.castInterruptGlowAnim.fade.SetFromAlpha then
+			st.castInterruptGlowAnim.fade:SetFromAlpha(glowAlpha)
+		end
+		st.castInterruptGlow:SetAlpha(glowAlpha)
+		st.castInterruptGlow:Show()
+		st.castInterruptGlowAnim:Stop()
+		st.castInterruptGlowAnim:Play()
+	elseif st.castInterruptGlow then
+		if st.castInterruptGlowAnim then st.castInterruptGlowAnim:Stop() end
+		st.castInterruptGlow:Hide()
 	end
-	if not st.castInterruptGlowAnim then
-		st.castInterruptGlowAnim = st.castInterruptGlow:CreateAnimationGroup()
-		local fade = st.castInterruptGlowAnim:CreateAnimation("Alpha")
-		fade:SetFromAlpha(glowAlpha)
-		fade:SetToAlpha(0)
-		fade:SetDuration(1.0)
-		st.castInterruptGlowAnim.fade = fade
-		st.castInterruptGlowAnim:SetScript("OnFinished", function() st.castInterruptGlow:Hide() end)
-	elseif st.castInterruptGlowAnim.fade and st.castInterruptGlowAnim.fade.SetFromAlpha then
-		st.castInterruptGlowAnim.fade:SetFromAlpha(glowAlpha)
-	end
-	st.castInterruptGlow:SetAlpha(glowAlpha)
-	st.castInterruptGlow:Show()
-	st.castInterruptGlowAnim:Stop()
-	st.castInterruptGlowAnim:Play()
 
 	if not st.castInterruptAnim then
 		st.castInterruptAnim = st.castBar:CreateAnimationGroup()

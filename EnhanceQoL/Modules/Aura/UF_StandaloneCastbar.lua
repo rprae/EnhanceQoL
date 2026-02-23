@@ -24,6 +24,7 @@ local EDITMODE_SETTINGS_MAX_HEIGHT = 900
 local MIN_CASTBAR_WIDTH = 50
 local CASTBAR_CONFIG_VERSION = 2
 local DEFAULT_NOT_INTERRUPTIBLE_COLOR = { 204 / 255, 204 / 255, 204 / 255, 1 }
+local DEFAULT_INTERRUPT_FEEDBACK_COLOR = { 0.85, 0.12, 0.12, 1 }
 local RELATIVE_ANCHOR_FRAME_MAP = {
 	PlayerFrame = { uf = "EQOLUFPlayerFrame", blizz = "PlayerFrame", ufKey = "player" },
 	EQOLUFPlayerFrame = { uf = "EQOLUFPlayerFrame", blizz = "PlayerFrame", ufKey = "player" },
@@ -95,6 +96,8 @@ local fallbackCastDefaults = {
 	gradientMode = "CASTBAR",
 	notInterruptibleColor = DEFAULT_NOT_INTERRUPTIBLE_COLOR,
 	showInterruptFeedback = true,
+	showInterruptFeedbackGlow = true,
+	interruptFeedbackColor = DEFAULT_INTERRUPT_FEEDBACK_COLOR,
 }
 
 local function copyValue(value)
@@ -905,31 +908,31 @@ local function applyCastLayout(castCfg, castDefaults)
 	state.castBar:SetStatusBarTexture(castTexture)
 	state.castUseDefaultArt = useDefaultArt
 
-		do -- Cast backdrop
-			local bd = castCfg.backdrop or castDefaults.backdrop or { enabled = true, color = { 0, 0, 0, 0.6 } }
-			if state.castBar.SetBackdrop then state.castBar:SetBackdrop(nil) end
-			local bg = state.castBar.backdropTexture
-			if bd.enabled == false then
-				if bg then bg:Hide() end
-			else
-				if not bg then
-					bg = state.castBar:CreateTexture(nil, "BACKGROUND")
-					state.castBar.backdropTexture = bg
-				end
-				local col = bd.color or { 0, 0, 0, 0.6 }
-				bg:ClearAllPoints()
-				if useDefaultArt and bg.SetAtlas then
-					bg:SetAtlas("ui-castingbar-background", false)
-					bg:SetPoint("TOPLEFT", state.castBar, "TOPLEFT", -defaultBackdropInset, defaultBackdropInset)
-					bg:SetPoint("BOTTOMRIGHT", state.castBar, "BOTTOMRIGHT", defaultBackdropInset, -defaultBackdropInset)
-				else
-					bg:SetTexture(castTexture)
-					bg:SetAllPoints(state.castBar)
-				end
-				bg:SetVertexColor(col[1] or 0, col[2] or 0, col[3] or 0, col[4] or 0.6)
-				bg:Show()
+	do -- Cast backdrop
+		local bd = castCfg.backdrop or castDefaults.backdrop or { enabled = true, color = { 0, 0, 0, 0.6 } }
+		if state.castBar.SetBackdrop then state.castBar:SetBackdrop(nil) end
+		local bg = state.castBar.backdropTexture
+		if bd.enabled == false then
+			if bg then bg:Hide() end
+		else
+			if not bg then
+				bg = state.castBar:CreateTexture(nil, "BACKGROUND")
+				state.castBar.backdropTexture = bg
 			end
+			local col = bd.color or { 0, 0, 0, 0.6 }
+			bg:ClearAllPoints()
+			if useDefaultArt and bg.SetAtlas then
+				bg:SetAtlas("ui-castingbar-background", false)
+				bg:SetPoint("TOPLEFT", state.castBar, "TOPLEFT", -defaultBackdropInset, defaultBackdropInset)
+				bg:SetPoint("BOTTOMRIGHT", state.castBar, "BOTTOMRIGHT", defaultBackdropInset, -defaultBackdropInset)
+			else
+				bg:SetTexture(castTexture)
+				bg:SetAllPoints(state.castBar)
+			end
+			bg:SetVertexColor(col[1] or 0, col[2] or 0, col[3] or 0, col[4] or 0.6)
+			bg:Show()
 		end
+	end
 	applyCastBorder(castCfg, castDefaults)
 
 	if state.castName then
@@ -975,6 +978,37 @@ end
 
 local function configureCastStatic(castCfg, castDefaults)
 	if not state.castBar or not state.castInfo then return end
+	local showInterruptFeedback = castCfg.showInterruptFeedback
+	if showInterruptFeedback == nil then showInterruptFeedback = castDefaults.showInterruptFeedback end
+	if showInterruptFeedback == nil then showInterruptFeedback = true end
+	state.castInterruptFeedbackEnabled = showInterruptFeedback ~= false
+
+	local showInterruptFeedbackGlow = castCfg.showInterruptFeedbackGlow
+	if showInterruptFeedbackGlow == nil then showInterruptFeedbackGlow = castDefaults.showInterruptFeedbackGlow end
+	if showInterruptFeedbackGlow == nil then showInterruptFeedbackGlow = true end
+	state.castInterruptFeedbackGlow = showInterruptFeedbackGlow ~= false
+
+	local interruptColor = castCfg.interruptFeedbackColor
+	if type(interruptColor) ~= "table" then interruptColor = castDefaults.interruptFeedbackColor end
+	local ir
+	local ig
+	local ib
+	local ia
+	if type(interruptColor) == "table" then
+		ir = interruptColor.r or interruptColor[1]
+		ig = interruptColor.g or interruptColor[2]
+		ib = interruptColor.b or interruptColor[3]
+		ia = interruptColor.a or interruptColor[4]
+	end
+	if ir == nil then ir = DEFAULT_INTERRUPT_FEEDBACK_COLOR[1] end
+	if ig == nil then ig = DEFAULT_INTERRUPT_FEEDBACK_COLOR[2] end
+	if ib == nil then ib = DEFAULT_INTERRUPT_FEEDBACK_COLOR[3] end
+	if ia == nil then ia = DEFAULT_INTERRUPT_FEEDBACK_COLOR[4] end
+	state.castInterruptFeedbackR = ir
+	state.castInterruptFeedbackG = ig
+	state.castInterruptFeedbackB = ib
+	state.castInterruptFeedbackA = ia
+
 	local isEmpoweredDefault = state.castInfo.isEmpowered and state.castUseDefaultArt == true
 	local clr = castCfg.color or castDefaults.color or { 0.9, 0.7, 0.2, 1 }
 	local useClassColor = castCfg.useClassColor
@@ -1172,8 +1206,14 @@ local function showCastInterrupt(event)
 	ensureFrame()
 	if not state.castBar or ((not state.castBar:IsShown()) and not state.castInfo) then return end
 
-	local showInterruptFeedback = castCfg.showInterruptFeedback
-	if showInterruptFeedback == nil then showInterruptFeedback = castDefaults.showInterruptFeedback end
+	local showInterruptFeedback = state.castInterruptFeedbackEnabled
+	if showInterruptFeedback == nil then
+		showInterruptFeedback = castCfg.showInterruptFeedback
+		if showInterruptFeedback == nil then showInterruptFeedback = castDefaults.showInterruptFeedback end
+		if showInterruptFeedback == nil then showInterruptFeedback = true end
+		showInterruptFeedback = showInterruptFeedback ~= false
+		state.castInterruptFeedbackEnabled = showInterruptFeedback
+	end
 	if showInterruptFeedback == false then
 		stopCast()
 		if shouldShowSampleCast() then setSampleCast() end
@@ -1202,11 +1242,29 @@ local function showCastInterrupt(event)
 	end
 	if interruptTex then state.castBar:SetStatusBarTexture(interruptTex) end
 	if state.castBar.SetStatusBarDesaturated then state.castBar:SetStatusBarDesaturated(false) end
-	if useDefault then
-		setCastbarColorWithGradient(state.castBar, nil, 1, 1, 1, 1)
-	else
-		setCastbarColorWithGradient(state.castBar, nil, 0.85, 0.12, 0.12, 1)
+	local ir = state.castInterruptFeedbackR
+	local ig = state.castInterruptFeedbackG
+	local ib = state.castInterruptFeedbackB
+	local ia = state.castInterruptFeedbackA
+	if ir == nil then
+		local interruptColor = castCfg.interruptFeedbackColor
+		if type(interruptColor) ~= "table" then interruptColor = castDefaults.interruptFeedbackColor end
+		if type(interruptColor) == "table" then
+			ir = interruptColor.r or interruptColor[1]
+			ig = interruptColor.g or interruptColor[2]
+			ib = interruptColor.b or interruptColor[3]
+			ia = interruptColor.a or interruptColor[4]
+		end
+		if ir == nil then ir = DEFAULT_INTERRUPT_FEEDBACK_COLOR[1] end
+		if ig == nil then ig = DEFAULT_INTERRUPT_FEEDBACK_COLOR[2] end
+		if ib == nil then ib = DEFAULT_INTERRUPT_FEEDBACK_COLOR[3] end
+		if ia == nil then ia = DEFAULT_INTERRUPT_FEEDBACK_COLOR[4] end
+		state.castInterruptFeedbackR = ir
+		state.castInterruptFeedbackG = ig
+		state.castInterruptFeedbackB = ib
+		state.castInterruptFeedbackA = ia
 	end
+	setCastbarColorWithGradient(state.castBar, nil, ir, ig, ib, ia)
 	state.castBar:SetMinMaxValues(0, 1)
 	state.castBar:SetValue(1)
 	if state.castDuration then
@@ -1228,42 +1286,61 @@ local function showCastInterrupt(event)
 		end
 	end
 
-	local glowAlpha = useDefault and 0.4 or 0.25
-	if not state.castInterruptGlow then
-		state.castInterruptGlow = state.castBar:CreateTexture(nil, "OVERLAY")
-		if state.castInterruptGlow.SetAtlas then
-			state.castInterruptGlow:SetAtlas("cast_interrupt_outerglow", true)
-		else
-			state.castInterruptGlow:SetTexture("Interface\\CastingBar\\UI-CastingBar-Border")
+	local showInterruptFeedbackGlow = state.castInterruptFeedbackGlow
+	if showInterruptFeedbackGlow == nil then
+		showInterruptFeedbackGlow = castCfg.showInterruptFeedbackGlow
+		if showInterruptFeedbackGlow == nil then showInterruptFeedbackGlow = castDefaults.showInterruptFeedbackGlow end
+		if showInterruptFeedbackGlow == nil then showInterruptFeedbackGlow = true end
+		showInterruptFeedbackGlow = showInterruptFeedbackGlow ~= false
+		state.castInterruptFeedbackGlow = showInterruptFeedbackGlow
+	end
+	if showInterruptFeedbackGlow ~= false then
+		local glowAlpha = (useDefault and 0.4 or 0.25) * (ia or 1)
+		if glowAlpha < 0 then
+			glowAlpha = 0
+		elseif glowAlpha > 1 then
+			glowAlpha = 1
 		end
-		if state.castInterruptGlow.SetBlendMode then state.castInterruptGlow:SetBlendMode("ADD") end
-		state.castInterruptGlow:SetPoint("CENTER", state.castBar, "CENTER", 0, 0)
-		state.castInterruptGlow:SetAlpha(0)
-	end
-	do
-		local w, h = state.castBar:GetSize()
-		if w and h and w > 0 and h > 0 then
-			state.castInterruptGlow:SetSize(w + (h * 0.5), h * 2.2)
-			if state.castInterruptGlow.SetScale then state.castInterruptGlow:SetScale(1) end
-		elseif state.castInterruptGlow.SetScale then
-			state.castInterruptGlow:SetScale(0.5)
+		if not state.castInterruptGlow then
+			state.castInterruptGlow = state.castBar:CreateTexture(nil, "OVERLAY")
+			if state.castInterruptGlow.SetAtlas then
+				state.castInterruptGlow:SetAtlas("cast_interrupt_outerglow", true)
+			else
+				state.castInterruptGlow:SetTexture("Interface\\CastingBar\\UI-CastingBar-Border")
+			end
+			if state.castInterruptGlow.SetBlendMode then state.castInterruptGlow:SetBlendMode("ADD") end
+			state.castInterruptGlow:SetPoint("CENTER", state.castBar, "CENTER", 0, 0)
+			state.castInterruptGlow:SetAlpha(0)
 		end
+		if state.castInterruptGlow.SetVertexColor then state.castInterruptGlow:SetVertexColor(ir, ig, ib, 1) end
+		do
+			local w, h = state.castBar:GetSize()
+			if w and h and w > 0 and h > 0 then
+				state.castInterruptGlow:SetSize(w + (h * 0.5), h * 2.2)
+				if state.castInterruptGlow.SetScale then state.castInterruptGlow:SetScale(1) end
+			elseif state.castInterruptGlow.SetScale then
+				state.castInterruptGlow:SetScale(0.5)
+			end
+		end
+		if not state.castInterruptGlowAnim then
+			state.castInterruptGlowAnim = state.castInterruptGlow:CreateAnimationGroup()
+			local fade = state.castInterruptGlowAnim:CreateAnimation("Alpha")
+			fade:SetFromAlpha(glowAlpha)
+			fade:SetToAlpha(0)
+			fade:SetDuration(1.0)
+			state.castInterruptGlowAnim.fade = fade
+			state.castInterruptGlowAnim:SetScript("OnFinished", function() state.castInterruptGlow:Hide() end)
+		elseif state.castInterruptGlowAnim.fade and state.castInterruptGlowAnim.fade.SetFromAlpha then
+			state.castInterruptGlowAnim.fade:SetFromAlpha(glowAlpha)
+		end
+		state.castInterruptGlow:SetAlpha(glowAlpha)
+		state.castInterruptGlow:Show()
+		state.castInterruptGlowAnim:Stop()
+		state.castInterruptGlowAnim:Play()
+	elseif state.castInterruptGlow then
+		if state.castInterruptGlowAnim then state.castInterruptGlowAnim:Stop() end
+		state.castInterruptGlow:Hide()
 	end
-	if not state.castInterruptGlowAnim then
-		state.castInterruptGlowAnim = state.castInterruptGlow:CreateAnimationGroup()
-		local fade = state.castInterruptGlowAnim:CreateAnimation("Alpha")
-		fade:SetFromAlpha(glowAlpha)
-		fade:SetToAlpha(0)
-		fade:SetDuration(1.0)
-		state.castInterruptGlowAnim.fade = fade
-		state.castInterruptGlowAnim:SetScript("OnFinished", function() state.castInterruptGlow:Hide() end)
-	elseif state.castInterruptGlowAnim.fade and state.castInterruptGlowAnim.fade.SetFromAlpha then
-		state.castInterruptGlowAnim.fade:SetFromAlpha(glowAlpha)
-	end
-	state.castInterruptGlow:SetAlpha(glowAlpha)
-	state.castInterruptGlow:Show()
-	state.castInterruptGlowAnim:Stop()
-	state.castInterruptGlowAnim:Play()
 
 	if not state.castInterruptAnim then
 		state.castInterruptAnim = state.castBar:CreateAnimationGroup()
