@@ -489,6 +489,7 @@ local function buildDrinkMacroSettings()
 	local flaskEnable = addon.functions.SettingsCreateCheckbox(cDrink, {
 		var = "flaskMacroEnabled",
 		text = L["Enable Flask Macro"] or "Enable Flask Macro",
+		desc = L["Enable Flask Macro Desc"] or "Creates/updates EnhanceQoLFlaskMacro and uses your role/spec selection with the highest usable rank from your bags.",
 		func = function(value)
 			addon.db.flaskMacroEnabled = value and true or false
 			refreshFlaskMacro()
@@ -502,6 +503,7 @@ local function buildDrinkMacroSettings()
 	addon.functions.SettingsCreateCheckbox(cDrink, {
 		var = "flaskPreferCauldrons",
 		text = L["Prefer Cauldrons"] or "Prefer cauldrons",
+		desc = L["Prefer Cauldrons Desc"] or "Prioritizes fleeting (cauldron-style) flasks first; when disabled, only the normal flask path is used.",
 		func = function(value)
 			addon.db.flaskPreferCauldrons = value and true or false
 			refreshFlaskMacro()
