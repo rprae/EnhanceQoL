@@ -387,7 +387,7 @@ function GF._computeOverlayHeightFallback(frameHeight, powerHeight)
 	if power > totalHeight then power = totalHeight end
 	local fallback = totalHeight - power
 	if fallback < 1 then fallback = 1 end
-	if fallback > 80 then fallback = 80 end
+	if fallback > 300 then fallback = 300 end
 	return fallback
 end
 
@@ -11436,7 +11436,7 @@ local function buildEditModeSettings(kind, editModeId)
 			field = "absorbOverlayHeight",
 			parentId = "absorb",
 			minValue = 1,
-			maxValue = 80,
+			maxValue = 300,
 			valueStep = 1,
 			default = GF._computeOverlayHeightFallback((DEFAULTS[kind] and DEFAULTS[kind].height) or 24, (DEFAULTS[kind] and DEFAULTS[kind].powerHeight) or 6),
 			get = function()
@@ -11455,7 +11455,7 @@ local function buildEditModeSettings(kind, editModeId)
 				cfg.health = cfg.health or {}
 				local def = DEFAULTS[kind] or {}
 				local fallback = GF._computeOverlayHeightFallback((cfg and cfg.height) or def.height, (cfg and cfg.powerHeight) or def.powerHeight)
-				local v = clampNumber(value, 1, 80, fallback)
+				local v = clampNumber(value, 1, 300, fallback)
 				if not v or v <= 0 then v = fallback end
 				cfg.health.absorbOverlayHeight = v
 				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "absorbOverlayHeight", v, nil, true) end
@@ -11642,7 +11642,7 @@ local function buildEditModeSettings(kind, editModeId)
 			field = "healAbsorbOverlayHeight",
 			parentId = "healabsorb",
 			minValue = 1,
-			maxValue = 80,
+			maxValue = 300,
 			valueStep = 1,
 			default = GF._computeOverlayHeightFallback((DEFAULTS[kind] and DEFAULTS[kind].height) or 24, (DEFAULTS[kind] and DEFAULTS[kind].powerHeight) or 6),
 			get = function()
@@ -11661,7 +11661,7 @@ local function buildEditModeSettings(kind, editModeId)
 				cfg.health = cfg.health or {}
 				local def = DEFAULTS[kind] or {}
 				local fallback = GF._computeOverlayHeightFallback((cfg and cfg.height) or def.height, (cfg and cfg.powerHeight) or def.powerHeight)
-				local v = clampNumber(value, 1, 80, fallback)
+				local v = clampNumber(value, 1, 300, fallback)
 				if not v or v <= 0 then v = fallback end
 				cfg.health.healAbsorbOverlayHeight = v
 				if EditMode and EditMode.SetValue then EditMode:SetValue(editModeId, "healAbsorbOverlayHeight", v, nil, true) end
@@ -17882,7 +17882,7 @@ local function applyEditModeData(kind, data)
 	end
 	if data.absorbOverlayHeight ~= nil then
 		cfg.health = cfg.health or {}
-		cfg.health.absorbOverlayHeight = clampNumber(data.absorbOverlayHeight, 1, 80, GF._computeOverlayHeightFallback(cfg.height, cfg.powerHeight))
+		cfg.health.absorbOverlayHeight = clampNumber(data.absorbOverlayHeight, 1, 300, GF._computeOverlayHeightFallback(cfg.height, cfg.powerHeight))
 	end
 	if data.absorbUseCustomColor ~= nil then
 		cfg.health = cfg.health or {}
@@ -17910,7 +17910,7 @@ local function applyEditModeData(kind, data)
 	end
 	if data.healAbsorbOverlayHeight ~= nil then
 		cfg.health = cfg.health or {}
-		cfg.health.healAbsorbOverlayHeight = clampNumber(data.healAbsorbOverlayHeight, 1, 80, GF._computeOverlayHeightFallback(cfg.height, cfg.powerHeight))
+		cfg.health.healAbsorbOverlayHeight = clampNumber(data.healAbsorbOverlayHeight, 1, 300, GF._computeOverlayHeightFallback(cfg.height, cfg.powerHeight))
 	end
 	if data.healAbsorbUseCustomColor ~= nil then
 		cfg.health = cfg.health or {}
