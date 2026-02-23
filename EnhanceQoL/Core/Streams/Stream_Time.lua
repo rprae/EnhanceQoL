@@ -1,4 +1,4 @@
--- luacheck: globals EnhanceQoL GetGameTime GAMEMENU_OPTIONS FONT_SIZE UIParent TIMEMANAGER_AM TIMEMANAGER_PM C_Timer NORMAL_FONT_COLOR ToggleTimeManager
+-- luacheck: globals EnhanceQoL GetGameTime GAMEMENU_OPTIONS FONT_SIZE UIParent TIMEMANAGER_AM TIMEMANAGER_PM C_Timer NORMAL_FONT_COLOR ToggleTimeManager ToggleCalendar
 local addonName, addon = ...
 local L = addon.L
 
@@ -25,6 +25,8 @@ local function ensureDB()
 	db.displayMode = db.displayMode or "server"
 	if db.use24Hour == nil then db.use24Hour = true end
 	if db.showSeconds == nil then db.showSeconds = false end
+	db.leftClickAction = db.leftClickAction or "clock"
+	if db.leftClickAction ~= "clock" and db.leftClickAction ~= "calendar" then db.leftClickAction = "clock" end
 	if not db.timeColor then
 		local r, g, b = 1, 1, 1
 		if NORMAL_FONT_COLOR and NORMAL_FONT_COLOR.GetRGB then
@@ -53,7 +55,7 @@ local function createAceWindow()
 	aceWindow = frame.frame
 	frame:SetTitle((addon.DataPanel and addon.DataPanel.GetStreamOptionsTitle and addon.DataPanel.GetStreamOptionsTitle(stream and stream.meta and stream.meta.title)) or GAMEMENU_OPTIONS)
 	frame:SetWidth(320)
-	frame:SetHeight(260)
+	frame:SetHeight(310)
 	frame:SetLayout("List")
 
 	frame.frame:SetScript("OnShow", function(self) RestorePosition(self) end)
@@ -114,6 +116,19 @@ local function createAceWindow()
 		scheduleUpdate()
 	end)
 	frame:AddChild(showSeconds)
+
+	local clickAction = AceGUI:Create("Dropdown")
+	clickAction:SetLabel(L["Time left-click action"] or "Left-click action")
+	clickAction:SetList({
+		clock = L["Time left-click opens stopwatch"] or "Open stopwatch",
+		calendar = L["Time left-click opens calendar"] or "Open calendar",
+	})
+	clickAction:SetValue(db.leftClickAction or "clock")
+	clickAction:SetCallback("OnValueChanged", function(_, _, key)
+		db.leftClickAction = (key == "calendar") and "calendar" or "clock"
+		scheduleUpdate()
+	end)
+	frame:AddChild(clickAction)
 
 	local color = AceGUI:Create("ColorPicker")
 	color:SetLabel(L["Time color"] or "Time color")
@@ -180,6 +195,40 @@ local function colorize(text)
 	return ("|cff%s%s|r"):format(timeColorHex, text)
 end
 
+local function getLeftClickAction()
+	if db and db.leftClickAction == "calendar" then return "calendar" end
+	return "clock"
+end
+
+local function buildCommonTooltip(baseText)
+	local tooltip = baseText
+	local clickHint
+	if getLeftClickAction() == "calendar" then
+		clickHint = L["Time left-click hint calendar"] or "Left-click to open calendar"
+	else
+		clickHint = L["Time left-click hint clock"] or "Left-click to open stopwatch"
+	end
+	local optionsHint = getOptionsHint()
+
+	if clickHint and clickHint ~= "" then
+		if tooltip and tooltip ~= "" then
+			tooltip = tooltip .. "\n" .. clickHint
+		else
+			tooltip = clickHint
+		end
+	end
+
+	if optionsHint and optionsHint ~= "" then
+		if tooltip and tooltip ~= "" then
+			tooltip = tooltip .. "\n" .. optionsHint
+		else
+			tooltip = optionsHint
+		end
+	end
+
+	return tooltip
+end
+
 local function updateTime(s)
 	s = s or stream
 	ensureDB()
@@ -204,19 +253,17 @@ local function updateTime(s)
 
 	if mode == "localTime" then
 		s.snapshot.text = colorize(formatTime(lh, lm, ls))
-		s.snapshot.tooltip = getOptionsHint()
+		s.snapshot.tooltip = buildCommonTooltip(nil)
 	elseif mode == "both" then
 		local serverText = formatTime(sh, sm, ss)
 		local localText = formatTime(lh, lm, ls)
 		s.snapshot.text = colorize(serverText .. " / " .. localText)
 		local tooltip = (L["Server time"] or "Server time") .. ": " .. serverText
 		tooltip = tooltip .. "\n" .. (L["Local time"] or "Local time") .. ": " .. localText
-		local optionsHint = getOptionsHint()
-		if optionsHint then tooltip = tooltip .. "\n" .. optionsHint end
-		s.snapshot.tooltip = tooltip
+		s.snapshot.tooltip = buildCommonTooltip(tooltip)
 	else
 		s.snapshot.text = colorize(formatTime(sh, sm, ss))
-		s.snapshot.tooltip = getOptionsHint()
+		s.snapshot.tooltip = buildCommonTooltip(nil)
 	end
 
 	s.snapshot.fontSize = db.fontSize or 14
@@ -224,7 +271,7 @@ end
 
 local provider = {
 	id = "time",
-	version = 1,
+	version = 2,
 	title = L["Time"] or "Time",
 	poll = 1,
 	update = updateTime,
@@ -232,10 +279,19 @@ local provider = {
 		PLAYER_ENTERING_WORLD = function(s) addon.DataHub:RequestUpdate(s) end,
 	},
 	OnClick = function(_, btn)
+		ensureDB()
 		if btn == "RightButton" then
 			createAceWindow()
 		elseif btn == "LeftButton" then
-			if ToggleTimeManager then ToggleTimeManager() end
+			if getLeftClickAction() == "calendar" then
+				if ToggleCalendar then
+					ToggleCalendar()
+				elseif ToggleTimeManager then
+					ToggleTimeManager()
+				end
+			elseif ToggleTimeManager then
+				ToggleTimeManager()
+			end
 		end
 	end,
 }

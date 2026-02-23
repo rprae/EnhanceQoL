@@ -38,6 +38,8 @@ local RELATIVE_ANCHOR_FRAME_MAP = {
 	EQOLUFPetFrame = { uf = "EQOLUFPetFrame", blizz = "PetFrame", ufKey = "pet" },
 	BossTargetFrameContainer = { uf = "EQOLUFBossContainer", blizz = "BossTargetFrameContainer", ufKey = "boss" },
 	EQOLUFBossContainer = { uf = "EQOLUFBossContainer", blizz = "BossTargetFrameContainer", ufKey = "boss" },
+	CompactRaidFrameContainer = { uf = "EQOLUFRaidAnchor", blizz = "CompactRaidFrameContainer", ufKey = "raid" },
+	EQOLUFRaidAnchor = { uf = "EQOLUFRaidAnchor", blizz = "CompactRaidFrameContainer", ufKey = "raid" },
 }
 local VALID_ANCHOR_POINTS = {
 	TOPLEFT = true,
@@ -183,9 +185,13 @@ end
 local function wantsRelativeFrameWidthMatch(anchor) return anchor and (anchor.relativeFrame or "UIParent") ~= "UIParent" and anchor.matchRelativeWidth == true end
 
 local function isMappedUFEnabled(ufKey)
+	if type(ufKey) ~= "string" or ufKey == "" then return false end
 	local ufCfg = addon.db and addon.db.ufFrames
 	local cfg = ufCfg and ufCfg[ufKey]
-	return cfg and cfg.enabled == true
+	if cfg and cfg.enabled == true then return true end
+	local groupCfg = addon.db and addon.db.ufGroupFrames
+	local group = groupCfg and groupCfg[ufKey]
+	return group and group.enabled == true
 end
 
 local function resolveRelativeFrameByName(relativeName)

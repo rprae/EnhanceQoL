@@ -8,6 +8,7 @@
 - Unit Frames (Player): Added a secondary power section with the same bar options as Power settings (including detach options) plus a secondary type multi-select.
 - Castbars (Unit Frames + Standalone): Added `Use gradient` with `Gradient start color` and `Gradient end color` for cast fill colors.
 - Castbars (Unit Frames + Standalone): Added interrupt feedback options for `Show interrupt feedback glow` and `Interrupt feedback color` (default: glow enabled, red feedback color).
+- Standalone Castbar: Added `Raid frame` as a relative anchor target; it now auto-anchors to EQOL Raid Frames when enabled, otherwise to Blizzard raid frames.
 - Economy (Bank): Added automatic gold balancing with the Warband bank.
 - Economy (Bank): Added optional per-character target values and automatic withdraw.
 - Economy (Vendor): Added `Ignore Equipment Sets` to Auto-Sell Rules (Uncommon/Rare/Epic) to prevent selling items assigned to equipment sets.
@@ -19,6 +20,8 @@
 - Resource Bars (Maelstrom Weapon): Added `Separated offset` for segmented/separated bar spacing.
 - Resource Bars (Maelstrom Weapon): Added `Keep 5-stack fill above 5` option under `Use 5-stack color` (only enabled when `Use 5-stack color` is active).
 - Macros & Consumables (Flask Macro): Added role/spec Flask preferences with `Use role setting` overrides, fleeting-first selection via `Prefer cauldrons`, and usable rank fallback across legacy + Midnight flask tiers.
+- Data Panels: Added Time left-click Calendar option, Currency/Talents color options (including separate Talent prefix color).
+- Data Panels: Increased max panel width to `5000` to make a screenwide panel.‚
 
 ### 🐛 Fixed
 

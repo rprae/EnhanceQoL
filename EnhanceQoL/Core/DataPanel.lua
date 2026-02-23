@@ -17,6 +17,10 @@ local DEFAULT_FONT_OUTLINE = true
 local DEFAULT_FONT_SHADOW = false
 local DEFAULT_STREAM_GAP = 5
 local DEFAULT_STREAM_FONT_SCALE = 100
+local PANEL_WIDTH_MIN = 50
+local PANEL_WIDTH_MAX = 5000
+local PANEL_HEIGHT_MIN = 16
+local PANEL_HEIGHT_MAX = 800
 local SHADOW_OFFSET_X = 1
 local SHADOW_OFFSET_Y = -1
 local SHADOW_ALPHA = 0.8
@@ -103,6 +107,20 @@ local function normalizeStreamFontScale(value, fallback)
 	if num < 50 then return 50 end
 	if num > 200 then return 200 end
 	return num
+end
+
+local function normalizePanelWidth(value, fallback)
+	local num = tonumber(value)
+	if not num then num = tonumber(fallback) end
+	if not num then return 300 end
+	return clamp(num, PANEL_WIDTH_MIN, PANEL_WIDTH_MAX)
+end
+
+local function normalizePanelHeight(value, fallback)
+	local num = tonumber(value)
+	if not num then num = tonumber(fallback) end
+	if not num then return 40 end
+	return clamp(num, PANEL_HEIGHT_MIN, PANEL_HEIGHT_MAX)
 end
 
 local function normalizeBorderSize(value, fallback)
@@ -669,8 +687,8 @@ local function registerEditModePanel(panel)
 		point = panel.info.point or "CENTER",
 		x = panel.info.x or 0,
 		y = panel.info.y or 0,
-		width = panel.info.width or panel.frame:GetWidth() or 200,
-		height = panel.info.height or panel.frame:GetHeight() or 20,
+		width = normalizePanelWidth(panel.info.width, panel.frame:GetWidth() or 200),
+		height = normalizePanelHeight(panel.info.height, panel.frame:GetHeight() or 20),
 		hideBorder = panel.info.hideBorder or false,
 		clickThrough = panel.info.clickThrough == true,
 		strata = normalizeStrata(panel.info.strata, panel.frame:GetFrameStrata()),
@@ -727,17 +745,40 @@ local function registerEditModePanel(panel)
 				kind = SettingType.Slider,
 				field = "width",
 				default = defaults.width,
-				minValue = 50,
-				maxValue = 800,
+				minValue = PANEL_WIDTH_MIN,
+				maxValue = PANEL_WIDTH_MAX,
 				valueStep = 1,
+				allowInput = true,
+				formatter = function(value)
+					local num = normalizePanelWidth(value, defaults.width)
+					return tostring(math.floor(num + 0.5))
+				end,
+				get = function(layoutName)
+					local value
+					if EditMode and EditMode.GetValue then
+						value = EditMode:GetValue(id, "width", layoutName)
+					elseif panel.info then
+						value = panel.info.width
+					end
+					return normalizePanelWidth(value, defaults.width)
+				end,
+				set = function(layoutName, value)
+					local width = normalizePanelWidth(value, defaults.width)
+					if EditMode and EditMode.SetValue then
+						EditMode:SetValue(id, "width", width, layoutName)
+					elseif panel.info then
+						panel.info.width = width
+						panel.frame:SetWidth(width)
+					end
+				end,
 			},
 			{
 				name = L["DataPanelHeight"],
 				kind = SettingType.Slider,
 				field = "height",
 				default = defaults.height,
-				minValue = 16,
-				maxValue = 800,
+				minValue = PANEL_HEIGHT_MIN,
+				maxValue = PANEL_HEIGHT_MAX,
 				valueStep = 1,
 			},
 			{
@@ -946,9 +987,7 @@ local function registerEditModePanel(panel)
 				default = defaults.fontFace,
 				height = 200,
 				get = function(layoutName)
-					if EditMode and EditMode.GetValue then
-						return resolveFontFace(EditMode:GetValue(id, "fontFace", layoutName), defaults.fontFace)
-					end
+					if EditMode and EditMode.GetValue then return resolveFontFace(EditMode:GetValue(id, "fontFace", layoutName), defaults.fontFace) end
 					return resolveFontFace(panel.info and panel.info.fontFace, defaults.fontFace)
 				end,
 				set = function(layoutName, value)
@@ -1166,6 +1205,8 @@ local function ensureSettings(id, name)
 		info.textAlphaInCombat = normalizePercent(info.textAlphaInCombat, DEFAULT_TEXT_ALPHA)
 		info.textAlphaOutOfCombat = normalizePercent(info.textAlphaOutOfCombat, info.textAlphaInCombat)
 	end
+	info.width = normalizePanelWidth(info.width, 300)
+	info.height = normalizePanelHeight(info.height, 40)
 
 	addon.db.dataPanels[id] = info
 	if addon.db.dataPanels[tonumber(id)] then addon.db.dataPanels[tonumber(id)] = nil end
@@ -1186,8 +1227,8 @@ local function savePosition(frame, id)
 	if not addon.db or not addon.db.dataPanels or not addon.db.dataPanels[id] then return end
 	local info = addon.db.dataPanels[id]
 	info.point, _, _, info.x, info.y = frame:GetPoint()
-	info.width = round2(frame:GetWidth())
-	info.height = round2(frame:GetHeight())
+	info.width = normalizePanelWidth(round2(frame:GetWidth()), info.width or 300)
+	info.height = normalizePanelHeight(round2(frame:GetHeight()), info.height or 40)
 	local panel = panels[id]
 	if panel then
 		panel:SyncEditModePosition(info.point, info.x, info.y)
@@ -1581,11 +1622,11 @@ function DataPanel.Create(id, name, existingOnly)
 		local backdropColorChanged = false
 		local layoutChanged = false
 		if data.width then
-			info.width = round2(data.width)
+			info.width = normalizePanelWidth(round2(data.width), info.width or 300)
 			self.frame:SetWidth(info.width)
 		end
 		if data.height then
-			info.height = round2(data.height)
+			info.height = normalizePanelHeight(round2(data.height), info.height or 40)
 			self.frame:SetHeight(info.height)
 		end
 		if data.hideBorder ~= nil then

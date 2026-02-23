@@ -124,6 +124,11 @@ function CastbarSettings.BuildStandaloneCastbarSettings(ctx)
 		if anchor == "BOTTOM" then return "TOP", "CENTER" end
 		return "CENTER", "CENTER"
 	end
+	local function normalizeRelativeFrameName(value)
+		local key = (type(value) == "string" and value ~= "") and value or "UIParent"
+		if key == "EQOLUFRaidAnchor" then return "CompactRaidFrameContainer" end
+		return key
+	end
 	local function ensureCastAnchor()
 		local anchor = getCast({ "cast", "anchor" })
 		local defAnchor = castDef and castDef.anchor
@@ -146,7 +151,7 @@ function CastbarSettings.BuildStandaloneCastbarSettings(ctx)
 
 		anchor.point = normalizeAnchorPoint(anchor.point, fallbackPoint)
 		anchor.relativePoint = normalizeAnchorPoint(anchor.relativePoint, anchor.point)
-		anchor.relativeFrame = (type(anchor.relativeFrame) == "string" and anchor.relativeFrame ~= "") and anchor.relativeFrame or "UIParent"
+		anchor.relativeFrame = normalizeRelativeFrameName(anchor.relativeFrame)
 		if anchor.x == nil then
 			anchor.x = fallbackX
 		else
@@ -178,6 +183,7 @@ function CastbarSettings.BuildStandaloneCastbarSettings(ctx)
 		end
 
 		add("UIParent", "UIParent")
+		add("CompactRaidFrameContainer", "Raid frame")
 		add("EssentialCooldownViewer", "Essential Cooldown Viewer")
 		add("UtilityCooldownViewer", "Utility Cooldown Viewer")
 		add("BuffBarCooldownViewer", "Buff Bar Cooldowns")
@@ -240,15 +246,18 @@ function CastbarSettings.BuildStandaloneCastbarSettings(ctx)
 		end
 
 		local anchor = ensureCastAnchor()
-		local currentRelative = anchor and anchor.relativeFrame
+		local currentRelative = normalizeRelativeFrameName(anchor and anchor.relativeFrame)
 		if currentRelative and not seen[currentRelative] then add(currentRelative, currentRelative) end
 		return entries
 	end
 	local function validateRelativeFrame(anchor)
-		local target = anchor and anchor.relativeFrame or "UIParent"
+		local target = normalizeRelativeFrameName(anchor and anchor.relativeFrame)
 		local entries = relativeFrameEntries()
 		for _, entry in ipairs(entries) do
-			if entry.value == target then return target end
+			if entry.value == target then
+				if anchor then anchor.relativeFrame = target end
+				return target
+			end
 		end
 		if anchor then
 			anchor.relativeFrame = "UIParent"
@@ -298,7 +307,7 @@ function CastbarSettings.BuildStandaloneCastbarSettings(ctx)
 		return validateRelativeFrame(anchor)
 	end, function(value)
 		local anchor = ensureCastAnchor()
-		local target = value or "UIParent"
+		local target = normalizeRelativeFrameName(value)
 		local validTarget = false
 		for _, entry in ipairs(relativeFrameEntries()) do
 			if entry.value == target then

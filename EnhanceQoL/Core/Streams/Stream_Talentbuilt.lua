@@ -1,4 +1,4 @@
--- luacheck: globals EnhanceQoL GAMEMENU_OPTIONS MenuResponse MenuUtil ClassTalentHelper PlayerSpellsMicroButton
+-- luacheck: globals EnhanceQoL GAMEMENU_OPTIONS MenuResponse MenuUtil ClassTalentHelper PlayerSpellsMicroButton NORMAL_FONT_COLOR
 local addonName, addon = ...
 local L = addon.L
 
@@ -7,6 +7,8 @@ local db
 local stream
 local provider
 local TALENTS_PREFIX_DEFAULT = (TALENTS or "Talents") .. ":"
+local floor = math.floor
+local format = string.format
 
 local function getOptionsHint()
 	if addon.DataPanel and addon.DataPanel.GetOptionsHintText then
@@ -24,6 +26,16 @@ local function ensureDB()
 	db.prefix = db.prefix or TALENTS_PREFIX_DEFAULT
 	db.fontSize = db.fontSize or 14
 	db.hideIcon = db.hideIcon or false
+	if db.useTextColor == nil then db.useTextColor = false end
+	if db.usePrefixColor == nil then db.usePrefixColor = false end
+	if not db.textColor then
+		local r, g, b = 1, 1, 1
+		if NORMAL_FONT_COLOR and NORMAL_FONT_COLOR.GetRGB then
+			r, g, b = NORMAL_FONT_COLOR:GetRGB()
+		end
+		db.textColor = { r = r, g = g, b = b }
+	end
+	if not db.prefixColor then db.prefixColor = { r = 0.75, g = 0.75, b = 0.75 } end
 end
 local function RestorePosition(frame)
 	if db.point and db.x and db.y then
@@ -103,7 +115,7 @@ local function createAceWindow()
 	aceWindow = frame.frame
 	frame:SetTitle((addon.DataPanel and addon.DataPanel.GetStreamOptionsTitle and addon.DataPanel.GetStreamOptionsTitle(stream and stream.meta and stream.meta.title)) or GAMEMENU_OPTIONS)
 	frame:SetWidth(300)
-	frame:SetHeight(200)
+	frame:SetHeight(340)
 	frame:SetLayout("List")
 
 	frame.frame:SetScript("OnShow", function(self) RestorePosition(self) end)
@@ -142,7 +154,49 @@ local function createAceWindow()
 	end)
 	frame:AddChild(hide)
 
+	local useColor = AceGUI:Create("CheckBox")
+	useColor:SetLabel(L["goldPanelUseTextColor"] or "Use custom text color")
+	useColor:SetValue(db.useTextColor)
+	useColor:SetCallback("OnValueChanged", function(_, _, val)
+		db.useTextColor = val and true or false
+		addon.DataHub:RequestUpdate(stream)
+	end)
+	frame:AddChild(useColor)
+
+	local textColor = AceGUI:Create("ColorPicker")
+	textColor:SetLabel(L["Text color"] or "Text color")
+	textColor:SetColor(db.textColor.r, db.textColor.g, db.textColor.b)
+	textColor:SetCallback("OnValueChanged", function(_, _, r, g, b)
+		db.textColor = { r = r, g = g, b = b }
+		if db.useTextColor then addon.DataHub:RequestUpdate(stream) end
+	end)
+	frame:AddChild(textColor)
+
+	local usePrefixColor = AceGUI:Create("CheckBox")
+	usePrefixColor:SetLabel(L["Talent use prefix color"] or "Use custom prefix color")
+	usePrefixColor:SetValue(db.usePrefixColor)
+	usePrefixColor:SetCallback("OnValueChanged", function(_, _, val)
+		db.usePrefixColor = val and true or false
+		addon.DataHub:RequestUpdate(stream)
+	end)
+	frame:AddChild(usePrefixColor)
+
+	local prefixColor = AceGUI:Create("ColorPicker")
+	prefixColor:SetLabel(L["Talent prefix color"] or "Prefix color")
+	prefixColor:SetColor(db.prefixColor.r, db.prefixColor.g, db.prefixColor.b)
+	prefixColor:SetCallback("OnValueChanged", function(_, _, r, g, b)
+		db.prefixColor = { r = r, g = g, b = b }
+		if db.usePrefixColor then addon.DataHub:RequestUpdate(stream) end
+	end)
+	frame:AddChild(prefixColor)
+
 	frame.frame:Show()
+end
+
+local function colorizeText(text, color)
+	if not text or text == "" then return text end
+	if color and color.r and color.g and color.b then return format("|cff%02x%02x%02x%s|r", floor(color.r * 255 + 0.5), floor(color.g * 255 + 0.5), floor(color.b * 255 + 0.5), text) end
+	return text
 end
 
 local function GetCurrentTalents(stream)
@@ -153,17 +207,20 @@ local function GetCurrentTalents(stream)
 	local prefix = ""
 	if db.prefix ~= "" then
 		if db.prefix == TALENTS_PREFIX_DEFAULT then
-			prefix = ("|cffc0c0c0%s|r "):format(TALENTS_PREFIX_DEFAULT)
+			prefix = format("|cffc0c0c0%s|r ", TALENTS_PREFIX_DEFAULT)
 		else
 			prefix = db.prefix .. " "
 		end
+		if db.usePrefixColor and db.prefixColor then prefix = colorizeText(db.prefix .. " ", db.prefixColor) end
 	end
 	local icon = ""
 	if not db.hideIcon then
 		local size = db and db.fontSize or 14
-		icon = ("|TInterface\\Addons\\EnhanceQoL\\Icons\\Talents:%d:%d:0:0|t "):format(size, size)
+		icon = format("|TInterface\\Addons\\EnhanceQoL\\Icons\\Talents:%d:%d:0:0|t ", size, size)
 	end
-	stream.snapshot.text = icon .. prefix .. name
+	local nameText = name
+	if db.useTextColor then nameText = colorizeText(name, db.textColor) end
+	stream.snapshot.text = icon .. prefix .. nameText
 	stream.snapshot.fontSize = db.fontSize
 	local hint = getOptionsHint()
 	local clickHint = L["Talent loadout click hint"] or "Left-click to switch loadout"
@@ -176,7 +233,7 @@ end
 
 provider = {
 	id = "talent",
-	version = 1,
+	version = 3,
 	title = TALENTS,
 	update = GetCurrentTalents,
 	events = {

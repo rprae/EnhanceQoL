@@ -1,4 +1,4 @@
--- luacheck: globals EnhanceQoL GAMEMENU_OPTIONS C_CurrencyInfo ITEM_QUALITY_COLORS HIGHLIGHT_FONT_COLOR_CODE RED_FONT_COLOR_CODE FONT_COLOR_CODE_CLOSE CURRENCY_SEASON_TOTAL_MAXIMUM CURRENCY_SEASON_TOTAL CURRENCY_TOTAL CURRENCY_TOTAL_CAP BreakUpLargeNumbers
+-- luacheck: globals EnhanceQoL GAMEMENU_OPTIONS C_CurrencyInfo ITEM_QUALITY_COLORS HIGHLIGHT_FONT_COLOR_CODE RED_FONT_COLOR_CODE FONT_COLOR_CODE_CLOSE CURRENCY_SEASON_TOTAL_MAXIMUM CURRENCY_SEASON_TOTAL CURRENCY_TOTAL CURRENCY_TOTAL_CAP BreakUpLargeNumbers NORMAL_FONT_COLOR
 local addonName, addon = ...
 local L = addon.L
 
@@ -11,6 +11,7 @@ local trackedDirty = true
 local abs = math.abs
 local floor = math.floor
 local ceil = math.ceil
+local format = string.format
 
 local MAX_DECIMALS = 3
 local SHORT_SUFFIXES = { "K", "M", "B", "T", "P", "E" }
@@ -74,12 +75,24 @@ local function ensureDB()
 	db.currencyOptions = db.currencyOptions or {}
 	db.tooltipPerCurrency = db.tooltipPerCurrency or false
 	if db.showDescription == nil then db.showDescription = true end
+	if db.useTextColor == nil then db.useTextColor = false end
+	if not db.textColor then
+		local r, g, b = 1, 0.82, 0
+		if NORMAL_FONT_COLOR and NORMAL_FONT_COLOR.GetRGB then
+			r, g, b = NORMAL_FONT_COLOR:GetRGB()
+		end
+		db.textColor = { r = r, g = g, b = b }
+	end
 	if trackedDirty then rebuildTracked() end
 end
 
 local function clampDecimals(value)
 	local decimals = tonumber(value) or 0
-	if decimals < 0 then decimals = 0 elseif decimals > MAX_DECIMALS then decimals = MAX_DECIMALS end
+	if decimals < 0 then
+		decimals = 0
+	elseif decimals > MAX_DECIMALS then
+		decimals = MAX_DECIMALS
+	end
 	return floor(decimals + 0.5)
 end
 
@@ -94,7 +107,11 @@ end
 local function getFormatKey(opts)
 	if opts.mode == "short" then
 		local dec = clampDecimals(opts.decimals)
-		if dec < 0 then dec = 0 elseif dec > MAX_DECIMALS then dec = MAX_DECIMALS end
+		if dec < 0 then
+			dec = 0
+		elseif dec > MAX_DECIMALS then
+			dec = MAX_DECIMALS
+		end
 		return "short" .. dec
 	end
 	return "full"
@@ -249,7 +266,7 @@ local function createAceWindow()
 	aceWindowWidget = frame
 	frame:SetTitle((addon.DataPanel and addon.DataPanel.GetStreamOptionsTitle and addon.DataPanel.GetStreamOptionsTitle(stream and stream.meta and stream.meta.title)) or GAMEMENU_OPTIONS)
 	frame:SetWidth(280)
-	frame:SetHeight(320)
+	frame:SetHeight(380)
 	frame:SetLayout("List")
 
 	db._windowStatus = db._windowStatus or {}
@@ -288,6 +305,24 @@ local function createAceWindow()
 	end)
 	frame:AddChild(showDesc)
 
+	local useColor = AceGUI:Create("CheckBox")
+	useColor:SetLabel(L["goldPanelUseTextColor"] or "Use custom text color")
+	useColor:SetValue(db.useTextColor)
+	useColor:SetCallback("OnValueChanged", function(_, _, val)
+		db.useTextColor = val and true or false
+		fullUpdate()
+	end)
+	frame:AddChild(useColor)
+
+	local textColor = AceGUI:Create("ColorPicker")
+	textColor:SetLabel(L["Text color"] or "Text color")
+	textColor:SetColor(db.textColor.r, db.textColor.g, db.textColor.b)
+	textColor:SetCallback("OnValueChanged", function(_, _, r, g, b)
+		db.textColor = { r = r, g = g, b = b }
+		if db.useTextColor then fullUpdate() end
+	end)
+	frame:AddChild(textColor)
+
 	local addGroup = addon.functions.createContainer("SimpleGroup", "Flow")
 	local addBox = AceGUI:Create("EditBox")
 	addBox:SetLabel(L["Currency ID"] or "Currency ID")
@@ -320,6 +355,25 @@ local function createAceWindow()
 	renderList()
 
 	frame:Show()
+end
+
+local function colorToCode(color)
+	local r = floor(((color and color.r) or 1) * 255 + 0.5)
+	local g = floor(((color and color.g) or 1) * 255 + 0.5)
+	local b = floor(((color and color.b) or 1) * 255 + 0.5)
+	return format("|cff%02x%02x%02x", r, g, b)
+end
+
+local function resolveQuantityColorCode(info, qty)
+	if db and db.useTextColor and db.textColor then return colorToCode(db.textColor) end
+	local colorCode = HIGHLIGHT_FONT_COLOR_CODE
+	if info.useTotalEarnedForMaxQty and info.maxQuantity and info.maxQuantity > 0 then
+		local earnedRaw = info.totalEarned or info.trackedQuantity or 0
+		if earnedRaw >= info.maxQuantity then colorCode = RED_FONT_COLOR_CODE end
+	elseif info.maxQuantity and info.maxQuantity > 0 and qty >= info.maxQuantity then
+		colorCode = RED_FONT_COLOR_CODE
+	end
+	return colorCode
 end
 
 local iconCache = {} -- [currencyID] = texturePath or fileID
@@ -379,17 +433,11 @@ checkCurrencies = function(s)
 			if not iconCache[id] and info.iconFileID then iconCache[id] = info.iconFileID end
 			local icon = iconCache[id] or info.iconFileID
 			local qty = info.quantity or 0
-			local colorCode = HIGHLIGHT_FONT_COLOR_CODE
-			if info.useTotalEarnedForMaxQty and info.maxQuantity and info.maxQuantity > 0 then
-				local earnedRaw = info.totalEarned or info.trackedQuantity or 0
-				if earnedRaw >= info.maxQuantity then colorCode = RED_FONT_COLOR_CODE end
-			elseif info.maxQuantity and info.maxQuantity > 0 and qty >= info.maxQuantity then
-				colorCode = RED_FONT_COLOR_CODE
-			end
+			local colorCode = resolveQuantityColorCode(info, qty)
 			local qtyText = formatCurrencyAmount(id, qty)
 			parts[#parts + 1] = {
 				id = id,
-				text = ("|T%s:%d:%d:0:0|t %s%s%s"):format(icon or 0, size, size, colorCode, qtyText, FONT_COLOR_CODE_CLOSE),
+				text = format("|T%s:%d:%d:0:0|t %s%s%s", icon or 0, size, size, colorCode, qtyText, FONT_COLOR_CODE_CLOSE),
 			}
 			idToIndex[id] = #parts
 			if not db.tooltipPerCurrency then
@@ -423,7 +471,9 @@ checkCurrencies = function(s)
 		s.snapshot.text = nil
 	else
 		s.snapshot.parts = nil
-		s.snapshot.text = EMPTY_TRACKING_TEXT
+		local emptyText = EMPTY_TRACKING_TEXT
+		if db and db.useTextColor and db.textColor then emptyText = format("%s%s%s", colorToCode(db.textColor), EMPTY_TRACKING_TEXT, FONT_COLOR_CODE_CLOSE) end
+		s.snapshot.text = emptyText
 	end
 	s.snapshot.fontSize = size
 	rebuildTooltip(s)
@@ -442,16 +492,10 @@ updateCurrency = function(s, id)
 	if not iconCache[id] and info.iconFileID then iconCache[id] = info.iconFileID end
 	local icon = iconCache[id] or info.iconFileID
 	local qty = info.quantity or 0
-	local colorCode = HIGHLIGHT_FONT_COLOR_CODE
-	if info.useTotalEarnedForMaxQty and info.maxQuantity and info.maxQuantity > 0 then
-		local earnedRaw = info.totalEarned or info.trackedQuantity or 0
-		if earnedRaw >= info.maxQuantity then colorCode = RED_FONT_COLOR_CODE end
-	elseif info.maxQuantity and info.maxQuantity > 0 and qty >= info.maxQuantity then
-		colorCode = RED_FONT_COLOR_CODE
-	end
+	local colorCode = resolveQuantityColorCode(info, qty)
 	local size = db.fontSize or 14
 	local qtyText = formatCurrencyAmount(id, qty)
-	s.snapshot.parts[idx].text = ("|T%s:%d:%d:0:0|t %s%s%s"):format(icon or 0, size, size, colorCode, qtyText, FONT_COLOR_CODE_CLOSE)
+	s.snapshot.parts[idx].text = format("|T%s:%d:%d:0:0|t %s%s%s", icon or 0, size, size, colorCode, qtyText, FONT_COLOR_CODE_CLOSE)
 	if not db.tooltipPerCurrency then
 		local lines = {}
 		local color = ITEM_QUALITY_COLORS[info.quality]
@@ -482,7 +526,7 @@ end
 
 local provider = {
 	id = "currency",
-	version = 1,
+	version = 3,
 	title = CURRENCY,
 	update = checkCurrencies,
 	events = {
