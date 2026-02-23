@@ -533,6 +533,7 @@ function addon.functions.initDungeonFrame()
 	if not expandable then
 		expandable = addon.functions.SettingsCreateExpandableSection(addon.SettingsLayout.characterInspectCategory, {
 			name = L["MacrosAndConsumables"] or "Macros & Consumables",
+			newTagID = "MacrosAndConsumables",
 			expanded = false,
 			colorizeTitle = false,
 		})
