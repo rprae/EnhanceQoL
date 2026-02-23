@@ -1004,11 +1004,7 @@ local hearthstoneID = {
 		id = 210455,
 		spellID = 438606,
 		usable = function()
-			if addon.variables.unitRace == "LightforgedDraenei" or addon.variables.unitRace == "Draenei" and PlayerHasToy(210455) then
-				return true
-			else
-				return false
-			end
+			return addon.variables.unitRace == "LightforgedDraenei" or addon.variables.unitRace == "Draenei"
 		end,
 	}, -- Draenic Hologem
 
@@ -1028,8 +1024,8 @@ local function setAvailableHearthstone()
 		if v.isItem then
 			if C_Item.GetItemCount(v.id) > 0 then addIt = true end
 		elseif PlayerHasToy(v.id) then
-			if v.usable and v.usable() then
-				addIt = true
+			if v.usable ~= nil then
+				addIt = v.usable() and true or false
 			elseif v.achievementID then
 				if select(4, GetAchievementInfo(v.achievementID)) then addIt = true end
 			else
