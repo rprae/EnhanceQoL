@@ -29,15 +29,14 @@ addon.Flasks = addon.Flasks or {}
 addon.Flasks.functions = addon.Flasks.functions or {}
 addon.Flasks.filteredFlasks = addon.Flasks.filteredFlasks or {}
 
-addon.Flasks.typeOrder = { "strength", "agility", "intellect", "versatility", "alchemicalChaos" }
+addon.Flasks.typeOrder = { "haste", "criticalStrike", "mastery", "versatility", "alchemicalChaos" }
 addon.Flasks.roleOrder = { "tank", "healer", "ranged", "melee" }
-addon.Flasks.typeLabels = addon.Flasks.typeLabels
-	or {
-		strength = STAT_HASTE_LABEL,
-		agility = STAT_CRIT_LABEL,
-		intellect = STAT_MASTERY_LABEL,
-		versatility = STAT_VERSATILITY_LABEL,
-	}
+addon.Flasks.typeLabels = addon.Flasks.typeLabels or {
+	haste = STAT_HASTE_LABEL,
+	criticalStrike = STAT_CRIT_LABEL,
+	mastery = STAT_MASTERY_LABEL,
+	versatility = STAT_VERSATILITY_LABEL,
+}
 addon.Flasks.roleLabels = addon.Flasks.roleLabels
 	or {
 		tank = ROLE_TANK_LABEL,
@@ -49,32 +48,32 @@ addon.Flasks.roleLabels = addon.Flasks.roleLabels
 -- Current expansion set (highest rank -> lowest rank). Keep this table easy to extend.
 addon.Flasks.typeFlasks = addon.Flasks.typeFlasks
 	or {
-		strength = {
+		haste = {
 			-- Midnight
-			{ key = "FlaskOfTheBloodKnights2", id = 241324, requiredLevel = 81, rank = 2, typeKey = "strength", label = STAT_HASTE_LABEL },
-			{ key = "FlaskOfTheBloodKnights1", id = 241325, requiredLevel = 81, rank = 1, typeKey = "strength", label = STAT_HASTE_LABEL },
+			{ key = "FlaskOfTheShatteredSun2", id = 241326, requiredLevel = 81, rank = 2, typeKey = "haste", label = STAT_HASTE_LABEL },
+			{ key = "FlaskOfTheShatteredSun1", id = 241327, requiredLevel = 81, rank = 1, typeKey = "haste", label = STAT_HASTE_LABEL },
 			-- TWW legacy
-			{ key = "FlaskOfTemperedAggression3", id = 212271, requiredLevel = 71, rank = 3, typeKey = "strength", label = STAT_HASTE_LABEL },
-			{ key = "FlaskOfTemperedAggression2", id = 212270, requiredLevel = 71, rank = 2, typeKey = "strength", label = STAT_HASTE_LABEL },
-			{ key = "FlaskOfTemperedAggression1", id = 212269, requiredLevel = 71, rank = 1, typeKey = "strength", label = STAT_HASTE_LABEL },
+			{ key = "FlaskOfTemperedSwiftness3", id = 212274, requiredLevel = 71, rank = 3, typeKey = "haste", label = STAT_HASTE_LABEL },
+			{ key = "FlaskOfTemperedSwiftness2", id = 212273, requiredLevel = 71, rank = 2, typeKey = "haste", label = STAT_HASTE_LABEL },
+			{ key = "FlaskOfTemperedSwiftness1", id = 212272, requiredLevel = 71, rank = 1, typeKey = "haste", label = STAT_HASTE_LABEL },
 		},
-		agility = {
+		criticalStrike = {
 			-- Midnight
-			{ key = "FlaskOfTheShatteredSun2", id = 241326, requiredLevel = 81, rank = 2, typeKey = "agility", label = STAT_CRIT_LABEL },
-			{ key = "FlaskOfTheShatteredSun1", id = 241327, requiredLevel = 81, rank = 1, typeKey = "agility", label = STAT_CRIT_LABEL },
+			{ key = "FlaskOfTheBloodKnights2", id = 241324, requiredLevel = 81, rank = 2, typeKey = "criticalStrike", label = STAT_CRIT_LABEL },
+			{ key = "FlaskOfTheBloodKnights1", id = 241325, requiredLevel = 81, rank = 1, typeKey = "criticalStrike", label = STAT_CRIT_LABEL },
 			-- TWW legacy
-			{ key = "FlaskOfTemperedSwiftness3", id = 212274, requiredLevel = 71, rank = 3, typeKey = "agility", label = STAT_CRIT_LABEL },
-			{ key = "FlaskOfTemperedSwiftness2", id = 212273, requiredLevel = 71, rank = 2, typeKey = "agility", label = STAT_CRIT_LABEL },
-			{ key = "FlaskOfTemperedSwiftness1", id = 212272, requiredLevel = 71, rank = 1, typeKey = "agility", label = STAT_CRIT_LABEL },
+			{ key = "FlaskOfTemperedAggression3", id = 212271, requiredLevel = 71, rank = 3, typeKey = "criticalStrike", label = STAT_CRIT_LABEL },
+			{ key = "FlaskOfTemperedAggression2", id = 212270, requiredLevel = 71, rank = 2, typeKey = "criticalStrike", label = STAT_CRIT_LABEL },
+			{ key = "FlaskOfTemperedAggression1", id = 212269, requiredLevel = 71, rank = 1, typeKey = "criticalStrike", label = STAT_CRIT_LABEL },
 		},
-		intellect = {
+		mastery = {
 			-- Midnight
-			{ key = "FlaskOfTheMagisters2", id = 241322, requiredLevel = 81, rank = 2, typeKey = "intellect", label = STAT_MASTERY_LABEL },
-			{ key = "FlaskOfTheMagisters1", id = 241323, requiredLevel = 81, rank = 1, typeKey = "intellect", label = STAT_MASTERY_LABEL },
+			{ key = "FlaskOfTheMagisters2", id = 241322, requiredLevel = 81, rank = 2, typeKey = "mastery", label = STAT_MASTERY_LABEL },
+			{ key = "FlaskOfTheMagisters1", id = 241323, requiredLevel = 81, rank = 1, typeKey = "mastery", label = STAT_MASTERY_LABEL },
 			-- TWW legacy
-			{ key = "FlaskOfTemperedMastery3", id = 212280, requiredLevel = 71, rank = 3, typeKey = "intellect", label = STAT_MASTERY_LABEL },
-			{ key = "FlaskOfTemperedMastery2", id = 212279, requiredLevel = 71, rank = 2, typeKey = "intellect", label = STAT_MASTERY_LABEL },
-			{ key = "FlaskOfTemperedMastery1", id = 212278, requiredLevel = 71, rank = 1, typeKey = "intellect", label = STAT_MASTERY_LABEL },
+			{ key = "FlaskOfTemperedMastery3", id = 212280, requiredLevel = 71, rank = 3, typeKey = "mastery", label = STAT_MASTERY_LABEL },
+			{ key = "FlaskOfTemperedMastery2", id = 212279, requiredLevel = 71, rank = 2, typeKey = "mastery", label = STAT_MASTERY_LABEL },
+			{ key = "FlaskOfTemperedMastery1", id = 212278, requiredLevel = 71, rank = 1, typeKey = "mastery", label = STAT_MASTERY_LABEL },
 		},
 		versatility = {
 			-- Midnight
@@ -95,32 +94,32 @@ addon.Flasks.typeFlasks = addon.Flasks.typeFlasks
 -- Fleeting variants (provided item IDs). Preferred over cauldrons when cauldron preference is enabled.
 addon.Flasks.fleetingTypeFlasks = addon.Flasks.fleetingTypeFlasks
 	or {
-		strength = {
+		haste = {
 			-- Midnight
-			{ key = "FleetingFlaskOfTheBloodKnights2", id = 245931, requiredLevel = 81, rank = 2, typeKey = "strength" },
-			{ key = "FleetingFlaskOfTheBloodKnights1", id = 245930, requiredLevel = 81, rank = 1, typeKey = "strength" },
+			{ key = "FleetingFlaskOfTheShatteredSun2", id = 245929, requiredLevel = 81, rank = 2, typeKey = "haste" },
+			{ key = "FleetingFlaskOfTheShatteredSun1", id = 245928, requiredLevel = 81, rank = 1, typeKey = "haste" },
 			-- TWW legacy
-			{ key = "FleetingFlaskOfTemperedAggression3", id = 212728, requiredLevel = 71, rank = 3, typeKey = "strength" },
-			{ key = "FleetingFlaskOfTemperedAggression2", id = 212727, requiredLevel = 71, rank = 2, typeKey = "strength" },
-			{ key = "FleetingFlaskOfTemperedAggression1", id = 212725, requiredLevel = 71, rank = 1, typeKey = "strength" },
+			{ key = "FleetingFlaskOfTemperedSwiftness3", id = 212731, requiredLevel = 71, rank = 3, typeKey = "haste" },
+			{ key = "FleetingFlaskOfTemperedSwiftness2", id = 212730, requiredLevel = 71, rank = 2, typeKey = "haste" },
+			{ key = "FleetingFlaskOfTemperedSwiftness1", id = 212729, requiredLevel = 71, rank = 1, typeKey = "haste" },
 		},
-		agility = {
+		criticalStrike = {
 			-- Midnight
-			{ key = "FleetingFlaskOfTheShatteredSun2", id = 245929, requiredLevel = 81, rank = 2, typeKey = "agility" },
-			{ key = "FleetingFlaskOfTheShatteredSun1", id = 245928, requiredLevel = 81, rank = 1, typeKey = "agility" },
+			{ key = "FleetingFlaskOfTheBloodKnights2", id = 245931, requiredLevel = 81, rank = 2, typeKey = "criticalStrike" },
+			{ key = "FleetingFlaskOfTheBloodKnights1", id = 245930, requiredLevel = 81, rank = 1, typeKey = "criticalStrike" },
 			-- TWW legacy
-			{ key = "FleetingFlaskOfTemperedSwiftness3", id = 212731, requiredLevel = 71, rank = 3, typeKey = "agility" },
-			{ key = "FleetingFlaskOfTemperedSwiftness2", id = 212730, requiredLevel = 71, rank = 2, typeKey = "agility" },
-			{ key = "FleetingFlaskOfTemperedSwiftness1", id = 212729, requiredLevel = 71, rank = 1, typeKey = "agility" },
+			{ key = "FleetingFlaskOfTemperedAggression3", id = 212728, requiredLevel = 71, rank = 3, typeKey = "criticalStrike" },
+			{ key = "FleetingFlaskOfTemperedAggression2", id = 212727, requiredLevel = 71, rank = 2, typeKey = "criticalStrike" },
+			{ key = "FleetingFlaskOfTemperedAggression1", id = 212725, requiredLevel = 71, rank = 1, typeKey = "criticalStrike" },
 		},
-		intellect = {
+		mastery = {
 			-- Midnight
-			{ key = "FleetingFlaskOfTheMagisters2", id = 245933, requiredLevel = 81, rank = 2, typeKey = "intellect" },
-			{ key = "FleetingFlaskOfTheMagisters1", id = 245932, requiredLevel = 81, rank = 1, typeKey = "intellect" },
+			{ key = "FleetingFlaskOfTheMagisters2", id = 245933, requiredLevel = 81, rank = 2, typeKey = "mastery" },
+			{ key = "FleetingFlaskOfTheMagisters1", id = 245932, requiredLevel = 81, rank = 1, typeKey = "mastery" },
 			-- TWW legacy
-			{ key = "FleetingFlaskOfTemperedMastery3", id = 212738, requiredLevel = 71, rank = 3, typeKey = "intellect" },
-			{ key = "FleetingFlaskOfTemperedMastery2", id = 212736, requiredLevel = 71, rank = 2, typeKey = "intellect" },
-			{ key = "FleetingFlaskOfTemperedMastery1", id = 212735, requiredLevel = 71, rank = 1, typeKey = "intellect" },
+			{ key = "FleetingFlaskOfTemperedMastery3", id = 212738, requiredLevel = 71, rank = 3, typeKey = "mastery" },
+			{ key = "FleetingFlaskOfTemperedMastery2", id = 212736, requiredLevel = 71, rank = 2, typeKey = "mastery" },
+			{ key = "FleetingFlaskOfTemperedMastery1", id = 212735, requiredLevel = 71, rank = 1, typeKey = "mastery" },
 		},
 		versatility = {
 			-- Midnight
@@ -261,9 +260,7 @@ local function appendAvailable(list, playerLevel, out)
 	if not list then return end
 	for i = 1, #list do
 		local entry = list[i]
-		if isEntryAvailable(entry, playerLevel) then
-			out[#out + 1] = entry
-		end
+		if isEntryAvailable(entry, playerLevel) then out[#out + 1] = entry end
 	end
 end
 
@@ -275,12 +272,10 @@ function addon.Flasks.functions.getPlayerSpecs()
 	local specCount = GetNumSpecializationsForClassID(classID) or 0
 	for i = 1, specCount do
 		local specID, specName = GetSpecializationInfoForClassID(classID, i)
-		if specID then
-			specs[#specs + 1] = {
-				id = specID,
-				name = specName or ("Spec " .. tostring(specID)),
-			}
-		end
+		if specID then specs[#specs + 1] = {
+			id = specID,
+			name = specName or ("Spec " .. tostring(specID)),
+		} end
 	end
 	return specs
 end
@@ -351,9 +346,7 @@ function addon.Flasks.functions.getRoleBucketForSpec(specID)
 		if roleBucket then return roleBucket end
 	end
 
-	if addon.variables and addon.variables.unitSpecId == specID then
-		return getRoleBucketFromRoleToken(addon.variables.unitRole, specID)
-	end
+	if addon.variables and addon.variables.unitSpecId == specID then return getRoleBucketFromRoleToken(addon.variables.unitRole, specID) end
 
 	return nil
 end

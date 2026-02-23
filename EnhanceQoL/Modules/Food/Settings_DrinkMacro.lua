@@ -516,12 +516,12 @@ local function buildDrinkMacroSettings()
 		parentSection = convenienceSection,
 	})
 
-	local flaskTypeOrder = { "strength", "agility", "intellect", "versatility", "alchemicalChaos", "none" }
-	local flaskSpecTypeOrder = { "useRole", "strength", "agility", "intellect", "versatility", "alchemicalChaos", "none" }
+	local flaskTypeOrder = { "haste", "criticalStrike", "mastery", "versatility", "alchemicalChaos", "none" }
+	local flaskSpecTypeOrder = { "useRole", "haste", "criticalStrike", "mastery", "versatility", "alchemicalChaos", "none" }
 	local flaskTypeFallback = {
-		strength = _G.STAT_HASTE,
-		agility = _G.STAT_CRITICAL_STRIKE,
-		intellect = _G.STAT_MASTERY,
+		haste = _G.STAT_HASTE,
+		criticalStrike = _G.STAT_CRITICAL_STRIKE,
+		mastery = _G.STAT_MASTERY,
 		versatility = _G.STAT_VERSATILITY,
 	}
 	local flaskRoleFallback = {
@@ -532,9 +532,9 @@ local function buildDrinkMacroSettings()
 	}
 
 	addon.Flasks.typeLabels = addon.Flasks.typeLabels or {}
-	addon.Flasks.typeLabels.strength = flaskTypeFallback.strength
-	addon.Flasks.typeLabels.agility = flaskTypeFallback.agility
-	addon.Flasks.typeLabels.intellect = flaskTypeFallback.intellect
+	addon.Flasks.typeLabels.haste = flaskTypeFallback.haste
+	addon.Flasks.typeLabels.criticalStrike = flaskTypeFallback.criticalStrike
+	addon.Flasks.typeLabels.mastery = flaskTypeFallback.mastery
 	addon.Flasks.typeLabels.versatility = flaskTypeFallback.versatility
 	addon.Flasks.typeLabels.alchemicalChaos = nil
 	addon.Flasks.roleLabels = addon.Flasks.roleLabels or {}
