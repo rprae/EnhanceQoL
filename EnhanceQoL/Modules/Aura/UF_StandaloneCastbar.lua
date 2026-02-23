@@ -327,33 +327,11 @@ local function getEffectiveScale(frame)
 	return 1
 end
 
-local function getAnchorMatchHorizontalOutsets(castCfg, castDefaults)
-	local border = castCfg.border
-	if border == nil then border = castDefaults.border end
-	if type(border) ~= "table" or border.enabled == false then return 0, 0 end
-
-	local offset = tonumber(border.offset)
-	if offset == nil then
-		local defBorder = castDefaults.border
-		offset = type(defBorder) == "table" and tonumber(defBorder.offset) or nil
-	end
-	if offset == nil then
-		local edgeSize = tonumber(border.edgeSize)
-		if edgeSize == nil then
-			local defBorder = castDefaults.border
-			edgeSize = type(defBorder) == "table" and tonumber(defBorder.edgeSize) or nil
-		end
-		offset = edgeSize or 1
-	end
-	offset = math.max(0, tonumber(offset) or 0)
-	return offset, offset
-end
-
 local function computeBarWidthForAnchorMatch(targetWidth, castCfg, castDefaults, barHeight)
 	local desiredTotal = tonumber(targetWidth) or MIN_CASTBAR_WIDTH
 	if desiredTotal < MIN_CASTBAR_WIDTH then desiredTotal = MIN_CASTBAR_WIDTH end
 
-	local leftOutset, rightOutset = getAnchorMatchHorizontalOutsets(castCfg, castDefaults)
+	local leftOutset, rightOutset = 0, 0
 	local minX = -leftOutset
 	local iconRight
 	local showIcon, iconSize, iconOffsetX = getIconLayoutInfo(castCfg, castDefaults, barHeight)
@@ -372,7 +350,7 @@ end
 local function computeAnchorMatchXAdjustment(castCfg, castDefaults, barHeight, barWidth, point)
 	local width = tonumber(barWidth) or 0
 	if width <= 0 then return 0 end
-	local leftOutset, rightOutset = getAnchorMatchHorizontalOutsets(castCfg, castDefaults)
+	local leftOutset, rightOutset = 0, 0
 	local minX = -leftOutset
 	local maxX = width + rightOutset
 	local showIcon, iconSize, iconOffsetX = getIconLayoutInfo(castCfg, castDefaults, barHeight)
