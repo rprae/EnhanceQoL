@@ -160,15 +160,33 @@ local function resolveRelativeAnchorFrame(relativeName)
 end
 local MIN_WIDTH = 50
 local classResourceFramesByClass = {
-	DEATHKNIGHT = { "RuneFrame" },
-	DRUID = { "DruidComboPointBarFrame" },
-	EVOKER = { "EssencePlayerFrame" },
-	MAGE = { "MageArcaneChargesFrame" },
-	MONK = { "MonkHarmonyBarFrame" },
-	PALADIN = { "PaladinPowerBarFrame" },
-	ROGUE = { "RogueComboPointBarFrame" },
-	SHAMAN = { "ShamanMaelstromWeaponBarFrame" },
-	WARLOCK = { "WarlockPowerFrame" },
+	DEATHKNIGHT = {
+		{ id = "runes", frameName = "RuneFrame", labelKey = "RUNES", label = "Runes" },
+	},
+	DRUID = {
+		{ id = "comboPoints", frameName = "DruidComboPointBarFrame", labelKey = "COMBO_POINTS", label = "Combo Points" },
+	},
+	EVOKER = {
+		{ id = "essence", frameName = "EssencePlayerFrame", labelKey = "ESSENCE", label = "Essence" },
+	},
+	MAGE = {
+		{ id = "arcaneCharges", frameName = "MageArcaneChargesFrame", labelKey = "ARCANE_CHARGES", label = "Arcane Charges" },
+	},
+	MONK = {
+		{ id = "chi", frameName = "MonkHarmonyBarFrame", labelKey = "CHI", label = "Chi" },
+	},
+	PALADIN = {
+		{ id = "holyPower", frameName = "PaladinPowerBarFrame", labelKey = "HOLY_POWER", label = "Holy Power" },
+	},
+	ROGUE = {
+		{ id = "comboPoints", frameName = "RogueComboPointBarFrame", labelKey = "COMBO_POINTS", label = "Combo Points" },
+	},
+	SHAMAN = {
+		{ id = "maelstromWeapon", frameName = "ShamanMaelstromWeaponBarFrame", labelKey = "MAELSTROM_WEAPON", label = "Maelstrom Weapon" },
+	},
+	WARLOCK = {
+		{ id = "soulShards", frameName = "WarlockPowerFrame", labelKey = "SOUL_SHARDS", label = "Soul Shards" },
+	},
 }
 local totemFrameClasses = {
 	DEATHKNIGHT = true,
@@ -1046,6 +1064,7 @@ local defaults = {
 			anchor = "BOTTOM",
 			offset = { x = 0, y = -28 },
 			scale = 1,
+			resources = {},
 			totemFrame = {
 				enabled = false,
 				anchor = "BOTTOMRIGHT",
@@ -1714,13 +1733,63 @@ local function updateAllRaidTargetIcons()
 	end
 end
 
+function ClassResourceUtil.getClassResourceDescriptors(classTag)
+	if type(classTag) ~= "string" or classTag == "" then classTag = addon.variables and addon.variables.unitClass end
+	local descriptors = classTag and classResourceFramesByClass[classTag]
+	if type(descriptors) ~= "table" or #descriptors == 0 then return nil end
+	return descriptors
+end
+
+function ClassResourceUtil.getClassResourceOptions(classTag)
+	local options = {}
+	local seen = {}
+	local function appendDescriptors(descriptors)
+		if type(descriptors) ~= "table" then return end
+		for _, descriptor in ipairs(descriptors) do
+			local id = descriptor and descriptor.id
+			if type(id) == "string" and id ~= "" and not seen[id] then
+				seen[id] = true
+				local label
+				local key = descriptor.labelKey
+				local localized = key and _G[key]
+				if type(localized) == "string" and localized ~= "" then
+					label = localized
+				elseif type(descriptor.label) == "string" and descriptor.label ~= "" then
+					label = descriptor.label
+				else
+					label = id
+				end
+				options[#options + 1] = {
+					value = id,
+					label = label,
+					frameName = descriptor.frameName,
+				}
+			end
+		end
+	end
+	if classTag == "ALL" then
+		for _, descriptors in pairs(classResourceFramesByClass) do
+			appendDescriptors(descriptors)
+		end
+		table.sort(options, function(a, b)
+			local la = tostring(a and a.label or ""):lower()
+			local lb = tostring(b and b.label or ""):lower()
+			if la == lb then return tostring(a and a.value or "") < tostring(b and b.value or "") end
+			return la < lb
+		end)
+		return options
+	end
+	appendDescriptors(ClassResourceUtil.getClassResourceDescriptors(classTag))
+	return options
+end
+
 function ClassResourceUtil.getClassResourceFrames()
-	local classKey = addon.variables and addon.variables.unitClass
-	local names = classKey and classResourceFramesByClass[classKey]
-	if not names then return nil end
+	local descriptors = ClassResourceUtil.getClassResourceDescriptors()
+	if not descriptors then return nil end
 	local frames = {}
-	for _, name in ipairs(names) do
-		local frame = _G[name]
+	for _, descriptor in ipairs(descriptors) do
+		local frameName = descriptor and descriptor.frameName
+		local frame = frameName and _G[frameName]
 		if frame then frames[#frames + 1] = frame end
 	end
 	return frames
@@ -1747,6 +1816,7 @@ function ClassResourceUtil.restoreClassResourceFrame(frame)
 	if not frame then return end
 	local info = classResourceOriginalLayouts[frame]
 	classResourceManagedFrames[frame] = nil
+	if ClassResourceUtil._frameLevelMinimums then ClassResourceUtil._frameLevelMinimums[frame] = nil end
 	if not info then return end
 	if frame.SetParent and info.parent then frame:SetParent(info.parent) end
 	frame:ClearAllPoints()
@@ -1777,6 +1847,14 @@ function ClassResourceUtil.SetFrameLevelHookOffset(offset)
 	ClassResourceUtil._frameLevelMinimum = 7 + offset
 end
 
+function ClassResourceUtil.SetFrameLevelHookMinimum(frame, level)
+	if not frame then return end
+	level = tonumber(level) or 7
+	if level < 0 then level = 0 end
+	ClassResourceUtil._frameLevelMinimums = ClassResourceUtil._frameLevelMinimums or {}
+	ClassResourceUtil._frameLevelMinimums[frame] = level
+end
+
 function ClassResourceUtil.hookClassResourceFrame(frame)
 	if not frame or classResourceHooks[frame] then return end
 	classResourceHooks[frame] = true
@@ -1785,7 +1863,8 @@ function ClassResourceUtil.hookClassResourceFrame(frame)
 		hooksecurefunc(frame, "SetFrameLevel", function(self)
 			if not classResourceManagedFrames[self] then return end
 			if self._eqolClassResourceLevelHook then return end
-			local minLevel = ClassResourceUtil._frameLevelMinimum or 7
+			local minimums = ClassResourceUtil._frameLevelMinimums
+			local minLevel = (minimums and minimums[self]) or ClassResourceUtil._frameLevelMinimum or 7
 			if self:GetFrameLevel() >= minLevel then return end
 			self._eqolClassResourceLevelHook = true
 			self:SetFrameLevel(minLevel)
@@ -1794,56 +1873,96 @@ function ClassResourceUtil.hookClassResourceFrame(frame)
 	end
 end
 
+function ClassResourceUtil.GetNestedConfigValue(root, path)
+	local cur = root
+	if type(cur) ~= "table" then return nil end
+	for i = 1, #path do
+		if type(cur) ~= "table" then return nil end
+		cur = cur[path[i]]
+		if cur == nil then return nil end
+	end
+	return cur
+end
+
+function ClassResourceUtil.ResolveClassResourceConfigValue(cfg, def, resourceId, path, fallback)
+	local resourceCfg = type(cfg) == "table" and type(cfg.resources) == "table" and cfg.resources[resourceId] or nil
+	local resourceDef = type(def) == "table" and type(def.resources) == "table" and def.resources[resourceId] or nil
+	local value = ClassResourceUtil.GetNestedConfigValue(resourceCfg, path)
+	if value ~= nil then return value end
+	value = ClassResourceUtil.GetNestedConfigValue(cfg, path)
+	if value ~= nil then return value end
+	value = ClassResourceUtil.GetNestedConfigValue(resourceDef, path)
+	if value ~= nil then return value end
+	value = ClassResourceUtil.GetNestedConfigValue(def, path)
+	if value ~= nil then return value end
+	return fallback
+end
+
 applyClassResourceLayout = function(cfg)
 	local classKey = addon.variables and addon.variables.unitClass
-	if not classKey or not classResourceFramesByClass[classKey] then
-		ClassResourceUtil.restoreClassResourceFrames()
-		return
-	end
-	local frames = ClassResourceUtil.getClassResourceFrames()
-	if not frames or #frames == 0 then
+	local descriptors = classKey and ClassResourceUtil.getClassResourceDescriptors(classKey)
+	if not descriptors or #descriptors == 0 then
 		ClassResourceUtil.restoreClassResourceFrames()
 		return
 	end
 	local st = states[UNIT.PLAYER]
 	if not st or not st.frame then return end
 	local def = defaultsFor(UNIT.PLAYER)
-	local rcfg = (cfg and cfg.classResource) or (def and def.classResource) or {}
+	local rcfg = (cfg and cfg.classResource) or {}
+	local resourceDef = (def and def.classResource) or {}
 	if rcfg.enabled == false then
 		ClassResourceUtil.restoreClassResourceFrames()
 		return
 	end
 	if InCombatLockdown and InCombatLockdown() then return end
-
-	local anchor = rcfg.anchor or (def.classResource and def.classResource.anchor) or "TOP"
-	local offsetX = (rcfg.offset and rcfg.offset.x) or 0
-	local offsetY = (rcfg.offset and rcfg.offset.y)
-	if offsetY == nil then offsetY = anchor == "TOP" and -5 or 5 end
-	local scale = rcfg.scale or (def.classResource and def.classResource.scale) or 1
-	local resourceStrata = rcfg.strata
-	if resourceStrata == nil then resourceStrata = def.classResource and def.classResource.strata end
-	if type(resourceStrata) == "string" and resourceStrata ~= "" then
-		resourceStrata = string.upper(resourceStrata)
-	else
-		resourceStrata = nil
+	local activeFrames = {}
+	for _, descriptor in ipairs(descriptors) do
+		local resourceID = descriptor and descriptor.id
+		local frameName = descriptor and descriptor.frameName
+		local frame = frameName and _G[frameName]
+		if frame and type(resourceID) == "string" and resourceID ~= "" then
+			activeFrames[frame] = true
+			ClassResourceUtil.storeClassResourceDefaults(frame)
+			ClassResourceUtil.hookClassResourceFrame(frame)
+			local enabled = ClassResourceUtil.ResolveClassResourceConfigValue(rcfg, resourceDef, resourceID, { "enabled" }, true) ~= false
+			if enabled then
+				local anchor = ClassResourceUtil.ResolveClassResourceConfigValue(rcfg, resourceDef, resourceID, { "anchor" }, "TOP")
+				local offsetX = tonumber(ClassResourceUtil.ResolveClassResourceConfigValue(rcfg, resourceDef, resourceID, { "offset", "x" }, 0)) or 0
+				local offsetY = ClassResourceUtil.ResolveClassResourceConfigValue(rcfg, resourceDef, resourceID, { "offset", "y" }, nil)
+				if offsetY == nil then offsetY = anchor == "TOP" and -5 or 5 end
+				offsetY = tonumber(offsetY) or 0
+				local scale = tonumber(ClassResourceUtil.ResolveClassResourceConfigValue(rcfg, resourceDef, resourceID, { "scale" }, 1)) or 1
+				local resourceStrata = ClassResourceUtil.ResolveClassResourceConfigValue(rcfg, resourceDef, resourceID, { "strata" }, nil)
+				if type(resourceStrata) == "string" and resourceStrata ~= "" then
+					resourceStrata = string.upper(resourceStrata)
+				else
+					resourceStrata = nil
+				end
+				local frameLevelOffset = tonumber(ClassResourceUtil.ResolveClassResourceConfigValue(rcfg, resourceDef, resourceID, { "frameLevelOffset" }, 5)) or 5
+				if frameLevelOffset < 0 then frameLevelOffset = 0 end
+				local minLevel = max(0, (st.frame.GetFrameLevel and st.frame:GetFrameLevel() or 0) + frameLevelOffset)
+				if ClassResourceUtil.SetFrameLevelHookMinimum then
+					ClassResourceUtil.SetFrameLevelHookMinimum(frame, minLevel)
+				elseif ClassResourceUtil.SetFrameLevelHookOffset then
+					ClassResourceUtil.SetFrameLevelHookOffset(frameLevelOffset)
+				end
+				classResourceManagedFrames[frame] = true
+				frame.ignoreFramePositionManager = true
+				frame:ClearAllPoints()
+				frame:SetPoint(anchor, st.frame, anchor, offsetX, offsetY)
+				frame:SetParent(st.frame)
+				if frame.SetScale then frame:SetScale(scale) end
+				if frame.SetFrameStrata and st.frame.GetFrameStrata then frame:SetFrameStrata(resourceStrata or st.frame:GetFrameStrata()) end
+				if frame.SetFrameLevel then frame:SetFrameLevel(minLevel) end
+				if frame.Show and frame.IsShown and not frame:IsShown() then frame:Show() end
+			else
+				ClassResourceUtil.restoreClassResourceFrame(frame)
+				if frame.Hide then frame:Hide() end
+			end
+		end
 	end
-	local frameLevelOffset = tonumber(rcfg.frameLevelOffset)
-	if frameLevelOffset == nil then frameLevelOffset = tonumber(def.classResource and def.classResource.frameLevelOffset) end
-	if frameLevelOffset == nil then frameLevelOffset = 5 end
-	if frameLevelOffset < 0 then frameLevelOffset = 0 end
-	if ClassResourceUtil.SetFrameLevelHookOffset then ClassResourceUtil.SetFrameLevelHookOffset(frameLevelOffset) end
-
-	for _, frame in ipairs(frames) do
-		ClassResourceUtil.storeClassResourceDefaults(frame)
-		ClassResourceUtil.hookClassResourceFrame(frame)
-		classResourceManagedFrames[frame] = true
-		frame.ignoreFramePositionManager = true
-		frame:ClearAllPoints()
-		frame:SetPoint(anchor, st.frame, anchor, offsetX, offsetY)
-		frame:SetParent(st.frame)
-		if frame.SetScale then frame:SetScale(scale) end
-		if frame.SetFrameStrata and st.frame.GetFrameStrata then frame:SetFrameStrata(resourceStrata or st.frame:GetFrameStrata()) end
-		if frame.SetFrameLevel and st.frame.GetFrameLevel then frame:SetFrameLevel(max(0, (st.frame:GetFrameLevel() or 0) + frameLevelOffset)) end
+	for frame in pairs(classResourceManagedFrames) do
+		if not activeFrames[frame] then ClassResourceUtil.restoreClassResourceFrame(frame) end
 	end
 end
 
@@ -7900,7 +8019,11 @@ onEvent = function(self, event, unit, ...)
 			if UF._pendingProfileApply and UFProfileManager and UFProfileManager.ApplyCurrent then UFProfileManager.ApplyCurrent(UF._pendingProfileApplyReason or "PLAYER_REGEN_ENABLED") end
 		end
 	elseif event == "PLAYER_TARGET_CHANGED" then
-		if UFHelper and UFHelper.RangeFadeReset then UFHelper.RangeFadeReset() end
+		if UFHelper and UFHelper.RangeFadeRefreshTargetState then
+			UFHelper.RangeFadeRefreshTargetState(UNIT.TARGET)
+		elseif UFHelper and UFHelper.RangeFadeReset then
+			UFHelper.RangeFadeReset()
+		end
 		local targetCfg = getCfg(UNIT.TARGET)
 		local totCfg = getCfg(UNIT.TARGET_TARGET)
 		local focusCfg = getCfg(UNIT.FOCUS)

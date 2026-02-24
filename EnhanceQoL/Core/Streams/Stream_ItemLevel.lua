@@ -1,4 +1,4 @@
--- luacheck: globals EnhanceQoL GetAverageItemLevel GetItemLevelColor GetInventoryItemLink GetInventoryItemTexture C_Item GetDetailedItemLevelInfo NOT_APPLICABLE ITEM_LEVEL_ABBR STAT_AVERAGE_ITEM_LEVEL STAT_AVERAGE_ITEM_LEVEL_EQUIPPED LFG_LIST_ITEM_LEVEL_INSTR_PVP_SHORT EQUIPPED
+-- luacheck: globals EnhanceQoL GetAverageItemLevel GetItemLevelColor GetInventoryItemLink GetInventoryItemTexture C_Item ItemLocation GetDetailedItemLevelInfo NOT_APPLICABLE ITEM_LEVEL_ABBR STAT_AVERAGE_ITEM_LEVEL STAT_AVERAGE_ITEM_LEVEL_EQUIPPED LFG_LIST_ITEM_LEVEL_INSTR_PVP_SHORT EQUIPPED
 local addonName, addon = ...
 local L = addon.L
 
@@ -104,10 +104,24 @@ local function diffColor(diff)
 	return 1, 0.1, 0.1
 end
 
-local function getDetailedItemLevel(link)
+local function getEquippedItemLevel(slot, link)
+	if slot and ItemLocation and ItemLocation.CreateFromEquipmentSlot and C_Item and C_Item.GetCurrentItemLevel then
+		local location = ItemLocation:CreateFromEquipmentSlot(slot)
+		if location then
+			local currentLevel = C_Item.GetCurrentItemLevel(location)
+			if currentLevel and currentLevel > 0 then return currentLevel end
+		end
+	end
+
 	if not link then return nil end
-	if C_Item and C_Item.GetDetailedItemLevelInfo then return C_Item.GetDetailedItemLevelInfo(link) end
-	if GetDetailedItemLevelInfo then return GetDetailedItemLevelInfo(link) end
+	if C_Item and C_Item.GetDetailedItemLevelInfo then
+		local detailedLevel = C_Item.GetDetailedItemLevelInfo(link)
+		if detailedLevel and detailedLevel > 0 then return detailedLevel end
+	end
+	if GetDetailedItemLevelInfo then
+		local detailedLevel = GetDetailedItemLevelInfo(link)
+		if detailedLevel and detailedLevel > 0 then return detailedLevel end
+	end
 	return nil
 end
 
@@ -182,7 +196,7 @@ local provider = {
 		for _, slot in ipairs(slotIDs) do
 			local link = GetInventoryItemLink("player", slot)
 			if link then
-				local ilvl = getDetailedItemLevel(link)
+				local ilvl = getEquippedItemLevel(slot, link)
 				if ilvl then
 					local icon = GetInventoryItemTexture("player", slot)
 					local left = link

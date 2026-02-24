@@ -10,6 +10,7 @@ end
 local ENHANCEMENT_SPEC_ID = 263
 local MAX_STACKS = 10
 local SEGMENT_COUNT = 5
+local RESOURCE_ID = "maelstromWeapon"
 local POINT_SIZE = 20
 local POINT_SPACING = 4
 local BG_ATLAS = "UF-DruidCP-BG-Dis"
@@ -40,37 +41,28 @@ end
 
 local function isUFPlayerEnabled()
 	local cfg = addon.db and addon.db.ufFrames and addon.db.ufFrames.player
-	if not (cfg and cfg.enabled == true) then
-		return false
-	end
+	if not (cfg and cfg.enabled == true) then return false end
 	local resourceCfg = cfg.classResource
-	if resourceCfg and resourceCfg.enabled == false then
-		return false
-	end
+	if resourceCfg and resourceCfg.enabled == false then return false end
+	local resourceEntries = resourceCfg and resourceCfg.resources
+	local maelstromCfg = type(resourceEntries) == "table" and resourceEntries[RESOURCE_ID] or nil
+	if type(maelstromCfg) == "table" and maelstromCfg.enabled == false then return false end
 	return true
 end
 
-local function shouldBuildBar()
-	return isShaman() and isUFPlayerEnabled()
-end
+local function shouldBuildBar() return isShaman() and isUFPlayerEnabled() end
 
 local function getMaelstromWeaponStacksFromResourceBars()
 	local rb = addon and addon.Aura and addon.Aura.ResourceBars
-	if not (rb and rb.GetAuraPowerCounts) then
-		return 0
-	end
+	if not (rb and rb.GetAuraPowerCounts) then return 0 end
 
 	local stacks = rb.GetAuraPowerCounts("MAELSTROM_WEAPON")
-	if type(stacks) ~= "number" then
-		return 0
-	end
+	if type(stacks) ~= "number" then return 0 end
 	return stacks
 end
 
 local function resetPointVisuals(self)
-	if self.StopLightning then
-		self:StopLightning()
-	end
+	if self.StopLightning then self:StopLightning() end
 	if self.highBurstAnim then self.highBurstAnim:Stop() end
 	if self._highPulseTimer then
 		self._highPulseTimer:Cancel()
@@ -93,39 +85,27 @@ local function resetPointVisuals(self)
 end
 
 local function setPointState(self, state)
-	if self.state == state then
-		return
-	end
+	if self.state == state then return end
 
 	self.state = state
 	self:ResetVisuals()
 
 	if state == "empty" then
-		if self.deactivateAnim then
-			self.deactivateAnim:Play()
-		end
+		if self.deactivateAnim then self.deactivateAnim:Play() end
 		return
 	end
 
 	if state == "high" and self.highPulseAnim then
-		if self.highBurstAnim then
-			self.highBurstAnim:Play()
-		end
+		if self.highBurstAnim then self.highBurstAnim:Play() end
 		self.highPulseAnim:Stop()
 		self._highPulseTimer = C_Timer.NewTimer(0.12, function()
-			if self.state == "high" and self.highPulseAnim then
-				self.highPulseAnim:Play()
-			end
+			if self.state == "high" and self.highPulseAnim then self.highPulseAnim:Play() end
 		end)
 	end
 
-	if self.activateAnim then
-		self.activateAnim:Play()
-	end
+	if self.activateAnim then self.activateAnim:Play() end
 
-	if state == "high" and self.PlayLightning then
-		self:PlayLightning(0.05)
-	end
+	if state == "high" and self.PlayLightning then self:PlayLightning(0.05) end
 end
 
 local function stopLightning(self)
@@ -140,16 +120,12 @@ local function stopLightning(self)
 	if self.Lightning then
 		self.Lightning:SetAlpha(0)
 		self.Lightning:Hide()
-		if LIGHTNING_FRAMES[1] then
-			self.Lightning:SetTexture(LIGHTNING_FRAMES[1])
-		end
+		if LIGHTNING_FRAMES[1] then self.Lightning:SetTexture(LIGHTNING_FRAMES[1]) end
 	end
 end
 
 local function playLightning(self, delay)
-	if not self.Lightning or #LIGHTNING_FRAMES == 0 then
-		return
-	end
+	if not self.Lightning or #LIGHTNING_FRAMES == 0 then return end
 
 	self:StopLightning()
 
@@ -167,9 +143,7 @@ local function playLightning(self, delay)
 		end
 
 		self._lightningTicker = C_Timer.NewTicker(LIGHTNING_FRAME_TIME, function()
-			if not self.Lightning then
-				return
-			end
+			if not self.Lightning then return end
 
 			idx = idx + 1
 			if idx >= frameCount then
@@ -338,17 +312,11 @@ local function createPoint(parent)
 end
 
 local function applyFallbackLayout(self)
-	if self:GetNumPoints() > 0 then
-		return
-	end
-	if InCombatLockdown and InCombatLockdown() then
-		return
-	end
+	if self:GetNumPoints() > 0 then return end
+	if InCombatLockdown and InCombatLockdown() then return end
 
 	local parent = PlayerFrameBottomManagedFramesContainer or PlayerFrame or UIParent
-	if parent and self.SetParent then
-		self:SetParent(parent)
-	end
+	if parent and self.SetParent then self:SetParent(parent) end
 	self:ClearAllPoints()
 
 	if parent and parent.BottomManagedLayoutContainer then
@@ -363,9 +331,7 @@ end
 local ShamanMaelstromWeaponBar = {}
 
 function ShamanMaelstromWeaponBar:EnsurePoints()
-	if self.points and #self.points == SEGMENT_COUNT then
-		return
-	end
+	if self.points and #self.points == SEGMENT_COUNT then return end
 
 	self.points = {}
 
@@ -385,14 +351,10 @@ function ShamanMaelstromWeaponBar:EnsurePoints()
 end
 
 function ShamanMaelstromWeaponBar:UpdatePower()
-	if not self.points or #self.points == 0 then
-		self:EnsurePoints()
-	end
+	if not self.points or #self.points == 0 then self:EnsurePoints() end
 
 	local stacks = min(getMaelstromWeaponStacksFromResourceBars(), MAX_STACKS)
-	if self._lastStacks == stacks then
-		return
-	end
+	if self._lastStacks == stacks then return end
 	self._lastStacks = stacks
 
 	local lowCount = min(stacks, SEGMENT_COUNT)
@@ -424,9 +386,7 @@ function ShamanMaelstromWeaponBar:Setup()
 		self:UpdatePower()
 		applyFallbackLayout(self)
 		local parent = self:GetParent()
-		if parent and parent.GetFrameLevel then
-			self:SetFrameLevel((parent:GetFrameLevel() or 0) + 5)
-		end
+		if parent and parent.GetFrameLevel then self:SetFrameLevel((parent:GetFrameLevel() or 0) + 5) end
 	else
 		self:UnregisterEvent("UNIT_AURA")
 	end
@@ -440,9 +400,7 @@ function ShamanMaelstromWeaponBar:OnEvent(event, ...)
 		local unit, info = ...
 		if unit == "player" then
 			local rb = addon and addon.Aura and addon.Aura.ResourceBars
-			if rb and rb.UpdateAuraPowerState then
-				rb.UpdateAuraPowerState(info)
-			end
+			if rb and rb.UpdateAuraPowerState then rb.UpdateAuraPowerState(info) end
 			self:UpdatePower()
 		end
 		return
@@ -452,9 +410,7 @@ function ShamanMaelstromWeaponBar:OnEvent(event, ...)
 end
 
 local function ensureBarFrame()
-	if not shouldBuildBar() then
-		return nil, false
-	end
+	if not shouldBuildBar() then return nil, false end
 
 	local frame = _G.ShamanMaelstromWeaponBarFrame
 	local created = false
@@ -479,9 +435,7 @@ end
 
 local hooksSet = false
 local function refreshBar()
-	if not isShaman() then
-		return
-	end
+	if not isShaman() then return end
 
 	if not isUFPlayerEnabled() then
 		local frame = _G.ShamanMaelstromWeaponBarFrame
@@ -493,27 +447,19 @@ local function refreshBar()
 	end
 
 	local frame, created = ensureBarFrame()
-	if not frame then
-		return
-	end
+	if not frame then return end
 
 	frame:Setup()
 
-	if created and addon.Aura and addon.Aura.UF and addon.Aura.UF.RefreshUnit and not (InCombatLockdown and InCombatLockdown()) then
-		addon.Aura.UF.RefreshUnit("player")
-	end
+	if created and addon.Aura and addon.Aura.UF and addon.Aura.UF.RefreshUnit and not (InCombatLockdown and InCombatLockdown()) then addon.Aura.UF.RefreshUnit("player") end
 end
 
 local function setupHooks()
-	if hooksSet or not isShaman() then
-		return
-	end
+	if hooksSet or not isShaman() then return end
 	hooksSet = true
 
 	local uf = addon.Aura and addon.Aura.UF
-	if not (uf and hooksecurefunc) then
-		return
-	end
+	if not (uf and hooksecurefunc) then return end
 
 	if uf.Enable then hooksecurefunc(uf, "Enable", refreshBar) end
 	if uf.Disable then hooksecurefunc(uf, "Disable", refreshBar) end

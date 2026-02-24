@@ -1,6 +1,6 @@
 -- luacheck: globals DefaultCompactUnitFrameSetup CompactUnitFrame_UpdateAuras CompactUnitFrame_UpdateName UnitTokenFromGUID C_Bank CompactRaidFrameContainer
 -- luacheck: globals HUD_EDIT_MODE_MINIMAP_LABEL
--- luacheck: globals Menu GameTooltip_SetTitle GameTooltip_AddNormalLine EnhanceQoL
+-- luacheck: globals Menu MenuResponse GameTooltip_SetTitle GameTooltip_AddNormalLine EnhanceQoL
 -- luacheck: globals GenericTraitUI_LoadUI GenericTraitFrame
 -- luacheck: globals CancelDuel DeclineGroup C_PetBattles
 -- luacheck: globals ExpansionLandingPage ExpansionLandingPageMinimapButton ShowGarrisonLandingPage GarrisonLandingPage GarrisonLandingPage_Toggle GarrisonLandingPageMinimapButton CovenantSanctumFrame CovenantSanctumFrame_LoadUI EasyMenu
@@ -3447,6 +3447,7 @@ local function initChatFrame()
 			if addon.db and addon.db.chatEditBoxOnTop and addon.functions.ApplyChatEditBoxOnTop then addon.functions.ApplyChatEditBoxOnTop(true) end
 			if addon.db and addon.db.chatUnclampFrame and addon.functions.ApplyChatUnclampFrame then addon.functions.ApplyChatUnclampFrame(true) end
 			if addon.db and addon.db.chatHideCombatLogTab and addon.functions.ApplyChatHideCombatLogTab then addon.functions.ApplyChatHideCombatLogTab(true) end
+			if addon.db and addon.functions.ApplyChatFrameFade then addon.functions.ApplyChatFrameFade() end
 		end)
 
 		hooksecurefunc("FCF_SetTabPosition", function()
@@ -3461,6 +3462,7 @@ local function initChatFrame()
 			if addon.db and addon.db.chatEditBoxOnTop and addon.functions.ApplyChatEditBoxOnTop then addon.functions.ApplyChatEditBoxOnTop(true) end
 			if addon.db and addon.db.chatUnclampFrame and addon.functions.ApplyChatUnclampFrame then addon.functions.ApplyChatUnclampFrame(true) end
 			if addon.db and addon.db.chatHideCombatLogTab and addon.functions.ApplyChatHideCombatLogTab then addon.functions.ApplyChatHideCombatLogTab(true) end
+			if addon.db and addon.functions.ApplyChatFrameFade then addon.functions.ApplyChatFrameFade() end
 		end)
 		addon.variables.chatFrameWatcher = frame
 	end
@@ -3544,6 +3546,23 @@ local function initChatFrame()
 			ensureChatFrameHooks()
 		end
 
+	addon.functions.ApplyChatFrameFade = addon.functions.ApplyChatFrameFade
+		or function()
+			if not addon.db then return end
+			local enabled = addon.db["chatFrameFadeEnabled"]
+			local timeVisible = addon.db["chatFrameFadeTimeVisible"]
+			local fadeDuration = addon.db["chatFrameFadeDuration"]
+			if enabled == nil or timeVisible == nil or fadeDuration == nil then return end
+
+			forEachChatFrame(function(frame)
+				if frame.SetFading then frame:SetFading(enabled) end
+				if frame.SetTimeVisible then frame:SetTimeVisible(timeVisible) end
+				if frame.SetFadeDuration then frame:SetFadeDuration(fadeDuration) end
+			end)
+
+			ensureChatFrameHooks()
+		end
+
 	local function hideCombatLogTab()
 		if not (ChatFrame2 and ChatFrame2Tab) then return end
 		addon.variables = addon.variables or {}
@@ -3616,15 +3635,12 @@ local function initChatFrame()
 		addon.functions.InitDBValue("chatFrameFadeEnabled", ChatFrame1:GetFading())
 		addon.functions.InitDBValue("chatFrameFadeTimeVisible", ChatFrame1:GetTimeVisible())
 		addon.functions.InitDBValue("chatFrameFadeDuration", ChatFrame1:GetFadeDuration())
-
-		ChatFrame1:SetFading(addon.db["chatFrameFadeEnabled"])
-		ChatFrame1:SetTimeVisible(addon.db["chatFrameFadeTimeVisible"])
-		ChatFrame1:SetFadeDuration(addon.db["chatFrameFadeDuration"])
 	else
 		addon.functions.InitDBValue("chatFrameFadeEnabled", true)
 		addon.functions.InitDBValue("chatFrameFadeTimeVisible", 120)
 		addon.functions.InitDBValue("chatFrameFadeDuration", 3)
 	end
+	if addon.functions.ApplyChatFrameFade then addon.functions.ApplyChatFrameFade() end
 
 	addon.functions.InitDBValue("chatFrameMaxLines2000", false)
 	addon.functions.InitDBValue("enableChatIM", false)

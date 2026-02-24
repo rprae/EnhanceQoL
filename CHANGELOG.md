@@ -1,6 +1,6 @@
 # Changelog
 
-## [7.21.0] - 2026-02-24
+## [8.0.0] - 2026-02-24
 
 ### ✨ Added
 
@@ -9,6 +9,19 @@
 - Unit Frames (Profiles): Added optional spec mapping, so each specialization can auto-switch to a selected UF profile.
 - Unit Frames (Profiles): Added create/copy/delete actions on the Profiles page.
 - Unit Frames (Profiles): Added quick UF profile switching in the minimap right-click menu.
+- Group Frames (Party/Raid): Added optional integration with `HarreksAdvancedRaidFrames`.
+- Unit Frames (Player/Class Resources): Added per-resource settings via a new `Resource` dropdown, so anchor/strata/frame level offset/offset/scale can be configured per supported resource type.
+- Unit Frames (Player/Class Resources): Added `Visible resources` multi-select listing all supported resources, so you can preconfigure visibility on one character for every resource type.
+
+### 🐛 Fixed
+
+- Unit Frames (Target): Range fade now refreshes correctly when switching directly between out-of-range targets without losing target first.
+- Character Frame (Item Comparison): Item level text in the Alt comparison flyout now respects the configured character item-level anchor position instead of defaulting to top-right.
+- Character/Inspect Frame: Enchant text now uses the selected item-detail font and outline settings.
+- Chat Frame: `Enable chat fading` now applies correctly to additional/undocked chat windows instead of only `ChatFrame1`.
+- Data Panels (Item Level stream): Equipped-slot tooltip values now use current equipped item-level detection first, preventing incorrect per-slot values for some items.
+- Data Panels (Time stream): Font and text-scale style changes now redraw immediately instead of waiting for the next time tick or `/reload`.
+- Tooltips (Raider.IO compatibility): Raider.IO unit-tooltip sections now update reliably while hovering when pressing/releasing modifier keys (`showScoreModifier`), including with EQoL tooltip anchoring enabled.
 
 ---
 
