@@ -914,7 +914,8 @@ local function updateFlyoutButtonInfo(button)
 
 					if not button.ItemLevelText then button.ItemLevelText = button:CreateFontString(nil, "OVERLAY") end
 					addon.functions.ApplyItemLevelTextStyle(button.ItemLevelText)
-					addon.functions.ApplyBagItemLevelPosition(button.ItemLevelText, button, addon.db["bagIlvlPosition"])
+					local compareIlvlPosition = addon.db["charIlvlPosition"] or addon.db["bagIlvlPosition"] or "TOPRIGHT"
+					addon.functions.ApplyBagItemLevelPosition(button.ItemLevelText, button, compareIlvlPosition)
 
 					-- Setze den Text und die Farbe
 					button.ItemLevelText:SetText(itemLevel)

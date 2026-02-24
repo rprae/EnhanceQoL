@@ -14,6 +14,7 @@
 ### 🐛 Fixed
 
 - Unit Frames (Target): Range fade now refreshes correctly when switching directly between out-of-range targets without losing target first.
+- Character Frame (Item Comparison): Item level text in the Alt comparison flyout now respects the configured character item-level anchor position instead of defaulting to top-right.
 
 ---
 
