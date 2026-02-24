@@ -7168,7 +7168,10 @@ local function registerSettingsUI()
 			order = profileOrderActive,
 			get = function() return getActiveUFProfile() or "Default" end,
 			set = function(value)
-				local ok, reason = UFProfiles and UFProfiles.SetActiveName and UFProfiles.SetActiveName(value, "SETTINGS_DROPDOWN")
+				local ok, reason
+				if UFProfiles and UFProfiles.SetActiveName then
+					ok, reason = UFProfiles.SetActiveName(value, "SETTINGS_DROPDOWN")
+				end
 				if not ok then
 					local msg = L["UFProfileSetActiveFailed"] or "Could not switch the active Unit Frames profile."
 					if reason == "NOT_FOUND" then msg = L["UFProfileSetActiveMissing"] or "That Unit Frames profile does not exist." end
@@ -7186,7 +7189,10 @@ local function registerSettingsUI()
 			order = profileOrderGlobal,
 			get = function() return getGlobalUFProfile() or "Default" end,
 			set = function(value)
-				local ok, reason = UFProfiles and UFProfiles.SetGlobalName and UFProfiles.SetGlobalName(value)
+				local ok, reason
+				if UFProfiles and UFProfiles.SetGlobalName then
+					ok, reason = UFProfiles.SetGlobalName(value)
+				end
 				if not ok then
 					local msg = L["UFProfileSetGlobalFailed"] or "Could not set the global Unit Frames profile."
 					if reason == "NOT_FOUND" then msg = L["UFProfileSetGlobalMissing"] or "That Unit Frames profile does not exist." end
@@ -7219,7 +7225,10 @@ local function registerSettingsUI()
 						preferredIndex = 3,
 						OnAccept = function(self)
 							local source = self.data
-							local ok, reason = UFProfiles and UFProfiles.CopyToActive and UFProfiles.CopyToActive(source)
+							local ok, reason
+							if UFProfiles and UFProfiles.CopyToActive then
+								ok, reason = UFProfiles.CopyToActive(source)
+							end
 							if not ok then
 								printUFProfileError(reason)
 								return
@@ -7258,7 +7267,10 @@ local function registerSettingsUI()
 						preferredIndex = 3,
 						OnAccept = function(self)
 							local profileName = self.data
-							local ok, reason = UFProfiles and UFProfiles.Delete and UFProfiles.Delete(profileName)
+							local ok, reason
+							if UFProfiles and UFProfiles.Delete then
+								ok, reason = UFProfiles.Delete(profileName)
+							end
 							if not ok then
 								printUFProfileError(reason)
 								return
@@ -7301,7 +7313,10 @@ local function registerSettingsUI()
 						OnAccept = function(self)
 							local editBox = self.editBox or self:GetEditBox()
 							local name = editBox:GetText() or ""
-							local ok, reason = UFProfiles and UFProfiles.Create and UFProfiles.Create(name)
+							local ok, reason
+							if UFProfiles and UFProfiles.Create then
+								ok, reason = UFProfiles.Create(name)
+							end
 							if not ok then
 								printUFProfileError(reason)
 								return
@@ -7345,7 +7360,10 @@ local function registerSettingsUI()
 						set = function(value)
 							local target = value
 							if target == "" then target = nil end
-							local ok, reason = UFProfiles and UFProfiles.SetSpecMapping and UFProfiles.SetSpecMapping(specID, target)
+							local ok, reason
+							if UFProfiles and UFProfiles.SetSpecMapping then
+								ok, reason = UFProfiles.SetSpecMapping(specID, target)
+							end
 							if not ok then
 								local msg = L["UFProfileSpecMapFailed"] or "Could not update specialization profile mapping."
 								if reason == "NOT_FOUND" then msg = L["UFProfileSetActiveMissing"] or "That Unit Frames profile does not exist." end
