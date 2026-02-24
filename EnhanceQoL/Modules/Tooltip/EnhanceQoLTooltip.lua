@@ -496,6 +496,30 @@ local function ResolveTooltipUnit(tooltip)
 	return nil
 end
 
+local function RefreshVisibleUnitTooltipForModifier()
+	if not GameTooltip or not GameTooltip.IsShown or not GameTooltip:IsShown() then return end
+	if GameTooltip.IsForbidden and GameTooltip:IsForbidden() then return end
+	local unit, hadTooltipUnit = GetUnitTokenFromTooltip(GameTooltip)
+	if not hadTooltipUnit or not unit or not UnitExists(unit) then return end
+
+	if GameTooltip.RefreshData then
+		local ok = pcall(GameTooltip.RefreshData, GameTooltip)
+		if ok then return end
+	end
+
+	if GameTooltip.SetUnit then
+		GameTooltip:SetUnit(unit)
+		GameTooltip:Show()
+	end
+end
+
+local fModifierTooltipRefresh = CreateFrame("Frame")
+fModifierTooltipRefresh:RegisterEvent("MODIFIER_STATE_CHANGED")
+fModifierTooltipRefresh:SetScript("OnEvent", function(_, _, key)
+	if key ~= "LSHIFT" and key ~= "RSHIFT" and key ~= "LCTRL" and key ~= "RCTRL" and key ~= "LALT" and key ~= "RALT" then return end
+	RefreshVisibleUnitTooltipForModifier()
+end)
+
 local function HasUnitTooltipOptions()
 	local db = addon.db
 	if not db then return false end
@@ -1237,8 +1261,15 @@ local function registerTooltipHooks()
 		if addon.db["TooltipAnchorType"] == 2 then anchor = "ANCHOR_CURSOR" end
 		if addon.db["TooltipAnchorType"] == 3 then anchor = "ANCHOR_CURSOR_LEFT" end
 		if addon.db["TooltipAnchorType"] == 4 then anchor = "ANCHOR_CURSOR_RIGHT" end
-		local xOffset = addon.db["TooltipAnchorOffsetX"]
-		local yOffset = addon.db["TooltipAnchorOffsetY"]
+		if not anchor then return end
+		local xOffset = addon.db["TooltipAnchorOffsetX"] or 0
+		local yOffset = addon.db["TooltipAnchorOffsetY"] or 0
+		if s.IsShown and s.GetOwner and s.GetAnchorType and s:IsShown() and safeEquals(s:GetOwner(), p) then
+			local currentAnchor, currentX, currentY = s:GetAnchorType()
+			currentX = currentX or 0
+			currentY = currentY or 0
+			if safeEquals(currentAnchor, anchor) and math.abs(currentX - xOffset) <= 0.01 and math.abs(currentY - yOffset) <= 0.01 then return end
+		end
 		s:SetOwner(p, anchor, xOffset, yOffset)
 	end)
 
