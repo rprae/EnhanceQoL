@@ -150,7 +150,7 @@ local data = {
 		desc = L["chatFrameFadeEnabled"],
 		func = function(key)
 			addon.db["chatFrameFadeEnabled"] = key
-			if ChatFrame1 then ChatFrame1:SetFading(key) end
+			if addon.functions.ApplyChatFrameFade then addon.functions.ApplyChatFrameFade() end
 		end,
 		default = false,
 		children = {
@@ -165,7 +165,7 @@ local data = {
 				get = function() return addon.db and addon.db.chatFrameFadeTimeVisible or 30 end,
 				set = function(value)
 					addon.db["chatFrameFadeTimeVisible"] = value
-					if ChatFrame1 then ChatFrame1:SetTimeVisible(value) end
+					if addon.functions.ApplyChatFrameFade then addon.functions.ApplyChatFrameFade() end
 				end,
 				min = 1,
 				max = 300,
@@ -185,7 +185,7 @@ local data = {
 				get = function() return addon.db and addon.db.chatFrameFadeDuration or 30 end,
 				set = function(value)
 					addon.db["chatFrameFadeDuration"] = value
-					if ChatFrame1 then ChatFrame1:SetTimeVisible(value) end
+					if addon.functions.ApplyChatFrameFade then addon.functions.ApplyChatFrameFade() end
 				end,
 				min = 1,
 				max = 60,
