@@ -27,6 +27,8 @@ local function ensureDB()
 	db = addon.db.datapanel.gold
 	db.fontSize = db.fontSize or 14
 	db.displayMode = db.displayMode or "character"
+	db.leftClickAction = db.leftClickAction or "warband"
+	if db.leftClickAction ~= "warband" and db.leftClickAction ~= "bags" then db.leftClickAction = "warband" end
 	if db.displayMode == "account" then db.displayMode = "warband" end
 	if db.showSilverCopper == nil then db.showSilverCopper = false end
 	if db.useTextColor == nil then db.useTextColor = false end
@@ -94,6 +96,19 @@ local function createAceWindow()
 		addon.DataHub:RequestUpdate(stream)
 	end)
 	frame:AddChild(useColor)
+
+	local clickAction = AceGUI:Create("Dropdown")
+	clickAction:SetLabel(L["goldPanelLeftClickAction"] or "Left-click action")
+	clickAction:SetList({
+		warband = L["goldPanelLeftClickActionWarband"] or "Swap warband and character gold",
+		bags = L["goldPanelLeftClickActionBags"] or "Open bags",
+	})
+	clickAction:SetValue(db.leftClickAction or "warband")
+	clickAction:SetCallback("OnValueChanged", function(_, _, key)
+		db.leftClickAction = (key == "warband") and "warband" or "bags"
+		addon.DataHub:RequestUpdate(stream)
+	end)
+	frame:AddChild(clickAction)
 
 	local textColor = AceGUI:Create("ColorPicker")
 	textColor:SetLabel(L["Text color"] or "Text color")
@@ -240,8 +255,13 @@ local provider = {
 		ACCOUNT_MONEY = function(stream) addon.DataHub:RequestUpdate(stream) end,
 	},
 	OnClick = function(_, btn)
+		ensureDB()
 		if btn == "LeftButton" then
-			toggleDisplayMode()
+			if db.leftClickAction == "warband" then
+				toggleDisplayMode()
+			else
+				_G.ToggleAllBags()
+			end
 		elseif btn == "RightButton" then
 			createAceWindow()
 		end
@@ -269,8 +289,14 @@ local provider = {
 			tip:AddDoubleLine(TOTAL or "Total", formatMoney(total))
 		end
 
-		local clickHint = L["goldPanelClickHint"] or "Left-click to toggle warband/character gold"
+		local clickHint = nil
 		local modeHint = (L["goldPanelDisplay"] or "Gold display") .. ": " .. getDisplayLabel()
+		if db.leftClickAction == "warband" then
+			clickHint = L["goldPanelLeftClickHintWarband"] or "Left-click to toggle warband/character gold"
+		else
+			clickHint = L["goldPanelLeftClickHintGold"] or "Left-click to toggle bags"
+		end
+
 		local hint = getOptionsHint()
 		if clickHint or modeHint or hint then
 			tip:AddLine(" ")
