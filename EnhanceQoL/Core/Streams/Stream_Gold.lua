@@ -101,7 +101,7 @@ local function createAceWindow()
 	clickAction:SetLabel(L["goldPanelLeftClickAction"] or "Left-click action")
 	clickAction:SetList({
 		warband = L["goldPanelLeftClickActionWarband"] or "Swap warband and character gold",
-		bags = L["goldPanelLeftClickActionBags"] or "Open bags",
+		bags = L["goldPanelLeftClickActionBags"] or "Toggle bags",
 	})
 	clickAction:SetValue(db.leftClickAction or "warband")
 	clickAction:SetCallback("OnValueChanged", function(_, _, key)
