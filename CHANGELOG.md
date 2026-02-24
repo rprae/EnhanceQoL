@@ -21,6 +21,7 @@
 - Chat Frame: `Enable chat fading` now applies correctly to additional/undocked chat windows instead of only `ChatFrame1`.
 - Data Panels (Item Level stream): Equipped-slot tooltip values now use current equipped item-level detection first, preventing incorrect per-slot values for some items.
 - Data Panels (Time stream): Font and text-scale style changes now redraw immediately instead of waiting for the next time tick or `/reload`.
+- Tooltips (Raider.IO compatibility): Raider.IO unit-tooltip sections now update reliably while hovering when pressing/releasing modifier keys (`showScoreModifier`), including with EQoL tooltip anchoring enabled.
 
 ---
 
