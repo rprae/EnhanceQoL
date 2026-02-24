@@ -5136,6 +5136,29 @@ local function CreateUI()
 			end)
 		end
 
+		local ufProfiles = addon.Aura and addon.Aura.UF and addon.Aura.UF.Profiles
+		if ufProfiles and ufProfiles.GetSortedNames then
+			local names = ufProfiles.GetSortedNames()
+			if #names > 0 then
+				DoDevider()
+				local menu = root:CreateButton(L["UFProfileMenuTitle"] or "Unit Frames profile")
+				local activeName = ufProfiles.GetActiveName and ufProfiles.GetActiveName()
+				if activeName and activeName ~= "" then
+					local activeLabel = (L["UFProfileMenuActive"] or "Active: %s"):format(activeName)
+					local activeButton = menu:CreateButton(activeLabel)
+					if activeButton and activeButton.SetEnabled then activeButton:SetEnabled(false) end
+					if menu.CreateDivider then menu:CreateDivider() end
+				end
+				for _, profileName in ipairs(names) do
+					menu:CreateRadio(profileName, function() return (ufProfiles.GetActiveName and ufProfiles.GetActiveName()) == profileName end, function()
+						local ok = ufProfiles.SetActiveName and ufProfiles.SetActiveName(profileName, "MINIMAP_MENU")
+						if not ok then print("|cff00ff98Enhance QoL|r: " .. tostring(L["UFProfileSetActiveFailed"] or "Could not switch the active Unit Frames profile.")) end
+						return MenuResponse and MenuResponse.Close
+					end)
+				end
+			end
+		end
+
 		DoDevider()
 		root:CreateButton(L["CooldownPanelEditor"] or "Cooldown Panel Editor", function()
 			if addon.Aura and addon.Aura.CooldownPanels and addon.Aura.CooldownPanels.OpenEditor then addon.Aura.CooldownPanels:OpenEditor() end
@@ -5624,6 +5647,16 @@ local eventHandlers = {
 			if not EnhanceQoLDB.profiles[defaultProfile] or type(EnhanceQoLDB.profiles[defaultProfile]) ~= "table" then EnhanceQoLDB.profiles[defaultProfile] = {} end
 
 			addon.db = EnhanceQoLDB.profiles[defaultProfile]
+			if type(EnhanceQoLDB._temp) == "table" then
+				EnhanceQoLDB._temp.ufProfileDebug = nil
+				EnhanceQoLDB._temp.ufProfileTrace = nil
+				if not next(EnhanceQoLDB._temp) then EnhanceQoLDB._temp = nil end
+			end
+			if type(addon.db._temp) == "table" then
+				addon.db._temp.ufProfileDebug = nil
+				addon.db._temp.ufProfileTrace = nil
+				if not next(addon.db._temp) then addon.db._temp = nil end
+			end
 
 			if next(legacy) then
 				for k, v in pairs(legacy) do

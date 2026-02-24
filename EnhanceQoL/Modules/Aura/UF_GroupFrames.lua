@@ -1931,6 +1931,11 @@ local function sanitizeHealthColorMode(cfg)
 end
 
 local function ensureDB()
+	if UF and UF.Profiles and UF.Profiles.MaybeInitialize then
+		UF.Profiles.MaybeInitialize()
+	elseif UF and UF.Profiles and UF.Profiles.Initialize then
+		UF.Profiles.Initialize()
+	end
 	addon.db = addon.db or {}
 	addon.db.ufGroupFrames = addon.db.ufGroupFrames or {}
 	local db = addon.db.ufGroupFrames
@@ -1960,6 +1965,12 @@ local function ensureDB()
 		end
 	end
 	db._eqolInited = true
+	if DB ~= db and UF and UF.Profiles and UF.Profiles.Debug then
+		local partyEnabled = db.party and db.party.enabled == true
+		local raidEnabled = db.raid and db.raid.enabled == true
+		UF.Profiles.Debug("GF ensureDB cache %s -> %s (party=%s, raid=%s)", tostring(DB), tostring(db), tostring(partyEnabled), tostring(raidEnabled))
+		if UF.Profiles.Trace then UF.Profiles.Trace("GF_ENSURE_DB", "CACHE_SWAP") end
+	end
 	DB = db
 	return db
 end
@@ -2052,6 +2063,28 @@ function GF:GetConfig(kind) return getCfg(kind) end
 function GF:IsFeatureEnabled() return isFeatureEnabled() end
 
 function GF:EnsureDB() return ensureDB() end
+
+function GF:ResetDBCache()
+	DB = nil
+	return ensureDB()
+end
+
+function GF:ApplyProfileChange(reason)
+	self._lastProfileChangeReason = reason or self._lastProfileChangeReason
+	if UF and UF.Profiles and UF.Profiles.Debug then UF.Profiles.Debug("GF apply profile change (reason=%s)", tostring(reason)) end
+	if UF and UF.Profiles and UF.Profiles.Trace then UF.Profiles.Trace("GF_APPLY_PROFILE_CHANGE", reason) end
+	self:ResetDBCache()
+	if not isFeatureEnabled() then
+		self:DisableFeature()
+		return
+	end
+	self:EnableFeature()
+	if InCombatLockdown and InCombatLockdown() then
+		self._pendingRefresh = true
+	else
+		self:RunPostEnterWorldRefreshPass()
+	end
+end
 
 GF.headers = GF.headers or {}
 GF.anchors = GF.anchors or {}
@@ -7484,6 +7517,7 @@ function GF.Enable(self, kind)
 	local cfg = getCfg(kind)
 	if not cfg then return end
 	cfg.enabled = true
+	if UF and UF.Profiles and UF.Profiles.Trace then UF.Profiles.Trace("GF_ENABLE_KIND", kind) end
 	GF:EnsureHeaders()
 	GF:ApplyHeaderAttributes(kind)
 	GF:EnableFeature()
@@ -7496,6 +7530,7 @@ function GF.Disable(self, kind)
 	local cfg = getCfg(kind)
 	if not cfg then return end
 	cfg.enabled = false
+	if UF and UF.Profiles and UF.Profiles.Trace then UF.Profiles.Trace("GF_DISABLE_KIND", kind) end
 	GF:EnsureHeaders()
 	local header = GF.headers and GF.headers[kind]
 	if header then
@@ -17619,6 +17654,9 @@ end
 
 local function applyEditModeData(kind, data)
 	if not data then return end
+	-- EditMode may fire apply callbacks during login/reload/profile refresh with
+	-- layout payloads that are not UF-profile isolated. Only persist while in Edit Mode.
+	if not isEditModeActive() then return end
 	local cfg = getCfg(kind)
 	if not cfg then return end
 

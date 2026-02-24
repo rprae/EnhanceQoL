@@ -45,4 +45,10 @@ addon.variables.NewVersionTableEQOL = {
 	["EQOL_vendorUncommonIgnoreEquipmentSets"] = true,
 	["EQOL_vendorRareIgnoreEquipmentSets"] = true,
 	["EQOL_vendorEpicIgnoreEquipmentSets"] = true,
+
+	-- Profiles -> EQoL Unit Frames
+	["EQOL_PROFILES"] = true,
+	["EQOL_UFProfiles"] = true,
+	["EQOL_ufProfileActive"] = true,
+	["EQOL_ufProfileGlobal"] = true,
 }

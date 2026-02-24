@@ -190,6 +190,549 @@ local totemFrameHooked
 local totemFrameSample
 local applyTotemFrameLayout
 
+UF.Profiles = UF.Profiles or {}
+local UFProfileManager = UF.Profiles
+UFProfileManager.DEFAULT_NAME = UFProfileManager.DEFAULT_NAME or "Default"
+UFProfileManager.RUNTIME_KEYS = UFProfileManager.RUNTIME_KEYS or {
+	"ufFrames",
+	"ufGroupFrames",
+	"ufUseCustomClassColors",
+	"ufClassColors",
+	"ufPowerColorOverrides",
+	"ufNPCColorOverrides",
+}
+
+function UFProfileManager.Debug() end
+function UFProfileManager.Trace() end
+
+function UFProfileManager._copyProfileValue(value)
+	if type(value) ~= "table" then return value end
+	if addon.functions and addon.functions.copyTable then return addon.functions.copyTable(value) end
+	if CopyTable then return CopyTable(value) end
+	local out = {}
+	for k, v in pairs(value) do
+		out[k] = UFProfileManager._copyProfileValue(v)
+	end
+	return out
+end
+
+function UFProfileManager._trimProfileName(name)
+	if type(name) ~= "string" then return nil end
+	local trimmed = name:gsub("^%s+", ""):gsub("%s+$", "")
+	if trimmed == "" then return nil end
+	return trimmed
+end
+
+function UFProfileManager._getCurrentPlayerGUID()
+	local guid = UnitGUID and UnitGUID("player")
+	if issecretvalue and issecretvalue(guid) then guid = nil end
+	if type(guid) == "string" and guid ~= "" then return guid end
+	local fallback = addon.variables and addon.variables.unitPlayerGUID
+	if type(fallback) == "string" and fallback ~= "" then return fallback end
+	return nil
+end
+
+function UFProfileManager._getCurrentSpecID()
+	if not (C_SpecializationInfo and C_SpecializationInfo.GetSpecialization and C_SpecializationInfo.GetSpecializationInfo) then return nil end
+	local specIndex = C_SpecializationInfo.GetSpecialization()
+	if type(specIndex) ~= "number" or specIndex <= 0 then return nil end
+	local specID = C_SpecializationInfo.GetSpecializationInfo(specIndex)
+	if type(specID) == "table" then specID = specID.specID end
+	if type(specID) ~= "number" or specID <= 0 then return nil end
+	return specID
+end
+
+function UFProfileManager._ensureUFProfilePayload(profile)
+	if type(profile) ~= "table" then profile = {} end
+	profile.ufFrames = type(profile.ufFrames) == "table" and profile.ufFrames or {}
+	profile.ufGroupFrames = type(profile.ufGroupFrames) == "table" and profile.ufGroupFrames or {}
+	profile.ufUseCustomClassColors = profile.ufUseCustomClassColors == true
+	profile.ufClassColors = type(profile.ufClassColors) == "table" and profile.ufClassColors or {}
+	profile.ufPowerColorOverrides = type(profile.ufPowerColorOverrides) == "table" and profile.ufPowerColorOverrides or {}
+	profile.ufNPCColorOverrides = type(profile.ufNPCColorOverrides) == "table" and profile.ufNPCColorOverrides or {}
+	return profile
+end
+
+function UFProfileManager._buildLegacyUFProfile()
+	return UFProfileManager._ensureUFProfilePayload({
+		ufFrames = UFProfileManager._copyProfileValue(addon.db and addon.db.ufFrames) or {},
+		ufGroupFrames = UFProfileManager._copyProfileValue(addon.db and addon.db.ufGroupFrames) or {},
+		ufUseCustomClassColors = addon.db and addon.db.ufUseCustomClassColors == true,
+		ufClassColors = UFProfileManager._copyProfileValue(addon.db and addon.db.ufClassColors) or {},
+		ufPowerColorOverrides = UFProfileManager._copyProfileValue(addon.db and addon.db.ufPowerColorOverrides) or {},
+		ufNPCColorOverrides = UFProfileManager._copyProfileValue(addon.db and addon.db.ufNPCColorOverrides) or {},
+	})
+end
+
+function UFProfileManager._getSortedUFProfileNames(profiles)
+	local names = {}
+	for name in pairs(profiles or {}) do
+		names[#names + 1] = name
+	end
+	table.sort(names, function(a, b)
+		local la, lb = tostring(a):lower(), tostring(b):lower()
+		if la == lb then return tostring(a) < tostring(b) end
+		return la < lb
+	end)
+	return names
+end
+
+function UFProfileManager._ensureUFProfilesRoot()
+	if type(addon.db) ~= "table" then return nil end
+	if type(addon.db.ufProfiles) ~= "table" then addon.db.ufProfiles = {} end
+	local profiles = addon.db.ufProfiles
+	for name, profile in pairs(profiles) do
+		if type(name) ~= "string" or name == "" then
+			profiles[name] = nil
+		else
+			profiles[name] = UFProfileManager._ensureUFProfilePayload(profile)
+		end
+	end
+	if not next(profiles) then profiles[UFProfileManager.DEFAULT_NAME] = UFProfileManager._buildLegacyUFProfile() end
+	return profiles
+end
+
+function UFProfileManager._dedupeNestedTableRefs(value, owner, seenTables, recursionGuard)
+	if type(value) ~= "table" then return value, 0 end
+	seenTables = seenTables or {}
+	recursionGuard = recursionGuard or {}
+	if recursionGuard[value] then return value, 0 end
+
+	local dedupCount = 0
+	local prevOwner = seenTables[value]
+	if prevOwner and prevOwner ~= owner then
+		value = UFProfileManager._copyProfileValue(value) or {}
+		dedupCount = dedupCount + 1
+	end
+	seenTables[value] = owner
+
+	recursionGuard[value] = true
+	for k, v in pairs(value) do
+		if type(v) == "table" then
+			local newValue, nestedCount = UFProfileManager._dedupeNestedTableRefs(v, owner, seenTables, recursionGuard)
+			if newValue ~= v then value[k] = newValue end
+			dedupCount = dedupCount + (nestedCount or 0)
+		end
+	end
+	recursionGuard[value] = nil
+	return value, dedupCount
+end
+
+function UFProfileManager._dedupeUFProfileTables(profiles)
+	if type(profiles) ~= "table" then return end
+	local seenByKey = {}
+	local dedupCount = 0
+	for profileName, profile in pairs(profiles) do
+		if type(profile) == "table" then
+			for _, key in ipairs(UFProfileManager.RUNTIME_KEYS) do
+				local value = profile[key]
+				if type(value) == "table" then
+					seenByKey[key] = seenByKey[key] or {}
+					local owner = tostring(profileName) .. ":" .. tostring(key)
+					local deduped, count = UFProfileManager._dedupeNestedTableRefs(value, owner, seenByKey[key], {})
+					if deduped ~= value then profile[key] = deduped end
+					dedupCount = dedupCount + (count or 0)
+				end
+			end
+		end
+	end
+	if dedupCount > 0 then
+		UFProfileManager.Debug("deduped shared UF profile tables (deep): %d", dedupCount)
+		UFProfileManager.Trace("DEDUPE_SHARED", tostring(dedupCount))
+	end
+end
+
+function UFProfileManager._cleanUFProfileReferences(profiles)
+	addon.db.ufProfileKeys = type(addon.db.ufProfileKeys) == "table" and addon.db.ufProfileKeys or {}
+	addon.db.ufProfileSpecKeys = type(addon.db.ufProfileSpecKeys) == "table" and addon.db.ufProfileSpecKeys or {}
+
+	for guid, name in pairs(addon.db.ufProfileKeys) do
+		if type(guid) ~= "string" or guid == "" or type(name) ~= "string" or name == "" or not profiles[name] then addon.db.ufProfileKeys[guid] = nil end
+	end
+
+	for guid, map in pairs(addon.db.ufProfileSpecKeys) do
+		if type(guid) ~= "string" or guid == "" or type(map) ~= "table" then
+			addon.db.ufProfileSpecKeys[guid] = nil
+		else
+			for specKey, profileName in pairs(map) do
+				local specID = tonumber(specKey)
+				if not specID or specID <= 0 or type(profileName) ~= "string" or profileName == "" or not profiles[profileName] then map[specKey] = nil end
+			end
+			if not next(map) then addon.db.ufProfileSpecKeys[guid] = nil end
+		end
+	end
+end
+
+function UFProfileManager._resolveUFGlobalProfile(profiles)
+	local globalName = UFProfileManager._trimProfileName(addon.db.ufProfileGlobal)
+	if globalName and profiles[globalName] then return globalName end
+	local names = UFProfileManager._getSortedUFProfileNames(profiles)
+	globalName = names[1] or UFProfileManager.DEFAULT_NAME
+	if not profiles[globalName] then
+		globalName = UFProfileManager.DEFAULT_NAME
+		profiles[globalName] = UFProfileManager._buildLegacyUFProfile()
+	end
+	addon.db.ufProfileGlobal = globalName
+	return globalName
+end
+
+function UFProfileManager._resolveUFActiveProfileName(profiles)
+	local globalName = UFProfileManager._resolveUFGlobalProfile(profiles)
+	local guid = UFProfileManager._getCurrentPlayerGUID()
+	if not guid then return globalName end
+	local activeName = UFProfileManager._trimProfileName(addon.db.ufProfileKeys and addon.db.ufProfileKeys[guid])
+	if not activeName or not profiles[activeName] then
+		activeName = globalName
+		addon.db.ufProfileKeys[guid] = activeName
+	end
+	return activeName
+end
+
+function UFProfileManager._bindUFProfileToRuntime(profileName)
+	local profiles = addon.db and addon.db.ufProfiles
+	if type(profiles) ~= "table" then return nil end
+	local profile = profiles[profileName]
+	if type(profile) ~= "table" then return nil end
+	profile = UFProfileManager._ensureUFProfilePayload(profile)
+	profiles[profileName] = profile
+	for _, key in ipairs(UFProfileManager.RUNTIME_KEYS) do
+		local value = profile[key]
+		if key == "ufUseCustomClassColors" then
+			addon.db[key] = value == true
+		else
+			addon.db[key] = value
+		end
+	end
+	UF._defaultsMerged = setmetatable({}, { __mode = "k" })
+	UFProfileManager._activeProfileName = profileName
+	local partyEnabled = profile.ufGroupFrames and profile.ufGroupFrames.party and profile.ufGroupFrames.party.enabled == true
+	local raidEnabled = profile.ufGroupFrames and profile.ufGroupFrames.raid and profile.ufGroupFrames.raid.enabled == true
+	UFProfileManager.Debug("bind runtime -> %s (ufGroupFrames=%s, party=%s, raid=%s)", tostring(profileName), tostring(profile.ufGroupFrames), tostring(partyEnabled), tostring(raidEnabled))
+	UFProfileManager.Trace("BIND_RUNTIME", profileName)
+	return profile
+end
+
+function UFProfileManager._isUFProfileBound(profileName)
+	local profiles = addon.db and addon.db.ufProfiles
+	if type(profiles) ~= "table" then return false end
+	local profile = profiles[profileName]
+	if type(profile) ~= "table" then return false end
+	if addon.db.ufFrames ~= profile.ufFrames then return false end
+	if addon.db.ufGroupFrames ~= profile.ufGroupFrames then return false end
+	if addon.db.ufClassColors ~= profile.ufClassColors then return false end
+	if addon.db.ufPowerColorOverrides ~= profile.ufPowerColorOverrides then return false end
+	if addon.db.ufNPCColorOverrides ~= profile.ufNPCColorOverrides then return false end
+	if (addon.db.ufUseCustomClassColors == true) ~= (profile.ufUseCustomClassColors == true) then return false end
+	return true
+end
+
+function UFProfileManager._ensureUFProfileEvents()
+	if UFProfileManager._eventFrame then return end
+	local frame = CreateFrame("Frame")
+	frame:RegisterEvent("PLAYER_LOGIN")
+	frame:RegisterEvent("ACTIVE_PLAYER_SPECIALIZATION_CHANGED")
+	frame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
+	frame:RegisterEvent("PLAYER_REGEN_ENABLED")
+	frame:SetScript("OnEvent", function(_, event)
+		if event == "PLAYER_REGEN_ENABLED" then
+			if UF._pendingProfileApply then UFProfileManager.ApplyCurrent("PLAYER_REGEN_ENABLED") end
+			return
+		end
+		local ok = UFProfileManager.Initialize()
+		if not ok then return end
+		if event == "PLAYER_LOGIN" or event == "ACTIVE_PLAYER_SPECIALIZATION_CHANGED" or event == "ACTIVE_TALENT_GROUP_CHANGED" then UFProfileManager.ApplySpecMapping(event) end
+	end)
+	UFProfileManager._eventFrame = frame
+end
+
+function UFProfileManager.Initialize()
+	UFProfileManager.Trace("INIT_BEGIN", "Initialize")
+	if type(addon.db) ~= "table" then return false, "NO_DB" end
+	local profiles = UFProfileManager._ensureUFProfilesRoot()
+	if type(profiles) ~= "table" then return false, "NO_DB" end
+	UFProfileManager._dedupeUFProfileTables(profiles)
+	UFProfileManager._cleanUFProfileReferences(profiles)
+	local activeName = UFProfileManager._resolveUFActiveProfileName(profiles)
+	if not activeName or not profiles[activeName] then return false, "NO_PROFILE" end
+	local guid = UFProfileManager._getCurrentPlayerGUID()
+	local keyProfile = guid and addon.db.ufProfileKeys and addon.db.ufProfileKeys[guid] or nil
+	UFProfileManager.Debug("initialize guid=%s key=%s global=%s resolved=%s", tostring(guid), tostring(keyProfile), tostring(addon.db.ufProfileGlobal), tostring(activeName))
+	if not (UFProfileManager._activeProfileName == activeName and UFProfileManager._isUFProfileBound(activeName)) then UFProfileManager._bindUFProfileToRuntime(activeName) end
+	UFProfileManager._ensureUFProfileEvents()
+	UFProfileManager._dbRef = addon.db
+	UFProfileManager.Trace("INIT_DONE", activeName)
+	return true
+end
+
+function UFProfileManager.MaybeInitialize()
+	if type(addon.db) ~= "table" then return false, "NO_DB" end
+	if UFProfileManager._dbRef ~= addon.db then
+		UFProfileManager.Debug("maybe-init: db ref changed")
+		UFProfileManager.Trace("MAYBE_INIT_REINIT", "DB_REF_CHANGED")
+		return UFProfileManager.Initialize()
+	end
+	if not UFProfileManager._activeProfileName then
+		UFProfileManager.Debug("maybe-init: missing active profile cache")
+		UFProfileManager.Trace("MAYBE_INIT_REINIT", "NO_ACTIVE_CACHE")
+		return UFProfileManager.Initialize()
+	end
+	local profiles = addon.db.ufProfiles
+	local activeName = UFProfileManager._activeProfileName
+	if type(profiles) ~= "table" or type(profiles[activeName]) ~= "table" then
+		UFProfileManager.Debug("maybe-init: active profile payload missing")
+		UFProfileManager.Trace("MAYBE_INIT_REINIT", "ACTIVE_PAYLOAD_MISSING")
+		return UFProfileManager.Initialize()
+	end
+	if not UFProfileManager._isUFProfileBound(activeName) then
+		UFProfileManager.Debug("maybe-init: runtime binding mismatch for %s", tostring(activeName))
+		UFProfileManager.Trace("MAYBE_INIT_REINIT", "RUNTIME_BIND_MISMATCH")
+		return UFProfileManager.Initialize()
+	end
+
+	local guid = UFProfileManager._getCurrentPlayerGUID()
+	if guid and type(addon.db.ufProfileKeys) == "table" then
+		local mapped = UFProfileManager._trimProfileName(addon.db.ufProfileKeys[guid])
+		if mapped and profiles[mapped] and mapped ~= activeName then
+			UFProfileManager.Debug("maybe-init: guid map %s -> %s (cached %s)", tostring(guid), tostring(mapped), tostring(activeName))
+			UFProfileManager.Trace("MAYBE_INIT_REINIT", "GUID_MAP_DIFF")
+			return UFProfileManager.Initialize()
+		end
+	end
+	return true
+end
+
+function UFProfileManager.GetSortedNames()
+	if not UFProfileManager.Initialize() then return {} end
+	return UFProfileManager._getSortedUFProfileNames(addon.db.ufProfiles)
+end
+
+function UFProfileManager.GetActiveName()
+	if not UFProfileManager.Initialize() then return nil end
+	return UFProfileManager._activeProfileName
+end
+
+function UFProfileManager.GetGlobalName()
+	if not UFProfileManager.Initialize() then return nil end
+	return addon.db.ufProfileGlobal
+end
+
+function UFProfileManager.SetGlobalName(name)
+	if not UFProfileManager.Initialize() then return false, "NO_DB" end
+	name = UFProfileManager._trimProfileName(name)
+	if not name then return false, "INVALID_NAME" end
+	if not addon.db.ufProfiles[name] then return false, "NOT_FOUND" end
+	addon.db.ufProfileGlobal = name
+	UFProfileManager.Trace("SET_GLOBAL", name)
+	return true
+end
+
+function UFProfileManager.GetActiveProfile()
+	if not UFProfileManager.Initialize() then return nil end
+	local activeName = UFProfileManager._activeProfileName
+	return activeName and addon.db.ufProfiles and addon.db.ufProfiles[activeName] or nil
+end
+
+function UFProfileManager.EnsureTableKey(key)
+	if type(key) ~= "string" or key == "" then return nil end
+	local profile = UFProfileManager.GetActiveProfile()
+	if not profile then
+		addon.db[key] = addon.db[key] or {}
+		return addon.db[key]
+	end
+	local tbl = profile[key]
+	if type(tbl) ~= "table" then
+		tbl = {}
+		profile[key] = tbl
+	end
+	addon.db[key] = tbl
+	return tbl
+end
+
+function UFProfileManager.SetRuntimeKey(key, value)
+	if type(key) ~= "string" or key == "" then return false end
+	local profile = UFProfileManager.GetActiveProfile()
+	if profile then profile[key] = value end
+	addon.db[key] = value
+	return true
+end
+
+function UFProfileManager.SetUseCustomClassColors(value)
+	value = value == true
+	local profile = UFProfileManager.GetActiveProfile()
+	if profile then profile.ufUseCustomClassColors = value end
+	addon.db.ufUseCustomClassColors = value
+	return true
+end
+
+function UFProfileManager.SetActiveName(name, source)
+	if not UFProfileManager.Initialize() then return false, "NO_DB" end
+	name = UFProfileManager._trimProfileName(name)
+	if not name then return false, "INVALID_NAME" end
+	if not addon.db.ufProfiles[name] then return false, "NOT_FOUND" end
+
+	local guid = UFProfileManager._getCurrentPlayerGUID()
+	if guid then
+		addon.db.ufProfileKeys[guid] = name
+	else
+		addon.db.ufProfileGlobal = name
+	end
+	UFProfileManager.Debug("set active profile -> %s (source=%s, guid=%s)", tostring(name), tostring(source), tostring(guid))
+	UFProfileManager.Trace("SET_ACTIVE", string.format("%s|%s", tostring(name), tostring(source)))
+
+	return UFProfileManager.ApplyCurrent(source or "SET_ACTIVE")
+end
+
+function UFProfileManager.GetSpecMapping(specID)
+	if not UFProfileManager.Initialize() then return nil end
+	local guid = UFProfileManager._getCurrentPlayerGUID()
+	if not guid then return nil end
+	local byGuid = addon.db.ufProfileSpecKeys and addon.db.ufProfileSpecKeys[guid]
+	if type(byGuid) ~= "table" then return nil end
+	local key = tonumber(specID)
+	if not key then return nil end
+	local mapped = byGuid[key]
+	if type(mapped) ~= "string" or mapped == "" then mapped = byGuid[tostring(key)] end
+	if type(mapped) ~= "string" or mapped == "" then return nil end
+	if not addon.db.ufProfiles[mapped] then return nil end
+	return mapped
+end
+
+function UFProfileManager.SetSpecMapping(specID, profileName)
+	if not UFProfileManager.Initialize() then return false, "NO_DB" end
+	local guid = UFProfileManager._getCurrentPlayerGUID()
+	if not guid then return false, "NO_GUID" end
+	local key = tonumber(specID)
+	if not key or key <= 0 then return false, "INVALID_SPEC" end
+
+	local maps = addon.db.ufProfileSpecKeys
+	maps[guid] = type(maps[guid]) == "table" and maps[guid] or {}
+	local byGuid = maps[guid]
+
+	if profileName == nil or profileName == "" then
+		byGuid[key] = nil
+		byGuid[tostring(key)] = nil
+		if not next(byGuid) then maps[guid] = nil end
+		UFProfileManager.Trace("SET_SPEC_MAP", string.format("%s-><nil>", tostring(key)))
+		return true
+	end
+
+	profileName = UFProfileManager._trimProfileName(profileName)
+	if not profileName then return false, "INVALID_NAME" end
+	if not addon.db.ufProfiles[profileName] then return false, "NOT_FOUND" end
+	byGuid[key] = profileName
+	byGuid[tostring(key)] = nil
+	UFProfileManager.Trace("SET_SPEC_MAP", string.format("%s->%s", tostring(key), tostring(profileName)))
+	return true
+end
+
+function UFProfileManager.Create(name)
+	if not UFProfileManager.Initialize() then return false, "NO_DB" end
+	name = UFProfileManager._trimProfileName(name)
+	if not name then return false, "INVALID_NAME" end
+	if addon.db.ufProfiles[name] then return false, "EXISTS" end
+	addon.db.ufProfiles[name] = UFProfileManager._ensureUFProfilePayload({})
+	UFProfileManager.Trace("CREATE_PROFILE", name)
+	return true
+end
+
+function UFProfileManager.CopyToActive(sourceName)
+	if not UFProfileManager.Initialize() then return false, "NO_DB" end
+	sourceName = UFProfileManager._trimProfileName(sourceName)
+	if not sourceName then return false, "INVALID_NAME" end
+	local source = addon.db.ufProfiles[sourceName]
+	if type(source) ~= "table" then return false, "NOT_FOUND" end
+	local activeName = UFProfileManager.GetActiveName()
+	if not activeName then return false, "NO_ACTIVE" end
+	addon.db.ufProfiles[activeName] = UFProfileManager._ensureUFProfilePayload(UFProfileManager._copyProfileValue(source))
+	UFProfileManager.Trace("COPY_TO_ACTIVE", string.format("%s->%s", tostring(sourceName), tostring(activeName)))
+	return UFProfileManager.ApplyCurrent("COPY_ACTIVE")
+end
+
+function UFProfileManager._removeUFProfileMappings(profileName)
+	if type(addon.db.ufProfileKeys) == "table" then
+		for guid, mapped in pairs(addon.db.ufProfileKeys) do
+			if mapped == profileName then addon.db.ufProfileKeys[guid] = nil end
+		end
+	end
+	if type(addon.db.ufProfileSpecKeys) == "table" then
+		for guid, map in pairs(addon.db.ufProfileSpecKeys) do
+			if type(map) == "table" then
+				for specKey, mapped in pairs(map) do
+					if mapped == profileName then map[specKey] = nil end
+				end
+				if not next(map) then addon.db.ufProfileSpecKeys[guid] = nil end
+			else
+				addon.db.ufProfileSpecKeys[guid] = nil
+			end
+		end
+	end
+end
+
+function UFProfileManager.Delete(name)
+	if not UFProfileManager.Initialize() then return false, "NO_DB" end
+	name = UFProfileManager._trimProfileName(name)
+	if not name then return false, "INVALID_NAME" end
+	if not addon.db.ufProfiles[name] then return false, "NOT_FOUND" end
+	if addon.db.ufProfileGlobal == name then return false, "PROTECTED" end
+	local activeName = UFProfileManager.GetActiveName()
+	if activeName == name then return false, "PROTECTED" end
+
+	addon.db.ufProfiles[name] = nil
+	UFProfileManager._removeUFProfileMappings(name)
+	UFProfileManager.Trace("DELETE_PROFILE", name)
+
+	local names = UFProfileManager._getSortedUFProfileNames(addon.db.ufProfiles)
+	if #names == 0 then
+		addon.db.ufProfiles[UFProfileManager.DEFAULT_NAME] = UFProfileManager._ensureUFProfilePayload({})
+		names[1] = UFProfileManager.DEFAULT_NAME
+	end
+	if not addon.db.ufProfiles[addon.db.ufProfileGlobal] then addon.db.ufProfileGlobal = names[1] end
+	return true
+end
+
+function UFProfileManager.ApplyCurrent(reason)
+	local ok, initReason = UFProfileManager.Initialize()
+	if not ok then return false, initReason end
+
+	local activeName = UFProfileManager.GetActiveName()
+	if not activeName then return false, "NO_ACTIVE" end
+
+	if InCombatLockdown and InCombatLockdown() then
+		UF._pendingProfileApply = true
+		UF._pendingProfileApplyReason = reason or "PENDING"
+		UFProfileManager.Debug("apply queued in combat (active=%s, reason=%s)", tostring(activeName), tostring(reason))
+		UFProfileManager.Trace("APPLY_QUEUED", reason)
+		return true, "QUEUED"
+	end
+
+	UF._pendingProfileApply = nil
+	UF._pendingProfileApplyReason = nil
+	UFProfileManager.Debug("apply now (active=%s, reason=%s)", tostring(activeName), tostring(reason))
+	UFProfileManager.Trace("APPLY_NOW", reason)
+
+	if UF.GroupFrames and UF.GroupFrames.ApplyProfileChange then UF.GroupFrames:ApplyProfileChange(reason) end
+	if addon.Aura and addon.Aura.UFInitialized and UF.Refresh then UF.Refresh() end
+	local standalone = addon.Aura and addon.Aura.UFStandaloneCastbar
+	if standalone and standalone.Refresh then standalone.Refresh() end
+	return true
+end
+
+function UFProfileManager.ApplySpecMapping(source)
+	local ok = UFProfileManager.Initialize()
+	if not ok then return false, "NO_DB" end
+	local specID = UFProfileManager._getCurrentSpecID()
+	if not specID then return false, "NO_SPEC" end
+	local mappedProfile = UFProfileManager.GetSpecMapping(specID)
+	if not mappedProfile then
+		UFProfileManager.Trace("SPEC_MAP_SKIP", string.format("%s|NO_MAPPING", tostring(specID)))
+		return false, "NO_MAPPING"
+	end
+	if mappedProfile == UFProfileManager.GetActiveName() then return true, "UNCHANGED" end
+	UFProfileManager.Debug("apply spec mapping spec=%s -> %s (source=%s)", tostring(specID), tostring(mappedProfile), tostring(source))
+	UFProfileManager.Trace("SPEC_MAP_APPLY", string.format("%s->%s|%s", tostring(specID), tostring(mappedProfile), tostring(source)))
+	return UFProfileManager.SetActiveName(mappedProfile, source or "SPEC_MAPPING")
+end
+
 local bossUnitLookup = { boss = true }
 for i = 1, maxBossFrames do
 	bossUnitLookup["boss" .. i] = true
@@ -787,6 +1330,7 @@ function AuraUtil.resetTargetAuras(unit)
 end
 
 local function ensureDB(unit)
+	if UFProfileManager and UFProfileManager.MaybeInitialize then UFProfileManager.MaybeInitialize() end
 	addon.db = addon.db or {}
 	addon.db.ufFrames = addon.db.ufFrames or {}
 	local db = addon.db.ufFrames
@@ -1518,6 +2062,7 @@ applyTotemFrameLayout = function(cfg)
 end
 
 local function resolveProfileDB(profileName)
+	if UFProfileManager and UFProfileManager.MaybeInitialize then UFProfileManager.MaybeInitialize() end
 	if type(profileName) == "string" and profileName ~= "" then
 		local profiles = EnhanceQoLDB and EnhanceQoLDB.profiles
 		if type(profiles) ~= "table" then return nil, true end
@@ -6565,6 +7110,7 @@ local generalEvents = {
 	"PLAYER_LOGIN",
 	"SPELLS_CHANGED",
 	"PLAYER_TALENT_UPDATE",
+	"ACTIVE_TALENT_GROUP_CHANGED",
 	"ACTIVE_PLAYER_SPECIALIZATION_CHANGED",
 	"TRAIT_CONFIG_UPDATED",
 	"PLAYER_REGEN_DISABLED",
@@ -7276,9 +7822,9 @@ onEvent = function(self, event, unit, ...)
 		if UFHelper and UFHelper.RangeFadeUpdateFromEvent then UFHelper.RangeFadeUpdateFromEvent(spellIdentifier, isInRange, checksRange) end
 		return
 	end
-	if event == "SPELLS_CHANGED" or event == "PLAYER_TALENT_UPDATE" or event == "ACTIVE_PLAYER_SPECIALIZATION_CHANGED" or event == "TRAIT_CONFIG_UPDATED" then
+	if event == "SPELLS_CHANGED" or event == "PLAYER_TALENT_UPDATE" or event == "ACTIVE_PLAYER_SPECIALIZATION_CHANGED" or event == "ACTIVE_TALENT_GROUP_CHANGED" or event == "TRAIT_CONFIG_UPDATED" then
 		refreshRangeFadeSpells(true)
-		if event == "PLAYER_TALENT_UPDATE" or event == "ACTIVE_PLAYER_SPECIALIZATION_CHANGED" or event == "TRAIT_CONFIG_UPDATED" then
+		if event == "PLAYER_TALENT_UPDATE" or event == "ACTIVE_PLAYER_SPECIALIZATION_CHANGED" or event == "ACTIVE_TALENT_GROUP_CHANGED" or event == "TRAIT_CONFIG_UPDATED" then
 			reapplyPlayerFrameAfterSpecChange()
 			if After then After(0, reapplyPlayerFrameAfterSpecChange) end
 		end
@@ -7351,6 +7897,7 @@ onEvent = function(self, event, unit, ...)
 				UF._playerDisplayPowerLayoutPending = nil
 				reapplyPlayerFrameAfterSpecChange()
 			end
+			if UF._pendingProfileApply and UFProfileManager and UFProfileManager.ApplyCurrent then UFProfileManager.ApplyCurrent(UF._pendingProfileApplyReason or "PLAYER_REGEN_ENABLED") end
 		end
 	elseif event == "PLAYER_TARGET_CHANGED" then
 		if UFHelper and UFHelper.RangeFadeReset then UFHelper.RangeFadeReset() end
@@ -7896,7 +8443,7 @@ local function ensureEventHandling()
 	UF.UpdateAllTexts(true)
 end
 
-local function refreshStandaloneCastbar()
+function UF.RefreshStandaloneCastbar()
 	local standalone = addon.Aura and addon.Aura.UFStandaloneCastbar
 	if standalone and standalone.Refresh then standalone.Refresh() end
 end
@@ -7919,7 +8466,7 @@ function UF.Enable()
 	if addon.functions and addon.functions.UpdateClassResourceVisibility then addon.functions.UpdateClassResourceVisibility() end
 	-- hideBlizzardPlayerFrame()
 	-- hideBlizzardTargetFrame()
-	refreshStandaloneCastbar()
+	UF.RefreshStandaloneCastbar()
 end
 
 function UF.Disable()
@@ -7938,7 +8485,7 @@ function UF.Disable()
 	end
 	ensureEventHandling()
 	if addon.functions and addon.functions.UpdateClassResourceVisibility then addon.functions.UpdateClassResourceVisibility() end
-	refreshStandaloneCastbar()
+	UF.RefreshStandaloneCastbar()
 end
 
 function UF.Refresh()
@@ -7979,7 +8526,7 @@ function UF.Refresh()
 		hideBossFrames()
 		applyVisibilityRules("boss")
 	end
-	refreshStandaloneCastbar()
+	UF.RefreshStandaloneCastbar()
 end
 
 function UF.RefreshUnit(unit)
@@ -8016,7 +8563,7 @@ function UF.RefreshUnit(unit)
 	else
 		applyConfig(UNIT.PLAYER)
 	end
-	if unit == nil or unit == UNIT.PLAYER then refreshStandaloneCastbar() end
+	if unit == nil or unit == UNIT.PLAYER then UF.RefreshStandaloneCastbar() end
 end
 
 function UF.Initialize()
@@ -8068,7 +8615,7 @@ function UF.Initialize()
 		updateBossFrames(true)
 	end
 	if isBossFrameSettingEnabled() then DisableBossFrames() end
-	refreshStandaloneCastbar()
+	UF.RefreshStandaloneCastbar()
 end
 
 addon.Aura.functions = addon.Aura.functions or {}
@@ -8092,6 +8639,17 @@ UF.CopySettings = copySettings
 addon.Aura.functions = addon.Aura.functions or {}
 addon.Aura.functions.importUFProfile = UF.ImportProfile
 addon.Aura.functions.exportUFProfile = UF.ExportProfile
+addon.Aura.functions.getUFProfileNames = function() return UFProfileManager.GetSortedNames() end
+addon.Aura.functions.getActiveUFProfile = function() return UFProfileManager.GetActiveName() end
+addon.Aura.functions.setActiveUFProfile = function(name, source) return UFProfileManager.SetActiveName(name, source) end
+addon.Aura.functions.getGlobalUFProfile = function() return UFProfileManager.GetGlobalName() end
+addon.Aura.functions.setGlobalUFProfile = function(name) return UFProfileManager.SetGlobalName(name) end
+addon.Aura.functions.getUFProfileSpecMapping = function(specID) return UFProfileManager.GetSpecMapping(specID) end
+addon.Aura.functions.setUFProfileSpecMapping = function(specID, name) return UFProfileManager.SetSpecMapping(specID, name) end
+addon.Aura.functions.createUFProfile = function(name) return UFProfileManager.Create(name) end
+addon.Aura.functions.copyUFProfileToActive = function(name) return UFProfileManager.CopyToActive(name) end
+addon.Aura.functions.deleteUFProfile = function(name) return UFProfileManager.Delete(name) end
+addon.Aura.functions.applyUFProfile = function(reason) return UFProfileManager.ApplyCurrent(reason) end
 
 addon.exportUFProfile = function(profileName, scopeKey) return UF.ExportProfile(scopeKey, profileName) end
 addon.importUFProfile = function(encoded, scopeKey) return UF.ImportProfile(encoded, scopeKey) end

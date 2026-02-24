@@ -1,5 +1,17 @@
 # Changelog
 
+## [7.21.0] - 2026-02-24
+
+### ✨ Added
+
+- Unit Frames: Added a full UF profile system.
+- Unit Frames (Profiles): You can now set an `Active profile` (per character) and a `Global profile` fallback.
+- Unit Frames (Profiles): Added optional spec mapping, so each specialization can auto-switch to a selected UF profile.
+- Unit Frames (Profiles): Added create/copy/delete actions on the Profiles page.
+- Unit Frames (Profiles): Added quick UF profile switching in the minimap right-click menu.
+
+---
+
 ## [7.20.0] - 2026-02-22
 
 ### ✨ Added

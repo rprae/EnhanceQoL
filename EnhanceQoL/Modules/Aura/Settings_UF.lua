@@ -17,6 +17,7 @@ local NormalizeUnitFrameVisibilityConfig = addon.functions and addon.functions.N
 
 local UF = addon.Aura and addon.Aura.UF
 local UFHelper = addon.Aura and addon.Aura.UFHelper
+local UFProfiles = UF and UF.Profiles
 local CastbarSettings = addon.Aura and addon.Aura.SettingsCastbar
 local function getCastbarModule() return addon.Aura and (addon.Aura.Castbar or addon.Aura.UFStandaloneCastbar) end
 if not (UF and settingType) then return end
@@ -350,15 +351,22 @@ end
 
 local function setPowerOverride(token, r, g, b, a)
 	addon.db = addon.db or {}
-	addon.db.ufPowerColorOverrides = addon.db.ufPowerColorOverrides or {}
-	addon.db.ufPowerColorOverrides[token] = { r or 1, g or 1, b or 1, a or 1 }
+	local overrides = (UFProfiles and UFProfiles.EnsureTableKey and UFProfiles.EnsureTableKey("ufPowerColorOverrides")) or addon.db.ufPowerColorOverrides or {}
+	addon.db.ufPowerColorOverrides = overrides
+	overrides[token] = { r or 1, g or 1, b or 1, a or 1 }
 end
 
 local function clearPowerOverride(token)
 	local overrides = addon.db and addon.db.ufPowerColorOverrides
 	if not overrides then return end
 	overrides[token] = nil
-	if not next(overrides) then addon.db.ufPowerColorOverrides = nil end
+	if not next(overrides) then
+		if UFProfiles and UFProfiles.SetRuntimeKey then
+			UFProfiles.SetRuntimeKey("ufPowerColorOverrides", {})
+		else
+			addon.db.ufPowerColorOverrides = {}
+		end
+	end
 end
 
 local function getDefaultNPCColor(key)
@@ -376,15 +384,22 @@ end
 
 local function setNPCOverride(key, r, g, b, a)
 	addon.db = addon.db or {}
-	addon.db.ufNPCColorOverrides = addon.db.ufNPCColorOverrides or {}
-	addon.db.ufNPCColorOverrides[key] = { r or 1, g or 1, b or 1, a or 1 }
+	local overrides = (UFProfiles and UFProfiles.EnsureTableKey and UFProfiles.EnsureTableKey("ufNPCColorOverrides")) or addon.db.ufNPCColorOverrides or {}
+	addon.db.ufNPCColorOverrides = overrides
+	overrides[key] = { r or 1, g or 1, b or 1, a or 1 }
 end
 
 local function clearNPCOverride(key)
 	local overrides = addon.db and addon.db.ufNPCColorOverrides
 	if not overrides then return end
 	overrides[key] = nil
-	if not next(overrides) then addon.db.ufNPCColorOverrides = nil end
+	if not next(overrides) then
+		if UFProfiles and UFProfiles.SetRuntimeKey then
+			UFProfiles.SetRuntimeKey("ufNPCColorOverrides", {})
+		else
+			addon.db.ufNPCColorOverrides = {}
+		end
+	end
 end
 
 local npcColorEntries = {
@@ -6880,7 +6895,8 @@ local function registerSettingsUI()
 	end
 
 	local function ensureCustomClassColors()
-		addon.db.ufClassColors = addon.db.ufClassColors or {}
+		local classColors = (UFProfiles and UFProfiles.EnsureTableKey and UFProfiles.EnsureTableKey("ufClassColors")) or addon.db.ufClassColors or {}
+		addon.db.ufClassColors = classColors
 		local order = CLASS_SORT_ORDER or {}
 		if #order == 0 and RAID_CLASS_COLORS then
 			for classTag in pairs(RAID_CLASS_COLORS) do
@@ -6889,9 +6905,9 @@ local function registerSettingsUI()
 			table.sort(order)
 		end
 		for _, classTag in ipairs(order) do
-			if not addon.db.ufClassColors[classTag] then
+			if not classColors[classTag] then
 				local r, g, b, a = getDefaultClassColor(classTag)
-				addon.db.ufClassColors[classTag] = { r = r, g = g, b = b, a = a }
+				classColors[classTag] = { r = r, g = g, b = b, a = a }
 			end
 		end
 	end
@@ -6918,7 +6934,11 @@ local function registerSettingsUI()
 		text = L["ufUseCustomClassColors"] or "Use custom class colors for unit frames",
 		desc = L["ufUseCustomClassColorsDesc"] or "Overrides class colors used by Enhance QoL unit frames.",
 		func = function(value)
-			addon.db["ufUseCustomClassColors"] = value
+			if UFProfiles and UFProfiles.SetUseCustomClassColors then
+				UFProfiles.SetUseCustomClassColors(value and true or false)
+			else
+				addon.db["ufUseCustomClassColors"] = value and true or false
+			end
 			if value then ensureCustomClassColors() end
 			if Settings and Settings.NotifyUpdate then Settings.NotifyUpdate("EQOL_ufUseCustomClassColors") end
 			if addon.Aura and addon.Aura.UF and addon.Aura.UF.Refresh then addon.Aura.UF.Refresh() end
@@ -6938,8 +6958,9 @@ local function registerSettingsUI()
 			return getDefaultClassColor(key)
 		end,
 		setColor = function(key, r, g, b, a)
-			addon.db.ufClassColors = addon.db.ufClassColors or {}
-			addon.db.ufClassColors[key] = { r = r, g = g, b = b, a = a }
+			local classColors = (UFProfiles and UFProfiles.EnsureTableKey and UFProfiles.EnsureTableKey("ufClassColors")) or addon.db.ufClassColors or {}
+			addon.db.ufClassColors = classColors
+			classColors[key] = { r = r, g = g, b = b, a = a }
 			if addon.Aura and addon.Aura.UF and addon.Aura.UF.Refresh then addon.Aura.UF.Refresh() end
 		end,
 		getDefaultColor = function(key) return getDefaultClassColor(key) end,
@@ -6951,7 +6972,8 @@ local function registerSettingsUI()
 		parentSection = expandable,
 	})
 
-	do -- Profile export/import
+	do -- Profile management + export/import
+		if UFProfiles and UFProfiles.Initialize then UFProfiles.Initialize() end
 		local scopeOptions = {
 			ALL = L["UFProfileScopeAll"] or "All frames",
 			player = L["UFPlayerFrame"] or PLAYER,
@@ -6979,12 +7001,261 @@ local function registerSettingsUI()
 		end
 
 		local cProfiles = addon.SettingsLayout.rootPROFILES
+		local profileOrderActive, profileOrderGlobal, profileOrderCopy, profileOrderDelete = {}, {}, {}, {}
+		local noOverrideLabel = L["UFProfileNoOverride"] or "No override"
+
+		local function clearOrder(order)
+			for i = #order, 1, -1 do
+				order[i] = nil
+			end
+		end
+
+		local function buildProfileList(order, excludeFunc, includeEmpty, emptyLabel)
+			clearOrder(order)
+			local list = {}
+			if includeEmpty then
+				list[""] = emptyLabel or ""
+				order[#order + 1] = ""
+			end
+			local names = (UFProfiles and UFProfiles.GetSortedNames and UFProfiles.GetSortedNames()) or {}
+			for _, name in ipairs(names) do
+				if not excludeFunc or not excludeFunc(name) then
+					list[name] = name
+					order[#order + 1] = name
+				end
+			end
+			return list
+		end
+
+		local function getActiveUFProfile()
+			if UFProfiles and UFProfiles.GetActiveName then return UFProfiles.GetActiveName() end
+			return nil
+		end
+
+		local function getGlobalUFProfile()
+			if UFProfiles and UFProfiles.GetGlobalName then return UFProfiles.GetGlobalName() end
+			return nil
+		end
+
+		local function printUFProfileError(reason)
+			if reason == "INVALID_NAME" then
+				print("|cff00ff98Enhance QoL|r: " .. tostring(L["UFProfileCreateInvalid"] or "Please enter a valid Unit Frames profile name."))
+			elseif reason == "EXISTS" then
+				print("|cff00ff98Enhance QoL|r: " .. tostring(L["UFProfileCreateExists"] or "A Unit Frames profile with that name already exists."))
+			elseif reason == "PROTECTED" then
+				print("|cff00ff98Enhance QoL|r: " .. tostring(L["UFProfileDeleteBlocked"] or "You cannot delete the active or global Unit Frames profile."))
+			else
+				print("|cff00ff98Enhance QoL|r: " .. tostring(L["UFProfileActionFailed"] or "Could not update Unit Frames profiles."))
+			end
+		end
 
 		local expandableProfile = addon.functions.SettingsCreateExpandableSection(cProfiles, {
 			name = L["CustomUnitFrames"],
 			expanded = false,
 			colorizeTitle = false,
+			newTagID = "UFProfiles",
 		})
+
+		addon.functions.SettingsCreateDropdown(cProfiles, {
+			var = "ufProfileActive",
+			text = L["UFProfileActive"] or (L["ProfileActive"] or "Active profile"),
+			listFunc = function() return buildProfileList(profileOrderActive) end,
+			order = profileOrderActive,
+			get = function() return getActiveUFProfile() or "Default" end,
+			set = function(value)
+				local ok, reason = UFProfiles and UFProfiles.SetActiveName and UFProfiles.SetActiveName(value, "SETTINGS_DROPDOWN")
+				if not ok then
+					local msg = L["UFProfileSetActiveFailed"] or "Could not switch the active Unit Frames profile."
+					if reason == "NOT_FOUND" then msg = L["UFProfileSetActiveMissing"] or "That Unit Frames profile does not exist." end
+					print("|cff00ff98Enhance QoL|r: " .. tostring(msg))
+				end
+			end,
+			default = "Default",
+			parentSection = expandableProfile,
+		})
+
+		addon.functions.SettingsCreateDropdown(cProfiles, {
+			var = "ufProfileGlobal",
+			text = L["UFProfileGlobal"] or (L["ProfileUseGlobal"] or "Global profile"),
+			listFunc = function() return buildProfileList(profileOrderGlobal) end,
+			order = profileOrderGlobal,
+			get = function() return getGlobalUFProfile() or "Default" end,
+			set = function(value)
+				local ok, reason = UFProfiles and UFProfiles.SetGlobalName and UFProfiles.SetGlobalName(value)
+				if not ok then
+					local msg = L["UFProfileSetGlobalFailed"] or "Could not set the global Unit Frames profile."
+					if reason == "NOT_FOUND" then msg = L["UFProfileSetGlobalMissing"] or "That Unit Frames profile does not exist." end
+					print("|cff00ff98Enhance QoL|r: " .. tostring(msg))
+				end
+			end,
+			default = "Default",
+			parentSection = expandableProfile,
+		})
+
+		addon.functions.SettingsCreateDropdown(cProfiles, {
+			var = "ufProfileCopy",
+			text = L["UFProfileCopy"] or (L["ProfileCopy"] or "Copy settings from profile"),
+			listFunc = function()
+				local active = getActiveUFProfile()
+				return buildProfileList(profileOrderCopy, function(name) return name == active end, true)
+			end,
+			order = profileOrderCopy,
+			get = function() return "" end,
+			set = function(value)
+				if value == "" then return end
+				StaticPopupDialogs["EQOL_UF_PROFILE_COPY"] = StaticPopupDialogs["EQOL_UF_PROFILE_COPY"]
+					or {
+						text = "",
+						button1 = YES,
+						button2 = CANCEL,
+						timeout = 0,
+						whileDead = true,
+						hideOnEscape = true,
+						preferredIndex = 3,
+						OnAccept = function(self)
+							local source = self.data
+							local ok, reason = UFProfiles and UFProfiles.CopyToActive and UFProfiles.CopyToActive(source)
+							if not ok then
+								printUFProfileError(reason)
+								return
+							end
+							local msg = (L["UFProfileCopySuccess"] or 'Copied Unit Frames settings from "%s".'):format(source or "")
+							print("|cff00ff98Enhance QoL|r: " .. msg)
+						end,
+					}
+				StaticPopupDialogs["EQOL_UF_PROFILE_COPY"].text = (L["UFProfileCopyConfirm"] or 'Copy settings from "%s" to your active Unit Frames profile?'):format(value)
+				StaticPopup_Show("EQOL_UF_PROFILE_COPY", nil, nil, value)
+			end,
+			default = "",
+			parentSection = expandableProfile,
+		})
+
+		addon.functions.SettingsCreateDropdown(cProfiles, {
+			var = "ufProfileDelete",
+			text = L["UFProfileDelete"] or (L["ProfileDelete"] or "Delete profile"),
+			listFunc = function()
+				local active = getActiveUFProfile()
+				local globalProfile = getGlobalUFProfile()
+				return buildProfileList(profileOrderDelete, function(name) return name == active or name == globalProfile end, true)
+			end,
+			order = profileOrderDelete,
+			get = function() return "" end,
+			set = function(value)
+				if value == "" then return end
+				StaticPopupDialogs["EQOL_UF_PROFILE_DELETE"] = StaticPopupDialogs["EQOL_UF_PROFILE_DELETE"]
+					or {
+						text = "",
+						button1 = YES,
+						button2 = CANCEL,
+						timeout = 0,
+						whileDead = true,
+						hideOnEscape = true,
+						preferredIndex = 3,
+						OnAccept = function(self)
+							local profileName = self.data
+							local ok, reason = UFProfiles and UFProfiles.Delete and UFProfiles.Delete(profileName)
+							if not ok then
+								printUFProfileError(reason)
+								return
+							end
+							local msg = (L["UFProfileDeleteSuccess"] or 'Deleted Unit Frames profile "%s".'):format(profileName or "")
+							print("|cff00ff98Enhance QoL|r: " .. msg)
+						end,
+					}
+				StaticPopupDialogs["EQOL_UF_PROFILE_DELETE"].text = (L["UFProfileDeleteConfirm"] or 'Delete Unit Frames profile "%s"?'):format(value)
+				StaticPopup_Show("EQOL_UF_PROFILE_DELETE", nil, nil, value)
+			end,
+			default = "",
+			parentSection = expandableProfile,
+		})
+
+		addon.functions.SettingsCreateButton(cProfiles, {
+			var = "ufProfileCreate",
+			text = L["UFProfileAdd"] or (L["ProfileName"] or "Add a new profile"),
+			func = function()
+				StaticPopupDialogs["EQOL_UF_PROFILE_CREATE"] = StaticPopupDialogs["EQOL_UF_PROFILE_CREATE"]
+					or {
+						text = L["UFProfileCreatePrompt"] or "Enter a name for the new Unit Frames profile.",
+						hasEditBox = true,
+						button1 = OKAY,
+						button2 = CANCEL,
+						timeout = 0,
+						whileDead = true,
+						hideOnEscape = true,
+						preferredIndex = 3,
+						OnShow = function(self)
+							local editBox = self.editBox or self:GetEditBox()
+							editBox:SetText("")
+							editBox:SetFocus()
+							editBox:HighlightText()
+						end,
+						EditBoxOnEnterPressed = function(editBox)
+							local parent = editBox:GetParent()
+							if parent and parent.button1 then parent.button1:Click() end
+						end,
+						OnAccept = function(self)
+							local editBox = self.editBox or self:GetEditBox()
+							local name = editBox:GetText() or ""
+							local ok, reason = UFProfiles and UFProfiles.Create and UFProfiles.Create(name)
+							if not ok then
+								printUFProfileError(reason)
+								return
+							end
+							print("|cff00ff98Enhance QoL|r: " .. tostring(L["UFProfileCreateSuccess"] or "Unit Frames profile created."))
+						end,
+					}
+				StaticPopup_Show("EQOL_UF_PROFILE_CREATE")
+			end,
+			parentSection = expandableProfile,
+		})
+
+		addon.functions.SettingsCreateHeadline(cProfiles, L["UFProfileSpecMappingHeader"] or "Specialization profile mapping", { parentSection = expandableProfile })
+
+		local specDropdownOrders = {}
+		local classID = addon.variables and addon.variables.unitClassID
+		if not classID then
+			local _, _, id = UnitClass("player")
+			classID = id
+		end
+		classID = tonumber(classID)
+		if classID and classID > 0 and C_SpecializationInfo and C_SpecializationInfo.GetNumSpecializationsForClassID and GetSpecializationInfoForClassID then
+			local specCount = C_SpecializationInfo.GetNumSpecializationsForClassID(classID)
+			for specIndex = 1, (specCount or 0) do
+				local specID, specName = GetSpecializationInfoForClassID(classID, specIndex)
+				if specID and specName then
+					specDropdownOrders[specID] = {}
+					addon.functions.SettingsCreateDropdown(cProfiles, {
+						var = string.format("ufProfileSpecMap_%d", specID),
+						text = (L["UFProfileSpecMapping"] or "%s profile"):format(specName),
+						listFunc = function()
+							local order = specDropdownOrders[specID]
+							return buildProfileList(order, nil, true, noOverrideLabel)
+						end,
+						order = specDropdownOrders[specID],
+						get = function()
+							local mapped = UFProfiles and UFProfiles.GetSpecMapping and UFProfiles.GetSpecMapping(specID)
+							if not mapped or mapped == "" then return "" end
+							return mapped
+						end,
+						set = function(value)
+							local target = value
+							if target == "" then target = nil end
+							local ok, reason = UFProfiles and UFProfiles.SetSpecMapping and UFProfiles.SetSpecMapping(specID, target)
+							if not ok then
+								local msg = L["UFProfileSpecMapFailed"] or "Could not update specialization profile mapping."
+								if reason == "NOT_FOUND" then msg = L["UFProfileSetActiveMissing"] or "That Unit Frames profile does not exist." end
+								print("|cff00ff98Enhance QoL|r: " .. tostring(msg))
+							end
+						end,
+						default = "",
+						parentSection = expandableProfile,
+					})
+				end
+			end
+		end
+
+		addon.functions.SettingsCreateHeadline(cProfiles, L["UFProfileExportImportHeader"] or "Export / Import", { parentSection = expandableProfile })
+
 		addon.functions.SettingsCreateDropdown(cProfiles, {
 			var = "ufProfileScope",
 			text = L["ProfileScope"] or (L["Apply to"] or "Apply to"),
