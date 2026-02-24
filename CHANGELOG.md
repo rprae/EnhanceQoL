@@ -16,6 +16,7 @@
 - Unit Frames (Target): Range fade now refreshes correctly when switching directly between out-of-range targets without losing target first.
 - Character Frame (Item Comparison): Item level text in the Alt comparison flyout now respects the configured character item-level anchor position instead of defaulting to top-right.
 - Chat Frame: `Enable chat fading` now applies correctly to additional/undocked chat windows instead of only `ChatFrame1`.
+- Data Panels (Item Level stream): Equipped-slot tooltip values now use current equipped item-level detection first, preventing incorrect per-slot values for some items.
 
 ---
 
