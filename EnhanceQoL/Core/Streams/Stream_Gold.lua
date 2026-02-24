@@ -100,7 +100,7 @@ local function createAceWindow()
 	local clickAction = AceGUI:Create("Dropdown")
 	clickAction:SetLabel(L["goldPanelLeftClickAction"] or "Left-click action")
 	clickAction:SetList({
-		warband = L["goldPanelLeftClickActionWarband"] or "Swap warband and character gold",
+		warband = L["goldPanelLeftClickActionWarband"] or "Toggle warband/character gold",
 		bags = L["goldPanelLeftClickActionBags"] or "Toggle bags",
 	})
 	clickAction:SetValue(db.leftClickAction or "warband")
