@@ -7900,7 +7900,11 @@ onEvent = function(self, event, unit, ...)
 			if UF._pendingProfileApply and UFProfileManager and UFProfileManager.ApplyCurrent then UFProfileManager.ApplyCurrent(UF._pendingProfileApplyReason or "PLAYER_REGEN_ENABLED") end
 		end
 	elseif event == "PLAYER_TARGET_CHANGED" then
-		if UFHelper and UFHelper.RangeFadeReset then UFHelper.RangeFadeReset() end
+		if UFHelper and UFHelper.RangeFadeRefreshTargetState then
+			UFHelper.RangeFadeRefreshTargetState(UNIT.TARGET)
+		elseif UFHelper and UFHelper.RangeFadeReset then
+			UFHelper.RangeFadeReset()
+		end
 		local targetCfg = getCfg(UNIT.TARGET)
 		local totCfg = getCfg(UNIT.TARGET_TARGET)
 		local focusCfg = getCfg(UNIT.FOCUS)

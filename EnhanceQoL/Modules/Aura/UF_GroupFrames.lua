@@ -75,6 +75,90 @@ local AURA_FILTERS = GFH.AuraFilters
 local SECRET_TEXT_UPDATE_INTERVAL = 0.1
 local FONT_DROPDOWN_SCROLL_HEIGHT = 220
 
+-- !Harreks integration (EQoL <-> HarreksAdvancedRaidFrames)
+function GF.HarreksAPI()
+	local api = _G.AdvancedRaidFramesAPI
+	if api and api.RegisterFrameForUnit and api.UnregisterFrameForUnit then return api end
+	return nil
+end
+
+function GF.IsHarreksSupportedUnit(unit)
+	if unit == "player" then return true end
+	local partyIndex = unit and unit:match("^party(%d)$")
+	if partyIndex then
+		local n = tonumber(partyIndex)
+		return n and n >= 1 and n <= 4
+	end
+	local raidIndex = unit and unit:match("^raid(%d+)$")
+	if raidIndex then
+		local n = tonumber(raidIndex)
+		return n and n >= 1 and n <= 30
+	end
+	return false
+end
+
+function GF.HarfColoringFunc(frame, shouldBeColored, color)
+	local glow = LCG
+	if not glow and LibStub then glow = LibStub("LibCustomGlow-1.0", true) end
+	if not (glow and glow.PixelGlow_Start and glow.PixelGlow_Stop) then return end
+
+	local target = (frame and frame._eqolUFState and frame._eqolUFState.barGroup) or frame
+	if not target then return end
+
+	if shouldBeColored then
+		color = color or EMPTY
+		local c = frame._eqolHarfGlowColor
+		if not c then
+			c = { 1, 1, 1, 1 }
+			frame._eqolHarfGlowColor = c
+		end
+		c[1], c[2], c[3], c[4] = color.r or 1, color.g or 1, color.b or 1, color.a or 1
+		glow.PixelGlow_Start(target, c, 8, 0.25, nil, 3, 0, 0, nil, "EQOL_HARF_HEALTHCOLOR")
+	else
+		glow.PixelGlow_Stop(target, "EQOL_HARF_HEALTHCOLOR")
+	end
+end
+
+function GF.HarfUnregister(btn)
+	local api = GF.HarreksAPI()
+	local glow = LCG
+	if not glow and LibStub then glow = LibStub("LibCustomGlow-1.0", true) end
+	local target = btn and ((btn._eqolUFState and btn._eqolUFState.barGroup) or btn)
+	if glow and target and glow.PixelGlow_Stop then glow.PixelGlow_Stop(target, "EQOL_HARF_HEALTHCOLOR") end
+	if api and btn and btn._eqolHarfUnit and btn._eqolHarfIndex then api.UnregisterFrameForUnit(btn._eqolHarfUnit, btn._eqolHarfIndex) end
+	if btn then
+		btn._eqolHarfUnit = nil
+		btn._eqolHarfIndex = nil
+	end
+end
+
+function GF.HarfRegister(btn)
+	if not btn then return end
+	if btn._eqolPreview then return end
+	local kind = btn._eqolGroupKind
+	if kind == "mt" or kind == "ma" then return end
+
+	local api = GF.HarreksAPI()
+	if not api then return end
+
+	local unit = btn.unit
+	if not (unit and GF.IsHarreksSupportedUnit(unit)) then
+		GF.HarfUnregister(btn)
+		return
+	end
+
+	if btn._eqolHarfUnit == unit and btn._eqolHarfIndex then return end
+
+	GF.HarfUnregister(btn)
+
+	local idx = api.RegisterFrameForUnit(unit, btn, GF.HarfColoringFunc)
+	if idx then
+		btn._eqolHarfUnit = unit
+		btn._eqolHarfIndex = idx
+	end
+end
+-- !HarreksAdvancedRaidFrames end
+
 local function queryAuraSlots(unit, filter, maxCount)
 	if not filter then return nil end
 	if maxCount then return { C_UnitAuras.GetAuraSlots(unit, filter, maxCount) } end
@@ -5663,6 +5747,13 @@ function GF:UnitButton_ClearUnit(self)
 		if UFHelper.RemovePrivateAuras then UFHelper.RemovePrivateAuras(st.privateAuras) end
 		if UFHelper.UpdatePrivateAuraSound then UFHelper.UpdatePrivateAuraSound(st.privateAuras, nil, (self._eqolCfg and self._eqolCfg.privateAuras) or {}) end
 	end
+end
+
+-- !Remove when HarreksAdvancedRaidFrames gets blocked or removed
+if hooksecurefunc then
+	hooksecurefunc(GF, "UnitButton_SetUnit", function(_, btn) GF.HarfRegister(btn) end)
+
+	hooksecurefunc(GF, "UnitButton_ClearUnit", function(_, btn) GF.HarfUnregister(btn) end)
 end
 
 function GF:UnitButton_RegisterUnitEvents(self, unit)

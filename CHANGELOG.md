@@ -9,6 +9,11 @@
 - Unit Frames (Profiles): Added optional spec mapping, so each specialization can auto-switch to a selected UF profile.
 - Unit Frames (Profiles): Added create/copy/delete actions on the Profiles page.
 - Unit Frames (Profiles): Added quick UF profile switching in the minimap right-click menu.
+- Group Frames (Party/Raid): Added optional integration with `HarreksAdvancedRaidFrames`.
+
+### 🐛 Fixed
+
+- Unit Frames (Target): Range fade now refreshes correctly when switching directly between out-of-range targets without losing target first.
 
 ---
 

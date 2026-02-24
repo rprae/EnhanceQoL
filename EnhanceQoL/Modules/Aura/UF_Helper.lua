@@ -3263,6 +3263,7 @@ end
 
 local EnableSpellRangeCheck = C_Spell and C_Spell.EnableSpellRangeCheck
 local GetSpellIDForSpellIdentifier = C_Spell and C_Spell.GetSpellIDForSpellIdentifier
+local IsSpellInRange = C_Spell and C_Spell.IsSpellInRange
 local GetSpellName = C_Spell and C_Spell.GetSpellName
 local GetSpellInfo = _G.GetSpellInfo
 local SpellBook = _G.C_SpellBook
@@ -3783,6 +3784,32 @@ function H.RangeFadeReset()
 	rangeFadeState.numInRange = 0
 	rangeFadeState.inRange = true
 	applyRangeFadeAlpha(true, true)
+end
+
+function H.RangeFadeRefreshTargetState(targetUnit)
+	local enabled = getRangeFadeConfig()
+	if not enabled or not IsSpellInRange then
+		H.RangeFadeReset()
+		return
+	end
+
+	local unit = targetUnit or "target"
+	if not (UnitExists and UnitExists(unit)) then
+		H.RangeFadeReset()
+		return
+	end
+
+	clearTable(rangeFadeState.spellStates)
+	rangeFadeState.numChecked = 0
+	rangeFadeState.numInRange = 0
+	rangeFadeState.inRange = true
+
+	for spellId in pairs(rangeFadeState.activeSpells) do
+		local inRange = IsSpellInRange(spellId, unit)
+		if inRange ~= nil then setRangeFadeSpellState(spellId, inRange == true) end
+	end
+
+	recomputeRangeFade()
 end
 
 function H.RangeFadeApplyCurrent(force) applyRangeFadeAlpha(rangeFadeState.inRange, force) end
