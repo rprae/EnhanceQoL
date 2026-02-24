@@ -199,7 +199,12 @@ local totemFrameClasses = {
 local function getPlayerClassFrameSupportFlags()
 	local classToken = addon.variables and addon.variables.unitClass
 	if not classToken then return false, false end
-	return classResourceClasses[classToken] == true, totemFrameClasses[classToken] == true
+	local hasClassResource = classResourceClasses[classToken] == true
+	if UF and UF.ClassResourceUtil and UF.ClassResourceUtil.getClassResourceOptions then
+		local options = UF.ClassResourceUtil.getClassResourceOptions(classToken)
+		if type(options) == "table" then hasClassResource = #options > 0 end
+	end
+	return hasClassResource, totemFrameClasses[classToken] == true
 end
 
 local bossUnitLookup = { boss = true }
@@ -3663,8 +3668,88 @@ local function buildUnitSettings(unit)
 		local crDef = def.classResource or {}
 		list[#list + 1] = { name = L["ClassResource"] or "Class Resource", kind = settingType.Collapsible, id = "classResource", defaultCollapsed = true }
 		local function isClassResourceEnabled() return getValue(unit, { "classResource", "enabled" }, crDef.enabled ~= false) ~= false end
+		local function getPathValue(root, path)
+			local cur = root
+			if type(cur) ~= "table" then return nil end
+			for i = 1, #path do
+				cur = cur[path[i]]
+				if cur == nil then return nil end
+			end
+			return cur
+		end
+		local function getClassResourceOptions()
+			local util = UF and UF.ClassResourceUtil
+			if util and util.getClassResourceOptions then
+				local options = util.getClassResourceOptions("ALL")
+				if type(options) == "table" then return options end
+			end
+			return {}
+		end
+		addon.variables = addon.variables or {}
+		addon.variables.ufSelectedClassResourceByUnit = type(addon.variables.ufSelectedClassResourceByUnit) == "table" and addon.variables.ufSelectedClassResourceByUnit or {}
+		local selectedClassResourceByUnit = addon.variables.ufSelectedClassResourceByUnit
+		local function getSelectedResourceID()
+			local options = getClassResourceOptions()
+			if #options == 0 then
+				selectedClassResourceByUnit[unit] = nil
+				return nil
+			end
+			local selected = selectedClassResourceByUnit[unit]
+			local valid = false
+			if type(selected) == "string" and selected ~= "" then
+				for i = 1, #options do
+					if options[i].value == selected then
+						valid = true
+						break
+					end
+				end
+			end
+			if not valid then
+				selected = options[1].value
+				selectedClassResourceByUnit[unit] = selected
+			end
+			return selected
+		end
+		local function setSelectedResourceID(resourceID)
+			local options = getClassResourceOptions()
+			for i = 1, #options do
+				if options[i].value == resourceID then
+					selectedClassResourceByUnit[unit] = resourceID
+					return true
+				end
+			end
+			return false
+		end
+		local function buildClassResourcePath(resourceID, suffix)
+			local path = { "classResource" }
+			if type(resourceID) == "string" and resourceID ~= "" then
+				path[#path + 1] = "resources"
+				path[#path + 1] = resourceID
+			end
+			for i = 1, #suffix do
+				path[#path + 1] = suffix[i]
+			end
+			return path
+		end
+		local function getClassResourceValueFor(resourceID, suffix, fallback)
+			if type(resourceID) == "string" and resourceID ~= "" then
+				local scopedValue = getValue(unit, buildClassResourcePath(resourceID, suffix), nil)
+				if scopedValue ~= nil then return scopedValue end
+			end
+			local globalValue = getValue(unit, buildClassResourcePath(nil, suffix), nil)
+			if globalValue ~= nil then return globalValue end
+			local resourceDef = type(crDef.resources) == "table" and type(resourceID) == "string" and crDef.resources[resourceID] or nil
+			local resourceDefault = getPathValue(resourceDef, suffix)
+			if resourceDefault ~= nil then return resourceDefault end
+			local globalDefault = getPathValue(crDef, suffix)
+			if globalDefault ~= nil then return globalDefault end
+			return fallback
+		end
+		local function setClassResourceValueFor(resourceID, suffix, value) setValue(unit, buildClassResourcePath(resourceID, suffix), value) end
+		local function getSelectedClassResourceValue(suffix, fallback) return getClassResourceValueFor(getSelectedResourceID(), suffix, fallback) end
+		local function setSelectedClassResourceValue(suffix, value) setClassResourceValueFor(getSelectedResourceID(), suffix, value) end
 		local function defaultOffsetY()
-			local anchor = getValue(unit, { "classResource", "anchor" }, crDef.anchor or "TOP")
+			local anchor = getSelectedClassResourceValue({ "anchor" }, crDef.anchor or "TOP")
 			return anchor == "TOP" and -5 or 5
 		end
 
@@ -3673,12 +3758,35 @@ local function buildUnitSettings(unit)
 			refreshSelf()
 		end, crDef.enabled ~= false, "classResource")
 
+		local classResourceVisibility = multiDropdown(
+			L["UFClassResourceVisibleResources"] or L["ClassResource"],
+			getClassResourceOptions,
+			function(resourceID) return getClassResourceValueFor(resourceID, { "enabled" }, true) ~= false end,
+			function(resourceID, selected)
+				setClassResourceValueFor(resourceID, { "enabled" }, selected and true or false)
+				refreshSelf()
+				refreshSettingsUI()
+			end,
+			nil,
+			"classResource"
+		)
+		classResourceVisibility.isEnabled = isClassResourceEnabled
+		classResourceVisibility.isShown = function() return #getClassResourceOptions() > 0 end
+		list[#list + 1] = classResourceVisibility
+
+		local classResourceSelector = radioDropdown(L["UFClassResourceSelector"] or L["ClassResource"], getClassResourceOptions, function() return getSelectedResourceID() end, function(val)
+			if setSelectedResourceID(val) then refreshSettingsUI() end
+		end, nil, "classResource")
+		classResourceSelector.isEnabled = isClassResourceEnabled
+		classResourceSelector.isShown = function() return #getClassResourceOptions() > 1 end
+		list[#list + 1] = classResourceSelector
+
 		local classAnchorOpts = {
 			{ value = "TOP", label = L["Top"] or "Top" },
 			{ value = "BOTTOM", label = L["Bottom"] or "Bottom" },
 		}
-		local classAnchor = radioDropdown(L["Anchor"] or "Anchor", classAnchorOpts, function() return getValue(unit, { "classResource", "anchor" }, crDef.anchor or "TOP") end, function(val)
-			setValue(unit, { "classResource", "anchor" }, val or "TOP")
+		local classAnchor = radioDropdown(L["Anchor"] or "Anchor", classAnchorOpts, function() return getSelectedClassResourceValue({ "anchor" }, crDef.anchor or "TOP") end, function(val)
+			setSelectedClassResourceValue({ "anchor" }, val or "TOP")
 			refreshSelf()
 		end, crDef.anchor or "TOP", "classResource")
 		classAnchor.isEnabled = isClassResourceEnabled
@@ -3687,9 +3795,9 @@ local function buildUnitSettings(unit)
 		local classStrata = radioDropdown(
 			L["UFClassResourceStrata"] or "Class resource strata",
 			strataOptionsWithDefault,
-			function() return getValue(unit, { "classResource", "strata" }, crDef.strata or "") end,
+			function() return getSelectedClassResourceValue({ "strata" }, crDef.strata or "") end,
 			function(val)
-				setValue(unit, { "classResource", "strata" }, (val and val ~= "") and val or nil)
+				setSelectedClassResourceValue({ "strata" }, (val and val ~= "") and val or nil)
 				refreshSelf()
 			end,
 			crDef.strata or "",
@@ -3699,15 +3807,14 @@ local function buildUnitSettings(unit)
 		list[#list + 1] = classStrata
 
 		local classFrameLevelOffset = slider(L["UFClassResourceFrameLevelOffset"] or "Class resource frame level offset", 0, 50, 1, function()
-			local fallback = crDef.frameLevelOffset
+			local fallback = tonumber(getPathValue(crDef, { "frameLevelOffset" }))
 			if fallback == nil then fallback = 5 end
-			return math.max(0, getValue(unit, { "classResource", "frameLevelOffset" }, fallback))
+			return math.max(0, tonumber(getSelectedClassResourceValue({ "frameLevelOffset" }, fallback)) or fallback)
 		end, function(val)
 			local levelOffset = math.max(0, val or 0)
-			setValue(unit, { "classResource", "frameLevelOffset" }, levelOffset)
-			if UF and UF.ClassResourceUtil and UF.ClassResourceUtil.SetFrameLevelHookOffset then UF.ClassResourceUtil.SetFrameLevelHookOffset(levelOffset) end
+			setSelectedClassResourceValue({ "frameLevelOffset" }, levelOffset)
 			refreshSelf()
-		end, math.max(0, (crDef.frameLevelOffset == nil) and 5 or crDef.frameLevelOffset), "classResource", true)
+		end, math.max(0, tonumber(getPathValue(crDef, { "frameLevelOffset" })) or 5), "classResource", true)
 		classFrameLevelOffset.isEnabled = isClassResourceEnabled
 		list[#list + 1] = classFrameLevelOffset
 
@@ -3716,10 +3823,10 @@ local function buildUnitSettings(unit)
 			-OFFSET_RANGE,
 			OFFSET_RANGE,
 			1,
-			function() return getValue(unit, { "classResource", "offset", "x" }, (crDef.offset and crDef.offset.x) or 0) end,
+			function() return tonumber(getSelectedClassResourceValue({ "offset", "x" }, (crDef.offset and crDef.offset.x) or 0)) or 0 end,
 			function(val)
 				debounced(unit .. "_classResourceOffsetX", function()
-					setValue(unit, { "classResource", "offset", "x" }, val or 0)
+					setSelectedClassResourceValue({ "offset", "x" }, val or 0)
 					refreshSelf()
 				end)
 			end,
@@ -3735,10 +3842,10 @@ local function buildUnitSettings(unit)
 			-OFFSET_RANGE,
 			OFFSET_RANGE,
 			1,
-			function() return getValue(unit, { "classResource", "offset", "y" }, defaultOffsetY()) end,
+			function() return tonumber(getSelectedClassResourceValue({ "offset", "y" }, defaultOffsetY())) or defaultOffsetY() end,
 			function(val)
 				debounced(unit .. "_classResourceOffsetY", function()
-					setValue(unit, { "classResource", "offset", "y" }, val or 0)
+					setSelectedClassResourceValue({ "offset", "y" }, val or 0)
 					refreshSelf()
 				end)
 			end,
@@ -3755,16 +3862,14 @@ local function buildUnitSettings(unit)
 			2,
 			0.05,
 			function()
-				local v = getValue(unit, { "classResource", "scale" }, crDef.scale or 1)
+				local v = getSelectedClassResourceValue({ "scale" }, crDef.scale or 1)
 				return SnapToStep(v, 0.05, 0.5, 2) or 1
 			end,
 			function(val)
 				debounced(unit .. "_classResourceScale", function()
 					val = SnapToStep(val, 0.05, 0.5, 2) or 1
-					setValue(unit, { "classResource", "scale" }, val)
+					setSelectedClassResourceValue({ "scale" }, val)
 					refreshSelf()
-
-					-- DAS ist der Punkt: UI-Wert neu setzen
 					refreshSettingsUI()
 				end)
 			end,

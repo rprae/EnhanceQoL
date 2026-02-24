@@ -185,6 +185,27 @@ local function applyMissingEnchantOverlayStyle(texture)
 	if texture.SetGradientAlpha then texture:SetGradientAlpha("VERTICAL", r, g, b, topAlpha, r, g, b, bottomAlpha) end
 end
 
+local function normalizeItemDetailOutline(outline)
+	if outline == nil then return "OUTLINE" end
+	if outline == "" or outline == "NONE" then return nil end
+	return outline
+end
+
+local function applyEnchantTextStyle(fontString)
+	if not fontString or not fontString.SetFont then return end
+	local defaultFace = (addon.variables and addon.variables.defaultFont) or STANDARD_TEXT_FONT
+	local configuredFace = addon.db and addon.db["ilvlFontFace"]
+	local face = defaultFace
+	if addon.functions and addon.functions.ResolveFontFace then
+		face = addon.functions.ResolveFontFace(configuredFace, defaultFace) or defaultFace
+	elseif type(configuredFace) == "string" and configuredFace ~= "" then
+		face = configuredFace
+	end
+	local outline = normalizeItemDetailOutline(addon.db and addon.db["ilvlFontOutline"])
+	local ok = fontString:SetFont(face, 12, outline)
+	if ok == false then fontString:SetFont(defaultFace, 12, outline) end
+end
+
 local function CheckItemGems(element, itemLink, emptySocketsCount, key, pdElement, attempts)
 	attempts = attempts or 1 -- Anzahl der Versuche
 	if attempts > 10 then -- Abbruch nach 5 Versuchen, um Endlosschleifen zu vermeiden
@@ -505,8 +526,8 @@ local function onInspect(arg1)
 										applyMissingEnchantOverlayStyle(element.borderGradient)
 										element.borderGradient:Hide()
 									end
-									element.enchant:SetFont(addon.variables.defaultFont, 12, "OUTLINE")
 								end
+								applyEnchantTextStyle(element.enchant)
 								if element.borderGradient then
 									applyMissingEnchantOverlayStyle(element.borderGradient)
 									element.borderGradient:Hide()
@@ -704,6 +725,7 @@ local function setIlvlText(element, slot)
 				end
 
 				if CharOpt("enchants") and element.borderGradient then
+					applyEnchantTextStyle(element.enchant)
 					applyMissingEnchantOverlayStyle(element.borderGradient)
 					element.borderGradient:Hide()
 					local showMissingOverlay = addon.db["showMissingEnchantOverlayOnCharframe"] ~= false
@@ -1696,7 +1718,7 @@ function addon.functions.initItemInventory()
 		else
 			value.enchant:SetPoint("BOTTOMRIGHT", value, "BOTTOMLEFT", -2, 1)
 		end
-		value.enchant:SetFont(addon.variables.defaultFont, 12, "OUTLINE")
+		applyEnchantTextStyle(value.enchant)
 
 		value.gems = {}
 		for i = 1, 3 do

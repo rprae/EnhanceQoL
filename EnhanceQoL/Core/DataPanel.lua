@@ -1396,6 +1396,11 @@ function DataPanel.Create(id, name, existingOnly)
 				fontString:SetShadowOffset(0, 0)
 			end
 		end
+		-- Force an immediate redraw for style-only changes (font face/size/flags/shadow).
+		if fontString.GetText and fontString.SetText then
+			local currentText = fontString:GetText()
+			if currentText ~= nil then fontString:SetText(currentText) end
+		end
 	end
 
 	function panel:GetStreamFontScale() return normalizeStreamFontScale(self.info and self.info.streamFontScale, DEFAULT_STREAM_FONT_SCALE) end
